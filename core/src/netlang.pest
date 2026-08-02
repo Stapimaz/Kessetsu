@@ -1,0 +1,13 @@
+WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
+COMMENT = _{ "//" ~ (!"\n" ~ ANY)* }
+ident = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
+number_value = @{ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? ~ ASCII_ALPHA* }
+
+component = { "resistor" | "battery" | "capacitor" }
+decl = { component ~ ident ~ number_value }
+
+pin_ref = { ident ~ "." ~ ident }
+connect = { "connect" ~ pin_ref ~ pin_ref }
+
+statement = { decl | connect }
+program = { SOI ~ statement* ~ EOI }
