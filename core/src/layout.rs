@@ -272,7 +272,11 @@ pub fn generate_layout(program: &Program) -> LayoutResult {
     });
 
     // ---- Step 4: Place components on grid ----
-    let col_spacing = 8;    // Horizontal gap between chain columns
+    let col_spacing = match chains.len() {
+        0..=2 => 7,
+        3..=4 => 5,
+        _     => 4,
+    };
     let chain_start_y = 2;  // Leave room above for VCC rail
 
     // Battery: vertical on the far left
