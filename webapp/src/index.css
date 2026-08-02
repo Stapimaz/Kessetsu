@@ -1,12 +1,12 @@
 :root {
-  --bg-color: #0f172a;
-  --panel-bg: rgba(30, 41, 59, 0.7);
-  --border-color: rgba(56, 189, 248, 0.2);
-  --text-main: #f8fafc;
-  --text-muted: #94a3b8;
-  --accent: #38bdf8;
-  --error: #ef4444;
-  --success: #10b981;
+  --bg-color: #1e1e1e;
+  --panel-bg: #252526;
+  --border-color: #333333;
+  --text-main: #cccccc;
+  --text-muted: #808080;
+  --accent: #007acc;
+  --error: #f14c4c;
+  --success: #89d185;
 }
 
 body {
@@ -16,7 +16,6 @@ body {
   color: var(--text-main);
   font-family: 'Inter', system-ui, sans-serif;
   overflow: hidden;
-  background-image: radial-gradient(circle at 50% -20%, #1e293b, #0f172a 80%);
 }
 
 .app-container {
@@ -29,27 +28,23 @@ body {
 
 .panel {
   background: var(--panel-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border-color);
-  border-radius: 16px;
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
 .panel-header {
-  padding: 15px 20px;
+  padding: 10px 15px;
   border-bottom: 1px solid var(--border-color);
-  font-weight: 600;
-  font-size: 14px;
+  font-size: 13px;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
   display: flex;
   align-items: center;
   gap: 10px;
-  background: rgba(15, 23, 42, 0.5);
+  background: #1e1e1e;
+  color: var(--text-muted);
 }
 
 .left-panel {
@@ -93,7 +88,8 @@ body {
   gap: 8px;
 }
 .error-msg::before {
-  content: '✖';
+  content: '[ERROR]';
+  font-weight: bold;
 }
 
 .success-msg {
@@ -104,7 +100,8 @@ body {
   gap: 8px;
 }
 .success-msg::before {
-  content: '✔';
+  content: '[SUCCESS]';
+  font-weight: bold;
 }
 
 .compile-btn {

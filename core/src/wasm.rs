@@ -9,6 +9,7 @@ pub struct CompileResult {
     pub ast: Option<crate::ast::Program>,
     pub drc_errors: Vec<crate::drc::DrcError>,
     pub layout: Option<crate::layout::LayoutResult>,
+    pub kicad_sch: Option<String>,
     pub parse_error: Option<String>,
     pub spice_netlist: Option<String>,
 }
@@ -19,6 +20,7 @@ pub fn compile_netlang(input: &str) -> JsValue {
         ast: None,
         drc_errors: Vec::new(),
         layout: None,
+        kicad_sch: None,
         parse_error: None,
         spice_netlist: None,
     };
@@ -32,11 +34,12 @@ pub fn compile_netlang(input: &str) -> JsValue {
                     
                     if errors.is_empty() {
                         result.spice_netlist = Some(generate_spice(&flat_program, &graph));
+                        result.layout = Some(crate::layout::generate_layout(&flat_program));
+                        result.kicad_sch = Some(crate::kicad::generate_kicad_sch(result.layout.as_ref().unwrap()));
                     }
                     
                     result.ast = Some(flat_program.clone());
                     result.drc_errors = errors;
-                    result.layout = Some(crate::layout::generate_layout(&flat_program));
                 }
                 Err(err_msg) => {
                     result.parse_error = Some(err_msg);

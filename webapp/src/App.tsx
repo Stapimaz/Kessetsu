@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
-import { Play, Code2, CircuitBoard, Terminal as TerminalIcon } from 'lucide-react';
+import { Play, Code2, CircuitBoard, Terminal as TerminalIcon, Download } from 'lucide-react';
 import init, { compile_netlang } from 'netlang-core';
 
 const DEFAULT_CODE = `// NetLang Micro-DSL MVP (Rust/WASM Core)
@@ -37,8 +37,14 @@ function App() {
   const [success, setSuccess] = useState<boolean>(false);
   const [isWasmLoaded, setIsWasmLoaded] = useState(false);
   const [layout, setLayout] = useState<any>(null);
+  const [kicadSch, setKicadSch] = useState<string>('');
 
   const [spiceNetlist, setSpiceNetlist] = useState<string>('');
+
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     init().then(() => {
@@ -71,12 +77,14 @@ function App() {
           setErrors([]);
           setSuccess(true);
           setSpiceNetlist(result.spice_netlist || '');
+          setKicadSch(result.kicad_sch || '');
         }
       }
     } catch (e: any) {
       setErrors([{ message: `WASM Execution Error: ${e.message}`, type: 'error' }]);
       setSuccess(false);
       setSpiceNetlist('');
+      setKicadSch('');
       setLayout(null);
     }
   };
@@ -181,8 +189,41 @@ function App() {
       }
     };
 
+    const handleWheel = (e: React.WheelEvent) => {
+      // Prevent default scrolling handled by generic div wrapping, 
+      // but in React onWheel passive is an issue, so we just adjust zoom.
+      const zoomSensitivity = 0.002;
+      setZoom(z => Math.max(0.1, Math.min(5, z - e.deltaY * zoomSensitivity)));
+    };
+    const handleMouseDown = (e: React.MouseEvent) => {
+      setIsDragging(true);
+      setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+    };
+    const handleMouseMove = (e: React.MouseEvent) => {
+      if (isDragging) {
+        setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+      }
+    };
+    const handleMouseUp = () => setIsDragging(false);
+    const handleMouseLeave = () => setIsDragging(false);
+
     return (
-      <svg width="100%" height="500" style={{background: 'var(--bg-color)', borderRadius: '8px', border: '1px solid var(--border-color)'}}>
+      <svg 
+        width="100%" height="500" 
+        style={{
+          background: 'var(--bg-color)', 
+          borderRadius: '8px', 
+          border: '1px solid var(--border-color)',
+          cursor: isDragging ? 'grabbing' : 'grab',
+          userSelect: 'none'
+        }}
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
+      >
+        <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
         
         {/* Çizgiler (Bağlantılar) */}
         {layout.wires && layout.wires.map((wire: any, i: number) => {
@@ -209,15 +250,28 @@ function App() {
           ).map(([name, comp]: [string, any]) => {
           const cx = comp.x * SCALE + OFFSET_X;
           const cy = comp.y * SCALE + OFFSET_Y;
+          const rot = (comp.rotation || 0) * 90;
           return (
           <g key={name} transform={`translate(${cx}, ${cy})`}>
-            {renderSymbol(comp.comp_type)}
+            <g transform={`rotate(${rot})`}>
+              {renderSymbol(comp.comp_type)}
+            </g>
             
-            {/* Etiketler */}
-            <text x="40" y="-15" fill="#f8fafc" fontSize="14" fontWeight="bold" textAnchor="middle">{name}</text>
+            {/* Etiketler (Her zaman düz durur) */}
+            <text 
+              x={
+                comp.rotation === 1 ? (-comp.height * SCALE) / 2 :
+                comp.rotation === 2 ? (-comp.width * SCALE) / 2 :
+                comp.rotation === 3 ? (comp.height * SCALE) / 2 :
+                (comp.width * SCALE) / 2
+              } 
+              y="-15" fill="#cccccc" fontSize="14" fontWeight="bold" textAnchor="middle">
+              {name}
+            </text>
           </g>
           );
         })}
+        </g>
       </svg>
     );
   };
@@ -227,10 +281,10 @@ function App() {
       <div className="panel left-panel">
         <div className="panel-header">
           <Code2 size={18} color="var(--accent)" />
-          <span>NetLang Editor (Rust Core)</span>
+          <span>NetLang Editor</span>
           <button className="compile-btn" onClick={compileCode} disabled={!isWasmLoaded}>
             <Play size={14} style={{ display: 'inline', marginRight: 5, verticalAlign: 'middle' }} /> 
-            {isWasmLoaded ? 'Derle & DRC' : 'WASM Yükleniyor...'}
+            {isWasmLoaded ? 'Derle & DRC' : 'WASM...'}
           </button>
         </div>
         <div className="editor-container">
@@ -245,9 +299,45 @@ function App() {
         </div>
       </div>
       <div className="panel right-panel">
-        <div className="panel-header">
-          <CircuitBoard size={18} color="var(--success)" />
-          <span>Live Schematic Render (WASM)</span>
+        <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <CircuitBoard size={18} color="var(--success)" />
+            <span>Live Schematic Render</span>
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button 
+              className="compile-btn" 
+              style={{ background: '#333', color: '#ccc', padding: '4px 10px', fontSize: '12px' }}
+              onClick={() => {
+                if(kicadSch) {
+                  const blob = new Blob([kicadSch], { type: 'text/plain' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'circuit.kicad_sch';
+                  a.click();
+                }
+              }}>
+              <Download size={14} style={{ display: 'inline', marginRight: 5, verticalAlign: 'middle' }} /> 
+              KiCad
+            </button>
+            <button 
+              className="compile-btn" 
+              style={{ background: '#333', color: '#ccc', padding: '4px 10px', fontSize: '12px' }}
+              onClick={() => {
+                if(spiceNetlist) {
+                  const blob = new Blob([spiceNetlist], { type: 'text/plain' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'circuit.spice';
+                  a.click();
+                }
+              }}>
+              <Download size={14} style={{ display: 'inline', marginRight: 5, verticalAlign: 'middle' }} /> 
+              SPICE
+            </button>
+          </div>
         </div>
         <div className="canvas-container" style={{ flex: 2 }}>
           {renderCircuit()}

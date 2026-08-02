@@ -1,0 +1,13 @@
+* NetLang Generated SPICE Netlist
+V_V1 1 0 10V
+R_R1 1 2 10k
+R_R2 2 0 20k
+R_R3 1 3 10k
+R_R4 3 0 10k
+R_Rx 2 3 5k
+
+.control
+op 
+print all
+quit
+.endc

@@ -8,6 +8,7 @@ pub mod graph;
 pub mod drc;
 pub mod wasm;
 pub mod layout;
+pub mod kicad;
 
 pub use parser::parse_program;
 

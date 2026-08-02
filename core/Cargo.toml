@@ -6,6 +6,10 @@ edition = "2024"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[[bin]]
+name = "bin"
+path = "src/bin.rs"
+
 [dependencies]
 pest = "2.7"
 pest_derive = "2.7"
