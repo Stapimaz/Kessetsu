@@ -1,13 +1,21 @@
 WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
 COMMENT = _{ "//" ~ (!"\n" ~ ANY)* }
 ident = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
-number_value = @{ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? ~ ASCII_ALPHA* }
+comp_value = @{ (ASCII_ALPHANUMERIC | "." | "-" | "_")+ }
 
-component = { "resistor" | "battery" | "capacitor" }
-decl = { component ~ ident ~ number_value }
+comp_type = { "resistor" | "battery" | "capacitor" | "inductor" | "diode" | "transistor" | "mosfet" | "opamp" }
+decl = { comp_type ~ ident ~ comp_value? }
+use_stmt = { "use" ~ ident ~ ident }
 
-pin_ref = { ident ~ "." ~ ident }
+pin_ref = { ident ~ ("." ~ ident)? }
 connect = { "connect" ~ pin_ref ~ pin_ref }
 
-statement = { decl | connect }
-program = { SOI ~ statement* ~ EOI }
+sim_cmd = { "simulate" ~ ident ~ comp_value* }
+
+statement = { decl | use_stmt | connect | sim_cmd }
+
+pin_list = { ident ~ ("," ~ ident)* }
+module_decl = { "module" ~ ident ~ "(" ~ pin_list? ~ ")" ~ "{" ~ statement* ~ "}" }
+
+top_level = { module_decl | statement }
+program = { SOI ~ top_level* ~ EOI }

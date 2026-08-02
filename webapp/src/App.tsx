@@ -4,22 +4,41 @@ import { Play, Code2, CircuitBoard, Terminal as TerminalIcon } from 'lucide-reac
 import init, { compile_netlang } from 'netlang-core';
 
 const DEFAULT_CODE = `// NetLang Micro-DSL MVP (Rust/WASM Core)
-resistor R1 10k
-battery B1 9V
-capacitor C1 10uF
 
-// Bilerek hatalı bağlantı yapmayı deneyin (Örn: R2.p1 yazın)
-connect B1.plus R1.p1
-connect R1.p2 C1.p1
-connect C1.p2 B1.minus
+module VoltageDivider(in, out, gnd) {
+    resistor R1 10k
+    resistor R2 20k
+    
+    connect in R1.p1
+    connect R1.p2 out
+    connect R1.p2 R2.p1
+    connect R2.p2 gnd
+}
+
+battery B1 9V
+use VoltageDivider myDiv
+transistor Q1 NPN
+resistor R3 1k
+
+// Devre bağlantıları
+connect B1.plus myDiv.in
+connect B1.minus myDiv.gnd
+
+// Gerilim bölücüden çıkan voltajı transistörün Base (B) ucuna ver
+connect myDiv.out Q1.b
+connect B1.plus R3.p1
+connect R3.p2 Q1.c
+connect Q1.e B1.minus
 `;
 
 function App() {
   const [code, setCode] = useState(DEFAULT_CODE);
-  const [program, setProgram] = useState<any>(null);
   const [errors, setErrors] = useState<any[]>([]);
   const [success, setSuccess] = useState<boolean>(false);
   const [isWasmLoaded, setIsWasmLoaded] = useState(false);
+  const [layout, setLayout] = useState<any>(null);
+
+  const [spiceNetlist, setSpiceNetlist] = useState<string>('');
 
   useEffect(() => {
     init().then(() => {
@@ -36,21 +55,29 @@ function App() {
       if (result.parse_error) {
         setErrors([{ message: `Syntax Error: ${result.parse_error}`, type: 'error' }]);
         setSuccess(false);
+        setSpiceNetlist('');
+        setLayout(null);
       } else {
         const drcErrors = result.drc_errors || [];
-        setProgram(result.ast);
+        if (result.layout) {
+           setLayout(result.layout);
+        }
         
         if (drcErrors.length > 0) {
           setErrors(drcErrors.map((e: any) => ({ message: e.message, type: 'error' })));
           setSuccess(false);
+          setSpiceNetlist('');
         } else {
           setErrors([]);
           setSuccess(true);
+          setSpiceNetlist(result.spice_netlist || '');
         }
       }
     } catch (e: any) {
       setErrors([{ message: `WASM Execution Error: ${e.message}`, type: 'error' }]);
       setSuccess(false);
+      setSpiceNetlist('');
+      setLayout(null);
     }
   };
 
@@ -58,61 +85,139 @@ function App() {
     compileCode();
   }, [code, isWasmLoaded]);
 
-  // MVP Simple Renderer inside component for simplicity
+  // Schematic Renderer using Rust Auto-Layout
   const renderCircuit = () => {
-    if (!program || !program.statements) return <div style={{color: '#94a3b8'}}>Henüz devreniz yok... Kod yazmaya başlayın.</div>;
+    if (!layout || !layout.components) return <div style={{color: '#94a3b8'}}>Şema hesaplanıyor...</div>;
     
-    let x = 50;
-    const components = program.statements
-      .filter((s: any) => s.Decl)
-      .map((s: any) => {
-        const decl = s.Decl;
-        const comp = {
-          id: decl.name,
-          type: decl.comp_type,
-          value: decl.value,
-          x: x,
-          y: 100,
-        };
-        x += 150; 
-        return comp;
-      });
+    const SCALE = 40; // 1 Grid Unit = 40px
+    const OFFSET_X = 80;
+    const OFFSET_Y = 100;
 
-    const getCompPos = (name: string) => components.find((c: any) => c.id === name);
-
-    const connections = program.statements
-      .filter((s: any) => s.Connect)
-      .map((s: any, index: number) => {
-        const conn = s.Connect;
-        const c1 = getCompPos(conn.pin1.component);
-        const c2 = getCompPos(conn.pin2.component);
-        if (!c1 || !c2) return null;
-
-        return (
-          <line
-            key={`net-${index}`}
-            x1={c1.x + 25}
-            y1={c1.y + 25}
-            x2={c2.x + 25}
-            y2={c2.y + 25}
-            stroke="#4ade80"
-            strokeWidth="3"
-          />
-        );
-      });
+    const renderSymbol = (type: string) => {
+      switch(type) {
+        case 'Resistor':
+          return (
+            <g>
+              <line x1="0" y1="0" x2="15" y2="0" stroke="var(--accent)" strokeWidth="2" />
+              <polyline points="15,0 20,-10 30,10 40,-10 50,10 60,-10 65,0" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="bevel" />
+              <line x1="65" y1="0" x2="80" y2="0" stroke="var(--accent)" strokeWidth="2" />
+            </g>
+          );
+        case 'Battery':
+          return (
+            <g>
+              <line x1="0" y1="0" x2="35" y2="0" stroke="var(--accent)" strokeWidth="2" />
+              <line x1="35" y1="-15" x2="35" y2="15" stroke="var(--accent)" strokeWidth="3" />
+              <line x1="45" y1="-20" x2="45" y2="20" stroke="var(--accent)" strokeWidth="4" />
+              <line x1="45" y1="0" x2="80" y2="0" stroke="var(--accent)" strokeWidth="2" />
+              <text x="25" y="-15" fill="var(--accent)" fontSize="12">+</text>
+            </g>
+          );
+        case 'Inductor':
+          return (
+            <g>
+              <path d="M 0 0 C 15 -20 25 -20 20 0 C 35 -20 45 -20 40 0 C 55 -20 65 -20 60 0 C 75 -20 80 -20 80 0" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" />
+            </g>
+          );
+        case 'Diode':
+          return (
+            <g>
+              <line x1="0" y1="0" x2="30" y2="0" stroke="var(--accent)" strokeWidth="2" />
+              <polygon points="30,-10 50,0 30,10" fill="none" stroke="var(--accent)" strokeWidth="2" />
+              <line x1="50" y1="-10" x2="50" y2="10" stroke="var(--accent)" strokeWidth="2" />
+              <line x1="50" y1="0" x2="80" y2="0" stroke="var(--accent)" strokeWidth="2" />
+            </g>
+          );
+        case 'Transistor':
+          return (
+            <g>
+              {/* Base */}
+              <line x1="0" y1="40" x2="30" y2="40" stroke="var(--accent)" strokeWidth="2" />
+              <line x1="30" y1="20" x2="30" y2="60" stroke="var(--accent)" strokeWidth="3" />
+              {/* Collector */}
+              <line x1="30" y1="30" x2="80" y2="0" stroke="var(--accent)" strokeWidth="2" />
+              {/* Emitter */}
+              <line x1="30" y1="50" x2="80" y2="80" stroke="var(--accent)" strokeWidth="2" />
+              <polygon points="65,71 80,80 71,65" fill="var(--accent)" />
+              <circle cx="50" cy="40" r="35" fill="none" stroke="var(--accent)" strokeWidth="1" strokeDasharray="2" />
+            </g>
+          );
+        case 'Mosfet':
+          return (
+            <g>
+              <line x1="0" y1="40" x2="25" y2="40" stroke="var(--accent)" strokeWidth="2" />
+              <line x1="25" y1="20" x2="25" y2="60" stroke="var(--accent)" strokeWidth="3" />
+              <line x1="35" y1="10" x2="35" y2="30" stroke="var(--accent)" strokeWidth="2" />
+              <line x1="35" y1="35" x2="35" y2="45" stroke="var(--accent)" strokeWidth="2" />
+              <line x1="35" y1="50" x2="35" y2="70" stroke="var(--accent)" strokeWidth="2" />
+            </g>
+          );
+        case 'OpAmp':
+          return (
+            <g>
+              <polygon points="0,-10 0,90 120,40" fill="var(--panel-bg)" stroke="var(--accent)" strokeWidth="2" />
+              <text x="15" y="10" fill="var(--accent)" fontSize="14">+</text>
+              <text x="15" y="70" fill="var(--accent)" fontSize="14">-</text>
+            </g>
+          );
+        case 'Capacitor':
+          return (
+            <g>
+              <line x1="0" y1="0" x2="35" y2="0" stroke="var(--accent)" strokeWidth="2" />
+              <line x1="35" y1="-15" x2="35" y2="15" stroke="var(--accent)" strokeWidth="2" />
+              <line x1="45" y1="-15" x2="45" y2="15" stroke="var(--accent)" strokeWidth="2" />
+              <line x1="45" y1="0" x2="80" y2="0" stroke="var(--accent)" strokeWidth="2" />
+            </g>
+          );
+        case 'ModulePort':
+          return (
+            <g>
+              <circle cx="40" cy="0" r="10" fill="var(--panel-bg)" stroke="#a855f7" strokeWidth="2" />
+              <circle cx="40" cy="0" r="4" fill="#a855f7" />
+            </g>
+          );
+        default:
+          return <rect width="40" height="40" fill="none" stroke="var(--accent)" strokeWidth="2" />;
+      }
+    };
 
     return (
-      <svg width="100%" height="100%">
-        {connections}
-        {components.map((c: any) => (
-          <g key={c.id} transform={`translate(${c.x}, ${c.y})`}>
-            <rect width="50" height="50" fill="#1e293b" stroke="#38bdf8" strokeWidth="2" rx="5" />
-            <text x="25" y="20" fill="white" fontSize="12" textAnchor="middle">{c.id}</text>
-            <text x="25" y="35" fill="#94a3b8" fontSize="10" textAnchor="middle">{c.value}</text>
-            {c.type === 'Resistor' && <text x="25" y="-5" fill="#38bdf8" fontSize="16" textAnchor="middle">〰</text>}
-            {c.type === 'Battery' && <text x="25" y="-5" fill="#f87171" fontSize="16" textAnchor="middle">🔋</text>}
+      <svg width="100%" height="500" style={{background: 'var(--bg-color)', borderRadius: '8px', border: '1px solid var(--border-color)'}}>
+        
+        {/* Çizgiler (Bağlantılar) */}
+        {layout.wires && layout.wires.map((wire: any, i: number) => {
+          let pts = "";
+          wire.points.forEach((p: any) => {
+            pts += `${p[0] * SCALE + OFFSET_X},${p[1] * SCALE + OFFSET_Y} `;
+          });
+          return (
+            <polyline 
+              key={`wire-${i}`} 
+              points={pts.trim()} 
+              fill="none"
+              stroke="#38bdf8" 
+              strokeWidth="2" 
+              opacity="0.8"
+            />
+          );
+        })}
+
+        {/* Bileşenler */}
+        {layout.components && (layout.components instanceof Map 
+            ? Array.from(layout.components.entries()) 
+            : Object.entries(layout.components)
+          ).map(([name, comp]: [string, any]) => {
+          const cx = comp.x * SCALE + OFFSET_X;
+          const cy = comp.y * SCALE + OFFSET_Y;
+          return (
+          <g key={name} transform={`translate(${cx}, ${cy})`}>
+            {renderSymbol(comp.comp_type)}
+            
+            {/* Etiketler */}
+            <text x="40" y="-15" fill="#f8fafc" fontSize="14" fontWeight="bold" textAnchor="middle">{name}</text>
           </g>
-        ))}
+          );
+        })}
       </svg>
     );
   };
@@ -144,14 +249,27 @@ function App() {
           <CircuitBoard size={18} color="var(--success)" />
           <span>Live Schematic Render (WASM)</span>
         </div>
-        <div className="canvas-container">
+        <div className="canvas-container" style={{ flex: 2 }}>
           {renderCircuit()}
         </div>
+        
+        <div className="panel-header" style={{ borderTop: '1px solid var(--border-color)', borderBottom: 'none' }}>
+          <Code2 size={18} color="#f59e0b" />
+          <span>Generated SPICE Netlist</span>
+        </div>
+        <div className="terminal-container" style={{ height: '120px', color: '#f59e0b', background: '#1e293b' }}>
+          {spiceNetlist ? (
+            <pre style={{ margin: 0 }}>{spiceNetlist}</pre>
+          ) : (
+            <div style={{ color: 'var(--text-muted)' }}>DRC hataları giderildiğinde SPICE netlist üretilecektir...</div>
+          )}
+        </div>
+
         <div className="panel-header" style={{ borderTop: '1px solid var(--border-color)', borderBottom: 'none' }}>
           <TerminalIcon size={18} color="var(--text-muted)" />
           <span>DRC Terminal (Self-Healing Log)</span>
         </div>
-        <div className="terminal-container">
+        <div className="terminal-container" style={{ height: '120px' }}>
           {success && <div className="success-msg">DRC Başarılı: Şema güncellendi, 0 Hata. (Rust & WASM Engine)</div>}
           {errors.map((e, idx) => (
             <div key={idx} className={e.type === 'error' ? 'error-msg' : ''}>
