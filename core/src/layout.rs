@@ -118,6 +118,16 @@ fn get_through_pin(comp_type: &str, entry_pin: &str) -> String {
     }
 }
 
+/// Returns true if the pin is a "signal/control" pin (not on the main current path).
+/// Transistor: b is signal. MOSFET: g is signal. All other pins are through-path.
+fn is_signal_pin(comp_type: &str, pin: &str) -> bool {
+    match comp_type {
+        "Transistor" => pin == "b",
+        "Mosfet" => pin == "g",
+        _ => false,
+    }
+}
+
 // ============================================================
 // V5: Chain-Based Schematic Layout Engine
 // ============================================================
@@ -185,7 +195,8 @@ pub fn generate_layout(program: &Program) -> LayoutResult {
     }
 
     // ---- Step 2: Find chains (VCC → comp → comp → ... → GND) ----
-    let mut chains: Vec<Vec<String>> = Vec::new();
+    // Each chain element is (component_name, entry_pin) for orientation awareness
+    let mut chains: Vec<Vec<(String, String)>> = Vec::new();
     let mut used: HashSet<String> = HashSet::new();
 
     // Battery is placed separately, not part of any chain
@@ -195,17 +206,46 @@ pub fn generate_layout(program: &Program) -> LayoutResult {
 
     if let Some(vcc) = vcc_net {
         if let Some(vcc_pins) = nets_map.get(&vcc) {
-            // Collect VCC entry points (sorted for deterministic output)
+            // Collect VCC entry points
             let mut vcc_entries: Vec<(String, String)> = vcc_pins.iter()
                 .filter(|(c, _)| components.contains_key(c) && !used.contains(c))
                 .cloned()
                 .collect();
-            vcc_entries.sort();
+            // Sort VCC entries: prefer those whose exit net has through-path
+            // downstream (e.g., collector connections) over signal-only (e.g., base)
+            vcc_entries.sort_by(|a, b| {
+                let a_through = {
+                    let ct = &components[&a.0].comp_type;
+                    let exit = get_through_pin(ct, &a.1);
+                    let enet = graph.get_net(&a.0, &exit);
+                    if enet == 9999 { false }
+                    else if let Some(np) = nets_map.get(&enet) {
+                        np.iter().any(|(nc, npin)| {
+                            nc != &a.0 && components.contains_key(nc)
+                            && !is_signal_pin(&components[nc].comp_type, npin)
+                        })
+                    } else { false }
+                };
+                let b_through = {
+                    let ct = &components[&b.0].comp_type;
+                    let exit = get_through_pin(ct, &b.1);
+                    let enet = graph.get_net(&b.0, &exit);
+                    if enet == 9999 { false }
+                    else if let Some(np) = nets_map.get(&enet) {
+                        np.iter().any(|(nc, npin)| {
+                            nc != &b.0 && components.contains_key(nc)
+                            && !is_signal_pin(&components[nc].comp_type, npin)
+                        })
+                    } else { false }
+                };
+                // through-path first (true > false, so reverse)
+                b_through.cmp(&a_through).then(a.0.cmp(&b.0))
+            });
 
             for (start_comp, start_pin) in &vcc_entries {
                 if used.contains(start_comp) { continue; }
 
-                let mut chain = Vec::new();
+                let mut chain: Vec<(String, String)> = Vec::new();
                 let mut current = start_comp.clone();
                 let mut entry_pin = start_pin.clone();
 
@@ -213,7 +253,7 @@ pub fn generate_layout(program: &Program) -> LayoutResult {
                 loop {
                     if used.contains(&current) { break; }
                     used.insert(current.clone());
-                    chain.push(current.clone());
+                    chain.push((current.clone(), entry_pin.clone()));
 
                     let comp_type = components[&current].comp_type.clone();
                     let exit_pin = get_through_pin(&comp_type, &entry_pin);
@@ -223,6 +263,7 @@ pub fn generate_layout(program: &Program) -> LayoutResult {
                     if exit_net == 9999 { break; }          // Floating — chain ends
 
                     // Find next unvisited component on the exit net
+                    // Prefer through-path pin entries (c, e, p1, p2) over signal (b, g)
                     let mut found_next = false;
                     if let Some(net_pins) = nets_map.get(&exit_net) {
                         let mut candidates: Vec<&(String, String)> = net_pins.iter()
@@ -230,7 +271,11 @@ pub fn generate_layout(program: &Program) -> LayoutResult {
                                 nc != &current && !used.contains(nc) && components.contains_key(nc)
                             })
                             .collect();
-                        candidates.sort_by(|a, b| a.0.cmp(&b.0));
+                        candidates.sort_by(|a, b| {
+                            let a_sig = is_signal_pin(&components[&a.0].comp_type, &a.1);
+                            let b_sig = is_signal_pin(&components[&b.0].comp_type, &b.1);
+                            a_sig.cmp(&b_sig).then(a.0.cmp(&b.0))
+                        });
 
                         if let Some((nc, np)) = candidates.first() {
                             current = (*nc).clone();
@@ -250,20 +295,45 @@ pub fn generate_layout(program: &Program) -> LayoutResult {
     }
 
     // Remaining unplaced components → singleton chains
+    // Determine entry_pin based on VCC/GND connections for correct orientation
     let mut remaining: Vec<String> = components.keys()
         .filter(|n| !used.contains(*n))
         .cloned()
         .collect();
     remaining.sort();
     for name in remaining {
-        chains.push(vec![name.clone()]);
+        let comp_type = components[&name].comp_type.clone();
+        let pins: Vec<&str> = match comp_type.as_str() {
+            "Transistor" => vec!["c", "b", "e"],
+            "Mosfet" => vec!["d", "g", "s"],
+            "Battery" => vec!["plus", "minus"],
+            _ => vec!["p1", "p2"],
+        };
+        // Find if any pin is on GND → that pin should be at bottom → entry = other pin
+        let mut entry = pins[0].to_string();
+        for &p in &pins {
+            let net = graph.get_net(&name, p);
+            if Some(net) == gnd_net {
+                entry = get_through_pin(&comp_type, p);
+                break;
+            }
+        }
+        // Also check: if a pin is on VCC → that pin is the entry (should be at top)
+        for &p in &pins {
+            let net = graph.get_net(&name, p);
+            if Some(net) == vcc_net {
+                entry = p.to_string();
+                break;
+            }
+        }
+        chains.push(vec![(name.clone(), entry)]);
         used.insert(name);
     }
 
     // ---- Step 3: Sort chains (passive left, active right) ----
     // Signal flows left → right: bias/divider networks first, transistors last
     chains.sort_by_key(|chain| {
-        let has_active = chain.iter().any(|c| {
+        let has_active = chain.iter().any(|(c, _)| {
             components.get(c).map_or(false, |p| {
                 p.comp_type == "Transistor" || p.comp_type == "Mosfet"
             })
@@ -293,7 +363,7 @@ pub fn generate_layout(program: &Program) -> LayoutResult {
         let axis_x = (chain_idx as i32 + 1) * col_spacing;
         let mut current_y = chain_start_y;
 
-        for comp_name in chain {
+        for (comp_name, entry_pin) in chain {
             let pos = components.get_mut(comp_name).unwrap();
 
             if pos.comp_type == "Transistor" || pos.comp_type == "Mosfet" {
@@ -303,10 +373,17 @@ pub fn generate_layout(program: &Program) -> LayoutResult {
                 pos.y = current_y;
                 pos.rotation = 0;
             } else {
-                // 2-pin vertical: through-pins at relative (0,0) and (0,2)
+                // 2-pin vertical placement with orientation awareness:
+                // entry_pin should be at TOP (VCC side), exit at BOTTOM (GND side)
+                // rotation=1: p1 at top, p2 at bottom
+                // rotation=3: p2 at top, p1 at bottom
                 pos.x = axis_x;
                 pos.y = current_y;
-                pos.rotation = 1; // Vertical
+                if entry_pin == "p2" || entry_pin == "minus" {
+                    pos.rotation = 3; // flip: entry pin (p2) at top
+                } else {
+                    pos.rotation = 1; // normal: entry pin (p1/plus) at top
+                }
             }
 
             current_y += 3; // Pin span (2) + gap (1)
