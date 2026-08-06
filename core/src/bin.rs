@@ -4,6 +4,7 @@ use std::process::Command;
 use std::path::PathBuf;
 use netlang_core::parser::parse_program;
 use netlang_core::graph::{NetlistGraph, generate_spice};
+use netlang_core::drc::check_rules;
 use netlang_core::layout::*; // for future layout usage if needed
 
 fn main() {
@@ -23,6 +24,16 @@ fn main() {
     let program = parse_program(&code).expect("Syntax error in NetLang code");
     let flat_program = program.flatten().expect("Failed to flatten modules");
     let graph = NetlistGraph::build(&flat_program);
+    
+    let drc_errors = check_rules(&flat_program, &graph);
+    if !drc_errors.is_empty() {
+        eprintln!("=== DRC Errors ===");
+        for err in drc_errors {
+            eprintln!("- {}", err.message);
+        }
+        std::process::exit(1);
+    }
+    
     let spice_code = generate_spice(&flat_program, &graph);
 
     let temp_cir = "temp.cir";

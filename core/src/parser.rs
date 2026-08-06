@@ -76,7 +76,7 @@ fn parse_statement(statement_pair: pest::iterators::Pair<Rule>) -> Option<Statem
             let comp_str = inner_rules.next().unwrap().as_str();
             let comp_type = match comp_str {
                 "resistor" => ComponentType::Resistor,
-                "source" => ComponentType::Source,
+                "source" | "battery" => ComponentType::Source,
                 "capacitor" => ComponentType::Capacitor,
                 "inductor" => ComponentType::Inductor,
                 "diode" => ComponentType::Diode,

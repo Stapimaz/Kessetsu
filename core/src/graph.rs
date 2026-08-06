@@ -219,10 +219,29 @@ pub fn generate_spice(program: &Program, graph: &NetlistGraph) -> String {
         }
     }
     
+    // Inject 1G dummy resistors for floating/NC nodes to prevent SPICE singular matrix crashes
+    let mut dummy_count = 0;
+    let mut net_counts: HashMap<usize, usize> = HashMap::new();
+    let mut nc_nets: HashSet<usize> = HashSet::new();
+    
+    for (pin, net) in &graph.pin_to_net {
+        *net_counts.entry(*net).or_insert(0) += 1;
+        if pin.starts_with("nc.") || pin == "nc" {
+            nc_nets.insert(*net);
+        }
+    }
+    
+    for (net, count) in net_counts {
+        if net != 0 && (count == 1 || nc_nets.contains(&net)) {
+            let net_name = graph.get_net_name(net);
+            spice.push_str(&format!("R_dummy_{} {} 0 1G\n", dummy_count, net_name));
+            dummy_count += 1;
+        }
+    }
+
     if has_sim {
         control_block.push_str("print all\nquit\n.endc\n");
         spice.push_str(&control_block);
     }
-
     spice
 }

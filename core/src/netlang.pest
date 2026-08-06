@@ -3,7 +3,7 @@ COMMENT = _{ "//" ~ (!"\n" ~ ANY)* }
 ident = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 comp_value = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" | (ASCII_ALPHANUMERIC | "." | "-" | "_")+ }
 
-comp_type = { "resistor" | "source" | "capacitor" | "inductor" | "diode" | "transistor" | "mosfet" | "opamp" }
+comp_type = { "resistor" | "source" | "battery" | "capacitor" | "inductor" | "diode" | "transistor" | "mosfet" | "opamp" }
 decl = { comp_type ~ ident ~ comp_value? }
 use_stmt = { "use" ~ ident ~ ident }
 

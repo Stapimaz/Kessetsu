@@ -26,12 +26,12 @@ pub fn check_rules(program: &Program, graph: &NetlistGraph) -> Vec<DrcError> {
     // 2. Undefined component check
     for stmt in &program.statements {
         if let Statement::Connect(conn) = stmt {
-            if !declared.contains(&conn.pin1.component) {
+            if conn.pin1.component != "" && !declared.contains(&conn.pin1.component) {
                 errors.push(DrcError {
                     message: format!("Connection refers to undeclared component: {}", conn.pin1.component),
                 });
             }
-            if !declared.contains(&conn.pin2.component) {
+            if conn.pin2.component != "" && !declared.contains(&conn.pin2.component) {
                 errors.push(DrcError {
                     message: format!("Connection refers to undeclared component: {}", conn.pin2.component),
                 });
