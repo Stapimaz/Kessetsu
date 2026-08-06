@@ -47,7 +47,7 @@ pub fn check_rules(program: &Program, graph: &NetlistGraph) -> Vec<DrcError> {
             }
             
             let pins: Vec<&str> = match decl.comp_type {
-                ComponentType::Battery => vec!["plus", "minus"],
+                ComponentType::Source => vec!["plus", "minus"],
                 ComponentType::Transistor => vec!["c", "b", "e"],
                 ComponentType::Mosfet => vec!["d", "g", "s"],
                 ComponentType::OpAmp => vec!["in_p", "in_n", "out", "vcc", "vee"],
@@ -68,13 +68,13 @@ pub fn check_rules(program: &Program, graph: &NetlistGraph) -> Vec<DrcError> {
     // 4. Short Circuit Check (Direct short across a power source)
     for stmt in &program.statements {
         if let Statement::Decl(decl) = stmt {
-            if decl.comp_type == ComponentType::Battery {
+            if decl.comp_type == ComponentType::Source {
                 let net1 = graph.get_net(&decl.name, "plus");
                 let net2 = graph.get_net(&decl.name, "minus");
                 
                 if net1 != 9999 && net2 != 9999 && net1 == net2 {
                     errors.push(DrcError {
-                        message: format!("CRITICAL SHORT CIRCUIT: Battery {} plus and minus are connected together!", decl.name),
+                        message: format!("CRITICAL SHORT CIRCUIT: Source {} plus and minus are connected together!", decl.name),
                     });
                 }
             }

@@ -40,7 +40,7 @@ fn get_comp_def(comp_type: &ComponentType) -> ComponentDef {
             pins.insert("p2".to_string(), (2, 0));
             ComponentDef { width: 2, height: 1, pins }
         }
-        ComponentType::Battery => {
+        ComponentType::Source => {
             pins.insert("plus".to_string(), (0, 0));
             pins.insert("minus".to_string(), (2, 0));
             ComponentDef { width: 2, height: 1, pins }

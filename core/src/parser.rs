@@ -76,7 +76,7 @@ fn parse_statement(statement_pair: pest::iterators::Pair<Rule>) -> Option<Statem
             let comp_str = inner_rules.next().unwrap().as_str();
             let comp_type = match comp_str {
                 "resistor" => ComponentType::Resistor,
-                "battery" => ComponentType::Battery,
+                "source" => ComponentType::Source,
                 "capacitor" => ComponentType::Capacitor,
                 "inductor" => ComponentType::Inductor,
                 "diode" => ComponentType::Diode,
@@ -86,11 +86,15 @@ fn parse_statement(statement_pair: pest::iterators::Pair<Rule>) -> Option<Statem
                 _ => unreachable!(),
             };
             let name = inner_rules.next().unwrap().as_str().to_string();
-            let value = if let Some(val_node) = inner_rules.next() {
+            let mut value = if let Some(val_node) = inner_rules.next() {
                 val_node.as_str().to_string()
             } else {
                 "".to_string()
             };
+            
+            if value.starts_with('"') && value.ends_with('"') {
+                value = value[1..value.len()-1].to_string();
+            }
             
             Some(Statement::Decl(ComponentDecl {
                 comp_type,
@@ -133,7 +137,11 @@ fn parse_statement(statement_pair: pest::iterators::Pair<Rule>) -> Option<Statem
             let cmd = inner_rules.next().unwrap().as_str().to_string();
             let mut args = Vec::new();
             for arg in inner_rules {
-                args.push(arg.as_str().to_string());
+                let mut arg_val = arg.as_str().to_string();
+                if arg_val.starts_with('"') && arg_val.ends_with('"') {
+                    arg_val = arg_val[1..arg_val.len()-1].to_string();
+                }
+                args.push(arg_val);
             }
             Some(Statement::Simulate(SimulateStmt { cmd, args }))
         }

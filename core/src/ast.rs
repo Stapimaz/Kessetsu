@@ -3,7 +3,7 @@ use serde::{Serialize, Deserialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ComponentType {
     Resistor,
-    Battery,
+    Source,
     Capacitor,
     Inductor,
     Diode,
