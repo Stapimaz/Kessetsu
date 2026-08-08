@@ -471,7 +471,7 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 - [x] WASM package build'ini npm/kök build akışına bağla.
 - [x] WASM result için `any` yerine TypeScript interface/generated type kullan.
 - [x] React hook lint uyarısını düzelt.
-- [ ] Kullanılmayan Vite template CSS ve asset'lerini temizle. _(`App.css`, React/Vite SVG'leri ve kullanılmayan public icon seti kaldırıldı; kullanılmayan binary `src/assets/hero.png` halen açık.)_
+- [x] Kullanılmayan Vite template CSS ve asset'lerini temizle. _(`App.css`, template hero/React/Vite görselleri ve kullanılmayan public icon seti kaldırıldı.)_
 - [x] Web default circuit compile smoke testi ekle.
 
 **Web/WASM senkronizasyon dilimi kanıtı (2026-08-09):** Web editörünün hard-coded ve legacy `battery`/`connect A B` kullanan kaynağı kaldırıldı; default içerik doğrudan repository'deki golden-korumalı `examples/demo_circuit.nl` dosyasından raw import ediliyor. Aynı dosya Rust integration testinde `CompileOptions::all_outputs()` ile diagnostics olmadan SPICE + layout + KiCad üretmek zorunda. Web compile/layout/diagnostic sınırındaki `any` tipleri explicit TypeScript interface'lere çevrildi. SVG renderer ayrı `Source` ve `CurrentSource` sembolleri kullanıyor; layout ve üretim Web kodunda `Battery` kalmadı. KiCad mapping'leri `Simulation_SPICE:VDC/IDC` olarak testle sabitlendi. Toplam 68 Rust testi, WASM release package, Web lint ve production build birlikte geçti.
@@ -758,4 +758,4 @@ Her geliştirme oturumunda:
 
 **2.5.5 — Tek compile pipeline ve CLI sözleşmesi.**
 
-2.5.1'in yalnız remote GitHub Actions run doğrulaması erişim bekliyor; production dependency audit sıfırlandı ve kök kalite kapısına bağlandı. 2.5.3 typed IR/semantic validation, 2.5.4 graph/ERC sağlamlaştırması ve 2.5.5 ortak compile/CLI sözleşmesi kapandı. 2.5.6'da default source, typed WASM result tüketimi ve Source/CurrentSource renderer/export senkronizasyonu tamamlandı. Sıradaki iş kalan Vite template CSS/asset/README kalıntılarını kullanım denetimiyle temizlemek, ardından 2.5.6 kabul kriterlerini kapatmaktır.
+2.5.1'in yalnız remote GitHub Actions run doğrulaması erişim bekliyor; production dependency audit sıfırlandı ve kök kalite kapısına bağlandı. 2.5.3 typed IR/semantic validation, 2.5.4 graph/ERC sağlamlaştırması, 2.5.5 ortak compile/CLI sözleşmesi ve 2.5.6 Web/WASM senkronizasyonu kapandı. Sıradaki iş 2.5.7 doküman/final kalite kapısıdır: önce repo belgelerindeki implementasyonla çelişen iddiaları ve stale örnekleri denetlemek gerekir.
