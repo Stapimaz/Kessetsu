@@ -129,7 +129,7 @@ Sadece kodun bulunması tamamlanma kanıtı değildir.
 
 | Kontrol | Sonuç | Açıklama |
 |---|---|---|
-| `cargo test` | Geçiyor | Yalnızca 1 Rust testi var; kapsam kabul için yetersiz |
+| `cargo test --all-targets` | Geçiyor | 19 test var; parser/IR/graph/ERC ve ilk SPICE golden katmanı mevcut, CLI kapsamı bekliyor |
 | `cargo fmt -- --check` | Geçiyor | Rust kaynakları canonical `rustfmt` biçiminde |
 | `cargo clippy --all-targets -- -D warnings` | Geçiyor | Mevcut target'larda warning yok |
 | `npm run build` | Geçiyor | WASM paketini sıfırdan üretip web production build'i tamamlıyor |
@@ -259,50 +259,51 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 
 #### Test organizasyonu
 
-- [ ] `core/tests/` integration test yapısını oluştur.
-- [ ] `core/tests/fixtures/valid` corpus'unu oluştur.
-- [ ] `core/tests/fixtures/invalid` corpus'unu oluştur.
-- [ ] `core/tests/fixtures/golden` snapshot'larını oluştur.
+- [x] `core/tests/` integration test yapısını oluştur.
+- [x] `core/tests/fixtures/valid` corpus'unu oluştur.
+- [x] `core/tests/fixtures/invalid` parser/semantic corpus'unu oluştur.
+- [x] `core/tests/fixtures/golden` snapshot altyapısını ve ilk canonical fixture'ı oluştur.
 - [ ] CLI testleri için isolated temp directory kullan.
 - [ ] Snapshot'larda platform path'i, CRLF ve nondeterministic alanları normalize et.
 
 #### Parser testleri
 
-- [ ] Tüm `examples/*.nl` dosyalarını parser test matrisine al.
-- [ ] Boş dosya testi.
-- [ ] Yalnızca yorum testi.
-- [ ] UTF-8 BOM testi.
-- [ ] Unicode davranışı testi ve açık politika.
-- [ ] Eksik `to`, eksik değer, eksik parantez ve hatalı waveform testleri.
-- [ ] Bilinmeyen component keyword testi.
-- [ ] Module/use/port flattening testleri.
+- [x] Tüm `examples/*.nl` dosyalarını parser test matrisine al.
+- [x] Boş dosya testi.
+- [x] Yalnızca yorum testi.
+- [x] UTF-8 BOM testi; frontend normalizasyonuna kadar açıkça reject edilir.
+- [x] Unicode davranışı testi ve açık politika: yorumlarda destekli, identifier'lar ASCII.
+- [x] Eksik `to`, eksik değer ve eksik parantez testleri.
+- [x] Bilinmeyen component keyword testi.
+- [x] Module/use/port flattening testleri.
 - [ ] Desteklenecek legacy syntax için backward compatibility test matrisi.
 
 #### IR testleri
 
-- [ ] `10k`, `2.2k`, `100uF`, `1MHz`, negatif değer ve scientific notation testleri.
+- [x] `10k`, `2.2k`, `100uF`, `1MHz`, negatif değer ve scientific notation testleri; scientific notation mevcut durumda açıkça reject edilir.
 - [ ] Voltage ve current source unit ayrımı testi.
 - [ ] Sine ve pulse parametre testleri.
 - [ ] NPN/PNP ve NMOS/PMOS model çözümleme testleri.
-- [ ] Bilinmeyen model davranışı testi.
+- [x] Bilinmeyen model davranışı testi.
 - [ ] Hatalı değerin `0.0` olmaması testi.
-- [ ] Assertion threshold/unit testleri.
+- [x] Assertion threshold/unit testleri.
 
 #### Graph/ERC testleri
 
-- [ ] Connection sırası değişse de aynı node adı testi.
+- [x] Connection sırası değişse de aynı canonical SPICE çıktısı testi.
 - [ ] Component declaration sırası değişse de aynı canonical sonuç testi.
-- [ ] GND canonicalization testi.
+- [x] Tek voltage source için GND canonicalization testi.
 - [ ] Multiple source ground ambiguity testi.
-- [ ] User-named net önceliği testi.
+- [x] User-named net önceliği testi.
 - [ ] Aynı nete iki kullanıcı adı conflict testi.
 - [ ] Invalid component ve invalid pin testleri.
-- [ ] NL-E001–NL-E004 için ayrı regression testleri.
+- [x] NL-E001–NL-E004 için ayrı regression fixture'ları ve testleri.
 - [ ] Warning'in compile'ı engellemediği test.
-- [ ] Diagnostic sıralamasının deterministik olduğu test.
+- [x] Diagnostic sıralamasının aynı circuit için deterministik olduğu stress testi.
 
 #### SPICE golden testleri
 
+- [x] Minimal source/resistor circuit canonical golden netlist'i.
 - [ ] `demo_circuit.nl` golden netlist.
 - [ ] `wheatstone.nl` golden netlist.
 - [ ] `test_features.nl` golden netlist.

@@ -276,7 +276,12 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
     for sim in &circuit.analyses {
         has_sim = true;
         let args_str = sim.args.join(" ");
-        control_block.push_str(&format!("{} {}\n", sim.cmd, args_str));
+        if args_str.is_empty() {
+            control_block.push_str(&sim.cmd);
+            control_block.push('\n');
+        } else {
+            control_block.push_str(&format!("{} {}\n", sim.cmd, args_str));
+        }
     }
 
     let mut dummy_count = 0;
