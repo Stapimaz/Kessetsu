@@ -243,10 +243,12 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
   - [x] Yerel/CI drift'ini önlemek için `scripts/verify.ps1` entrypoint'ini kullan.
   - [ ] İlk remote GitHub Actions run'ının başarıyla tamamlandığını doğrula.
 - [x] Build/test'in çalışma ağacında yeni non-ignored değişiklik üretmediğini önce/sonra Git snapshot'ıyla doğrula.
-- [ ] Production dependency audit bulgularını gider ve `npm audit --omit=dev` kapısını sıfır bilinen vulnerability ile doğrula:
+- [x] Production dependency audit bulgularını gider ve `npm audit --omit=dev` kapısını sıfır bilinen vulnerability ile doğrula:
   - 2026-08-09 baseline: 1 high, 3 moderate, 1 low.
   - Etkilenen zincirler: `vite -> postcss -> nanoid`, `vite-plugin-top-level-await -> uuid`, `@monaco-editor/react -> monaco-editor -> dompurify`.
   - `audit fix --force` kullanılmadan; doğrudan/transitive upgrade veya gereksiz plugin kaldırma kararı build smoke testiyle kanıtlanacak.
+
+**Dependency audit kanıtı (2026-08-09):** Kullanılmayan `vite-plugin-top-level-await` ve `uuid` zinciri kaldırıldı; `nanoid` 3.3.18'e güncellendi. Monaco 0.56'nın exact `dompurify` 3.4.8 bağımlılığı, upstream yeni Monaco release'i bulunmadığı için aynı API hattındaki güvenlik yaması 3.4.13'e npm `overrides` ile sabitlendi. `npm audit --omit=dev` sıfır bulgu verdi; audit adımı `scripts/verify.ps1` içine zorunlu kapı olarak eklendi ve pluginsiz WASM/Web production build ile birlikte geçti.
 
 **Kabul kriterleri:**
 
@@ -496,6 +498,7 @@ cargo build --release
 
 cd ../webapp
 npm.cmd ci
+npm.cmd audit --omit=dev
 npm.cmd run lint
 npm.cmd run build:wasm
 npm.cmd run build:web
@@ -517,6 +520,7 @@ pwsh -NoProfile -File scripts/verify.ps1
 - [x] WASM build geçiyor.
 - [x] Web lint warning vermeden geçiyor.
 - [x] Web production build geçiyor.
+- [x] Production npm audit sıfır bilinen vulnerability ile geçiyor.
 - [ ] Tüm geçerli örnekler check/compile matrisinden geçiyor.
 - [ ] Invalid corpus beklenen diagnostic kodlarını veriyor.
 - [ ] Determinism stress testi geçiyor.
@@ -739,6 +743,6 @@ Her geliştirme oturumunda:
 
 ### Aktif sıradaki ilk iş
 
-**2.5.1 — Production dependency audit remediation; ardından 2.5.4'e devam.**
+**2.5.4 — Namespace collision, ground ambiguity ve canonical diagnostics.**
 
-2.5.1'in remote GitHub Actions run doğrulaması erişim bekliyor. 2026-08-09 production npm audit'inde bulunan beş transitive vulnerability yeni aktif hijyen işi olarak kaydedildi ve Faz 2.5 kapanmadan giderilecek. 2.5.3 typed IR/semantic validation kapandı; 2.5.4'te typed net/pin kataloğu paketi doğrulandı. Audit temizlendikten sonra 2.5.4 namespace/ground ambiguity paketine dönülür.
+2.5.1'in yalnız remote GitHub Actions run doğrulaması erişim bekliyor; production dependency audit sıfırlandı ve kök kalite kapısına bağlandı. 2.5.3 typed IR/semantic validation kapandı. 2.5.4'te typed net/pin kataloğu doğrulandı; sıradaki paket component/net namespace collision, explicit ground/ambiguity ve diagnostic canonical sıralamasıdır.

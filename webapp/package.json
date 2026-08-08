@@ -16,7 +16,6 @@
     "lucide-react": "^1.28.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "vite-plugin-top-level-await": "^1.6.0",
     "vite-plugin-wasm": "^3.6.0"
   },
   "devDependencies": {
@@ -29,5 +28,8 @@
     "rollup": "^4.62.4",
     "typescript": "~6.0.2",
     "vite": "^8.2.0"
+  },
+  "overrides": {
+    "dompurify": "3.4.13"
   }
 }

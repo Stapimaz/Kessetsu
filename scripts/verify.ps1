@@ -54,6 +54,7 @@ try {
     if (-not $SkipNpmInstall) {
         Invoke-NativeStep 'Web dependency install' { & $npmCommand ci }
     }
+    Invoke-NativeStep 'Web production dependency audit' { & $npmCommand audit --omit=dev }
     Invoke-NativeStep 'Web lint' { & $npmCommand run lint }
     Invoke-NativeStep 'Web production build' { & $npmCommand run build:web }
 }
