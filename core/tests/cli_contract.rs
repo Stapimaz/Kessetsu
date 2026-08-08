@@ -231,3 +231,67 @@ fn render_stub_is_fail_closed_in_human_and_json_modes() {
     assert_eq!(value["status"], "error");
     assert_eq!(value["diagnostics"][0]["code"], "NL-F001");
 }
+
+#[test]
+fn simulator_process_status_and_json_status_cannot_disagree() {
+    let workspace = TestWorkspace::new("simulator-status");
+    let source = workspace.write("circuit.nl", &read_fixture("valid/minimal.nl"));
+    let source_arg = path_argument(&source);
+    let success_simulator =
+        workspace.write_fake_simulator("success-simulator", "No. of Data Rows : 1", "", 0);
+
+    let success = workspace.run_cli_with_env(
+        &["simulate", &source_arg, "--format", "json"],
+        "NETLANG_NGSPICE",
+        &success_simulator,
+    );
+    assert_eq!(success.status.code(), Some(0));
+    assert!(success.stderr.is_empty());
+    let success_json: Value =
+        serde_json::from_slice(&success.stdout).expect("success stdout should be JSON only");
+    assert_eq!(success_json["status"], "success");
+
+    let failing_simulator =
+        workspace.write_fake_simulator("failing-simulator", "", "Fatal error: singular matrix", 9);
+    let failure = workspace.run_cli_with_env(
+        &["simulate", &source_arg, "--format", "json", "--force"],
+        "NETLANG_NGSPICE",
+        &failing_simulator,
+    );
+    assert_eq!(failure.status.code(), Some(3));
+    assert!(failure.stderr.is_empty());
+    let failure_json: Value =
+        serde_json::from_slice(&failure.stdout).expect("failure stdout should be JSON only");
+    assert_eq!(failure_json["status"], "simulation_error");
+    assert_eq!(failure_json["diagnostics"][0]["code"], "NL-S002");
+}
+
+#[test]
+fn failed_assertion_has_structured_result_and_exit_code_four() {
+    let workspace = TestWorkspace::new("assertion-status");
+    let source_text = format!(
+        "{}assert peak(I(V1)) < 100mA\n",
+        read_fixture("valid/minimal.nl")
+    );
+    let source = workspace.write("circuit.nl", &source_text);
+    let source_arg = path_argument(&source);
+    let simulator = workspace.write_fake_simulator(
+        "measurement-simulator",
+        "peak_i_v1 = 2.0e-1\nNo. of Data Rows : 1",
+        "",
+        0,
+    );
+
+    let output = workspace.run_cli_with_env(
+        &["test", &source_arg, "--format", "json"],
+        "NETLANG_NGSPICE",
+        &simulator,
+    );
+    assert_eq!(output.status.code(), Some(4));
+    assert!(output.stderr.is_empty());
+    let value: Value =
+        serde_json::from_slice(&output.stdout).expect("assertion stdout should be JSON only");
+    assert_eq!(value["status"], "test_failed");
+    assert_eq!(value["tests"][0]["pass"], false);
+    assert_eq!(value["tests"][0]["actual"], 0.2);
+}

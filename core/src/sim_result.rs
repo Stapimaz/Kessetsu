@@ -21,6 +21,12 @@ pub struct TestResult {
 }
 
 pub fn get_ngspice_path() -> PathBuf {
+    if let Some(configured_path) = env::var_os("NETLANG_NGSPICE")
+        && !configured_path.is_empty()
+    {
+        return PathBuf::from(configured_path);
+    }
+
     let exe_path = env::current_exe().unwrap_or_else(|_| PathBuf::from("netlang"));
 
     // Option 1: running from workspace root (e.g., via cargo run from /core)

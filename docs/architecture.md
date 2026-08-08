@@ -43,6 +43,8 @@ Parse, flatten, semantic ve ERC hataları ortak `Diagnostic` modeline dönüşt�
 
 CLI JSON çıktısı canonical raporu değiştirmez; `status`, `spice_file` ve assertion sonucu gibi frontend alanlarıyla genişletir. JSON stdout tek bir obje olarak kalır. Dosya yazma frontend sorumluluğudur: mevcut output açık `--force` olmadan ezilmez ve hiçbir generated output kaynak `.nl` dosyasının üzerine yazılamaz.
 
+Simulator executable discovery, dağıtılan binary konumlarını ve sistem fallback'ini dener; otomasyon/packaging ortamları açık bir executable yolu için `NETLANG_NGSPICE` kullanabilir. Bu override derleme hattını değiştirmez ve başlatma/process hataları CLI'da exit `3` olarak kalır.
+
 ## 2. Dilin Sözdizimi (Syntax) ve Kurallar
 
 ### Desteklenen Bileşenler

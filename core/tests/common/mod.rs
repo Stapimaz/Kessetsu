@@ -74,6 +74,67 @@ impl TestWorkspace {
             .unwrap_or_else(|error| panic!("could not run NetLang CLI: {error}"))
     }
 
+    pub fn run_cli_with_env(&self, arguments: &[&str], key: &str, value: &Path) -> Output {
+        Command::new(env!("CARGO_BIN_EXE_netlang"))
+            .args(arguments)
+            .env(key, value)
+            .current_dir(&self.root)
+            .output()
+            .unwrap_or_else(|error| panic!("could not run NetLang CLI: {error}"))
+    }
+
+    pub fn write_fake_simulator(
+        &self,
+        name: &str,
+        stdout: &str,
+        stderr: &str,
+        code: i32,
+    ) -> PathBuf {
+        #[cfg(windows)]
+        let (file_name, contents) = (
+            format!("{name}.cmd"),
+            format!(
+                "@echo off\r\n{}{}exit /b {code}\r\n",
+                stdout
+                    .lines()
+                    .map(|line| format!("echo {line}\r\n"))
+                    .collect::<String>(),
+                stderr
+                    .lines()
+                    .map(|line| format!("echo {line} 1>&2\r\n"))
+                    .collect::<String>()
+            ),
+        );
+
+        #[cfg(not(windows))]
+        let (file_name, contents) = (
+            format!("{name}.sh"),
+            format!(
+                "#!/bin/sh\n{}{}exit {code}\n",
+                stdout
+                    .lines()
+                    .map(|line| format!("printf '%s\\n' '{line}'\n"))
+                    .collect::<String>(),
+                stderr
+                    .lines()
+                    .map(|line| format!("printf '%s\\n' '{line}' >&2\n"))
+                    .collect::<String>()
+            ),
+        );
+
+        let path = self.write(file_name, &contents);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = fs::metadata(&path)
+                .expect("fake simulator metadata should be readable")
+                .permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(&path, permissions).expect("fake simulator should be executable");
+        }
+        path
+    }
+
     pub fn normalize_cli_text(&self, bytes: &[u8]) -> String {
         let text = String::from_utf8_lossy(bytes);
         let root = self.root.to_string_lossy();

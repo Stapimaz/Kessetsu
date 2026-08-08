@@ -60,6 +60,8 @@ netlang test examples/test_features.nl --force
 
 Assertion runtime Faz 3'te genişletilmektedir; mevcut metric ve ölçüm sınırlamaları için `docs/ROADMAP.md` içindeki Faz 3.3 görevleri esas alınır.
 
+Ngspice executable discovery gerektiğinde `NETLANG_NGSPICE` environment variable ile açık bir executable yoluna yönlendirilebilir. Yol başlatılamazsa simülasyon exit `3` ile fail-closed olur.
+
 ### `render`
 
 SVG renderer henüz uygulanmadığı için komut fail-closed davranır: çıktı üretmez, `NL-F001` verir ve exit `2` döner. Başarı stub'ı değildir.
