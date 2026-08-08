@@ -1,12 +1,12 @@
-use clap::{Parser, Subcommand, ValueEnum};
-use netlang_core::erc::ErcDiagnostic;
-use netlang_core::graph::{NetlistGraph, generate_spice};
-use netlang_core::parser::parse_program;
+use clap::{Args, Parser, Subcommand, ValueEnum};
+use netlang_core::compiler::{
+    COMPILE_SCHEMA_VERSION, CompileOptions, CompileReport, Diagnostic, DiagnosticSeverity,
+    DiagnosticStage, compile_source,
+};
 use serde::Serialize;
-use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process;
+use std::process::{self, Output};
 
 #[derive(Parser)]
 #[command(name = "netlang", about = "NetLang Circuit Compiler and Simulator")]
@@ -15,365 +15,491 @@ struct Cli {
     command: Commands,
 
     /// Output format (human or json)
-    #[arg(long, default_value = "human")]
+    #[arg(long, value_enum, default_value_t = Format::Human, global = true)]
     format: Format,
 }
 
 #[derive(Subcommand)]
 enum Commands {
     /// Parse and run Electrical Rules Check (ERC)
-    Check { file: String },
-    /// Parse, ERC, and generate SPICE netlist
-    Compile { file: String },
-    /// Parse, ERC, generate netlist, and run Ngspice simulation
-    Simulate { file: String },
-    /// Parse, ERC, generate netlist, simulate and evaluate assertions
-    Test { file: String },
-    /// Parse, ERC, generate netlist, and render SVG schematic (Phase 3)
-    Render { file: String },
+    Check { file: PathBuf },
+    /// Parse, ERC, and generate a SPICE netlist
+    Compile(OutputCommand),
+    /// Parse, ERC, generate a netlist, and run Ngspice
+    Simulate(OutputCommand),
+    /// Parse, ERC, generate a netlist, simulate, and evaluate assertions
+    Test(OutputCommand),
+    /// Reserved for the Phase 3 SVG schematic renderer
+    Render { file: PathBuf },
 }
 
-#[derive(Clone, ValueEnum, PartialEq)]
+#[derive(Args)]
+struct OutputCommand {
+    file: PathBuf,
+
+    /// Write the SPICE netlist to this path (default: source path with .spice)
+    #[arg(short, long)]
+    output: Option<PathBuf>,
+
+    /// Allow overwriting an existing output file
+    #[arg(long)]
+    force: bool,
+}
+
+#[derive(Clone, Copy, ValueEnum, PartialEq, Eq)]
 enum Format {
     Human,
     Json,
 }
 
 #[derive(Serialize)]
-pub struct JsonTestResult {
-    pub metric: String,
-    pub signal: String,
-    pub pass: bool,
-    pub actual: f64,
-    pub threshold: f64,
+struct JsonTestResult {
+    metric: String,
+    signal: String,
+    pass: bool,
+    actual: Option<f64>,
+    threshold: f64,
 }
 
 #[derive(Serialize)]
 struct JsonOutput {
     status: String,
-    diagnostics: Vec<ErcDiagnostic>,
+    #[serde(flatten)]
+    report: CompileReport,
     spice_file: Option<String>,
     tests: Option<Vec<JsonTestResult>>,
 }
 
 fn main() {
     let cli = Cli::parse();
+    process::exit(run(cli));
+}
 
-    let file_path = match &cli.command {
-        Commands::Check { file } => file,
-        Commands::Compile { file } => file,
-        Commands::Simulate { file } => file,
-        Commands::Test { file } => file,
-        Commands::Render { file } => file,
-    };
+fn run(cli: Cli) -> i32 {
+    if let Commands::Render { file } = &cli.command {
+        let diagnostic = diagnostic(
+            "NL-F001",
+            DiagnosticStage::Cli,
+            format!(
+                "Render is not implemented yet; no output was produced for '{}'.",
+                file.display()
+            ),
+        );
+        emit(
+            &cli.format,
+            "error",
+            CompileReport::failure(diagnostic),
+            None,
+            None,
+        );
+        return 2;
+    }
 
-    let path = Path::new(file_path);
-
-    // 1. Read file
-    let input = match fs::read_to_string(path) {
-        Ok(c) => c,
-        Err(e) => {
-            print_error(
-                &cli.format,
-                &format!("Could not read file '{}': {}", file_path, e),
+    let source_path = command_path(&cli.command);
+    let source = match fs::read_to_string(source_path) {
+        Ok(source) => source,
+        Err(error) => {
+            let diagnostic = diagnostic(
+                "NL-I001",
+                DiagnosticStage::Io,
+                format!("Could not read file '{}': {error}", source_path.display()),
             );
-            process::exit(2);
+            emit(
+                &cli.format,
+                "error",
+                CompileReport::failure(diagnostic),
+                None,
+                None,
+            );
+            return 2;
         }
     };
 
-    // 2. Parse
-    let program = match parse_program(&input) {
-        Ok(p) => p,
-        Err(e) => {
-            print_error(&cli.format, &format!("Syntax Error:\n{}", e));
-            process::exit(2);
-        }
+    let needs_spice = !matches!(cli.command, Commands::Check { .. });
+    let options = CompileOptions {
+        include_ast: cli.format == Format::Json,
+        generate_spice: needs_spice,
+        generate_layout: false,
+        generate_kicad: false,
     };
+    let mut report = compile_source(&source, options);
 
-    // 3. Flatten (Resolve modules)
-    let flat_program = match program.flatten() {
-        Ok(p) => p,
-        Err(e) => {
-            print_error(&cli.format, &format!("Flattening Error: {}", e));
-            process::exit(2);
-        }
-    };
-
-    // 4. Graph & ERC
-    let circuit = match netlang_core::ir::ast_to_ir(&flat_program) {
-        Ok(c) => c,
-        Err(diagnostic) => {
-            print_semantic_error(&cli.format, diagnostic);
-            process::exit(1);
-        }
-    };
-
-    let graph = NetlistGraph::build(&circuit);
-    let errors = netlang_core::erc::check_rules(&circuit, &graph);
-
-    if !errors.is_empty() {
-        if cli.format == Format::Json {
-            let out = JsonOutput {
-                status: "error".to_string(),
-                diagnostics: errors,
-                spice_file: None,
-                tests: None,
-            };
-            println!("{}", serde_json::to_string_pretty(&out).unwrap());
-        } else {
-            for err in errors {
-                eprintln!("[ERC ERROR] {}: {}", err.code, err.message);
-            }
-        }
-        process::exit(1);
+    if report.has_errors() {
+        let exit_code = compile_failure_exit_code(&report);
+        emit(&cli.format, "error", report, None, None);
+        return exit_code;
     }
 
     if matches!(cli.command, Commands::Check { .. }) {
-        if cli.format == Format::Json {
-            let out = JsonOutput {
-                status: "success".to_string(),
-                diagnostics: vec![],
-                spice_file: None,
-                tests: None,
-            };
-            println!("{}", serde_json::to_string_pretty(&out).unwrap());
-        } else {
+        if cli.format == Format::Human {
+            emit_human_diagnostics(&report);
             println!("[SUCCESS] Circuit parsed and ERC checks passed.");
-        }
-        process::exit(0);
-    }
-
-    // 5. Generate SPICE
-    let spice = generate_spice(&circuit, &graph);
-    let spice_path = path.with_extension("spice");
-
-    if let Err(e) = fs::write(&spice_path, &spice) {
-        print_error(
-            &cli.format,
-            &format!(
-                "Could not write SPICE file to '{}': {}",
-                spice_path.display(),
-                e
-            ),
-        );
-        process::exit(2);
-    }
-
-    if matches!(cli.command, Commands::Compile { .. }) {
-        if cli.format == Format::Json {
-            let out = JsonOutput {
-                status: "success".to_string(),
-                diagnostics: vec![],
-                spice_file: Some(spice_path.to_string_lossy().to_string()),
-                tests: None,
-            };
-            println!("{}", serde_json::to_string_pretty(&out).unwrap());
         } else {
+            emit(&cli.format, "success", report, None, None);
+        }
+        return 0;
+    }
+
+    let output_command = output_command(&cli.command)
+        .expect("every non-check, non-render command must define an output policy");
+    let spice_path = output_command
+        .output
+        .clone()
+        .unwrap_or_else(|| source_path.with_extension("spice"));
+    let spice = report
+        .spice_netlist
+        .as_deref()
+        .expect("successful SPICE-enabled compile must contain a netlist")
+        .to_string();
+
+    if let Err(diagnostic) = write_spice(source_path, &spice_path, &spice, output_command.force) {
+        report.diagnostics.push(*diagnostic);
+        report.spice_netlist = None;
+        emit(&cli.format, "error", report, None, None);
+        return 2;
+    }
+
+    let spice_file = Some(spice_path.to_string_lossy().into_owned());
+    if matches!(cli.command, Commands::Compile(_)) {
+        if cli.format == Format::Human {
+            emit_human_diagnostics(&report);
             println!(
                 "[SUCCESS] SPICE netlist generated: {}",
                 spice_path.display()
             );
+        } else {
+            emit(&cli.format, "success", report, spice_file, None);
         }
-        process::exit(0);
+        return 0;
     }
 
-    // 6. Simulate
-    if matches!(cli.command, Commands::Simulate { .. }) {
-        if cli.format == Format::Human {
-            println!("[INFO] Running ngspice simulation...");
-        }
-
-        let exe_path =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tools/ngspice/bin/ngspice_con.exe");
-
-        if !exe_path.exists() {
-            print_error(
-                &cli.format,
-                &format!("Embedded Ngspice not found at {:?}", exe_path),
-            );
-            process::exit(3);
-        }
-
-        let output = process::Command::new(exe_path)
-            .arg("-b")
-            .arg(&spice_path)
-            .output();
-
-        match output {
-            Ok(output) => {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let stderr = String::from_utf8_lossy(&output.stderr);
-
-                if cli.format == Format::Json {
-                    // For Phase 3, we will parse Ngspice output. For now, just print success JSON.
-                    let out = JsonOutput {
-                        status: "success".to_string(),
-                        diagnostics: vec![],
-                        spice_file: Some(spice_path.to_string_lossy().to_string()),
-                        tests: None,
-                    };
-                    println!("{}", serde_json::to_string_pretty(&out).unwrap());
-                } else {
-                    if !stdout.is_empty() {
-                        println!("\n--- NGSPICE OUTPUT ---");
-                        println!("{}", stdout);
-                    }
-                    if !stderr.is_empty() {
-                        eprintln!("\n--- NGSPICE ERRORS ---");
-                        eprintln!("{}", stderr);
-                    }
-                }
-            }
-            Err(e) => {
-                print_error(&cli.format, &format!("Failed to execute ngspice: {}", e));
-                process::exit(3);
-            }
-        }
+    if matches!(cli.command, Commands::Simulate(_)) {
+        return run_simulate(&cli.format, report, spice_file, &spice_path);
     }
 
-    if matches!(cli.command, Commands::Test { .. }) {
-        if cli.format == Format::Human {
-            println!("[INFO] Running tests and assertions...");
-        }
+    run_assertions(&cli.format, report, spice_file, &spice)
+}
 
-        let sim_res = netlang_core::sim_result::run_simulation(&spice).unwrap_or_else(|e| {
-            print_error(&cli.format, &format!("Failed to run simulation: {}", e));
-            process::exit(3);
+fn command_path(command: &Commands) -> &Path {
+    match command {
+        Commands::Check { file } | Commands::Render { file } => file,
+        Commands::Compile(command) | Commands::Simulate(command) | Commands::Test(command) => {
+            &command.file
+        }
+    }
+}
+
+fn output_command(command: &Commands) -> Option<&OutputCommand> {
+    match command {
+        Commands::Compile(command) | Commands::Simulate(command) | Commands::Test(command) => {
+            Some(command)
+        }
+        Commands::Check { .. } | Commands::Render { .. } => None,
+    }
+}
+
+fn write_spice(
+    source_path: &Path,
+    output_path: &Path,
+    spice: &str,
+    force: bool,
+) -> Result<(), Box<Diagnostic>> {
+    if paths_refer_to_same_file(source_path, output_path) {
+        return Err(Box::new(diagnostic(
+            "NL-I002",
+            DiagnosticStage::Io,
+            format!(
+                "Refusing to overwrite source file '{}' with generated SPICE.",
+                source_path.display()
+            ),
+        )));
+    }
+
+    if output_path.exists() && !force {
+        return Err(Box::new(diagnostic(
+            "NL-I003",
+            DiagnosticStage::Io,
+            format!(
+                "Output file '{}' already exists; pass --force to overwrite it.",
+                output_path.display()
+            ),
+        )));
+    }
+
+    fs::write(output_path, spice).map_err(|error| {
+        Box::new(diagnostic(
+            "NL-I004",
+            DiagnosticStage::Io,
+            format!(
+                "Could not write SPICE file to '{}': {error}",
+                output_path.display()
+            ),
+        ))
+    })
+}
+
+fn paths_refer_to_same_file(left: &Path, right: &Path) -> bool {
+    match (left.canonicalize(), right.canonicalize()) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => left == right,
+    }
+}
+
+fn run_simulate(
+    format: &Format,
+    mut report: CompileReport,
+    spice_file: Option<String>,
+    spice_path: &Path,
+) -> i32 {
+    if *format == Format::Human {
+        println!("[INFO] Running ngspice simulation...");
+    }
+
+    let executable = netlang_core::sim_result::get_ngspice_path();
+    let output = match process::Command::new(&executable)
+        .arg("-b")
+        .arg(spice_path)
+        .output()
+    {
+        Ok(output) => output,
+        Err(error) => {
+            report.diagnostics.push(diagnostic(
+                "NL-S001",
+                DiagnosticStage::Simulation,
+                format!(
+                    "Failed to execute ngspice at '{}': {error}",
+                    executable.display()
+                ),
+            ));
+            emit(format, "simulation_error", report, spice_file, None);
+            return 3;
+        }
+    };
+
+    if *format == Format::Human {
+        print_simulator_logs(&output);
+    }
+
+    if simulator_failed(&output) {
+        report.diagnostics.push(diagnostic(
+            "NL-S002",
+            DiagnosticStage::Simulation,
+            format!(
+                "Ngspice failed with process status {}.",
+                output
+                    .status
+                    .code()
+                    .map_or_else(|| "terminated".to_string(), |code| code.to_string())
+            ),
+        ));
+        emit(format, "simulation_error", report, spice_file, None);
+        return 3;
+    }
+
+    if *format == Format::Json {
+        emit(format, "success", report, spice_file, None);
+    }
+    0
+}
+
+fn simulator_failed(output: &Output) -> bool {
+    !output.status.success()
+        || contains_simulator_error(&String::from_utf8_lossy(&output.stdout))
+        || contains_simulator_error(&String::from_utf8_lossy(&output.stderr))
+}
+
+fn contains_simulator_error(text: &str) -> bool {
+    let lowercase = text.to_ascii_lowercase();
+    lowercase.contains("error") || lowercase.contains("fatal") || lowercase.contains("aborted")
+}
+
+fn print_simulator_logs(output: &Output) {
+    if !output.stdout.is_empty() {
+        println!(
+            "\n--- NGSPICE OUTPUT ---\n{}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+    }
+    if !output.stderr.is_empty() {
+        eprintln!(
+            "\n--- NGSPICE ERRORS ---\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+fn run_assertions(
+    format: &Format,
+    mut report: CompileReport,
+    spice_file: Option<String>,
+    spice: &str,
+) -> i32 {
+    if *format == Format::Human {
+        println!("[INFO] Running tests and assertions...");
+    }
+
+    let simulation = match netlang_core::sim_result::run_simulation(spice) {
+        Ok(simulation) => simulation,
+        Err(error) => {
+            report
+                .diagnostics
+                .push(diagnostic("NL-S001", DiagnosticStage::Simulation, error));
+            emit(format, "simulation_error", report, spice_file, None);
+            return 3;
+        }
+    };
+
+    if !simulation.success {
+        let details = if simulation.errors.is_empty() {
+            "Ngspice returned an unsuccessful result.".to_string()
+        } else {
+            format!("Ngspice errors: {}", simulation.errors.join(" | "))
+        };
+        report
+            .diagnostics
+            .push(diagnostic("NL-S002", DiagnosticStage::Simulation, details));
+        emit(format, "simulation_error", report, spice_file, None);
+        return 3;
+    }
+
+    let circuit = report
+        .ir
+        .as_ref()
+        .expect("successful compile report must preserve typed IR");
+    let results = netlang_core::sim_result::evaluate_assertions(circuit, &simulation);
+    let mut all_passed = true;
+    let mut json_results = Vec::new();
+
+    for result in results {
+        all_passed &= result.pass;
+        json_results.push(JsonTestResult {
+            metric: result.assertion.metric.clone(),
+            signal: result.assertion.signal.clone(),
+            pass: result.pass,
+            actual: result.actual.is_finite().then_some(result.actual),
+            threshold: result.assertion.threshold.value,
         });
 
-        if !sim_res.success && cli.format == Format::Human {
-            eprintln!("[WARNING] Simulation returned an error (convergence or fatal error).");
-            for err in &sim_res.errors {
-                eprintln!("  > {}", err);
-            }
-        }
-
-        let results = netlang_core::sim_result::evaluate_assertions(&circuit, &sim_res);
-        let mut all_passed = true;
-        let mut json_results = Vec::new();
-
-        for r in &results {
-            if !r.pass {
-                all_passed = false;
-            }
-            json_results.push(JsonTestResult {
-                metric: r.assertion.metric.clone(),
-                signal: r.assertion.signal.clone(),
-                pass: r.pass,
-                actual: r.actual,
-                threshold: r.assertion.threshold.value,
-            });
-            if cli.format == Format::Human {
-                let status = if r.pass {
-                    "\x1b[32m[PASS]\x1b[0m"
-                } else {
-                    "\x1b[31m[FAIL]\x1b[0m"
-                };
-                let cmp_str = match r.assertion.cmp {
-                    netlang_core::ast::Cmp::Lt => "<",
-                    netlang_core::ast::Cmp::Gt => ">",
-                    netlang_core::ast::Cmp::Le => "<=",
-                    netlang_core::ast::Cmp::Ge => ">=",
-                    netlang_core::ast::Cmp::Eq => "==",
-                };
-                if r.actual.is_nan() {
-                    println!(
-                        "{} {}({}) {} {} (actual: NaN/Not Found)",
-                        status,
-                        r.assertion.metric,
-                        r.assertion.signal,
-                        cmp_str,
-                        r.assertion.threshold.value
-                    );
-                } else {
-                    println!(
-                        "{} {}({}) {} {} (actual: {:.6})",
-                        status,
-                        r.assertion.metric,
-                        r.assertion.signal,
-                        cmp_str,
-                        r.assertion.threshold.value,
-                        r.actual
-                    );
-                }
-            }
-        }
-
-        if cli.format == Format::Json {
-            let out = JsonOutput {
-                status: if all_passed {
-                    "success".to_string()
-                } else {
-                    "test_failed".to_string()
-                },
-                diagnostics: vec![],
-                spice_file: Some(spice_path.to_string_lossy().to_string()),
-                tests: Some(json_results),
-            };
-            println!("{}", serde_json::to_string_pretty(&out).unwrap());
-        }
-
-        if all_passed {
-            if cli.format == Format::Human {
-                println!("\n[SUCCESS] All assertions passed.");
-            }
-            process::exit(0);
-        } else {
-            if cli.format == Format::Human {
-                println!("\n[ERROR] One or more assertions failed.");
-            }
-            process::exit(4);
+        if *format == Format::Human {
+            print_assertion_result(&result);
         }
     }
 
-    if matches!(cli.command, Commands::Render { .. }) {
-        print_error(
-            &cli.format,
-            "Render command is not yet implemented (Phase 3)",
-        );
-        process::exit(0);
+    let status = if all_passed { "success" } else { "test_failed" };
+    if *format == Format::Json {
+        emit(format, status, report, spice_file, Some(json_results));
+    } else if all_passed {
+        println!("\n[SUCCESS] All assertions passed.");
+    } else {
+        eprintln!("\n[ERROR] One or more assertions failed.");
+    }
+
+    if all_passed { 0 } else { 4 }
+}
+
+fn print_assertion_result(result: &netlang_core::sim_result::TestResult) {
+    let status = if result.pass {
+        "\x1b[32m[PASS]\x1b[0m"
+    } else {
+        "\x1b[31m[FAIL]\x1b[0m"
+    };
+    let comparator = match result.assertion.cmp {
+        netlang_core::ast::Cmp::Lt => "<",
+        netlang_core::ast::Cmp::Gt => ">",
+        netlang_core::ast::Cmp::Le => "<=",
+        netlang_core::ast::Cmp::Ge => ">=",
+        netlang_core::ast::Cmp::Eq => "==",
+    };
+    let actual = if result.actual.is_finite() {
+        format!("{:.6}", result.actual)
+    } else {
+        "Not Found".to_string()
+    };
+    println!(
+        "{} {}({}) {} {} (actual: {})",
+        status,
+        result.assertion.metric,
+        result.assertion.signal,
+        comparator,
+        result.assertion.threshold.value,
+        actual
+    );
+}
+
+fn compile_failure_exit_code(report: &CompileReport) -> i32 {
+    if report.diagnostics.iter().any(|diagnostic| {
+        matches!(
+            diagnostic.stage,
+            DiagnosticStage::Parse | DiagnosticStage::Io
+        )
+    }) {
+        2
+    } else {
+        1
     }
 }
 
-fn print_error(format: &Format, message: &str) {
-    if *format == Format::Json {
-        let out = JsonOutput {
-            status: "error".to_string(),
-            diagnostics: vec![ErcDiagnostic {
-                code: "INTERNAL".to_string(),
-                severity: netlang_core::erc::Severity::Error,
-                message: message.to_string(),
-                component: None,
-                pin: None,
-            }],
-            spice_file: None,
-            tests: None,
-        };
-        println!("{}", serde_json::to_string_pretty(&out).unwrap());
-    } else {
-        eprintln!("[ERROR] {}", message);
+fn diagnostic(code: &str, stage: DiagnosticStage, message: impl Into<String>) -> Diagnostic {
+    Diagnostic {
+        code: code.to_string(),
+        severity: DiagnosticSeverity::Error,
+        stage,
+        message: message.into(),
+        component: None,
+        pin: None,
+        field: None,
+        line: None,
+        column: None,
     }
 }
 
-fn print_semantic_error(format: &Format, diagnostic: netlang_core::ir::SemanticDiagnostic) {
+fn emit(
+    format: &Format,
+    status: &str,
+    report: CompileReport,
+    spice_file: Option<String>,
+    tests: Option<Vec<JsonTestResult>>,
+) {
     if *format == Format::Json {
-        let out = JsonOutput {
-            status: "error".to_string(),
-            diagnostics: vec![ErcDiagnostic {
-                code: diagnostic.code,
-                severity: netlang_core::erc::Severity::Error,
-                message: diagnostic.message,
-                component: diagnostic.component,
-                pin: diagnostic.field,
-            }],
-            spice_file: None,
-            tests: None,
+        let output = JsonOutput {
+            status: status.to_string(),
+            report,
+            spice_file,
+            tests,
         };
-        println!("{}", serde_json::to_string_pretty(&out).unwrap());
+        match serde_json::to_string_pretty(&output) {
+            Ok(json) => println!("{json}"),
+            Err(error) => eprintln!(
+                "[ERROR] Could not serialize {COMPILE_SCHEMA_VERSION} JSON output: {error}"
+            ),
+        }
     } else {
+        emit_human_diagnostics(&report);
+    }
+}
+
+fn emit_human_diagnostics(report: &CompileReport) {
+    for diagnostic in &report.diagnostics {
+        let severity = match diagnostic.severity {
+            DiagnosticSeverity::Error => "ERROR",
+            DiagnosticSeverity::Warning => "WARNING",
+            DiagnosticSeverity::Info => "INFO",
+        };
         eprintln!(
-            "[SEMANTIC ERROR] {}: {}",
-            diagnostic.code, diagnostic.message
+            "[{} {:?}] {}: {}",
+            severity, diagnostic.stage, diagnostic.code, diagnostic.message
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::contains_simulator_error;
+
+    #[test]
+    fn simulator_error_classifier_is_case_insensitive_and_fail_closed() {
+        assert!(contains_simulator_error("Fatal error: singular matrix"));
+        assert!(contains_simulator_error("run ABORTED"));
+        assert!(!contains_simulator_error("No. of Data Rows : 1"));
     }
 }

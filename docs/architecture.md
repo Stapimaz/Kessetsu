@@ -41,6 +41,8 @@ NetLang Source (.nl)
 
 Parse, flatten, semantic ve ERC hataları ortak `Diagnostic` modeline dönüştürülür. Error severity varsa hiçbir backend çıktısı üretilmez; warning ve info sonuçları başarılı çıktılarla birlikte taşınabilir. CLI ve WASM kendi paralel derleme akışlarını kurmamalı, yalnızca bu entrypoint'in adaptörü olmalıdır.
 
+CLI JSON çıktısı canonical raporu değiştirmez; `status`, `spice_file` ve assertion sonucu gibi frontend alanlarıyla genişletir. JSON stdout tek bir obje olarak kalır. Dosya yazma frontend sorumluluğudur: mevcut output açık `--force` olmadan ezilmez ve hiçbir generated output kaynak `.nl` dosyasının üzerine yazılamaz.
+
 ## 2. Dilin Sözdizimi (Syntax) ve Kurallar
 
 ### Desteklenen Bileşenler

@@ -1,73 +1,119 @@
 # NetLang CLI Reference
 
-NetLang komut satırı arayüzü (CLI), NetLang dosyalarını (`.nl`) derlemek, elektriksel kural denetimi (ERC) yapmak ve simülasyon koşmak için kullanılır. Otomasyon ve yapay zeka ajanları ile tam uyumlu çalışması için JSON çıktısı da destekler.
+NetLang CLI, `.nl` kaynaklarını ortak Rust derleme hattından geçirir; ERC, SPICE üretimi, Ngspice çalıştırma ve assertion değerlendirme komutları sunar. Human çıktı insanlar, sürümlü JSON çıktı otomasyon ve AI ajanları içindir.
 
-## Kurulum ve Çalıştırma
-Uygulama derlendikten sonra `netlang` komutu ile çalıştırılabilir.
+## Kullanım
+
 ```bash
-cargo run --bin netlang -- [KOMUT] [DOSYA] [SEÇENEKLER]
+netlang [--format human|json] <COMMAND> [OPTIONS] <FILE>
 ```
 
-## Alt Komutlar (Subcommands)
+`--format` gerçek bir global seçenektir; alt komuttan önce veya sonra yazılabilir:
 
-### 1. `check`
-Sadece sözdizimi ve yapısal kuralları (ERC) denetler. Herhangi bir çıktı dosyası (.spice vb.) üretmez.
+```bash
+netlang --format json check examples/demo_circuit.nl
+netlang check examples/demo_circuit.nl --format json
+```
+
+## Komutlar
+
+### `check`
+
+Parse, semantic validation ve ERC çalıştırır; dosya üretmez.
+
 ```bash
 netlang check examples/demo_circuit.nl
 ```
 
-### 2. `compile`
-Dosyayı derler, ERC kontrollerini yapar ve başarılı olursa devre dizininde `*.spice` uzantılı bir SPICE netlist dosyası oluşturur.
+### `compile`
+
+Kontroller başarılıysa SPICE netlist üretir.
+
 ```bash
 netlang compile examples/demo_circuit.nl
+netlang compile examples/demo_circuit.nl --output build/demo.spice
 ```
 
-### 3. `simulate`
-Derleme ve ERC adımlarını geçer, `*.spice` dosyasını oluşturur ve ardından gömülü ngspice motorunu kullanarak devrenin simülasyonunu çalıştırır. Simülasyon çıktıları doğrudan terminale basılır.
-```bash
-netlang simulate examples/demo_circuit.nl
-```
-
-### 4. `render` *(Geliştirme Aşamasında - Faz 3)*
-Derleme aşamalarından sonra devrenin şemasını SVG formatında çıktı olarak verir.
-
-## Format Desteği ve Yapay Zeka (AI) Entegrasyonu
-
-Otomasyon araçları ve AI ajanları için `--format json` seçeneği eklenmiştir. Bu argüman eklendiğinde uygulama (hata veya başarı durumlarında) renkli metin yerine, ayrıştırılabilir bir JSON objesi döndürür.
+Varsayılan hedef kaynak dosyanın `.spice` uzantılı halidir. Var olan dosya sessizce ezilmez; bilinçli overwrite için `--force` gerekir:
 
 ```bash
-netlang --format json check examples/test_amp.nl
+netlang compile examples/demo_circuit.nl --force
 ```
 
-**Örnek JSON Çıktısı (Hata Durumu):**
-```json
-{
-  "status": "error",
-  "diagnostics": [
-    {
-      "code": "NL-E003",
-      "severity": "Error",
-      "message": "Floating Pin: Q1.c is not connected to anything.",
-      "component": "Q1",
-      "pin": "c"
-    }
-  ],
-  "spice_file": null
-}
+`--output` yolu çalışma dizinine göre çözülür. Hedef kaynak dosyanın kendisiyse `--force` verilse bile işlem reddedilir. CLI eksik parent dizinlerini otomatik oluşturmaz.
+
+### `simulate`
+
+Derler, aynı output politikasına göre SPICE dosyasını yazar ve Ngspice'ı batch modunda çalıştırır. Simulator process status veya fatal/error çıktısı başarısızsa exit `3` döner; JSON modunda simulator logları stdout'a karışmaz.
+
+```bash
+netlang simulate examples/demo_circuit.nl --force
 ```
 
-**Örnek JSON Çıktısı (Başarı Durumu):**
+### `test`
+
+Derleme ve simülasyondan sonra kaynak içindeki assertion'ları değerlendirir. Simülasyon problemi exit `3`, başarısız assertion exit `4` üretir.
+
+```bash
+netlang test examples/test_features.nl --force
+```
+
+Assertion runtime Faz 3'te genişletilmektedir; mevcut metric ve ölçüm sınırlamaları için `docs/ROADMAP.md` içindeki Faz 3.3 görevleri esas alınır.
+
+### `render`
+
+SVG renderer henüz uygulanmadığı için komut fail-closed davranır: çıktı üretmez, `NL-F001` verir ve exit `2` döner. Başarı stub'ı değildir.
+
+```bash
+netlang render examples/demo_circuit.nl
+```
+
+## JSON sözleşmesi
+
+JSON stdout her çalıştırmada tek bir JSON objesidir; progress ve simulator logları stdout'a yazılmaz. Şema sürümü `netlang.compile.v1`'dir. CLI, canonical `CompileReport` alanlarına `status`, `spice_file` ve gerektiğinde `tests` alanlarını ekler.
+
+Başarılı `check` özeti:
+
 ```json
 {
   "status": "success",
+  "schema_version": "netlang.compile.v1",
+  "ast": {},
+  "ir": {},
   "diagnostics": [],
-  "spice_file": "examples/demo_circuit.spice"
+  "graph": {},
+  "spice_netlist": null,
+  "layout": null,
+  "kicad_sch": null,
+  "spice_file": null,
+  "tests": null
 }
 ```
 
-## Exit Kodları (Çıkış Kodları)
-Terminal otomasyonlarında güvenilir kullanım için NetLang aşağıdaki standart exit kodlarını kullanır:
-- **`0`**: Başarılı. Herhangi bir kural ihlali veya sözdizimi hatası yok.
-- **`1`**: ERC Hatası. Devre sözdizimi olarak doğru ancak tanımsız bileşen veya ucu açık pin gibi elektriksel/yapısal kural ihlalleri var.
-- **`2`**: Parse / I-O Hatası. Dosya bulunamadı, okunamadı veya NetLang sözdizimine (syntax) uygun değil.
-- **`3`**: Simülasyon Hatası. Ngspice motoru başlatılamadı veya simülasyon çöktü.
+Diagnostic alanları bütün aşamalarda ortaktır:
+
+```json
+{
+  "code": "NL-E003",
+  "severity": "error",
+  "stage": "erc",
+  "message": "Floating Pin: R1.p1 is not connected to anything.",
+  "component": "R1",
+  "pin": "p1",
+  "field": null,
+  "line": null,
+  "column": null
+}
+```
+
+Compile error varsa SPICE/layout/KiCad backend alanları `null` olur. Başarılı `compile` JSON'u `spice_netlist` içeriğini ve yazılan yolun `spice_file` değerini birlikte taşır. I/O veya runtime hatalarında `status` hiçbir zaman `success` değildir.
+
+## Exit kodları
+
+- `0`: Başarı.
+- `1`: Flatten, semantic validation veya ERC hatası.
+- `2`: Parse, I/O, güvenli output politikası veya henüz uygulanmamış frontend komutu hatası.
+- `3`: Simulator başlatma/process/runtime hatası.
+- `4`: Bir veya daha fazla assertion başarısız.
+
+Human ve JSON formatları aynı kod yolunu ve exit semantiğini kullanır.

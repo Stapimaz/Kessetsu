@@ -25,6 +25,10 @@ pub enum DiagnosticStage {
     Flatten,
     Semantic,
     Erc,
+    Io,
+    Cli,
+    Simulation,
+    Assertion,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -115,6 +119,12 @@ impl CompileReport {
         self.diagnostics
             .iter()
             .any(|diagnostic| diagnostic.severity == DiagnosticSeverity::Error)
+    }
+
+    pub fn failure(diagnostic: Diagnostic) -> Self {
+        let mut report = Self::empty();
+        report.diagnostics.push(diagnostic);
+        report
     }
 }
 

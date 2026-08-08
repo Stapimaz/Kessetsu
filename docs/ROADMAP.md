@@ -426,26 +426,28 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
   - Layout
   - KiCad schematic _(opsiyonel backend çıktısı)_
 - [x] Parser → flatten → IR → graph → ERC → backend sırasını tek yerde uygula.
-- [ ] CLI'nin bu entrypoint'i kullanmasını sağla.
+- [x] CLI'nin bu entrypoint'i kullanmasını sağla.
 - [x] WASM'in aynı entrypoint'i kullanmasını sağla.
 - [x] Error severity varsa downstream output üretimini tek merkezden engelle.
 - [x] Warning varsa başarılı output ile birlikte döndür.
-- [ ] JSON çıktıya `schema_version` ekle.
-- [ ] `--format` seçeneğini gerçek global CLI option yap.
-- [ ] Exit code sözleşmesini kesinleştir:
+- [x] JSON çıktıya `schema_version` ekle.
+- [x] `--format` seçeneğini gerçek global CLI option yap.
+- [x] Exit code sözleşmesini kesinleştir:
   - 0: success
   - 1: semantic/ERC failure
   - 2: parse/I-O failure
   - 3: simulation failure
   - 4: assertion failure
-- [ ] JSON stdout'a log veya progress yazma; logları stderr'e taşı.
-- [ ] `render` uygulanmadıysa nonzero error ver veya uygulanana kadar CLI yüzeyinden kaldır.
-- [ ] `simulate` JSON success sonucunun process status ve simulator errors ile uyumlu olmasını sağla.
-- [ ] Output file ve overwrite politikasını tanımla.
+- [x] JSON stdout'a log veya progress yazma; logları stderr'e taşı.
+- [x] `render` uygulanmadıysa nonzero error ver veya uygulanana kadar CLI yüzeyinden kaldır.
+- [x] `simulate` JSON success sonucunun process status ve simulator errors ile uyumlu olmasını sağla.
+- [x] Output file ve overwrite politikasını tanımla.
 
 **Compile API dilimi kanıtı (2026-08-09):** `netlang.compile.v1` şema sürümüne sahip, filesystem/process I/O yapmayan `compile_source(source, options) -> CompileReport` çekirdek entrypoint'i eklendi. Parse (`NL-P001` + satır/sütun), flatten (`NL-C008`), semantic (`NL-Cxxx`) ve ERC (`NL-Exxx`) sonuçları stage/severity bilgili ortak diagnostic tipine normalize ediliyor. IR ve deterministik sıralı graph özeti raporda korunurken error-severity diagnostic backend üretimini merkezi olarak kesiyor; AST, SPICE, layout ve KiCad çıktıları typed options ile seçiliyor. Bu kütüphane sözleşmesi 9 yeni integration testiyle korunuyor. CLI ve WASM migrasyonu ayrı, sıradaki paketlerdir; bu aşamada mevcut dış sözleşmeleri değiştirilmedi.
 
 **WASM adaptör dilimi kanıtı (2026-08-09):** `compile_netlang`, kendi parse/flatten/IR/graph/ERC/backend zincirini kurmak yerine yalnızca `compile_source(..., CompileOptions::all_outputs())` raporunu JS'e serialize eden fail-closed bir adaptöre indirildi. Web tüketicisi legacy `parse_error`/`erc_errors` alanlarından sürümlü ortak `diagnostics` sözleşmesine geçirildi; schema uyuşmazlığı ve error severity eski çıktıları ekranda bırakmadan hata veriyor. Kök kalite kapısındaki WASM package ve Web TypeScript/lint/build adımları bu entegrasyonu doğrular.
+
+**CLI sözleşme dilimi kanıtı (2026-08-09):** `check/compile/simulate/test` artık parse/IR/graph/ERC zincirini tekrarlamıyor ve canonical `CompileReport` kullanıyor. CLI JSON'u `netlang.compile.v1` raporunu `status`, `spice_file` ve `tests` alanlarıyla genişletiyor; integration testi AST/IR/diagnostics/graph/SPICE alanlarının library raporuyla birebir aynı olduğunu doğruluyor. `--format` iki konumda da çalışıyor; parse/I-O=2, semantic/ERC=1, simulation=3 ve assertion=4 yolları tek format-bağımsız akışta tanımlı. Output varsayılanı `<source>.spice`; mevcut hedef yalnız `--force` ile eziliyor, kaynak dosya hedef olamıyor. `render` `NL-F001`/exit 2 ile fail-closed. Simulator process status ve error/fatal/aborted çıktısı başarı JSON'una dönüşmüyor; gömülü Ngspice ile JSON success smoke testi de geçti. İlgili Rust suite toplam 64 teste çıktı.
 
 **Kabul kriterleri:**
 
@@ -754,4 +756,4 @@ Her geliştirme oturumunda:
 
 **2.5.5 — Tek compile pipeline ve CLI sözleşmesi.**
 
-2.5.1'in yalnız remote GitHub Actions run doğrulaması erişim bekliyor; production dependency audit sıfırlandı ve kök kalite kapısına bağlandı. 2.5.3 typed IR/semantic validation ve 2.5.4 deterministik graph/ERC sağlamlaştırması kapandı. Library seviyesindeki versioned `compile_source -> CompileReport` entrypoint'i ve WASM adaptasyonu tamamlandı. Sıradaki iş CLI'yi aynı entrypoint'e taşıyarak JSON schema ve exit-code sözleşmesini tek merkezle uyumlu hale getirmektir.
+2.5.1'in yalnız remote GitHub Actions run doğrulaması erişim bekliyor; production dependency audit sıfırlandı ve kök kalite kapısına bağlandı. 2.5.3 typed IR/semantic validation ve 2.5.4 graph/ERC sağlamlaştırması kapandı. 2.5.5'in ortak compile entrypoint, WASM ve CLI migrasyonları ile JSON/exit/output sözleşmeleri tamamlandı. Sıradaki iş 2.5.5 kabul kriterlerindeki CLI reference örnek matrisini integration testle kapatmak; ardından 2.5.6 Web/WASM senkronizasyonuna geçmektir.
