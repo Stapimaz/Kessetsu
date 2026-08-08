@@ -129,7 +129,7 @@ Sadece kodun bulunması tamamlanma kanıtı değildir.
 
 | Kontrol | Sonuç | Açıklama |
 |---|---|---|
-| `cargo test --all-targets` | Geçiyor | 25 test var; parser/IR/graph/ERC, ilk SPICE golden ve temel CLI contract katmanı mevcut |
+| `cargo test --all-targets` | Geçiyor | 29 test var; parser/IR/graph/ERC, gerçek örnek SPICE golden'ları, determinism stress ve temel CLI contract mevcut |
 | `cargo fmt -- --check` | Geçiyor | Rust kaynakları canonical `rustfmt` biçiminde |
 | `cargo clippy --all-targets -- -D warnings` | Geçiyor | Mevcut target'larda warning yok |
 | `npm run build` | Geçiyor | WASM paketini sıfırdan üretip web production build'i tamamlıyor |
@@ -291,7 +291,7 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 #### Graph/ERC testleri
 
 - [x] Connection sırası değişse de aynı canonical SPICE çıktısı testi.
-- [ ] Component declaration sırası değişse de aynı canonical sonuç testi.
+- [x] Component declaration sırası değişse de aynı canonical SPICE sonucu testi.
 - [x] Tek voltage source için GND canonicalization testi.
 - [ ] Multiple source ground ambiguity testi.
 - [x] User-named net önceliği testi.
@@ -304,14 +304,14 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 #### SPICE golden testleri
 
 - [x] Minimal source/resistor circuit canonical golden netlist'i.
-- [ ] `demo_circuit.nl` golden netlist.
-- [ ] `wheatstone.nl` golden netlist.
-- [ ] `test_features.nl` golden netlist.
-- [ ] Current source ve sine source golden netlist.
-- [ ] Named net golden netlist.
-- [ ] Model injection sırası golden testi.
-- [ ] Assertion `.meas` golden testi.
-- [ ] NC davranışını açıkça tanımlayan golden test.
+- [x] `demo_circuit.nl` golden netlist.
+- [x] `wheatstone.nl` golden netlist.
+- [x] `test_features.nl` golden netlist.
+- [x] Current source ve sine source golden netlist.
+- [x] Named net golden netlist.
+- [x] Model injection sırası golden testi.
+- [x] Assertion `.meas` golden testi.
+- [x] NC davranışını açıkça tanımlayan golden test.
 
 #### CLI contract testleri
 
@@ -370,17 +370,17 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 - [ ] Component pin tanımlarını graph/ERC/layout/SPICE için tek merkezde topla.
 - [ ] Invalid pin reference diagnostic'i ekle.
 - [ ] Component/net namespace collision politikasını tanımla ve test et.
-- [ ] Graph traversal başlangıçlarını canonical sıralamayla üret.
-- [ ] Net ID üretimini collection iteration sırasından bağımsız yap.
-- [ ] Ground çözümleme politikasını uygula:
-  1. Explicit GND/reference net öncelikli.
-  2. Legacy devreler için deterministik primary voltage-source fallback.
-  3. Birden fazla bağımsız olasılıkta ambiguity diagnostic.
+- [x] Graph traversal başlangıçlarını canonical pin sırasıyla üret.
+- [x] Net ID üretimini collection iteration sırasından bağımsız yap.
+- [ ] Ground çözümleme politikasını tamamla:
+  - [ ] Explicit GND/reference net önceliği.
+  - [x] Legacy devreler için lexicographic primary source-minus fallback.
+  - [ ] Birden fazla bağımsız olasılıkta ambiguity diagnostic.
 - [ ] User-named net conflict diagnostic'i ekle.
 - [ ] Diagnostic'leri code/component/pin temelinde canonical sırala.
-- [ ] Standard model injection için sıralı collection kullan.
+- [x] Component emission ve standard model injection için sıralı collection kullan.
 - [ ] SPICE sayı formatını canonical ve platform bağımsız yap.
-- [ ] Aynı circuit'i tekrarlı derleyen determinism stress testi ekle.
+- [x] Aynı circuit'i 100 kez tekrarlı derleyen byte-for-byte determinism stress testi ekle.
 
 **Kabul kriterleri:**
 

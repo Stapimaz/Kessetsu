@@ -1,5 +1,5 @@
 use crate::ir::*;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 pub struct NetlistGraph {
     pub pin_to_net: HashMap<String, usize>,
@@ -59,8 +59,11 @@ impl NetlistGraph {
             }
         }
 
+        let mut ordered_pins: Vec<_> = all_pins.into_iter().collect();
+        ordered_pins.sort();
+
         let mut visited = HashSet::new();
-        for pin in &all_pins {
+        for pin in &ordered_pins {
             if !visited.contains(pin) {
                 let current_net = next_net_id;
                 next_net_id += 1;
@@ -90,13 +93,11 @@ impl NetlistGraph {
             }
         }
 
-        let mut ground_net = None;
-        for (pin, net) in &pin_to_net {
-            if pin.ends_with(".minus") {
-                ground_net = Some(*net);
-                break;
-            }
-        }
+        let ground_net = pin_to_net
+            .iter()
+            .filter(|(pin, _)| pin.ends_with(".minus"))
+            .min_by(|(left_pin, _), (right_pin, _)| left_pin.cmp(right_pin))
+            .map(|(_, net)| *net);
 
         if let Some(gnd) = ground_net {
             for net in pin_to_net.values_mut() {
@@ -200,9 +201,12 @@ fn format_spice_value(comp: &IRComponent) -> String {
 
 pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
     let mut spice = String::from("* NetLang Generated SPICE Netlist\n");
-    let mut used_models = HashSet::new();
+    let mut used_models = BTreeSet::new();
 
-    for comp in &circuit.components {
+    let mut components: Vec<_> = circuit.components.iter().collect();
+    components.sort_by(|left, right| left.id.cmp(&right.id));
+
+    for comp in components {
         let value_str = format_spice_value(comp);
         match &comp.kind {
             ComponentKind::BJT(_) => {
@@ -284,7 +288,6 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
         }
     }
 
-    let mut dummy_count = 0;
     let mut net_counts: HashMap<usize, usize> = HashMap::new();
     let mut nc_nets: HashSet<usize> = HashSet::new();
 
@@ -295,12 +298,15 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
         }
     }
 
-    for (net, count) in net_counts {
-        if net != 0 && (count == 1 || nc_nets.contains(&net)) {
-            let net_name = graph.get_net_name(net);
-            spice.push_str(&format!("R_dummy_{} {} 0 1G\n", dummy_count, net_name));
-            dummy_count += 1;
-        }
+    let mut dangling_net_names: Vec<_> = net_counts
+        .into_iter()
+        .filter(|(net, count)| *net != 0 && (*count == 1 || nc_nets.contains(net)))
+        .map(|(net, _)| graph.get_net_name(net))
+        .collect();
+    dangling_net_names.sort();
+
+    for (dummy_count, net_name) in dangling_net_names.into_iter().enumerate() {
+        spice.push_str(&format!("R_dummy_{} {} 0 1G\n", dummy_count, net_name));
     }
 
     let mut main_analysis = "tran";

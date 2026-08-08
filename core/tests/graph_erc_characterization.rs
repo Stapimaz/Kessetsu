@@ -91,6 +91,55 @@ fn connection_statement_order_does_not_change_generated_spice() {
 }
 
 #[test]
+fn component_declaration_order_does_not_change_generated_spice() {
+    let source_a = "source V1 5V\nresistor R1 1k\nresistor R2 2k\nconnect V1.plus to R1.p1\nconnect R1.p2 to R2.p1\nconnect R2.p2 to V1.minus\nsimulate op\n";
+    let source_b = "resistor R2 2k\nsource V1 5V\nresistor R1 1k\nconnect V1.plus to R1.p1\nconnect R1.p2 to R2.p1\nconnect R2.p2 to V1.minus\nsimulate op\n";
+
+    let circuit_a = circuit_from(source_a);
+    let graph_a = NetlistGraph::build(&circuit_a);
+    let circuit_b = circuit_from(source_b);
+    let graph_b = NetlistGraph::build(&circuit_b);
+
+    assert_eq!(
+        generate_spice(&circuit_a, &graph_a),
+        generate_spice(&circuit_b, &graph_b)
+    );
+}
+
+#[test]
+fn disconnected_source_ground_fallback_is_lexicographically_stable() {
+    let source = "source Z1 9V\nresistor Rz 1k\nsource A1 5V\nresistor Ra 1k\nconnect Z1.plus to Rz.p1\nconnect Z1.minus to Rz.p2\nconnect A1.plus to Ra.p1\nconnect A1.minus to Ra.p2\n";
+    let circuit = circuit_from(source);
+    let graph = NetlistGraph::build(&circuit);
+
+    assert_eq!(graph.get_net("A1", "minus"), 0);
+    assert_ne!(graph.get_net("Z1", "minus"), 0);
+}
+
+#[test]
+fn standard_models_and_full_netlist_are_byte_stable_across_rebuilds() {
+    let source = include_str!("../../examples/test_features.nl");
+    let circuit = circuit_from(source);
+    let baseline = generate_spice(&circuit, &NetlistGraph::build(&circuit));
+
+    let model_3904 = baseline
+        .find(".model 2N3904")
+        .expect("2N3904 model missing");
+    let model_3906 = baseline
+        .find(".model 2N3906")
+        .expect("2N3906 model missing");
+    assert!(
+        model_3904 < model_3906,
+        "models must be sorted by canonical name"
+    );
+
+    for _ in 0..100 {
+        let actual = generate_spice(&circuit, &NetlistGraph::build(&circuit));
+        assert_eq!(actual, baseline);
+    }
+}
+
+#[test]
 fn diagnostic_order_is_repeatable_for_the_same_circuit() {
     let source = "resistor R1 1k\nresistor R1 2k\ntransistor Q1 npn\n";
     let baseline: Vec<_> = diagnostics_for(source)

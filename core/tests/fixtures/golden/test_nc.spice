@@ -1,6 +1,6 @@
 * NetLang Generated SPICE Netlist
 R_R1 N_R1_p1 0 1000
-V_V1 N_R1_p1 0 5
+V_Vin N_R1_p1 0 5
 
 .control
 op
