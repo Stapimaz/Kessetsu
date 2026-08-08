@@ -130,8 +130,8 @@ Sadece kodun bulunması tamamlanma kanıtı değildir.
 | Kontrol | Sonuç | Açıklama |
 |---|---|---|
 | `cargo test` | Geçiyor | Yalnızca 1 Rust testi var; kapsam kabul için yetersiz |
-| `cargo fmt -- --check` | Başarısız | Rust kaynakları canonical formatta değil |
-| `cargo clippy --all-targets -- -D warnings` | Başarısız | 15 mevcut lint ihlali bulundu; mekanik temizlik bekliyor |
+| `cargo fmt -- --check` | Geçiyor | Rust kaynakları canonical `rustfmt` biçiminde |
+| `cargo clippy --all-targets -- -D warnings` | Geçiyor | Mevcut target'larda warning yok |
 | `npm run build` | Geçiyor | WASM paketini sıfırdan üretip web production build'i tamamlıyor |
 | `npm run lint` | Geçiyor | React hook dependency uyarısı giderildi; warning yok |
 | Örnek ERC matrisi | Beklendiği gibi | Geçerli örnekler geçiyor; intentionally-invalid `test_amp.nl` exit 1 veriyor |
@@ -230,7 +230,9 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 - [x] Ngspice kaynak/test ağacının tamamının repoda tutulup tutulmayacağına karar ver:
   - GUI, 707 upstream örneği, opsiyonel XSPICE/OSDI kütüphaneleri ve fazla vendor dokümanları kaldırıldı.
   - Minimal analog runtime 7 dosya ve yaklaşık 8.36 MB olarak tutuluyor.
-- [x] Kök doğrulama script'i ekle: `pwsh -File scripts/verify.ps1`.
+- [x] Kök doğrulama script'i ekle:
+  - Windows PowerShell: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify.ps1`
+  - PowerShell 7: `pwsh -NoProfile -File scripts/verify.ps1`
 - [ ] CI ekle:
   - Rust fmt
   - Rust Clippy
@@ -238,7 +240,7 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
   - WASM build
   - Web lint
   - Web build
-- [ ] Build/test sonrası `git status --short` temizliği için smoke check ekle.
+- [x] Build/test'in çalışma ağacında yeni non-ignored değişiklik üretmediğini önce/sonra Git snapshot'ıyla doğrula.
 
 **Kabul kriterleri:**
 
@@ -482,17 +484,20 @@ npm.cmd run lint
 npm.cmd run build:wasm
 npm.cmd run build:web
 
-# Aynı kapıları kökten sırayla çalıştıran komut
+# Aynı kapıları kökten sırayla çalıştıran Windows komutu
 cd ..
-pwsh -File scripts/verify.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify.ps1
+
+# PowerShell 7 alternatifi
+pwsh -NoProfile -File scripts/verify.ps1
 ```
 
 #### Final kabul matrisi
 
-- [ ] Rust fmt geçiyor.
-- [ ] Rust Clippy `-D warnings` ile geçiyor.
+- [x] Rust fmt geçiyor.
+- [x] Rust Clippy `-D warnings` ile geçiyor.
 - [ ] Tüm Rust ve CLI testleri geçiyor.
-- [ ] Release build geçiyor.
+- [x] Release build geçiyor.
 - [x] WASM build geçiyor.
 - [x] Web lint warning vermeden geçiyor.
 - [x] Web production build geçiyor.

@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ComponentType {
@@ -94,7 +94,7 @@ impl Program {
     pub fn flatten(&self) -> Result<Program, String> {
         let mut flat_statements = Vec::new();
         let mut module_map = std::collections::HashMap::new();
-        
+
         for md in &self.modules {
             module_map.insert(md.name.clone(), md);
         }
@@ -118,21 +118,26 @@ impl Program {
                     let map_pin = |pin: &PinRef| -> PinRef {
                         if pin.component.is_empty() {
                             let prefix_trimmed = prefix.trim_end_matches('_');
-                            PinRef { component: prefix_trimmed.to_string(), pin: pin.pin.clone() }
+                            PinRef {
+                                component: prefix_trimmed.to_string(),
+                                pin: pin.pin.clone(),
+                            }
                         } else {
-                            PinRef { component: format!("{}{}", prefix, pin.component), pin: pin.pin.clone() }
+                            PinRef {
+                                component: format!("{}{}", prefix, pin.component),
+                                pin: pin.pin.clone(),
+                            }
                         }
                     };
-                    
+
                     let new_pins = conn.pins.iter().map(map_pin).collect();
-                    flat_statements.push(Statement::Connect(Connection {
-                        pins: new_pins,
-                    }));
+                    flat_statements.push(Statement::Connect(Connection { pins: new_pins }));
                 }
                 Statement::Use(use_stmt) => {
-                    let md = module_map.get(&use_stmt.module_name)
+                    let md = module_map
+                        .get(&use_stmt.module_name)
                         .ok_or(format!("Module not found: {}", use_stmt.module_name))?;
-                    
+
                     let inst_name = format!("{}{}", prefix, use_stmt.inst_name);
                     flat_statements.push(Statement::Decl(ComponentDecl {
                         comp_type: ComponentType::ModulePort,

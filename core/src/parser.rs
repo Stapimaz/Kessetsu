@@ -1,5 +1,5 @@
-use pest::Parser;
 use crate::ast::*;
+use pest::Parser;
 
 #[derive(Parser)]
 #[grammar = "netlang.pest"]
@@ -21,7 +21,7 @@ pub fn parse_program(input: &str) -> Result<Program, pest::error::Error<Rule>> {
                             Rule::module_decl => {
                                 let mut inner_rules = inner.into_inner();
                                 let name = inner_rules.next().unwrap().as_str().to_string();
-                                
+
                                 let mut pins = Vec::new();
                                 let mut statements = Vec::new();
 
@@ -90,11 +90,11 @@ fn parse_statement(statement_pair: pest::iterators::Pair<Rule>) -> Option<Statem
                     let value = inner_rules.next().map(|v| {
                         let mut val = v.as_str().to_string();
                         if val.starts_with('"') && val.ends_with('"') {
-                            val = val[1..val.len()-1].to_string();
+                            val = val[1..val.len() - 1].to_string();
                         }
                         val
                     });
-                    
+
                     Some(Statement::Decl(ComponentDecl {
                         comp_type,
                         name,
@@ -105,17 +105,17 @@ fn parse_statement(statement_pair: pest::iterators::Pair<Rule>) -> Option<Statem
                 Rule::transistor_decl => {
                     let mut inner_rules = decl_inner.into_inner();
                     let name = inner_rules.next().unwrap().as_str().to_string();
-                    
+
                     let mut subtype = None;
                     let mut value = None;
-                    
+
                     for rule in inner_rules {
                         match rule.as_rule() {
                             Rule::polarity => subtype = Some(rule.as_str().to_string()),
                             Rule::comp_value => {
                                 let mut val = rule.as_str().to_string();
                                 if val.starts_with('"') && val.ends_with('"') {
-                                    val = val[1..val.len()-1].to_string();
+                                    val = val[1..val.len() - 1].to_string();
                                 }
                                 value = Some(val);
                             }
@@ -139,7 +139,7 @@ fn parse_statement(statement_pair: pest::iterators::Pair<Rule>) -> Option<Statem
                     };
                     let name = inner_rules.next().unwrap().as_str().to_string();
                     let value = Some(inner_rules.next().unwrap().as_str().to_string());
-                    
+
                     Some(Statement::Decl(ComponentDecl {
                         comp_type,
                         name,
@@ -160,9 +160,15 @@ fn parse_statement(statement_pair: pest::iterators::Pair<Rule>) -> Option<Statem
                 let mut p_inner = p.into_inner();
                 let first = p_inner.next().unwrap().as_str().to_string();
                 let pin = if let Some(second) = p_inner.next() {
-                    PinRef { component: first, pin: second.as_str().to_string() }
+                    PinRef {
+                        component: first,
+                        pin: second.as_str().to_string(),
+                    }
                 } else {
-                    PinRef { component: "".to_string(), pin: first }
+                    PinRef {
+                        component: "".to_string(),
+                        pin: first,
+                    }
                 };
                 pins.push(pin);
             }
@@ -182,8 +188,13 @@ fn parse_statement(statement_pair: pest::iterators::Pair<Rule>) -> Option<Statem
                 _ => unreachable!(),
             };
             let threshold = inner_rules.next().unwrap().as_str().to_string();
-            
-            Some(Statement::Assert(AssertStmt { metric, signal, cmp, threshold }))
+
+            Some(Statement::Assert(AssertStmt {
+                metric,
+                signal,
+                cmp,
+                threshold,
+            }))
         }
         Rule::use_stmt => {
             let mut inner_rules = inner.into_inner();
@@ -201,7 +212,7 @@ fn parse_statement(statement_pair: pest::iterators::Pair<Rule>) -> Option<Statem
             for arg in inner_rules {
                 let mut arg_val = arg.as_str().to_string();
                 if arg_val.starts_with('"') && arg_val.ends_with('"') {
-                    arg_val = arg_val[1..arg_val.len()-1].to_string();
+                    arg_val = arg_val[1..arg_val.len() - 1].to_string();
                 }
                 args.push(arg_val);
             }

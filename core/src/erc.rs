@@ -1,7 +1,7 @@
-use crate::ir::*;
 use crate::graph::NetlistGraph;
+use crate::ir::*;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
-use serde::{Serialize, Deserialize};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum Severity {
@@ -39,7 +39,7 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
     // 2. Undefined component check (NL-E002)
     for conn in &circuit.connections {
         for p in &conn.pins {
-            if p.component != "" && !declared.contains(&p.component) {
+            if !p.component.is_empty() && !declared.contains(&p.component) {
                 errors.push(ErcDiagnostic {
                     code: "NL-E002".to_string(),
                     severity: Severity::Error,
@@ -68,7 +68,10 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
                 errors.push(ErcDiagnostic {
                     code: "NL-E003".to_string(),
                     severity: Severity::Error,
-                    message: format!("Floating Pin: {}.{} is not connected to anything.", comp.id, pin),
+                    message: format!(
+                        "Floating Pin: {}.{} is not connected to anything.",
+                        comp.id, pin
+                    ),
                     component: Some(comp.id.clone()),
                     pin: Some(pin.to_string()),
                 });
@@ -81,12 +84,15 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
         if comp.kind == ComponentKind::VoltageSource {
             let net1 = graph.get_net(&comp.id, "plus");
             let net2 = graph.get_net(&comp.id, "minus");
-            
+
             if net1 != 9999 && net2 != 9999 && net1 == net2 {
                 errors.push(ErcDiagnostic {
                     code: "NL-E004".to_string(),
                     severity: Severity::Error,
-                    message: format!("CRITICAL SHORT CIRCUIT: Source {} plus and minus are connected together!", comp.id),
+                    message: format!(
+                        "CRITICAL SHORT CIRCUIT: Source {} plus and minus are connected together!",
+                        comp.id
+                    ),
                     component: Some(comp.id.clone()),
                     pin: None,
                 });

@@ -3,14 +3,14 @@ extern crate pest;
 extern crate pest_derive;
 
 pub mod ast;
-pub mod parser;
-pub mod ir;
-pub mod graph;
 pub mod erc;
-pub mod layout;
+pub mod graph;
+pub mod ir;
 pub mod kicad;
-pub mod wasm;
+pub mod layout;
+pub mod parser;
 pub mod sim_result;
+pub mod wasm;
 
 pub use parser::parse_program;
 
@@ -22,15 +22,16 @@ mod tests {
 
     #[test]
     fn test_parse_and_erc() {
-        let input = "resistor R1 10k\nsource B1 5V\nconnect B1.plus to R1.p1\nconnect B1.minus to R1.p2\n";
+        let input =
+            "resistor R1 10k\nsource B1 5V\nconnect B1.plus to R1.p1\nconnect B1.minus to R1.p2\n";
         let program = parse_program(input).unwrap().flatten().unwrap();
         assert_eq!(program.statements.len(), 4);
-        
+
         let circuit = ast_to_ir(&program).unwrap();
         let graph = crate::graph::NetlistGraph::build(&circuit);
         let errors = check_rules(&circuit, &graph);
         assert!(errors.is_empty());
-        
+
         let bad_input = "resistor R1 10k\nconnect B1.plus to R1.p1\n";
         let bad_program = parse_program(bad_input).unwrap().flatten().unwrap();
         let bad_circuit = ast_to_ir(&bad_program).unwrap();

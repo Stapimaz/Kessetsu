@@ -146,11 +146,15 @@ fn main() {
     // 5. Generate SPICE
     let spice = generate_spice(&circuit, &graph);
     let spice_path = path.with_extension("spice");
-    
+
     if let Err(e) = fs::write(&spice_path, &spice) {
         print_error(
             &cli.format,
-            &format!("Could not write SPICE file to '{}': {}", spice_path.display(), e),
+            &format!(
+                "Could not write SPICE file to '{}': {}",
+                spice_path.display(),
+                e
+            ),
         );
         process::exit(2);
     }
@@ -165,7 +169,10 @@ fn main() {
             };
             println!("{}", serde_json::to_string_pretty(&out).unwrap());
         } else {
-            println!("[SUCCESS] SPICE netlist generated: {}", spice_path.display());
+            println!(
+                "[SUCCESS] SPICE netlist generated: {}",
+                spice_path.display()
+            );
         }
         process::exit(0);
     }
@@ -176,8 +183,8 @@ fn main() {
             println!("[INFO] Running ngspice simulation...");
         }
 
-        let exe_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("tools/ngspice/bin/ngspice_con.exe");
+        let exe_path =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tools/ngspice/bin/ngspice_con.exe");
 
         if !exe_path.exists() {
             print_error(
@@ -196,7 +203,7 @@ fn main() {
             Ok(output) => {
                 let stdout = String::from_utf8_lossy(&output.stdout);
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                
+
                 if cli.format == Format::Json {
                     // For Phase 3, we will parse Ngspice output. For now, just print success JSON.
                     let out = JsonOutput {
@@ -257,7 +264,11 @@ fn main() {
                 threshold: r.assertion.threshold,
             });
             if cli.format == Format::Human {
-                let status = if r.pass { "\x1b[32m[PASS]\x1b[0m" } else { "\x1b[31m[FAIL]\x1b[0m" };
+                let status = if r.pass {
+                    "\x1b[32m[PASS]\x1b[0m"
+                } else {
+                    "\x1b[31m[FAIL]\x1b[0m"
+                };
                 let cmp_str = match r.assertion.cmp {
                     netlang_core::ast::Cmp::Lt => "<",
                     netlang_core::ast::Cmp::Gt => ">",
@@ -266,18 +277,35 @@ fn main() {
                     netlang_core::ast::Cmp::Eq => "==",
                 };
                 if r.actual.is_nan() {
-                    println!("{} {}({}) {} {} (actual: NaN/Not Found)", 
-                        status, r.assertion.metric, r.assertion.signal, cmp_str, r.assertion.threshold);
+                    println!(
+                        "{} {}({}) {} {} (actual: NaN/Not Found)",
+                        status,
+                        r.assertion.metric,
+                        r.assertion.signal,
+                        cmp_str,
+                        r.assertion.threshold
+                    );
                 } else {
-                    println!("{} {}({}) {} {} (actual: {:.6})", 
-                        status, r.assertion.metric, r.assertion.signal, cmp_str, r.assertion.threshold, r.actual);
+                    println!(
+                        "{} {}({}) {} {} (actual: {:.6})",
+                        status,
+                        r.assertion.metric,
+                        r.assertion.signal,
+                        cmp_str,
+                        r.assertion.threshold,
+                        r.actual
+                    );
                 }
             }
         }
 
         if cli.format == Format::Json {
             let out = JsonOutput {
-                status: if all_passed { "success".to_string() } else { "test_failed".to_string() },
+                status: if all_passed {
+                    "success".to_string()
+                } else {
+                    "test_failed".to_string()
+                },
                 diagnostics: vec![],
                 spice_file: Some(spice_path.to_string_lossy().to_string()),
                 tests: Some(json_results),
@@ -299,7 +327,10 @@ fn main() {
     }
 
     if matches!(cli.command, Commands::Render { .. }) {
-        print_error(&cli.format, "Render command is not yet implemented (Phase 3)");
+        print_error(
+            &cli.format,
+            "Render command is not yet implemented (Phase 3)",
+        );
         process::exit(0);
     }
 }
