@@ -85,7 +85,6 @@ npm.cmd run build
 
 ## Önemli sınırlar
 
-- `battery` canonical syntax değildir; voltage source için `source` kullanılır.
 - Backend'ler yalnız typed Circuit IR üzerinden çalışır.
 - Generated output fiziksel doğrulama veya mühendis incelemesinin yerine geçmez.
 - Embedded runtime'ın provenance/lisans notları [Ngspice runtime README](core/tools/ngspice/README.md) içinde tutulur.

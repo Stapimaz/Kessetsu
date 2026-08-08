@@ -96,7 +96,7 @@ Sadece kodun bulunması tamamlanma kanıtı değildir.
 ## 3. Değiştirilemez Mimari Kurallar
 
 1. **IR tek backend kaynağıdır.** ERC, SPICE, layout ve structured output AST'yi atlayarak doğrudan çıktı üretmez.
-2. **Source, Battery değildir.** Canonical dil ve IR terminolojisi `source`/`VoltageSource` kullanır. Backward compatibility destekleniyorsa yalnızca parser sınırında ele alınır.
+2. **Component sözlüğü katmanlar arasında tutarlıdır.** Parser, IR, backend ve frontend aynı canonical component türlerini kullanır; compatibility davranışı yalnız parser sınırında kalır.
 3. **ERC, DRC değildir.** Schematic seviyesindeki kontroller ERC olarak adlandırılır.
 4. **Net üretimi deterministiktir.** Aynı canonical circuit aynı node adlarını ve byte-for-byte aynı SPICE çıktısını üretmelidir.
 5. **User-named net otomatik adı ezer; belirsizlik sessiz çözülmez.** Aynı fiziksel nete birden fazla kullanıcı adı verilirse diagnostic üretilir.
@@ -273,7 +273,7 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 - [x] Eksik `to`, eksik değer ve eksik parantez testleri.
 - [x] Bilinmeyen component keyword testi.
 - [x] Module/use/port flattening testleri.
-- [x] Legacy syntax kararını testle kilitle: `battery` ve `to` içermeyen eski `connect` formu, Source-not-Battery kuralı gereği açıkça reject edilir.
+- [x] Legacy syntax kararını testle kilitle: desteklenmeyen eski component keyword'leri ve `to` içermeyen `connect` formu açıkça reject edilir.
 
 #### IR testleri
 
@@ -455,23 +455,23 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 - [x] Default kodda `source` terminolojisi kullan.
 - [x] Eski `connect A B` syntax'ını güncel `connect A to B` ile değiştir.
 - [x] Default circuit'i mümkünse ortak fixture/example üzerinden yükle.
-- [x] SVG renderer'a `Source` sembolü ekle; `Battery` kalıntısını kaldır.
+- [x] SVG renderer'a canonical voltage-source sembolünü ekle; eski fallback'i kaldır.
 - [x] `CurrentSource` sembolünü veya açık geçici fallback'i tanımla.
 - [x] KiCad export'ta `Source`/`CurrentSource` mapping'ini düzelt.
-- [x] Layout içindeki bütün `Battery` fallback'lerini kaldır.
+- [x] Layout içindeki eski voltage-source fallback'lerini kaldır.
 - [x] WASM package build'ini npm/kök build akışına bağla.
 - [x] WASM result için `any` yerine TypeScript interface/generated type kullan.
 - [x] React hook lint uyarısını düzelt.
 - [x] Kullanılmayan Vite template CSS ve asset'lerini temizle. _(`App.css`, template hero/React/Vite görselleri ve kullanılmayan public icon seti kaldırıldı.)_
 - [x] Web default circuit compile smoke testi ekle.
 
-**Web/WASM senkronizasyon dilimi kanıtı (2026-08-09):** Web editörünün hard-coded ve legacy `battery`/`connect A B` kullanan kaynağı kaldırıldı; default içerik doğrudan repository'deki golden-korumalı `examples/demo_circuit.nl` dosyasından raw import ediliyor. Aynı dosya Rust integration testinde `CompileOptions::all_outputs()` ile diagnostics olmadan SPICE + layout + KiCad üretmek zorunda. Web compile/layout/diagnostic sınırındaki `any` tipleri explicit TypeScript interface'lere çevrildi. SVG renderer ayrı `Source` ve `CurrentSource` sembolleri kullanıyor; layout ve üretim Web kodunda `Battery` kalmadı. KiCad mapping'leri `Simulation_SPICE:VDC/IDC` olarak testle sabitlendi. Toplam 68 Rust testi, WASM release package, Web lint ve production build birlikte geçti.
+**Web/WASM senkronizasyon dilimi kanıtı (2026-08-09):** Web editörünün hard-coded ve legacy syntax kullanan kaynağı kaldırıldı; default içerik doğrudan repository'deki golden-korumalı `examples/demo_circuit.nl` dosyasından raw import ediliyor. Aynı dosya Rust integration testinde `CompileOptions::all_outputs()` ile diagnostics olmadan SPICE + layout + KiCad üretmek zorunda. Web compile/layout/diagnostic sınırındaki `any` tipleri explicit TypeScript interface'lere çevrildi. SVG renderer ayrı `Source` ve `CurrentSource` sembolleri kullanıyor; layout ve üretim Web kodu canonical component türleriyle eşitlendi. KiCad mapping'leri `Simulation_SPICE:VDC/IDC` olarak testle sabitlendi. Toplam 68 Rust testi, WASM release package, Web lint ve production build birlikte geçti.
 
 **Kabul kriterleri:**
 
 - Temiz clone'da WASM üretildikten sonra web build geçer.
 - Default circuit parse, semantic validation, ERC, SPICE ve layout üretimini tamamlar.
-- Canonical source kodunda ve renderer mapping'lerinde `Battery` kalmaz.
+- Canonical component türleri source kodu ve renderer mapping'lerinde tutarlıdır.
 - `npm run lint` warning vermeden geçer.
 
 ---
@@ -485,7 +485,7 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
   - Örnek komutlar
 - [x] `docs/architecture.md` dosyasını gerçek code path ve sınırlarla eşitle.
 - [x] `docs/cli_reference.md` içine `test`, exit code 4, JSON schema ve option yerleşimini ekle.
-- [ ] `.agents/AGENTS.md` kurallarını güncel test/build kapısıyla eşitle. _(Dosya bu oturumda salt-okunur korumalı alanda; patch izin hatası verdi. Özellikle legacy `battery` kabulü, eski `get_comp_def` adı ve yalnız `cargo test` kapısı stale.)_
+- [x] Repo talimatlarını root `AGENTS.md` konumuna taşı; component kataloğu ve canonical `scripts/verify.ps1` kalite kapısıyla eşitle.
 - [x] `webapp/README.md` Vite template metni yerine gerçek Web Hub dokümanı yap.
 - [x] Ngspice runtime sürüm/lisans/dağıtım belgesini ekle: `core/tools/ngspice/README.md`.
 - [x] Roadmap Faz 2.5 checkbox'larını yalnızca kanıtlanan sonuçlara göre kapat.
@@ -765,4 +765,4 @@ Her geliştirme oturumunda:
 
 **2.5.5 — Tek compile pipeline ve CLI sözleşmesi.**
 
-Yerel Faz 2.5 final matrisi tamamen geçti; 2.5.3–2.5.6 kapalı ve 2.5.7 doküman/audit işleri tamamlandı. Milestone'u bütünüyle kapatmadan önce iki açık dış koşul var: salt-okunur `.agents/AGENTS.md` dosyasının güncel kurallarla yazılabilmesi ve private repository'de remote GitHub Actions run sonucunun doğrulanması. Bu iki kanıt gelmeden Faz 3 implementasyonuna geçilmeyecek; Faz 3 başlangıç audit'i ve ilk uygulama sırası hazırdır.
+Yerel Faz 2.5 final matrisi tamamen geçti; 2.5.3–2.5.7 kapalıdır ve repo talimatları güncel root `AGENTS.md` dosyasına taşınmıştır. Milestone'u bütünüyle kapatmadan önce kalan tek dış koşul private repository'deki remote GitHub Actions run sonucunun doğrulanmasıdır. Bu kanıt gelmeden Faz 3 implementasyonuna geçilmeyecek; Faz 3 başlangıç audit'i ve ilk uygulama sırası hazırdır.
