@@ -162,7 +162,11 @@ fn invalid_or_missing_component_values_fail_ir_conversion() {
         "current_source I1 10V\n",
     ] {
         let program = parse_program(source).expect("syntax should parse");
-        assert!(ast_to_ir(&program).is_err(), "{source:?} reached typed IR");
+        let diagnostic = ast_to_ir(&program).expect_err("invalid value reached typed IR");
+        assert_eq!(
+            diagnostic.code, "NL-C001",
+            "unexpected error for {source:?}"
+        );
     }
 }
 
@@ -175,7 +179,11 @@ fn waveform_arity_and_units_are_validated() {
         "current_source I1 pulse(0A, 1A, 1ms, 1us, 1us, 5V, 10ms)\n",
     ] {
         let program = parse_program(source).expect("syntax should parse");
-        assert!(ast_to_ir(&program).is_err(), "{source:?} reached typed IR");
+        let diagnostic = ast_to_ir(&program).expect_err("invalid waveform reached typed IR");
+        assert_eq!(
+            diagnostic.code, "NL-C002",
+            "unexpected error for {source:?}"
+        );
     }
 
     let source = "source V1 pulse(0V, 5V, 1ms, 1us, 2us, 3ms, 10ms)\n";
@@ -191,10 +199,23 @@ fn waveform_arity_and_units_are_validated() {
 
 #[test]
 fn assertion_threshold_dimension_matches_signal_dimension() {
-    for source in ["assert max(V(out)) < 2A\n", "assert peak(I(V1)) < 5V\n"] {
+    for source in [
+        "assert max(V(out)) < 2A\n",
+        "assert peak(I(V1)) < 5V\n",
+        "assert max(R(out)) < 2V\n",
+        "assert max(Voltage(out)) < 2V\n",
+    ] {
         let program = parse_program(source).expect("syntax should parse");
-        assert!(ast_to_ir(&program).is_err(), "{source:?} reached typed IR");
+        let diagnostic = ast_to_ir(&program).expect_err("invalid assertion reached typed IR");
+        assert_eq!(
+            diagnostic.code, "NL-C006",
+            "unexpected error for {source:?}"
+        );
     }
+
+    let lowercase = parse_program("assert max(v(out)) < 2V\n").expect("signal should parse");
+    let circuit = ast_to_ir(&lowercase).expect("signal function should be case insensitive");
+    assert_eq!(circuit.assertions[0].threshold.unit, SIUnit::Volt);
 }
 
 #[test]
@@ -213,4 +234,69 @@ fn transistor_polarity_is_case_insensitive_at_the_parser_boundary() {
             .name,
         "2N3904"
     );
+}
+
+#[test]
+fn builtin_model_defaults_are_explicit_in_typed_ir() {
+    for (source, expected_model) in [
+        ("transistor Q1\n", "2N3904"),
+        ("transistor Q1 pnp\n", "2N3906"),
+        ("mosfet M1\n", "IRF540"),
+        ("diode D1\n", "1N4148"),
+    ] {
+        let program = parse_program(source).expect("component should parse");
+        let circuit = ast_to_ir(&program).expect("builtin default should resolve");
+        let model = circuit.components[0]
+            .model
+            .as_ref()
+            .expect("model must be explicit in IR");
+        assert_eq!(model.name, expected_model);
+    }
+}
+
+#[test]
+fn unsupported_and_incompatible_models_fail_closed_with_codes() {
+    for (source, expected_code) in [
+        ("transistor Q1 NOT_A_MODEL\n", "NL-C003"),
+        ("mosfet M1 NOT_A_MODEL\n", "NL-C003"),
+        ("diode D1 NOT_A_MODEL\n", "NL-C003"),
+        ("opamp U1 LM358\n", "NL-C003"),
+        ("transistor Q1 1N4148\n", "NL-C004"),
+        ("transistor Q1 pnp 2N3904\n", "NL-C004"),
+        ("diode D1 2N3904\n", "NL-C004"),
+        ("mosfet M1 1N4148\n", "NL-C004"),
+        ("opamp U1\n", "NL-C005"),
+    ] {
+        let program = parse_program(source).expect("component syntax should parse");
+        let diagnostic = ast_to_ir(&program).expect_err("invalid model reached typed IR");
+        assert_eq!(
+            diagnostic.code, expected_code,
+            "unexpected error for {source:?}"
+        );
+        assert_eq!(diagnostic.field.as_deref(), Some("model"));
+    }
+}
+
+#[test]
+fn flattened_module_ports_use_an_explicit_parameter_variant() {
+    let source = include_str!("fixtures/valid/module.nl");
+    let program = parse_program(source)
+        .expect("module fixture should parse")
+        .flatten()
+        .expect("module fixture should flatten");
+    let circuit = ast_to_ir(&program).expect("module fixture should reach typed IR");
+    assert!(matches!(
+        &circuit.components[1].parameters,
+        ComponentParams::ModulePort { module_name } if module_name == "Divider"
+    ));
+}
+
+#[test]
+fn semantic_diagnostics_are_serializable_for_cli_and_wasm() {
+    let program = parse_program("diode D1 UNKNOWN\n").expect("syntax should parse");
+    let diagnostic = ast_to_ir(&program).expect_err("unknown model should fail");
+    let json = serde_json::to_value(&diagnostic).expect("diagnostic should serialize");
+    assert_eq!(json["code"], "NL-C003");
+    assert_eq!(json["component"], "D1");
+    assert_eq!(json["field"], "model");
 }

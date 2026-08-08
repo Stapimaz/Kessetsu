@@ -13,6 +13,7 @@ pub struct CompileResult {
     pub layout: Option<crate::layout::LayoutResult>,
     pub kicad_sch: Option<String>,
     pub parse_error: Option<String>,
+    pub semantic_error: Option<crate::ir::SemanticDiagnostic>,
     pub spice_netlist: Option<String>,
 }
 
@@ -25,6 +26,7 @@ pub fn compile_netlang(input: &str) -> JsValue {
         layout: None,
         kicad_sch: None,
         parse_error: None,
+        semantic_error: None,
         spice_netlist: None,
     };
 
@@ -47,8 +49,8 @@ pub fn compile_netlang(input: &str) -> JsValue {
                     result.ir = Some(circuit_ir);
                     result.erc_errors = errors;
                 }
-                Err(e) => {
-                    result.parse_error = Some(e);
+                Err(diagnostic) => {
+                    result.semantic_error = Some(diagnostic);
                 }
             },
             Err(err_msg) => {

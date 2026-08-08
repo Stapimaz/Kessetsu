@@ -344,18 +344,20 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 - [x] Voltage source ve current source parametrelerini fiziksel olarak doğru ayrı tiplerle temsil et.
 - [x] DC ve waveform source değerlerini typed enum ile temsil et.
 - [x] Waveform parametre sayısını ve her parametrenin unit boyutunu doğrula.
-- [ ] `Unknown { original_value }` fallback'ini yalnızca açıkça güvenli kullanım varsa koru; aksi halde kaldır.
-- [ ] Bilinmeyen model politikasını tanımla:
-  - Builtin model
-  - User-defined model
-  - Unsupported/unknown diagnostic
-- [ ] Modeli olmayan BJT/MOSFET/diode/op-amp'ın geçersiz SPICE üretmesini engelle.
-- [ ] Assertion signal, comparator, threshold ve unit validation ekle.
-- [ ] IR conversion diagnostic'leri için `NL-Cxxx` kod alanı oluştur.
+- [x] `Unknown { original_value }` fallback'ini yalnızca açıkça güvenli kullanım varsa koru; aksi halde kaldır. _(Fallback kaldırıldı; module port ve diode açık parametre variant'ları kullanıyor.)_
+- [x] Bilinmeyen model politikasını tanımla:
+  - [x] Builtin model: `resolve_model` ile typed kind + provenance.
+  - [x] User-defined model: declaration/include syntax tanımlanana kadar desteklenmiyor ve sessiz kabul edilmiyor.
+  - [x] Unsupported/unknown model: `NL-C003`; model kind/polarity mismatch: `NL-C004`.
+- [x] Modeli olmayan BJT/MOSFET/diode/op-amp'ın geçersiz SPICE üretmesini engelle.
+- [x] Assertion signal, comparator, threshold ve unit validation ekle.
+- [x] IR conversion diagnostic'leri için `NL-Cxxx` kod alanı oluştur.
 - [x] IR tiplerine gerekli Serde desteğini ekle.
 - [x] WASM structured output'a typed IR ekle.
 
 **Typed quantity paketi kanıtı (2026-08-09):** `Quantity + SIUnit`, ayrı `VoltageSource`/`CurrentSource` parametreleri ve `SourceValue::{Dc, Waveform}` IR sözleşmesine eklendi. SINE/PULSE değer, frekans ve zaman boyutları strict doğrulanıyor; invalid/missing değerler IR'ye ulaşmıyor. `ir_characterization` içindeki 12 test dahil toplam 40 Rust testi, mevcut SPICE golden corpus'u ve kök `scripts/verify.ps1` Rust release + WASM + Web kapılarıyla birlikte geçti. Büyük/küçük harf BJT polarity parser sınırında normalize edildi; `examples/test_amp.nl` artık boş model token'ı yerine default 2N3904 modeline çözülür.
+
+**Model/diagnostic paketi kanıtı (2026-08-09):** `SemanticDiagnostic` için `NL-C001..NL-C007` alanı oluşturuldu. Builtin default model, unsupported model, model-kind/polarity mismatch, modelsiz op-amp, explicit module-port parametresi ve serializable diagnostic davranışları `ir_characterization` ile; CLI semantic exit 1 ve saf JSON diagnostic sözleşmesi `cli_contract` ile korunuyor. WASM parse ve semantic hataları ayrı alanlarda döndürüyor. Toplam 45 Rust testi ile Rust fmt/Clippy/release, SPICE golden, WASM ve Web lint/build kapılarının tamamı `scripts/verify.ps1` üzerinden geçti.
 
 **Kabul kriterleri:**
 
@@ -731,6 +733,6 @@ Her geliştirme oturumunda:
 
 ### Aktif sıradaki ilk iş
 
-**2.5.3 — Typed IR ve semantic validation.**
+**2.5.4 — Deterministik graph ve ERC sağlamlaştırması.**
 
-2.5.1'in yalnız remote GitHub Actions run doğrulaması erişim bekliyor. 2.5.2 characterization tabanı 35 test ve golden corpus ile tamamlandı; bundan sonraki her semantic davranış değişikliği önce kendi desired-behavior regression testiyle başlar.
+2.5.1'in yalnız remote GitHub Actions run doğrulaması erişim bekliyor. 2.5.2 characterization tabanı 35 test ve golden corpus ile tamamlandı; 2.5.3 typed IR/semantic validation 45 testlik güncel suite ve tam Rust/WASM/Web kapısıyla kapandı. Sıradaki paket `9999` sentinel kaldırma ve ortak component/pin tanımlarından başlar.

@@ -102,9 +102,9 @@ fn main() {
     // 4. Graph & ERC
     let circuit = match netlang_core::ir::ast_to_ir(&flat_program) {
         Ok(c) => c,
-        Err(e) => {
-            print_error(&cli.format, &format!("IR Conversion Error: {}", e));
-            process::exit(2);
+        Err(diagnostic) => {
+            print_semantic_error(&cli.format, diagnostic);
+            process::exit(1);
         }
     };
 
@@ -352,5 +352,28 @@ fn print_error(format: &Format, message: &str) {
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
     } else {
         eprintln!("[ERROR] {}", message);
+    }
+}
+
+fn print_semantic_error(format: &Format, diagnostic: netlang_core::ir::SemanticDiagnostic) {
+    if *format == Format::Json {
+        let out = JsonOutput {
+            status: "error".to_string(),
+            diagnostics: vec![ErcDiagnostic {
+                code: diagnostic.code,
+                severity: netlang_core::erc::Severity::Error,
+                message: diagnostic.message,
+                component: diagnostic.component,
+                pin: diagnostic.field,
+            }],
+            spice_file: None,
+            tests: None,
+        };
+        println!("{}", serde_json::to_string_pretty(&out).unwrap());
+    } else {
+        eprintln!(
+            "[SEMANTIC ERROR] {}: {}",
+            diagnostic.code, diagnostic.message
+        );
     }
 }

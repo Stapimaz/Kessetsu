@@ -191,7 +191,6 @@ fn format_spice_value(comp: &IRComponent) -> String {
                 SourceValue::Waveform(waveform) => format_waveform(waveform),
             }
         }
-        ComponentParams::Unknown { original_value } => original_value.clone(),
         _ => "".to_string(),
     }
 }

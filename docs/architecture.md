@@ -103,6 +103,8 @@ Ngspice entegrasyonu gömülü çalışır.
 | 1N4007 | Diode | Builtin |
 | IRF540 | MOSFET NMOS | Builtin |
 
+User-defined model declaration/include syntax'ı henüz tanımlı değildir. Bu nedenle bilinmeyen model adları IR'ye raw string olarak geçirilmez; `NL-C003` semantic diagnostic ile reddedilir. BJT/MOSFET/diode için yukarıdaki builtin modeller ve güvenli default'lar kullanılır. Op-amp syntax'ı parser ve component modelinde tanımlıdır ancak doğrulanmış bir builtin subcircuit henüz bulunmadığı için modelsiz op-amp `NL-C005` ile fail-closed davranır; boş `X_` SPICE satırı üretilmez.
+
 ## 6. ERC (Electrical Rules Check) Motoru (`erc.rs`)
 
 > **Not:** Daha önceki sürümlerde "DRC" olarak adlandırılıyordu. Schematic seviyesindeki kontroller için doğru terim **ERC** (Electrical Rules Check). DRC, PCB physical design kontrolleri için kullanılır.

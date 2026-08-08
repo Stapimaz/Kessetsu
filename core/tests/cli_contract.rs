@@ -120,3 +120,23 @@ fn json_parse_errors_do_not_mix_logs_into_stdout() {
     assert_eq!(value["status"], "error");
     assert_eq!(value["diagnostics"][0]["code"], "INTERNAL");
 }
+
+#[test]
+fn semantic_errors_are_structured_and_use_the_semantic_exit_code() {
+    let workspace = TestWorkspace::new("semantic-error");
+    let source = workspace.write(
+        "invalid.nl",
+        &read_fixture("invalid/semantic/invalid_value.nl"),
+    );
+    let source_arg = path_argument(&source);
+
+    let output = workspace.run_cli(&["--format", "json", "check", &source_arg]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stderr.is_empty());
+    let value: Value =
+        serde_json::from_slice(&output.stdout).expect("stdout must contain only valid JSON");
+    assert_eq!(value["status"], "error");
+    assert_eq!(value["diagnostics"][0]["code"], "NL-C001");
+    assert_eq!(value["diagnostics"][0]["component"], "R1");
+    assert_eq!(value["diagnostics"][0]["pin"], "value");
+}
