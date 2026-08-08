@@ -1,6 +1,6 @@
 # NetLang
 
-NetLang, devreleri metinle tanımlayıp yazılım gibi derlemek, simüle etmek ve assertion'larla sınamak için geliştirilen agent-driven bir circuit engineering platformudur. Aynı Rust çekirdeği CLI ve WebAssembly üzerinden çalışır; typed Circuit IR, deterministik graph/ERC, SPICE netlist, deneysel layout ve KiCad çıktıları üretir.
+NetLang, devreleri metinle tanımlayıp yazılım gibi derlemek, simüle etmek ve assertion'larla sınamak için geliştirilen agent-driven bir circuit engineering platformudur. AI ajanları ve otomasyon için CLI/API, insanlar için zero-friction Web Hub sunar. İki yüzey de aynı Rust çekirdeğini kullanır; typed Circuit IR, deterministik graph/ERC, SPICE netlist, layout ve EDA çıktıları ortak semantikten üretilir.
 
 ```text
 Electrical requirements → NetLang source → compile/ERC → simulate/measure/assert → structured feedback
@@ -19,6 +19,37 @@ Proje belirli bir eğitim senaryosu veya devre sınıfıyla sınırlı değildir
 - Deneysel automatic layout ve KiCad schematic export
 
 Simülasyon sonuç modeli, assertion runtime ve profesyonel şema kalitesi halen Faz 3 ve sonraki fazların kapsamındadır. Güncel görev ve sınırlar için [roadmap](docs/ROADMAP.md), mimari kurallar için [architecture](docs/architecture.md) esas alınır.
+
+## Web Hub
+
+NetLang Web Hub, terminal kullanmak istemeyen insanların devreleri CodePen benzeri sade bir çalışma alanında doğrudan tarayıcıdan geliştirebilmesi için tasarlanan ana ürün yüzeyidir. Ayrı bir Web-only motor kullanmaz; CLI ile aynı canonical Rust çekirdeğini WebAssembly üzerinden çalıştırır.
+
+Mevcut repository build'inde Web Hub şunları yapabiliyor:
+
+- NetLang kodunu tarayıcıda düzenleme
+- WASM üzerinden canlı compile ve ERC
+- Diagnostic'leri ve üretilen SPICE netlist'i gösterme
+- Deneysel otomatik şemayı render etme
+- SPICE ve KiCad schematic dosyalarını indirme
+
+Tam ürün hedefinde buna browser simulation, OP/transient/AC/DC grafikleri, assertion sonuçları, yüksek kaliteli şema, SVG/PNG ve doğrulanmış KiCad/LTspice export'ları ile paylaşılabilir devre bağlantıları eklenecek. Proje bütün ürün kabul kriterleri tamamlanana kadar private geliştirilmektedir; public Web Hub bağlantısı yayın aşamasında buraya eklenecektir.
+
+## Kısa NetLang örneği
+
+```netlang
+net GND
+net out
+
+source V1 5V
+resistor R1 1k
+
+connect V1.plus, R1.p1 to out
+connect V1.minus, R1.p2 to GND
+
+simulate op
+```
+
+Aynı kaynak CLI'dan veya Web Hub'dan compile edildiğinde aynı IR, diagnostic ve SPICE sonucu üretilir.
 
 ## Hızlı başlangıç
 

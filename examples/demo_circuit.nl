@@ -21,7 +21,7 @@ capacitor Ce 100uF
 
 // --- TEST ICIN EKSTRA ELEMANLAR (Floating pınleri baglamak icin) ---
 // Sinyal Kaynagi (Giris) ve Yuk Direnci (Cikis)
-// NetLang'da henuz AC source yok, bu yuzden DC batarya kullaniyoruz (ileride eklenecek)
+// Bu canonical fixture OP akisinin temelini dogruladigi icin giris kaynagi DC'dir
 source Vin 1V
 resistor Rload 10k
 

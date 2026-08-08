@@ -8,7 +8,7 @@
 >
 > Aktif milestone: **Faz 3 — Simülasyon ve Assertion Runtime**
 >
-> Sonraki milestone: **Faz 4 — Layout, Web Hub ve Agent API**
+> Sonraki milestone: **Faz 4 — Profesyonel Şema, Web Hub ve Yayın**
 
 ---
 
@@ -40,6 +40,17 @@ Elektriksel gereksinimler
 NetLang'in AI modelini kendi içinde barındırması zorunlu değildir. Öncelikli hedef, dışarıdaki herhangi bir yetkin AI ajanının CLI veya structured API üzerinden NetLang'i güvenilir bir **tasarım oracle'ı, simülasyon motoru ve doğrulama aracı** olarak kullanabilmesidir.
 
 Kapsam kademeli genişler: ilk güçlü dikey analog ve karma-sinyal/SPICE tabanlı tasarımlardır; uzun vadeli mimari yalnızca eğitim devrelerine, basit örneklere veya tek bir endüstri alanına göre sınırlandırılmaz. Desteklenmeyen fiziksel alanlar ve simulator sınırları açıkça raporlanır; doğrulanmayan bir tasarım doğrulanmış gibi sunulmaz.
+
+### Geliştirme ve yayın modeli
+
+NetLang, LLM ajanlarıyla yürütülen agentic-first bir geliştirme projesidir. Fazlar klasik ekip takvimi, süre tahmini veya erken MVP yayın dilimleri değildir; teknik bağımlılıkları, doğrulama kanıtlarını ve tamamlanma sırasını takip eden kalite kapılarıdır. Geleneksel geliştirme süresi varsayımları gerekçe gösterilerek ürün vizyonu daraltılmaz.
+
+Repository bütünleşik ürün geliştirmesi sırasında private kalır. CLI/Agent yüzeyi, güvenilir simulation/assertion runtime, Web Hub, profesyonel şema ve hedef EDA export'ları ilgili kabul kriterlerini birlikte karşıladıktan sonra public yayın yapılır. Prototip davranışlar roadmap içinde dürüstçe işaretlenir; fakat sırada bekleyen dış kullanıcı veya erken yayın baskısı ürün sırasını belirlemez.
+
+**Ürün sanity-check kararı (2026-08-09):**
+
+- [x] Agentic-first geliştirme hızını, fazların takvim değil kanıt kapısı olduğunu ve bütünleşik yayın stratejisini roadmap'e kaydet.
+- [x] Web Hub'ı root README'de CLI/API ile eşit önemde ana ürün yüzeyi olarak görünür kıl; mevcut prototip ile yayın hedefini açıkça ayır.
 
 ### Üç ana ürün yüzeyi
 
@@ -567,6 +578,7 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 ### 3.1 — Simulation domain modeli ve runner
 
 - [ ] `SimulationRequest` ve `SimulationResult` domain tiplerini tanımla.
+- [ ] Domain sözleşmesini native process ve gelecekteki browser simulator adaptörlerinden bağımsız tut.
 - [ ] Analysis türlerini typed enum yap: OP, transient, AC, DC sweep.
 - [ ] Measurement, warning, error ve raw-log alanlarını ayır.
 - [ ] Simulator process status'unu structured biçimde sakla.
@@ -631,6 +643,15 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 - [x] JSON stdout parse edilebilir ve logsuzdur. _(Success/failure/assertion CLI integration testleri.)_
 - [ ] Simulation fixture'ları CI'da güvenilir çalışır.
 
+### 3.5 — Agent integration contract
+
+- [ ] stdin/stdout üzerinden çalışan machine-readable agent modu tanımla.
+- [ ] `check`, `compile`, `simulate` ve `test` işlemlerini versioned tool sözleşmesiyle sun.
+- [ ] Agent sonucunu human output parse etmeye gerek bırakmayacak şekilde typed ve structured tut.
+- [ ] Aynı request için idempotent ve deterministik sonuç üret.
+- [ ] Diagnostic, measurement ve assertion sonuçlarından structured suggested action alanı üret.
+- [ ] Dış bir AI ajanının compile → simulate → measure → revise döngüsünü fixture tabanlı uçtan uca testle doğrula.
+
 ### Faz 3 kabul kriterleri
 
 - [ ] OP, transient ve AC için en az birer gerçek Ngspice integration fixture'ı geçer.
@@ -638,6 +659,7 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 - [ ] Assertion sonuçları PASS/FAIL/ERROR ayrımını doğru yapar.
 - [ ] Paralel iki simulation dosya çakışması yaşamaz.
 - [ ] CLI human/JSON ve exit-code contract testleri geçer.
+- [ ] Dış AI ajanı human terminal metni parse etmeden versioned sözleşmeyle tasarım döngüsü kurabilir.
 - [ ] Faz 2.5 kalite kapıları geçmeye devam eder.
 
 ### Faz 3'ten ertelenen işler
@@ -648,7 +670,7 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 
 ---
 
-## 7. Faz 4 — Layout, Web Hub ve Agent API
+## 7. Faz 4 — Profesyonel Şema, Web Hub ve Yayın
 
 Faz 4 ayrıntıları Faz 3 kapanışında yeniden denetlenecektir. Mevcut yön:
 
@@ -657,9 +679,11 @@ Faz 4 ayrıntıları Faz 3 kapanışında yeniden denetlenecektir. Mevcut yön:
 - [ ] Layout wire/pin veri modelini açık bağlantı semantiğiyle güçlendir.
 - [ ] Geometry crossing ile electrical junction ayrımını temsil et.
 - [ ] Layout round-trip connectivity kontrolü.
-- [ ] Native/server-side SVG export.
-- [ ] `netlang render circuit.nl -o circuit.svg`.
+- [ ] Native/server-side SVG ve PNG export.
+- [ ] `netlang render circuit.nl -o circuit.svg|png`.
 - [ ] KiCad export doğrulama fixture'ları.
+- [ ] LTspice schematic export adaptörü ve açılabilirlik fixture'ları.
+- [ ] Schematic visual golden/collision regression corpus'u.
 
 ### 4.2 — Web simulation runtime
 
@@ -688,13 +712,25 @@ Faz 4 ayrıntıları Faz 3 kapanışında yeniden denetlenecektir. Mevcut yön:
 - [ ] URL'den güvenli yükleme ve compile.
 - [ ] Format/schema version migration.
 
-### 4.6 — Agent API
+### 4.6 — Zero-friction ürün bütünlüğü ve yayın kapısı
 
-- [ ] stdin/stdout JSON agent modu.
-- [ ] `check`, `compile`, `simulate`, `test` komutları.
-- [ ] Versioned schema.
-- [ ] Idempotent ve deterministik sonuç.
-- [ ] Structured suggested actions.
+- [ ] CodePen sadeliğinde tek çalışma alanında editor, diagnostic, şema, simulation ve export akışını birleştir.
+- [ ] İlk açılışta çalışan canonical örnekler ve devre seçici sun.
+- [ ] SPICE, SVG, PNG, KiCad ve LTspice çıktıları için açık indirme akışı ekle.
+- [ ] CLI ve Web Hub'ın aynı source için aynı compile/diagnostic/SPICE semantiğini browser E2E testiyle doğrula.
+- [ ] Web Hub'ın ana thread'i bloklamadan compile/simulate edebildiğini test et.
+- [ ] Public production deployment ve release doğrulamasını tamamla.
+- [ ] README'ye canlı Web Hub bağlantısı, ürün ekran görüntüleri ve yayınlanan kurulum paketlerini ekle.
+
+### Faz 4 ve ilk public yayın kabul kriterleri
+
+- [ ] Kullanıcı hesap veya yerel kurulum olmadan Web Hub'ı açıp canonical bir devreyi compile, simulate ve inspect edebilir.
+- [ ] Web ve CLI aynı Core semantiğini ve versioned sonuç sözleşmelerini kullanır.
+- [ ] Şema connectivity kontrolünden geçer; SVG/PNG ile indirilebilir ve KiCad/LTspice fixture'ları hedef uygulamalarda açılır.
+- [ ] OP, transient, AC ve DC sweep sonuçları Web'de interaktif olarak görüntülenir.
+- [ ] Paylaşılabilir URL devreyi schema kaybı olmadan round-trip eder.
+- [ ] Canonical kalite kapısı, browser E2E matrisi ve release artifact doğrulamaları geçer.
+- [ ] Bütün kabul kriterleri tamamlandıktan sonra repository ve Web Hub public yayınlanır.
 
 ---
 
@@ -711,7 +747,7 @@ Faz 4 ayrıntıları Faz 3 kapanışında yeniden denetlenecektir. Mevcut yön:
 - Subcircuit/component library
 - VS Code extension
 - PCB export, footprint mapping ve BOM
-- LTspice ve diğer EDA schematic/netlist export adapter'ları
+- Diğer EDA schematic/netlist export adapter'ları
 - Advanced layout: layered/Sugiyama ve hypergraph
 - Multi-ground: AGND, DGND, chassis
 - Alternative simulator backend'leri: Xyce/LTspice adapter'ları
