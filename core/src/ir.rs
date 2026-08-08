@@ -5,6 +5,7 @@ use crate::ast::{ComponentType, Connection, Program, Statement};
 pub struct CircuitIR {
     pub components: Vec<IRComponent>,
     pub connections: Vec<Connection>, // Preserved from AST for graph generation
+    pub nets: Vec<String>, // User-named nets
     pub analyses: Vec<Analysis>,
     pub assertions: Vec<Assertion>,
 }
@@ -28,6 +29,7 @@ pub enum ComponentKind {
     OpAmp,
     VoltageSource,
     CurrentSource,
+    ModulePort,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -91,7 +93,10 @@ pub struct Analysis {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Assertion {
-    // Placeholder for Phase 2
+    pub metric: String,
+    pub signal: String,
+    pub cmp: crate::ast::Cmp,
+    pub threshold: f64,
 }
 
 pub fn parse_si_value(s: &str) -> Result<f64, String> {
@@ -126,16 +131,24 @@ pub fn parse_si_value(s: &str) -> Result<f64, String> {
 }
 
 pub fn parse_waveform(val: &str) -> Option<Waveform> {
-    // Basic SINE(offset amplitude frequency) parser for geriye uyumluluk
-    let upper = val.to_uppercase();
-    if upper.starts_with("SINE(") || upper.starts_with("\"SINE(") {
-        let inside = upper.replace("SINE(", "").replace("\"", "").replace(")", "");
-        let parts: Vec<&str> = inside.split_whitespace().collect();
-        if parts.len() >= 3 {
-            let offset = parse_si_value(parts[0]).unwrap_or(0.0);
-            let amp = parse_si_value(parts[1]).unwrap_or(0.0);
-            let freq = parse_si_value(parts[2]).unwrap_or(0.0);
-            return Some(Waveform::Sine { offset, amplitude: amp, frequency: freq });
+    // Basic SINE(offset amplitude frequency) parser
+    let val_trim = val.trim();
+    if val_trim.to_lowercase().starts_with("sine(") || val_trim.to_lowercase().starts_with("\"sine(") {
+        // Find the contents inside the parentheses
+        let start = val_trim.find('(')?;
+        let end = val_trim.rfind(')')?;
+        if start < end {
+            let inside = &val_trim[start + 1..end];
+            // Split by commas or whitespace
+            let parts: Vec<&str> = inside.split(|c| c == ',' || c == ' ' || c == '\t')
+                .filter(|s| !s.is_empty())
+                .collect();
+            if parts.len() >= 3 {
+                let offset = parse_si_value(parts[0]).unwrap_or(0.0);
+                let amp = parse_si_value(parts[1]).unwrap_or(0.0);
+                let freq = parse_si_value(parts[2]).unwrap_or(0.0);
+                return Some(Waveform::Sine { offset, amplitude: amp, frequency: freq });
+            }
         }
     }
     None
@@ -154,55 +167,71 @@ pub fn resolve_model(name: &str) -> Option<ModelRef> {
 pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, String> {
     let mut components = Vec::new();
     let mut connections = Vec::new();
+    let mut nets = Vec::new();
     let mut analyses = Vec::new();
+    let mut assertions = Vec::new();
 
     for stmt in &program.statements {
         match stmt {
             Statement::Decl(decl) => {
-                if decl.comp_type == ComponentType::ModulePort {
-                    continue;
-                }
-
-                let model = resolve_model(&decl.value);
+                let val_str = decl.value.as_deref().unwrap_or("");
+                let model = resolve_model(val_str);
                 
                 let (kind, params) = match decl.comp_type {
+                    ComponentType::ModulePort => {
+                        (ComponentKind::ModulePort, ComponentParams::Unknown { original_value: val_str.to_string() })
+                    },
                     ComponentType::Resistor => (
                         ComponentKind::Resistor,
                         ComponentParams::TwoPinPassive { 
-                            value: parse_si_value(&decl.value).unwrap_or(0.0), 
+                            value: parse_si_value(val_str).unwrap_or(0.0), 
                             unit: SIUnit::Ohm 
                         }
                     ),
                     ComponentType::Capacitor => (
                         ComponentKind::Capacitor,
                         ComponentParams::TwoPinPassive { 
-                            value: parse_si_value(&decl.value).unwrap_or(0.0), 
+                            value: parse_si_value(val_str).unwrap_or(0.0), 
                             unit: SIUnit::Farad 
                         }
                     ),
                     ComponentType::Inductor => (
                         ComponentKind::Inductor,
                         ComponentParams::TwoPinPassive { 
-                            value: parse_si_value(&decl.value).unwrap_or(0.0), 
+                            value: parse_si_value(val_str).unwrap_or(0.0), 
                             unit: SIUnit::Henry 
                         }
                     ),
                     ComponentType::Source => {
                         let kind = ComponentKind::VoltageSource;
-                        if let Some(wf) = parse_waveform(&decl.value) {
+                        if let Some(wf) = parse_waveform(val_str) {
                             (kind, ComponentParams::ACSource { waveform: wf })
                         } else {
                             (kind, ComponentParams::DCSource { 
-                                voltage: parse_si_value(&decl.value).unwrap_or(0.0) 
+                                voltage: parse_si_value(val_str).unwrap_or(0.0) 
+                            })
+                        }
+                    },
+                    ComponentType::CurrentSource => {
+                        let kind = ComponentKind::CurrentSource;
+                        if let Some(wf) = parse_waveform(val_str) {
+                            (kind, ComponentParams::ACSource { waveform: wf })
+                        } else {
+                            (kind, ComponentParams::DCSource { 
+                                voltage: parse_si_value(val_str).unwrap_or(0.0) 
                             })
                         }
                     },
                     ComponentType::Transistor => {
-                        let polarity = if let Some(m) = &model {
-                            if let ComponentKind::BJT(p) = &m.kind { p.clone() } else { BJTPolarity::NPN }
-                        } else {
-                            BJTPolarity::NPN // Default
-                        };
+                        let mut polarity = BJTPolarity::NPN; // Default
+                        
+                        // First check subtype
+                        if let Some(sub) = &decl.subtype {
+                            if sub.to_lowercase() == "pnp" { polarity = BJTPolarity::PNP; }
+                        } else if let Some(m) = &model {
+                            // Fallback to model
+                            if let ComponentKind::BJT(p) = &m.kind { polarity = p.clone(); }
+                        }
                         (ComponentKind::BJT(polarity.clone()), ComponentParams::BJTParams { polarity })
                     },
                     ComponentType::Mosfet => {
@@ -214,14 +243,12 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, String> {
                         (ComponentKind::MOSFET(polarity.clone()), ComponentParams::MOSFETParams { polarity })
                     },
                     ComponentType::Diode => {
-                        (ComponentKind::Diode, ComponentParams::Unknown { original_value: decl.value.clone() })
+                        (ComponentKind::Diode, ComponentParams::Unknown { original_value: val_str.to_string() })
                     },
                     ComponentType::OpAmp => {
                         (ComponentKind::OpAmp, ComponentParams::OpAmpParams)
                     },
-                    _ => {
-                        return Err(format!("Unsupported component type for IR: {:?}", decl.comp_type));
-                    }
+                    // _ is not needed since all ComponentTypes are covered
                 };
 
                 components.push(IRComponent {
@@ -233,6 +260,17 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, String> {
             },
             Statement::Connect(conn) => {
                 connections.push(conn.clone());
+            },
+            Statement::Net(net) => {
+                nets.push(net.name.clone());
+            },
+            Statement::Assert(assert) => {
+                assertions.push(Assertion {
+                    metric: assert.metric.clone(),
+                    signal: assert.signal.clone(),
+                    cmp: assert.cmp.clone(),
+                    threshold: parse_si_value(&assert.threshold).unwrap_or(0.0),
+                });
             },
             Statement::Simulate(sim) => {
                 analyses.push(Analysis {
@@ -249,7 +287,8 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, String> {
     Ok(CircuitIR {
         components,
         connections,
+        nets,
         analyses,
-        assertions: Vec::new(),
+        assertions,
     })
 }

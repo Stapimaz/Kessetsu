@@ -4,6 +4,7 @@ use serde::{Serialize, Deserialize};
 pub enum ComponentType {
     Resistor,
     Source,
+    CurrentSource,
     Capacitor,
     Inductor,
     Diode,
@@ -17,7 +18,8 @@ pub enum ComponentType {
 pub struct ComponentDecl {
     pub comp_type: ComponentType,
     pub name: String,
-    pub value: String,
+    pub subtype: Option<String>,
+    pub value: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -28,8 +30,29 @@ pub struct PinRef {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Connection {
-    pub pin1: PinRef,
-    pub pin2: PinRef,
+    pub pins: Vec<PinRef>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NetDecl {
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum Cmp {
+    Lt,
+    Gt,
+    Eq,
+    Le,
+    Ge,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AssertStmt {
+    pub metric: String,
+    pub signal: String,
+    pub cmp: Cmp,
+    pub threshold: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -48,6 +71,8 @@ pub struct SimulateStmt {
 pub enum Statement {
     Decl(ComponentDecl),
     Connect(Connection),
+    Net(NetDecl),
+    Assert(AssertStmt),
     Use(UseStmt),
     Simulate(SimulateStmt),
 }
@@ -85,23 +110,23 @@ impl Program {
                     flat_statements.push(Statement::Decl(ComponentDecl {
                         comp_type: decl.comp_type.clone(),
                         name: format!("{}{}", prefix, decl.name),
+                        subtype: decl.subtype.clone(),
                         value: decl.value.clone(),
                     }));
                 }
                 Statement::Connect(conn) => {
                     let map_pin = |pin: &PinRef| -> PinRef {
                         if pin.component.is_empty() {
-                            // It's a module pin (e.g., `in`), it maps to `prefix.in`
                             let prefix_trimmed = prefix.trim_end_matches('_');
                             PinRef { component: prefix_trimmed.to_string(), pin: pin.pin.clone() }
                         } else {
-                            // It's an internal component, prefix it
                             PinRef { component: format!("{}{}", prefix, pin.component), pin: pin.pin.clone() }
                         }
                     };
+                    
+                    let new_pins = conn.pins.iter().map(map_pin).collect();
                     flat_statements.push(Statement::Connect(Connection {
-                        pin1: map_pin(&conn.pin1),
-                        pin2: map_pin(&conn.pin2),
+                        pins: new_pins,
                     }));
                 }
                 Statement::Use(use_stmt) => {
@@ -112,7 +137,8 @@ impl Program {
                     flat_statements.push(Statement::Decl(ComponentDecl {
                         comp_type: ComponentType::ModulePort,
                         name: inst_name,
-                        value: use_stmt.module_name.clone(),
+                        subtype: None,
+                        value: Some(use_stmt.module_name.clone()),
                     }));
 
                     let new_prefix = format!("{}{}_", prefix, use_stmt.inst_name);
@@ -120,9 +146,20 @@ impl Program {
                         flatten_stmt(s, &new_prefix, module_map, flat_statements)?;
                     }
                 }
+                Statement::Net(net) => {
+                    flat_statements.push(Statement::Net(NetDecl {
+                        name: format!("{}{}", prefix, net.name),
+                    }));
+                }
+                Statement::Assert(assert) => {
+                    flat_statements.push(Statement::Assert(AssertStmt {
+                        metric: assert.metric.clone(),
+                        signal: assert.signal.clone(),
+                        cmp: assert.cmp.clone(),
+                        threshold: assert.threshold.clone(),
+                    }));
+                }
                 Statement::Simulate(sim) => {
-                    // Sim statements usually only exist in the top level. 
-                    // If they are in a module, we just push them.
                     flat_statements.push(Statement::Simulate(sim.clone()));
                 }
             }

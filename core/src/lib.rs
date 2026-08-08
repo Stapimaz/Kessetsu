@@ -21,7 +21,7 @@ mod tests {
 
     #[test]
     fn test_parse_and_erc() {
-        let input = "resistor R1 10k\nsource B1 5V\nconnect B1.plus R1.p1\nconnect B1.minus R1.p2\n";
+        let input = "resistor R1 10k\nsource B1 5V\nconnect B1.plus to R1.p1\nconnect B1.minus to R1.p2\n";
         let program = parse_program(input).unwrap().flatten().unwrap();
         assert_eq!(program.statements.len(), 4);
         
@@ -30,7 +30,7 @@ mod tests {
         let errors = check_rules(&circuit, &graph);
         assert!(errors.is_empty());
         
-        let bad_input = "resistor R1 10k\nconnect B1.plus R1.p1\n";
+        let bad_input = "resistor R1 10k\nconnect B1.plus to R1.p1\n";
         let bad_program = parse_program(bad_input).unwrap().flatten().unwrap();
         let bad_circuit = ast_to_ir(&bad_program).unwrap();
         let bad_graph = crate::graph::NetlistGraph::build(&bad_circuit);

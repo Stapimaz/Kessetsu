@@ -245,35 +245,35 @@ Compile, simulate and test circuits like software.
 > **Ön koşul:** Faz 1 tamamen tamamlanmış olmalı.
 
 ### 2.1 — Grammar Genişletme (`netlang.pest`)
-- [ ] `net` keyword'ü ekle:
+- [x] `net` keyword'ü ekle:
   ```
   net output
   connect R1.p2 output
   connect C1.p1 output
   ```
-- [ ] Çoklu connect syntax'ı ekle:
+- [x] Çoklu connect syntax'ı ekle:
   ```
   connect R1.p2, C1.p1, Q1.b to output
   ```
-- [ ] `assert` keyword'ü ekle:
+- [x] `assert` keyword'ü ekle:
   ```
   assert max(V(out)) < 3.3V
   assert min(V(out)) > 0V
   assert peak(I(D1)) < 100mA
   ```
-- [ ] Typed source expression ekle:
+- [x] Typed source expression ekle:
   ```
   source Vin sine(0V, 1V, 1kHz)
   source Vdc 5V
   source Ipulse pulse(0mA, 100mA, 1ms, 10us, 10us, 500us, 1ms)
   ```
   Eski string syntax da geriye uyumlu kalsın.
-- [ ] `current_source` keyword'ü ekle:
+- [x] `current_source` keyword'ü ekle:
   ```
   current_source I1 10mA
   current_source Iac sine(0mA, 5mA, 10kHz)
   ```
-- [ ] BJT alt-tip ipucu ekle (opsiyonel):
+- [x] BJT alt-tip ipucu ekle (opsiyonel):
   ```
   transistor Q1 2N3904          // Model'den NPN çıkarılır
   transistor Q2 npn             // Explicit polarity, ideal model
@@ -286,14 +286,14 @@ Compile, simulate and test circuits like software.
 - Grammar 40+ satır
 
 ### 2.2 — User-Named Nets (Graph + SPICE)
-- [ ] `graph.rs`'de user-named net desteği:
+- [x] `graph.rs`'de user-named net desteği:
   - `net output` ifadesi bir net oluşturur
   - `connect X.pin output` o net'e bağlar
   - User-named net isimleri otomatik N_{...} isimlerinden önceliklidir
-- [ ] SPICE çıktısında user net isimleri kullanılsın:
+- [x] SPICE çıktısında user net isimleri kullanılsın:
   - `v(output)` — user-named
   - `v(N_C1_p1)` — otomatik (fallback)
-- [ ] Otomatik isimlendirme algoritması KORUNUR — sadece user ismi yoksa devreye girer
+- [x] Otomatik isimlendirme algoritması KORUNUR — sadece user ismi yoksa devreye girer
 
 **Kabul Kriterleri:**
 - User-named net SPICE'ta doğru isimle görünüyor
@@ -301,20 +301,20 @@ Compile, simulate and test circuits like software.
 - Mevcut örnekler kırılmadan çalışıyor
 
 ### 2.3 — Current Source Desteği
-- [ ] `ComponentType::CurrentSource` → `ast.rs`
-- [ ] `ComponentKind::CurrentSource` → `ir.rs`
-- [ ] Parser'da `current_source` keyword'ü
-- [ ] SPICE prefix: `I_`
-- [ ] Pinler: `plus`, `minus` (voltage source ile aynı)
-- [ ] ERC: source ile aynı kontroller
-- [ ] Layout: source ile aynı sembol (farklı render sonra)
+- [x] `ComponentType::CurrentSource` → `ast.rs`
+- [x] `ComponentKind::CurrentSource` → `ir.rs`
+- [x] Parser'da `current_source` keyword'ü
+- [x] SPICE prefix: `I_`
+- [x] Pinler: `plus`, `minus` (voltage source ile aynı)
+- [x] ERC: source ile aynı kontroller
+- [x] Layout: source ile aynı sembol (farklı render sonra)
 
 **Kabul Kriterleri:**
 - `current_source I1 10mA` çalışıyor
 - SPICE çıktısında `I_I1 N_... 0 10mA` görünüyor
 
 ### 2.4 — Assertion Altyapısı (Temel)
-- [ ] AST'de `AssertStmt` ekle:
+- [x] AST'de `AssertStmt` ekle:
   ```rust
   pub struct AssertStmt {
       pub metric: String,    // "max", "min", "peak", "rms", "settle"
@@ -324,9 +324,9 @@ Compile, simulate and test circuits like software.
       pub unit: SIUnit,
   }
   ```
-- [ ] IR'de `Assertion` olarak temsil et
-- [ ] SPICE `.control` bloğuna `.meas` komutları olarak dönüştür
-- [ ] Simülasyon sonuç parsing'i (Faz 3'te tam çalışacak, burada altyapı)
+- [x] IR'de `Assertion` olarak temsil et
+- [x] SPICE `.control` bloğuna `.meas` komutları olarak dönüştür
+- [x] Simülasyon sonuç parsing'i (Faz 3'te tam çalışacak, burada altyapı)
 
 **Kabul Kriterleri:**
 - `assert max(V(out)) < 3.3V` parse ediliyor

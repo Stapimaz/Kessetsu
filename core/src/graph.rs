@@ -28,14 +28,25 @@ impl NetlistGraph {
         }
 
         for conn in &circuit.connections {
-            let pin1_id = format!("{}.{}", conn.pin1.component, conn.pin1.pin);
-            let pin2_id = format!("{}.{}", conn.pin2.component, conn.pin2.pin);
+            if conn.pins.len() < 2 { continue; }
             
-            adjacency.entry(pin1_id.clone()).or_insert_with(Vec::new).push(pin2_id.clone());
-            adjacency.entry(pin2_id.clone()).or_insert_with(Vec::new).push(pin1_id.clone());
+            let mut pin_ids = Vec::new();
+            for p in &conn.pins {
+                let pid = if p.component.is_empty() {
+                    p.pin.clone()
+                } else {
+                    format!("{}.{}", p.component, p.pin)
+                };
+                pin_ids.push(pid.clone());
+                all_pins.insert(pid);
+            }
             
-            all_pins.insert(pin1_id);
-            all_pins.insert(pin2_id);
+            for i in 0..pin_ids.len() {
+                for j in (i+1)..pin_ids.len() {
+                    adjacency.entry(pin_ids[i].clone()).or_insert_with(Vec::new).push(pin_ids[j].clone());
+                    adjacency.entry(pin_ids[j].clone()).or_insert_with(Vec::new).push(pin_ids[i].clone());
+                }
+            }
         }
 
         let mut visited = HashSet::new();
@@ -97,7 +108,18 @@ impl NetlistGraph {
         
         for (net, mut pins) in net_to_pins {
             pins.sort();
-            if let Some(first_pin) = pins.first() {
+            
+            let mut user_name = None;
+            for p in &pins {
+                if circuit.nets.contains(p) {
+                    user_name = Some(p.clone());
+                    break;
+                }
+            }
+            
+            if let Some(name) = user_name {
+                net_names.insert(net, name);
+            } else if let Some(first_pin) = pins.first() {
                 let name = format!("N_{}", first_pin.replace(".", "_"));
                 net_names.insert(net, name);
             }
@@ -190,6 +212,7 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
                 let net2 = graph.get_net_name(graph.get_net(&comp.id, p2));
                 spice.push_str(&format!("{}_{} {} {} {}\n", prefix, comp.id, net1, net2, value_str));
             }
+            ComponentKind::ModulePort => {}
         }
         if let Some(model_str) = get_standard_model(&value_str) {
             used_models.insert(model_str);

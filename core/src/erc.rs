@@ -38,23 +38,16 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
 
     // 2. Undefined component check (NL-E002)
     for conn in &circuit.connections {
-        if conn.pin1.component != "" && !declared.contains(&conn.pin1.component) {
-            errors.push(ErcDiagnostic {
-                code: "NL-E002".to_string(),
-                severity: Severity::Error,
-                message: format!("Connection refers to undeclared component: {}", conn.pin1.component),
-                component: Some(conn.pin1.component.clone()),
-                pin: Some(conn.pin1.pin.clone()),
-            });
-        }
-        if conn.pin2.component != "" && !declared.contains(&conn.pin2.component) {
-            errors.push(ErcDiagnostic {
-                code: "NL-E002".to_string(),
-                severity: Severity::Error,
-                message: format!("Connection refers to undeclared component: {}", conn.pin2.component),
-                component: Some(conn.pin2.component.clone()),
-                pin: Some(conn.pin2.pin.clone()),
-            });
+        for p in &conn.pins {
+            if p.component != "" && !declared.contains(&p.component) {
+                errors.push(ErcDiagnostic {
+                    code: "NL-E002".to_string(),
+                    severity: Severity::Error,
+                    message: format!("Connection refers to undeclared component: {}", p.component),
+                    component: Some(p.component.clone()),
+                    pin: Some(p.pin.clone()),
+                });
+            }
         }
     }
 
@@ -65,6 +58,7 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
             ComponentKind::BJT(_) => vec!["c", "b", "e"],
             ComponentKind::MOSFET(_) => vec!["d", "g", "s"],
             ComponentKind::OpAmp => vec!["in_p", "in_n", "out", "vcc", "vee"],
+            ComponentKind::ModulePort => continue,
             _ => vec!["p1", "p2"], // Resistor, Capacitor, Inductor, Diode
         };
 

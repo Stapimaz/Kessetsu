@@ -1,21 +1,43 @@
-WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
-COMMENT = _{ "//" ~ (!"\n" ~ ANY)* }
+WHITESPACE = _{ " " | "\t" }
+NEWLINE = _{ "\n" | "\r\n" | "\r" }
+COMMENT = _{ "//" ~ (!NEWLINE ~ ANY)* ~ NEWLINE? }
+
 ident = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 comp_value = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" | (ASCII_ALPHANUMERIC | "." | "-" | "_")+ }
 
-comp_type = { "resistor" | "source" | "battery" | "capacitor" | "inductor" | "diode" | "transistor" | "mosfet" | "opamp" }
-decl = { comp_type ~ ident ~ comp_value? }
-use_stmt = { "use" ~ ident ~ ident }
+// Components
+comp_type = { "resistor" | "capacitor" | "inductor" | "diode" | "mosfet" | "opamp" }
+polarity = { "npn" | "pnp" }
+transistor_decl = { "transistor" ~ ident ~ polarity? ~ comp_value? }
+standard_decl = { comp_type ~ ident ~ comp_value? }
 
+// Sources
+source_type = { "source" | "current_source" }
+func_call = { ident ~ "(" ~ source_param ~ ("," ~ source_param)* ~ ")" }
+source_param = { func_call | comp_value }
+source_decl = { source_type ~ ident ~ source_param }
+
+decl = { transistor_decl | standard_decl | source_decl }
+
+// Nets and Connections
+net_stmt = { "net" ~ ident }
 pin_ref = { ident ~ ("." ~ ident)? }
-connect = { "connect" ~ pin_ref ~ pin_ref }
+connect = { "connect" ~ pin_ref ~ ("," ~ pin_ref)* ~ "to" ~ pin_ref }
 
+// Assertions
+metric = { "max" | "min" | "peak" | "rms" | "settle" }
+signal = { ident ~ "(" ~ ident ~ ")" }
+cmp_op = { "<=" | ">=" | "==" | "<" | ">" }
+assert_stmt = { "assert" ~ metric ~ "(" ~ signal ~ ")" ~ cmp_op ~ comp_value }
+
+// Misc
+use_stmt = { "use" ~ ident ~ ident }
 sim_cmd = { "simulate" ~ ident ~ comp_value* }
 
-statement = { decl | use_stmt | connect | sim_cmd }
+statement = { (decl | net_stmt | use_stmt | connect | assert_stmt | sim_cmd) }
 
 pin_list = { ident ~ ("," ~ ident)* }
-module_decl = { "module" ~ ident ~ "(" ~ pin_list? ~ ")" ~ "{" ~ statement* ~ "}" }
+module_decl = { "module" ~ ident ~ "(" ~ pin_list? ~ ")" ~ "{" ~ NEWLINE* ~ (statement ~ NEWLINE+)* ~ "}" }
 
 top_level = { module_decl | statement }
-program = { SOI ~ top_level* ~ EOI }
+program = { SOI ~ NEWLINE* ~ (top_level ~ NEWLINE+)* ~ top_level? ~ NEWLINE* ~ EOI }

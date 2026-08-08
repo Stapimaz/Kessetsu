@@ -43,6 +43,7 @@ fn kind_to_string(kind: &ComponentKind) -> String {
         ComponentKind::OpAmp => "OpAmp".to_string(),
         ComponentKind::VoltageSource => "Source".to_string(),
         ComponentKind::CurrentSource => "CurrentSource".to_string(),
+        ComponentKind::ModulePort => "ModulePort".to_string(),
     }
 }
 
@@ -78,6 +79,9 @@ fn get_comp_def(kind: &ComponentKind) -> ComponentDef {
             pins.insert("vee".to_string(), (1, 3));
             pins.insert("out".to_string(), (3, 1));
             ComponentDef { width: 3, height: 3, pins }
+        }
+        ComponentKind::ModulePort => {
+            ComponentDef { width: 2, height: 2, pins }
         }
     }
 }

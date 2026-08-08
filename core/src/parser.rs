@@ -72,56 +72,118 @@ fn parse_statement(statement_pair: pest::iterators::Pair<Rule>) -> Option<Statem
     let inner = statement_pair.into_inner().next().unwrap();
     match inner.as_rule() {
         Rule::decl => {
-            let mut inner_rules = inner.into_inner();
-            let comp_str = inner_rules.next().unwrap().as_str();
-            let comp_type = match comp_str {
-                "resistor" => ComponentType::Resistor,
-                "source" | "battery" => ComponentType::Source,
-                "capacitor" => ComponentType::Capacitor,
-                "inductor" => ComponentType::Inductor,
-                "diode" => ComponentType::Diode,
-                "transistor" => ComponentType::Transistor,
-                "mosfet" => ComponentType::Mosfet,
-                "opamp" => ComponentType::OpAmp,
+            let decl_inner = inner.into_inner().next().unwrap();
+            match decl_inner.as_rule() {
+                Rule::standard_decl => {
+                    let mut inner_rules = decl_inner.into_inner();
+                    let comp_str = inner_rules.next().unwrap().as_str();
+                    let comp_type = match comp_str {
+                        "resistor" => ComponentType::Resistor,
+                        "capacitor" => ComponentType::Capacitor,
+                        "inductor" => ComponentType::Inductor,
+                        "diode" => ComponentType::Diode,
+                        "mosfet" => ComponentType::Mosfet,
+                        "opamp" => ComponentType::OpAmp,
+                        _ => unreachable!(),
+                    };
+                    let name = inner_rules.next().unwrap().as_str().to_string();
+                    let value = inner_rules.next().map(|v| {
+                        let mut val = v.as_str().to_string();
+                        if val.starts_with('"') && val.ends_with('"') {
+                            val = val[1..val.len()-1].to_string();
+                        }
+                        val
+                    });
+                    
+                    Some(Statement::Decl(ComponentDecl {
+                        comp_type,
+                        name,
+                        subtype: None,
+                        value,
+                    }))
+                }
+                Rule::transistor_decl => {
+                    let mut inner_rules = decl_inner.into_inner();
+                    let name = inner_rules.next().unwrap().as_str().to_string();
+                    
+                    let mut subtype = None;
+                    let mut value = None;
+                    
+                    for rule in inner_rules {
+                        match rule.as_rule() {
+                            Rule::polarity => subtype = Some(rule.as_str().to_string()),
+                            Rule::comp_value => {
+                                let mut val = rule.as_str().to_string();
+                                if val.starts_with('"') && val.ends_with('"') {
+                                    val = val[1..val.len()-1].to_string();
+                                }
+                                value = Some(val);
+                            }
+                            _ => {}
+                        }
+                    }
+                    Some(Statement::Decl(ComponentDecl {
+                        comp_type: ComponentType::Transistor,
+                        name,
+                        subtype,
+                        value,
+                    }))
+                }
+                Rule::source_decl => {
+                    let mut inner_rules = decl_inner.into_inner();
+                    let source_type_str = inner_rules.next().unwrap().as_str();
+                    let comp_type = if source_type_str == "current_source" {
+                        ComponentType::CurrentSource
+                    } else {
+                        ComponentType::Source
+                    };
+                    let name = inner_rules.next().unwrap().as_str().to_string();
+                    let value = Some(inner_rules.next().unwrap().as_str().to_string());
+                    
+                    Some(Statement::Decl(ComponentDecl {
+                        comp_type,
+                        name,
+                        subtype: None,
+                        value,
+                    }))
+                }
                 _ => unreachable!(),
-            };
-            let name = inner_rules.next().unwrap().as_str().to_string();
-            let mut value = if let Some(val_node) = inner_rules.next() {
-                val_node.as_str().to_string()
-            } else {
-                "".to_string()
-            };
-            
-            if value.starts_with('"') && value.ends_with('"') {
-                value = value[1..value.len()-1].to_string();
             }
-            
-            Some(Statement::Decl(ComponentDecl {
-                comp_type,
-                name,
-                value,
-            }))
+        }
+        Rule::net_stmt => {
+            let name = inner.into_inner().next().unwrap().as_str().to_string();
+            Some(Statement::Net(NetDecl { name }))
         }
         Rule::connect => {
+            let mut pins = Vec::new();
+            for p in inner.into_inner() {
+                let mut p_inner = p.into_inner();
+                let first = p_inner.next().unwrap().as_str().to_string();
+                let pin = if let Some(second) = p_inner.next() {
+                    PinRef { component: first, pin: second.as_str().to_string() }
+                } else {
+                    PinRef { component: "".to_string(), pin: first }
+                };
+                pins.push(pin);
+            }
+            Some(Statement::Connect(Connection { pins }))
+        }
+        Rule::assert_stmt => {
             let mut inner_rules = inner.into_inner();
-            let p1 = inner_rules.next().unwrap();
-            let mut p1_inner = p1.into_inner();
-            let first = p1_inner.next().unwrap().as_str().to_string();
-            let pin1 = if let Some(second) = p1_inner.next() {
-                PinRef { component: first, pin: second.as_str().to_string() }
-            } else {
-                PinRef { component: "".to_string(), pin: first }
+            let metric = inner_rules.next().unwrap().as_str().to_string();
+            let signal = inner_rules.next().unwrap().as_str().to_string();
+            let cmp_str = inner_rules.next().unwrap().as_str();
+            let cmp = match cmp_str {
+                "<" => Cmp::Lt,
+                ">" => Cmp::Gt,
+                "==" => Cmp::Eq,
+                "<=" => Cmp::Le,
+                ">=" => Cmp::Ge,
+                _ => unreachable!(),
             };
-
-            let p2 = inner_rules.next().unwrap();
-            let mut p2_inner = p2.into_inner();
-            let first = p2_inner.next().unwrap().as_str().to_string();
-            let pin2 = if let Some(second) = p2_inner.next() {
-                PinRef { component: first, pin: second.as_str().to_string() }
-            } else {
-                PinRef { component: "".to_string(), pin: first }
-            };
-            Some(Statement::Connect(Connection { pin1, pin2 }))
+            let threshold = inner_rules.next().unwrap().as_str().to_string();
+            
+            Some(Statement::Assert(AssertStmt { metric, signal, cmp, threshold }))
         }
         Rule::use_stmt => {
             let mut inner_rules = inner.into_inner();
