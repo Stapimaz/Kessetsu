@@ -25,7 +25,8 @@ pub fn generate_kicad_sch(layout: &LayoutResult) -> String {
             "Capacitor" => "Device:C",
             "Inductor" => "Device:L",
             "Diode" => "Device:D",
-            "Battery" => "Device:Battery",
+            "Source" => "Simulation_SPICE:VDC",
+            "CurrentSource" => "Simulation_SPICE:IDC",
             "Transistor" => "Device:Q_NPN_CBE", // Simplified
             "Mosfet" => "Device:Q_NMOS_DGS",
             "OpAmp" => "Amplifier_Operational:LM741",

@@ -61,7 +61,7 @@ Simulator executable discovery, dağıtılan binary konumlarını ve sistem fall
 | `current_source` | Akım Kaynağı | plus, minus | I_ |
 
 ### Temel Kurallar
-- **ÖNEMLİ KURAL:** Piller veya AC/DC tüm voltaj kaynakları için `battery` KELİMESİ KULLANILMAZ. Yerine **`source`** kullanılır. SPICE'ta hepsi `V_` ile ifade edilir. (Parser geriye uyumluluk için `battery` kabul eder ama AST'de `Source`'a dönüştürür.)
+- **ÖNEMLİ KURAL:** Piller veya AC/DC tüm voltaj kaynakları için `battery` KELİMESİ KULLANILMAZ. Yerine **`source`** kullanılır. SPICE'ta hepsi `V_` ile ifade edilir. Legacy `battery` syntax'ı sessizce normalize edilmez; parser tarafından reddedilir.
 - **Değerler:** Bileşen değerleri typed olarak parse edilir. SI prefixler desteklenir:
   - `resistor R1 10k` → 10000 Ω
   - `capacitor C1 100uF` → 100µF

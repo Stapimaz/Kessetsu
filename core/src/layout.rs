@@ -80,13 +80,12 @@ pub fn generate_layout(circuit: &CircuitIR) -> LayoutResult {
 
     let mut vcc_net: Option<NetId> = None;
     let mut gnd_net: Option<NetId> = None;
-    let mut battery_name: Option<String> = None;
+    let mut voltage_source_name: Option<String> = None;
 
     for (net_id, pins) in &nets_map {
         for (comp_name, pin_name) in pins {
             if component_kinds.get(comp_name) == Some(&ComponentKind::VoltageSource) {
-                // fallback match string
-                battery_name = Some(comp_name.clone());
+                voltage_source_name = Some(comp_name.clone());
                 if pin_name == "plus" {
                     vcc_net = Some(*net_id);
                 }
@@ -100,8 +99,8 @@ pub fn generate_layout(circuit: &CircuitIR) -> LayoutResult {
     let mut chains: Vec<Vec<(String, String)>> = Vec::new();
     let mut used: HashSet<String> = HashSet::new();
 
-    if let Some(ref bn) = battery_name {
-        used.insert(bn.clone());
+    if let Some(ref source_name) = voltage_source_name {
+        used.insert(source_name.clone());
     }
 
     if let Some(vcc) = vcc_net
@@ -242,8 +241,8 @@ pub fn generate_layout(circuit: &CircuitIR) -> LayoutResult {
     };
     let chain_start_y = 2;
 
-    if let Some(ref bname) = battery_name
-        && let Some(pos) = components.get_mut(bname)
+    if let Some(ref source_name) = voltage_source_name
+        && let Some(pos) = components.get_mut(source_name)
     {
         pos.rotation = 1;
         pos.x = 0;

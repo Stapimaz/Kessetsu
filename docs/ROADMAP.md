@@ -460,19 +460,21 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 
 ### 2.5.6 — Web/WASM senkronizasyonu
 
-- [ ] Web default kodunu güncel grammar'a geçir.
-- [ ] Default kodda `source` terminolojisi kullan.
-- [ ] Eski `connect A B` syntax'ını güncel `connect A to B` ile değiştir.
-- [ ] Default circuit'i mümkünse ortak fixture/example üzerinden yükle.
-- [ ] SVG renderer'a `Source` sembolü ekle; `Battery` kalıntısını kaldır.
-- [ ] `CurrentSource` sembolünü veya açık geçici fallback'i tanımla.
-- [ ] KiCad export'ta `Source`/`CurrentSource` mapping'ini düzelt.
-- [ ] Layout içindeki bütün `Battery` fallback'lerini kaldır.
-- [ ] WASM package build'ini npm/kök build akışına bağla.
-- [ ] WASM result için `any` yerine TypeScript interface/generated type kullan.
-- [ ] React hook lint uyarısını düzelt.
-- [ ] Kullanılmayan Vite template CSS ve asset'lerini temizle.
-- [ ] Web default circuit compile smoke testi ekle.
+- [x] Web default kodunu güncel grammar'a geçir.
+- [x] Default kodda `source` terminolojisi kullan.
+- [x] Eski `connect A B` syntax'ını güncel `connect A to B` ile değiştir.
+- [x] Default circuit'i mümkünse ortak fixture/example üzerinden yükle.
+- [x] SVG renderer'a `Source` sembolü ekle; `Battery` kalıntısını kaldır.
+- [x] `CurrentSource` sembolünü veya açık geçici fallback'i tanımla.
+- [x] KiCad export'ta `Source`/`CurrentSource` mapping'ini düzelt.
+- [x] Layout içindeki bütün `Battery` fallback'lerini kaldır.
+- [x] WASM package build'ini npm/kök build akışına bağla.
+- [x] WASM result için `any` yerine TypeScript interface/generated type kullan.
+- [x] React hook lint uyarısını düzelt.
+- [ ] Kullanılmayan Vite template CSS ve asset'lerini temizle. _(`App.css`, React/Vite SVG'leri ve kullanılmayan public icon seti kaldırıldı; kullanılmayan binary `src/assets/hero.png` halen açık.)_
+- [x] Web default circuit compile smoke testi ekle.
+
+**Web/WASM senkronizasyon dilimi kanıtı (2026-08-09):** Web editörünün hard-coded ve legacy `battery`/`connect A B` kullanan kaynağı kaldırıldı; default içerik doğrudan repository'deki golden-korumalı `examples/demo_circuit.nl` dosyasından raw import ediliyor. Aynı dosya Rust integration testinde `CompileOptions::all_outputs()` ile diagnostics olmadan SPICE + layout + KiCad üretmek zorunda. Web compile/layout/diagnostic sınırındaki `any` tipleri explicit TypeScript interface'lere çevrildi. SVG renderer ayrı `Source` ve `CurrentSource` sembolleri kullanıyor; layout ve üretim Web kodunda `Battery` kalmadı. KiCad mapping'leri `Simulation_SPICE:VDC/IDC` olarak testle sabitlendi. Toplam 68 Rust testi, WASM release package, Web lint ve production build birlikte geçti.
 
 **Kabul kriterleri:**
 
@@ -756,4 +758,4 @@ Her geliştirme oturumunda:
 
 **2.5.5 — Tek compile pipeline ve CLI sözleşmesi.**
 
-2.5.1'in yalnız remote GitHub Actions run doğrulaması erişim bekliyor; production dependency audit sıfırlandı ve kök kalite kapısına bağlandı. 2.5.3 typed IR/semantic validation, 2.5.4 graph/ERC sağlamlaştırması ve 2.5.5 ortak compile/CLI sözleşmesi kapandı. Sıradaki iş 2.5.6 Web/WASM senkronizasyonudur: önce Web default kaynağını güncel grammar ve `source` terminolojisine geçirip ortak fixture tabanlı smoke test eklemek gerekir.
+2.5.1'in yalnız remote GitHub Actions run doğrulaması erişim bekliyor; production dependency audit sıfırlandı ve kök kalite kapısına bağlandı. 2.5.3 typed IR/semantic validation, 2.5.4 graph/ERC sağlamlaştırması ve 2.5.5 ortak compile/CLI sözleşmesi kapandı. 2.5.6'da default source, typed WASM result tüketimi ve Source/CurrentSource renderer/export senkronizasyonu tamamlandı. Sıradaki iş kalan Vite template CSS/asset/README kalıntılarını kullanım denetimiyle temizlemek, ardından 2.5.6 kabul kriterlerini kapatmaktır.

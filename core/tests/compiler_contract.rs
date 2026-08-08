@@ -141,3 +141,32 @@ fn warning_diagnostics_do_not_turn_a_successful_report_into_an_error() {
     assert!(!report.has_errors());
     assert!(report.spice_netlist.is_some());
 }
+
+#[test]
+fn shared_web_default_example_compiles_every_browser_output() {
+    let source = include_str!("../../examples/demo_circuit.nl");
+    assert!(!source.contains("battery"));
+
+    let report = compile_source(source, CompileOptions::all_outputs());
+    assert!(
+        !report.has_errors(),
+        "diagnostics: {:?}",
+        report.diagnostics
+    );
+    assert!(report.spice_netlist.is_some());
+    assert!(report.layout.is_some());
+    assert!(report.kicad_sch.is_some());
+}
+
+#[test]
+fn kicad_export_maps_voltage_and_current_sources_explicitly() {
+    let source = "source V1 5V\ncurrent_source I1 1A\nresistor R1 1k\nconnect V1.plus, I1.plus to R1.p1\nconnect V1.minus, I1.minus to R1.p2\n";
+    let report = compile_source(source, CompileOptions::all_outputs());
+    let kicad = report
+        .kicad_sch
+        .expect("valid source circuit should produce KiCad output");
+
+    assert!(kicad.contains("Simulation_SPICE:VDC"));
+    assert!(kicad.contains("Simulation_SPICE:IDC"));
+    assert!(!kicad.contains("Device:Battery"));
+}

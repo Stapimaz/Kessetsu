@@ -2,58 +2,59 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Editor from '@monaco-editor/react';
 import { Play, Code2, CircuitBoard, Terminal as TerminalIcon, Download } from 'lucide-react';
 import init, { compile_netlang } from 'netlang-core';
+import defaultCircuit from '../../examples/demo_circuit.nl?raw';
 
 const COMPILE_SCHEMA_VERSION = 'netlang.compile.v1';
 
 interface CompileDiagnostic {
   code: string;
   severity: 'error' | 'warning' | 'info';
-  stage: 'parse' | 'flatten' | 'semantic' | 'erc';
+  stage: 'parse' | 'flatten' | 'semantic' | 'erc' | 'io' | 'cli' | 'simulation' | 'assertion';
   message: string;
+}
+
+interface ComponentPosition {
+  x: number;
+  y: number;
+  comp_type: string;
+  width: number;
+  height: number;
+  rotation: number;
+}
+
+interface LayoutWire {
+  net_id: number;
+  points: [number, number][];
+}
+
+interface LayoutResult {
+  components: Record<string, ComponentPosition>;
+  wires: LayoutWire[];
 }
 
 interface CompileReport {
   schema_version: string;
   diagnostics: CompileDiagnostic[];
-  layout: unknown | null;
+  layout: LayoutResult | null;
   kicad_sch: string | null;
   spice_netlist: string | null;
 }
 
-const DEFAULT_CODE = `// NetLang Micro-DSL MVP (Rust/WASM Core)
-
-module VoltageDivider(in, out, gnd) {
-    resistor R1 10k
-    resistor R2 20k
-    
-    connect in R1.p1
-    connect R1.p2 out
-    connect R1.p2 R2.p1
-    connect R2.p2 gnd
+interface UiDiagnostic {
+  message: string;
+  type: CompileDiagnostic['severity'];
 }
 
-battery B1 9V
-use VoltageDivider myDiv
-transistor Q1 NPN
-resistor R3 1k
-
-// Devre bağlantıları
-connect B1.plus myDiv.in
-connect B1.minus myDiv.gnd
-
-// Gerilim bölücüden çıkan voltajı transistörün Base (B) ucuna ver
-connect myDiv.out Q1.b
-connect B1.plus R3.p1
-connect R3.p2 Q1.c
-connect Q1.e B1.minus
-`;
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 function App() {
-  const [code, setCode] = useState(DEFAULT_CODE);
-  const [errors, setErrors] = useState<any[]>([]);
+  const [code, setCode] = useState(defaultCircuit);
+  const [errors, setErrors] = useState<UiDiagnostic[]>([]);
   const [success, setSuccess] = useState<boolean>(false);
   const [isWasmLoaded, setIsWasmLoaded] = useState(false);
-  const [layout, setLayout] = useState<any>(null);
+  const [layout, setLayout] = useState<LayoutResult | null>(null);
   const [kicadSch, setKicadSch] = useState<string>('');
 
   const [spiceNetlist, setSpiceNetlist] = useState<string>('');
@@ -96,8 +97,8 @@ function App() {
         setSpiceNetlist(result.spice_netlist || '');
         setKicadSch(result.kicad_sch || '');
       }
-    } catch (e: any) {
-      setErrors([{ message: `WASM Execution Error: ${e.message}`, type: 'error' }]);
+    } catch (error: unknown) {
+      setErrors([{ message: `WASM Execution Error: ${errorMessage(error)}`, type: 'error' }]);
       setSuccess(false);
       setSpiceNetlist('');
       setKicadSch('');
@@ -127,14 +128,24 @@ function App() {
               <line x1="65" y1="0" x2="80" y2="0" stroke="var(--accent)" strokeWidth="2" />
             </g>
           );
-        case 'Battery':
+        case 'Source':
           return (
             <g>
-              <line x1="0" y1="0" x2="35" y2="0" stroke="var(--accent)" strokeWidth="2" />
-              <line x1="35" y1="-15" x2="35" y2="15" stroke="var(--accent)" strokeWidth="3" />
-              <line x1="45" y1="-20" x2="45" y2="20" stroke="var(--accent)" strokeWidth="4" />
-              <line x1="45" y1="0" x2="80" y2="0" stroke="var(--accent)" strokeWidth="2" />
-              <text x="25" y="-15" fill="var(--accent)" fontSize="12">+</text>
+              <line x1="0" y1="0" x2="20" y2="0" stroke="var(--accent)" strokeWidth="2" />
+              <circle cx="40" cy="0" r="20" fill="var(--panel-bg)" stroke="var(--accent)" strokeWidth="2" />
+              <text x="40" y="-5" fill="var(--accent)" fontSize="14" textAnchor="middle">+</text>
+              <text x="40" y="14" fill="var(--accent)" fontSize="14" textAnchor="middle">−</text>
+              <line x1="60" y1="0" x2="80" y2="0" stroke="var(--accent)" strokeWidth="2" />
+            </g>
+          );
+        case 'CurrentSource':
+          return (
+            <g>
+              <line x1="0" y1="0" x2="20" y2="0" stroke="var(--accent)" strokeWidth="2" />
+              <circle cx="40" cy="0" r="20" fill="var(--panel-bg)" stroke="var(--accent)" strokeWidth="2" />
+              <line x1="30" y1="0" x2="50" y2="0" stroke="var(--accent)" strokeWidth="2" />
+              <polygon points="50,0 42,-5 42,5" fill="var(--accent)" />
+              <line x1="60" y1="0" x2="80" y2="0" stroke="var(--accent)" strokeWidth="2" />
             </g>
           );
         case 'Inductor':
@@ -242,15 +253,14 @@ function App() {
         <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
         
         {/* Çizgiler (Bağlantılar) */}
-        {layout.wires && layout.wires.map((wire: any, i: number) => {
-          let pts = "";
-          wire.points.forEach((p: any) => {
-            pts += `${p[0] * SCALE + OFFSET_X},${p[1] * SCALE + OFFSET_Y} `;
-          });
+        {layout.wires.map((wire, i) => {
+          const pts = wire.points
+            .map(([x, y]) => `${x * SCALE + OFFSET_X},${y * SCALE + OFFSET_Y}`)
+            .join(' ');
           return (
             <polyline 
               key={`wire-${i}`} 
-              points={pts.trim()} 
+              points={pts}
               fill="none"
               stroke="#38bdf8" 
               strokeWidth="2" 
@@ -260,11 +270,7 @@ function App() {
         })}
 
         {/* Bileşenler */}
-        {layout.components && (
-          (layout.components instanceof Map 
-            ? Array.from(layout.components.entries()) 
-            : Object.entries(layout.components)) as [string, any][]
-          ).map(([name, comp]: [string, any]) => {
+        {Object.entries(layout.components).map(([name, comp]) => {
           const cx = comp.x * SCALE + OFFSET_X;
           const cy = comp.y * SCALE + OFFSET_Y;
           const rot = (comp.rotation || 0) * 90;
