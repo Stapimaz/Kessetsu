@@ -1,6 +1,4 @@
-use crate::ast::*;
-use crate::layout::{LayoutResult, Wire, ComponentPos};
-use std::collections::HashMap;
+use crate::layout::LayoutResult;
 
 /// Generates a KiCad 6.0/7.0/8.0 compatible schematic file (.kicad_sch)
 /// This is a simplified S-Expression generator that allows KiCad to open our NetLang schematics!

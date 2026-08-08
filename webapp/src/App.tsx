@@ -64,13 +64,13 @@ function App() {
         setSpiceNetlist('');
         setLayout(null);
       } else {
-        const drcErrors = result.drc_errors || [];
+        const ercErrors = result.erc_errors || [];
         if (result.layout) {
            setLayout(result.layout);
         }
         
-        if (drcErrors.length > 0) {
-          setErrors(drcErrors.map((e: any) => ({ message: e.message, type: 'error' })));
+        if (ercErrors.length > 0) {
+          setErrors(ercErrors.map((e: any) => ({ message: `[${e.code}] ${e.message}`, type: 'error' })));
           setSuccess(false);
           setSpiceNetlist('');
         } else {
@@ -244,9 +244,10 @@ function App() {
         })}
 
         {/* Bileşenler */}
-        {layout.components && (layout.components instanceof Map 
+        {layout.components && (
+          (layout.components instanceof Map 
             ? Array.from(layout.components.entries()) 
-            : Object.entries(layout.components)
+            : Object.entries(layout.components)) as [string, any][]
           ).map(([name, comp]: [string, any]) => {
           const cx = comp.x * SCALE + OFFSET_X;
           const cy = comp.y * SCALE + OFFSET_Y;
@@ -284,7 +285,7 @@ function App() {
           <span>NetLang Editor</span>
           <button className="compile-btn" onClick={compileCode} disabled={!isWasmLoaded}>
             <Play size={14} style={{ display: 'inline', marginRight: 5, verticalAlign: 'middle' }} /> 
-            {isWasmLoaded ? 'Derle & DRC' : 'WASM...'}
+            {isWasmLoaded ? 'Derle & ERC' : 'WASM...'}
           </button>
         </div>
         <div className="editor-container">
@@ -351,16 +352,16 @@ function App() {
           {spiceNetlist ? (
             <pre style={{ margin: 0 }}>{spiceNetlist}</pre>
           ) : (
-            <div style={{ color: 'var(--text-muted)' }}>DRC hataları giderildiğinde SPICE netlist üretilecektir...</div>
+            <div style={{ color: 'var(--text-muted)' }}>ERC hataları giderildiğinde SPICE netlist üretilecektir...</div>
           )}
         </div>
 
         <div className="panel-header" style={{ borderTop: '1px solid var(--border-color)', borderBottom: 'none' }}>
           <TerminalIcon size={18} color="var(--text-muted)" />
-          <span>DRC Terminal (Self-Healing Log)</span>
+          <span>ERC Terminal (Self-Healing Log)</span>
         </div>
-        <div className="terminal-container" style={{ height: '120px' }}>
-          {success && <div className="success-msg">DRC Başarılı: Şema güncellendi, 0 Hata. (Rust & WASM Engine)</div>}
+        <div className="terminal-content">
+          {success && <div className="success-msg">ERC Başarılı: Şema güncellendi, 0 Hata. (Rust & WASM Engine)</div>}
           {errors.map((e, idx) => (
             <div key={idx} className={e.type === 'error' ? 'error-msg' : ''}>
               [{e.type ? e.type.toUpperCase() : 'ERROR'}] {e.message}

@@ -1,4 +1,4 @@
-use crate::ast::*;
+use crate::ir::*;
 use crate::graph::NetlistGraph;
 use serde::{Serialize, Deserialize};
 use std::collections::{HashMap, HashSet};
@@ -16,7 +16,7 @@ pub struct ComponentPos {
     pub comp_type: String,
     pub width: i32,
     pub height: i32,
-    pub rotation: i32, // 0: 0deg, 1: 90deg, 2: 180deg, 3: 270deg
+    pub rotation: i32,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -32,43 +32,52 @@ struct ComponentDef {
     pins: HashMap<String, (i32, i32)>,
 }
 
-fn get_comp_def(comp_type: &ComponentType) -> ComponentDef {
+fn kind_to_string(kind: &ComponentKind) -> String {
+    match kind {
+        ComponentKind::Resistor => "Resistor".to_string(),
+        ComponentKind::Capacitor => "Capacitor".to_string(),
+        ComponentKind::Inductor => "Inductor".to_string(),
+        ComponentKind::Diode => "Diode".to_string(),
+        ComponentKind::BJT(_) => "Transistor".to_string(),
+        ComponentKind::MOSFET(_) => "Mosfet".to_string(),
+        ComponentKind::OpAmp => "OpAmp".to_string(),
+        ComponentKind::VoltageSource => "Source".to_string(),
+        ComponentKind::CurrentSource => "CurrentSource".to_string(),
+    }
+}
+
+fn get_comp_def(kind: &ComponentKind) -> ComponentDef {
     let mut pins = HashMap::new();
-    match comp_type {
-        ComponentType::Resistor | ComponentType::Capacitor | ComponentType::Inductor | ComponentType::Diode => {
+    match kind {
+        ComponentKind::Resistor | ComponentKind::Capacitor | ComponentKind::Inductor | ComponentKind::Diode => {
             pins.insert("p1".to_string(), (0, 0));
             pins.insert("p2".to_string(), (2, 0));
             ComponentDef { width: 2, height: 1, pins }
         }
-        ComponentType::Source => {
+        ComponentKind::VoltageSource | ComponentKind::CurrentSource => {
             pins.insert("plus".to_string(), (0, 0));
             pins.insert("minus".to_string(), (2, 0));
             ComponentDef { width: 2, height: 1, pins }
         }
-        ComponentType::Transistor => {
+        ComponentKind::BJT(_) => {
             pins.insert("b".to_string(), (0, 1));
             pins.insert("c".to_string(), (2, 0));
             pins.insert("e".to_string(), (2, 2));
             ComponentDef { width: 3, height: 3, pins }
         }
-        ComponentType::Mosfet => {
+        ComponentKind::MOSFET(_) => {
             pins.insert("g".to_string(), (0, 1));
             pins.insert("d".to_string(), (2, 0));
             pins.insert("s".to_string(), (2, 2));
             ComponentDef { width: 3, height: 3, pins }
         }
-        ComponentType::OpAmp => {
+        ComponentKind::OpAmp => {
             pins.insert("in_n".to_string(), (0, 0));
             pins.insert("in_p".to_string(), (0, 2));
             pins.insert("vcc".to_string(), (1, -1));
             pins.insert("vee".to_string(), (1, 3));
             pins.insert("out".to_string(), (3, 1));
             ComponentDef { width: 3, height: 3, pins }
-        }
-        ComponentType::ModulePort => {
-            pins.insert("in".to_string(), (0, 0));
-            pins.insert("out".to_string(), (2, 0));
-            ComponentDef { width: 2, height: 1, pins }
         }
     }
 }
@@ -83,14 +92,12 @@ fn get_bbox(pos: &ComponentPos) -> (i32, i32, i32, i32) {
     }
 }
 
-/// Returns the "through-path" exit pin for a given entry pin.
-/// 2-pin: p1 <-> p2.  Transistor: c <-> e (b is signal).  MOSFET: d <-> s (g is signal).
 fn get_through_pin(comp_type: &str, entry_pin: &str) -> String {
     match comp_type {
         "Resistor" | "Capacitor" | "Inductor" | "Diode" => {
             if entry_pin == "p1" { "p2".to_string() } else { "p1".to_string() }
         }
-        "Battery" => {
+        "Source" | "CurrentSource" => {
             if entry_pin == "plus" { "minus".to_string() } else { "plus".to_string() }
         }
         "Transistor" => {
@@ -118,8 +125,6 @@ fn get_through_pin(comp_type: &str, entry_pin: &str) -> String {
     }
 }
 
-/// Returns true if the pin is a "signal/control" pin (not on the main current path).
-/// Transistor: b is signal. MOSFET: g is signal. All other pins are through-path.
 fn is_signal_pin(comp_type: &str, pin: &str) -> bool {
     match comp_type {
         "Transistor" => pin == "b",
@@ -128,25 +133,11 @@ fn is_signal_pin(comp_type: &str, pin: &str) -> bool {
     }
 }
 
-// ============================================================
-// V5: Chain-Based Schematic Layout Engine
-// ============================================================
-//
-// Core idea: A good schematic = vertical chains between VCC (top)
-// and GND (bottom), with horizontal signal wires between them.
-//
-// 1. Find VCC/GND nets from battery
-// 2. Trace series paths (chains) from VCC through components to GND
-// 3. Sort: passive chains left, active (transistor) chains right
-// 4. Place each chain as a vertical column on the grid
-// 5. Route with horizontal rails (VCC/GND) + simple L-shaped wires
-//
-pub fn generate_layout(program: &Program) -> LayoutResult {
+pub fn generate_layout(circuit: &CircuitIR) -> LayoutResult {
     let mut components = HashMap::new();
     let mut defs = HashMap::new();
 
-    // Build netlist graph
-    let graph = NetlistGraph::build(program);
+    let graph = NetlistGraph::build(circuit);
     let mut nets_map: HashMap<usize, Vec<(String, String)>> = HashMap::new();
 
     for (pin_id, net_id) in &graph.pin_to_net {
@@ -157,27 +148,22 @@ pub fn generate_layout(program: &Program) -> LayoutResult {
         }
     }
 
-    // Initialize all non-ModulePort components
-    for stmt in &program.statements {
-        if let Statement::Decl(decl) = stmt {
-            if decl.comp_type == ComponentType::ModulePort { continue; }
-            let def = get_comp_def(&decl.comp_type);
-            defs.insert(decl.name.clone(), def.clone());
-            components.insert(decl.name.clone(), ComponentPos {
-                x: 0, y: 0,
-                comp_type: format!("{:?}", decl.comp_type),
-                width: def.width,
-                height: def.height,
-                rotation: 0,
-            });
-        }
+    for comp in &circuit.components {
+        let def = get_comp_def(&comp.kind);
+        defs.insert(comp.id.clone(), def.clone());
+        components.insert(comp.id.clone(), ComponentPos {
+            x: 0, y: 0,
+            comp_type: kind_to_string(&comp.kind),
+            width: def.width,
+            height: def.height,
+            rotation: 0,
+        });
     }
 
     if components.is_empty() {
         return LayoutResult { components, wires: Vec::new() };
     }
 
-    // ---- Step 1: Identify VCC / GND nets and battery ----
     let mut vcc_net: Option<usize> = None;
     let mut gnd_net: Option<usize> = None;
     let mut battery_name: Option<String> = None;
@@ -185,7 +171,7 @@ pub fn generate_layout(program: &Program) -> LayoutResult {
     for (net_id, pins) in &nets_map {
         for (comp_name, pin_name) in pins {
             if let Some(pos) = components.get(comp_name) {
-                if pos.comp_type == "Battery" {
+                if pos.comp_type == "Source" || pos.comp_type == "Battery" { // fallback match string
                     battery_name = Some(comp_name.clone());
                     if pin_name == "plus" { vcc_net = Some(*net_id); }
                     if pin_name == "minus" { gnd_net = Some(*net_id); }
@@ -194,25 +180,19 @@ pub fn generate_layout(program: &Program) -> LayoutResult {
         }
     }
 
-    // ---- Step 2: Find chains (VCC → comp → comp → ... → GND) ----
-    // Each chain element is (component_name, entry_pin) for orientation awareness
     let mut chains: Vec<Vec<(String, String)>> = Vec::new();
     let mut used: HashSet<String> = HashSet::new();
 
-    // Battery is placed separately, not part of any chain
     if let Some(ref bn) = battery_name {
         used.insert(bn.clone());
     }
 
     if let Some(vcc) = vcc_net {
         if let Some(vcc_pins) = nets_map.get(&vcc) {
-            // Collect VCC entry points
             let mut vcc_entries: Vec<(String, String)> = vcc_pins.iter()
                 .filter(|(c, _)| components.contains_key(c) && !used.contains(c))
                 .cloned()
                 .collect();
-            // Sort VCC entries: prefer those whose exit net has through-path
-            // downstream (e.g., collector connections) over signal-only (e.g., base)
             vcc_entries.sort_by(|a, b| {
                 let a_through = {
                     let ct = &components[&a.0].comp_type;
@@ -238,7 +218,6 @@ pub fn generate_layout(program: &Program) -> LayoutResult {
                         })
                     } else { false }
                 };
-                // through-path first (true > false, so reverse)
                 b_through.cmp(&a_through).then(a.0.cmp(&b.0))
             });
 
@@ -249,7 +228,6 @@ pub fn generate_layout(program: &Program) -> LayoutResult {
                 let mut current = start_comp.clone();
                 let mut entry_pin = start_pin.clone();
 
-                // Follow the through-path: enter comp → exit via paired pin → next comp
                 loop {
                     if used.contains(&current) { break; }
                     used.insert(current.clone());
@@ -259,11 +237,9 @@ pub fn generate_layout(program: &Program) -> LayoutResult {
                     let exit_pin = get_through_pin(&comp_type, &entry_pin);
                     let exit_net = graph.get_net(&current, &exit_pin);
 
-                    if Some(exit_net) == gnd_net { break; } // Reached ground — chain complete
-                    if exit_net == 9999 { break; }          // Floating — chain ends
+                    if Some(exit_net) == gnd_net { break; } 
+                    if exit_net == 9999 { break; }          
 
-                    // Find next unvisited component on the exit net
-                    // Prefer through-path pin entries (c, e, p1, p2) over signal (b, g)
                     let mut found_next = false;
                     if let Some(net_pins) = nets_map.get(&exit_net) {
                         let mut candidates: Vec<&(String, String)> = net_pins.iter()
@@ -294,8 +270,6 @@ pub fn generate_layout(program: &Program) -> LayoutResult {
         }
     }
 
-    // Remaining unplaced components → singleton chains
-    // Determine entry_pin based on VCC/GND connections for correct orientation
     let mut remaining: Vec<String> = components.keys()
         .filter(|n| !used.contains(*n))
         .cloned()
@@ -306,10 +280,9 @@ pub fn generate_layout(program: &Program) -> LayoutResult {
         let pins: Vec<&str> = match comp_type.as_str() {
             "Transistor" => vec!["c", "b", "e"],
             "Mosfet" => vec!["d", "g", "s"],
-            "Battery" => vec!["plus", "minus"],
+            "Source" | "Battery" => vec!["plus", "minus"],
             _ => vec!["p1", "p2"],
         };
-        // Find if any pin is on GND → that pin should be at bottom → entry = other pin
         let mut entry = pins[0].to_string();
         for &p in &pins {
             let net = graph.get_net(&name, p);
@@ -318,7 +291,6 @@ pub fn generate_layout(program: &Program) -> LayoutResult {
                 break;
             }
         }
-        // Also check: if a pin is on VCC → that pin is the entry (should be at top)
         for &p in &pins {
             let net = graph.get_net(&name, p);
             if Some(net) == vcc_net {
@@ -330,8 +302,6 @@ pub fn generate_layout(program: &Program) -> LayoutResult {
         used.insert(name);
     }
 
-    // ---- Step 3: Sort chains (passive left, active right) ----
-    // Signal flows left → right: bias/divider networks first, transistors last
     chains.sort_by_key(|chain| {
         let has_active = chain.iter().any(|(c, _)| {
             components.get(c).map_or(false, |p| {
@@ -341,24 +311,21 @@ pub fn generate_layout(program: &Program) -> LayoutResult {
         if has_active { 1 } else { 0 }
     });
 
-    // ---- Step 4: Place components on grid ----
     let col_spacing = match chains.len() {
         0..=2 => 7,
         3..=4 => 5,
         _     => 4,
     };
-    let chain_start_y = 2;  // Leave room above for VCC rail
+    let chain_start_y = 2;  
 
-    // Battery: vertical on the far left
     if let Some(ref bname) = battery_name {
         if let Some(pos) = components.get_mut(bname) {
-            pos.rotation = 1; // Vertical: plus at top, minus at bottom
+            pos.rotation = 1; 
             pos.x = 0;
             pos.y = 3;
         }
     }
 
-    // Place each chain as a vertical column
     for (chain_idx, chain) in chains.iter().enumerate() {
         let axis_x = (chain_idx as i32 + 1) * col_spacing;
         let mut current_y = chain_start_y;
@@ -367,30 +334,23 @@ pub fn generate_layout(program: &Program) -> LayoutResult {
             let pos = components.get_mut(comp_name).unwrap();
 
             if pos.comp_type == "Transistor" || pos.comp_type == "Mosfet" {
-                // Through-pins c/e (or d/s) at relative (2,0) and (2,2)
-                // Shift x by -2 so through-pins land on axis_x
                 pos.x = axis_x - 2;
                 pos.y = current_y;
                 pos.rotation = 0;
             } else {
-                // 2-pin vertical placement with orientation awareness:
-                // entry_pin should be at TOP (VCC side), exit at BOTTOM (GND side)
-                // rotation=1: p1 at top, p2 at bottom
-                // rotation=3: p2 at top, p1 at bottom
                 pos.x = axis_x;
                 pos.y = current_y;
                 if entry_pin == "p2" || entry_pin == "minus" {
-                    pos.rotation = 3; // flip: entry pin (p2) at top
+                    pos.rotation = 3; 
                 } else {
-                    pos.rotation = 1; // normal: entry pin (p1/plus) at top
+                    pos.rotation = 1; 
                 }
             }
 
-            current_y += 3; // Pin span (2) + gap (1)
+            current_y += 3; 
         }
     }
 
-    // Normalize coordinates: shift so min position has padding
     let mut min_x = i32::MAX;
     let mut min_y = i32::MAX;
     for pos in components.values() {
@@ -405,9 +365,6 @@ pub fn generate_layout(program: &Program) -> LayoutResult {
         pos.y -= min_y;
     }
 
-    // ---- Step 5: Route wires ----
-
-    // Pre-compute pin world positions for each net
     let mut net_pin_positions: HashMap<usize, Vec<(i32, i32)>> = HashMap::new();
     for (net_id, pins) in &nets_map {
         let mut positions = Vec::new();
@@ -439,7 +396,6 @@ pub fn generate_layout(program: &Program) -> LayoutResult {
         let is_gnd = Some(*net_id) == gnd_net;
 
         if is_vcc {
-            // VCC rail: horizontal line ABOVE all pins, vertical stubs down
             let rail_y = positions.iter().map(|p| p.1).min().unwrap() - 1;
             let min_px = positions.iter().map(|p| p.0).min().unwrap();
             let max_px = positions.iter().map(|p| p.0).max().unwrap();
@@ -451,7 +407,6 @@ pub fn generate_layout(program: &Program) -> LayoutResult {
                 }
             }
         } else if is_gnd {
-            // GND rail: horizontal line BELOW all pins, vertical stubs up
             let rail_y = positions.iter().map(|p| p.1).max().unwrap() + 1;
             let min_px = positions.iter().map(|p| p.0).min().unwrap();
             let max_px = positions.iter().map(|p| p.0).max().unwrap();
@@ -463,16 +418,13 @@ pub fn generate_layout(program: &Program) -> LayoutResult {
                 }
             }
         } else {
-            // Signal nets: sequential L-shaped connections (pins sorted by x, then y)
             for i in 1..positions.len() {
                 let (ax, ay) = positions[i - 1];
                 let (bx, by) = positions[i];
 
                 if ax == bx || ay == by {
-                    // Same column or row → straight wire
                     wires.push(Wire { net_id: *net_id, points: vec![(ax, ay), (bx, by)] });
                 } else {
-                    // L-shaped: horizontal at source y, then vertical to target
                     wires.push(Wire { net_id: *net_id, points: vec![(ax, ay), (bx, ay), (bx, by)] });
                 }
             }

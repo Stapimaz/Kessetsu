@@ -4,33 +4,38 @@ extern crate pest_derive;
 
 pub mod ast;
 pub mod parser;
+pub mod ir;
 pub mod graph;
-pub mod drc;
-pub mod wasm;
+pub mod erc;
 pub mod layout;
 pub mod kicad;
+pub mod wasm;
 
 pub use parser::parse_program;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::drc::check_rules;
+    use crate::erc::check_rules;
+    use crate::ir::ast_to_ir;
 
     #[test]
-    fn test_parse_and_drc() {
-        let input = "resistor R1 10k\nbattery B1 5V\nconnect B1.plus R1.p1\nconnect B1.minus R1.p2\n";
+    fn test_parse_and_erc() {
+        let input = "resistor R1 10k\nsource B1 5V\nconnect B1.plus R1.p1\nconnect B1.minus R1.p2\n";
         let program = parse_program(input).unwrap().flatten().unwrap();
         assert_eq!(program.statements.len(), 4);
         
-        let graph = crate::graph::NetlistGraph::build(&program);
-        let errors = check_rules(&program, &graph);
+        let circuit = ast_to_ir(&program).unwrap();
+        let graph = crate::graph::NetlistGraph::build(&circuit);
+        let errors = check_rules(&circuit, &graph);
         assert!(errors.is_empty());
         
         let bad_input = "resistor R1 10k\nconnect B1.plus R1.p1\n";
         let bad_program = parse_program(bad_input).unwrap().flatten().unwrap();
-        let bad_graph = crate::graph::NetlistGraph::build(&bad_program);
-        let errors = check_rules(&bad_program, &bad_graph);
+        let bad_circuit = ast_to_ir(&bad_program).unwrap();
+        let bad_graph = crate::graph::NetlistGraph::build(&bad_circuit);
+        let errors = check_rules(&bad_circuit, &bad_graph);
         assert!(!errors.is_empty());
+        assert_eq!(errors[0].code, "NL-E002");
     }
 }

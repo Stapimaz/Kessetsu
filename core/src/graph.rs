@@ -1,4 +1,4 @@
-use crate::ast::*;
+use crate::ir::*;
 use std::collections::{HashMap, HashSet};
 
 pub struct NetlistGraph {
@@ -7,52 +7,40 @@ pub struct NetlistGraph {
 }
 
 impl NetlistGraph {
-    pub fn build(program: &Program) -> Self {
+    pub fn build(circuit: &CircuitIR) -> Self {
         let mut pin_to_net = HashMap::new();
         let mut next_net_id = 1;
         
         let mut adjacency: HashMap<String, Vec<String>> = HashMap::new();
         let mut all_pins = HashSet::new();
 
-        // Ensure all component pins exist in all_pins (even if not connected)
-        for stmt in &program.statements {
-            if let Statement::Decl(decl) = stmt {
-                let pins: Vec<&str> = match decl.comp_type {
-                    ComponentType::Source => vec!["plus", "minus"],
-                    ComponentType::Transistor => vec!["c", "b", "e"],
-                    ComponentType::Mosfet => vec!["d", "g", "s"],
-                    ComponentType::OpAmp => vec!["in_p", "in_n", "out", "vcc", "vee"],
-                    ComponentType::ModulePort => continue,
-                    _ => vec!["p1", "p2"],
-                };
-                for pin in pins {
-                    all_pins.insert(format!("{}.{}", decl.name, pin));
-                }
+        for comp in &circuit.components {
+            let pins: Vec<&str> = match comp.kind {
+                ComponentKind::VoltageSource | ComponentKind::CurrentSource => vec!["plus", "minus"],
+                ComponentKind::BJT(_) => vec!["c", "b", "e"],
+                ComponentKind::MOSFET(_) => vec!["d", "g", "s"],
+                ComponentKind::OpAmp => vec!["in_p", "in_n", "out", "vcc", "vee"],
+                _ => vec!["p1", "p2"],
+            };
+            for pin in pins {
+                all_pins.insert(format!("{}.{}", comp.id, pin));
             }
         }
 
-        for stmt in &program.statements {
-            if let Statement::Connect(conn) = stmt {
-                let pin1_id = format!("{}.{}", conn.pin1.component, conn.pin1.pin);
-                let pin2_id = format!("{}.{}", conn.pin2.component, conn.pin2.pin);
-                
-                adjacency.entry(pin1_id.clone()).or_insert_with(Vec::new).push(pin2_id.clone());
-                adjacency.entry(pin2_id.clone()).or_insert_with(Vec::new).push(pin1_id.clone());
-                
-                all_pins.insert(pin1_id);
-                all_pins.insert(pin2_id);
-            }
+        for conn in &circuit.connections {
+            let pin1_id = format!("{}.{}", conn.pin1.component, conn.pin1.pin);
+            let pin2_id = format!("{}.{}", conn.pin2.component, conn.pin2.pin);
+            
+            adjacency.entry(pin1_id.clone()).or_insert_with(Vec::new).push(pin2_id.clone());
+            adjacency.entry(pin2_id.clone()).or_insert_with(Vec::new).push(pin1_id.clone());
+            
+            all_pins.insert(pin1_id);
+            all_pins.insert(pin2_id);
         }
 
-        // Flood fill to assign net_ids
         let mut visited = HashSet::new();
         for pin in &all_pins {
             if !visited.contains(pin) {
-                // If the pin has no connections, it doesn't get a real net id (it remains floating)
-                // Actually, let's assign a unique net to everything.
-                // Or maybe we don't assign a net if it's completely isolated?
-                // SPICE needs every pin to be connected to SOMETHING, or it's an error.
-                // Let's assign unique nets.
                 let current_net = next_net_id;
                 next_net_id += 1;
                 
@@ -75,15 +63,12 @@ impl NetlistGraph {
                     }
                 }
                 
-                // If the pin is isolated (no connections), remove it from pin_to_net
-                // so that it returns 9999 and triggers the DRC Floating Pin error.
                 if connected_count == 1 {
                     pin_to_net.remove(pin);
                 }
             }
         }
 
-        // Force ground net (0) for battery minus
         let mut ground_net = None;
         for (pin, net) in &pin_to_net {
             if pin.ends_with(".minus") {
@@ -100,7 +85,6 @@ impl NetlistGraph {
             }
         }
 
-        // Generate robust net names
         let mut net_names = HashMap::new();
         net_names.insert(0, "0".to_string());
         
@@ -147,59 +131,71 @@ fn get_standard_model(name: &str) -> Option<&'static str> {
     }
 }
 
-pub fn generate_spice(program: &Program, graph: &NetlistGraph) -> String {
+fn format_spice_value(comp: &IRComponent) -> String {
+    if let Some(m) = &comp.model {
+        return m.name.clone();
+    }
+    match &comp.parameters {
+        ComponentParams::TwoPinPassive { value, .. } => format!("{}", value),
+        ComponentParams::DCSource { voltage } => format!("{}", voltage),
+        ComponentParams::ACSource { waveform } => {
+            match waveform {
+                Waveform::Sine { offset, amplitude, frequency } => format!("SINE({} {} {})", offset, amplitude, frequency),
+                _ => "0".to_string(),
+            }
+        },
+        ComponentParams::Unknown { original_value } => original_value.clone(),
+        _ => "".to_string(),
+    }
+}
+
+pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
     let mut spice = String::from("* NetLang Generated SPICE Netlist\n");
     let mut used_models = HashSet::new();
 
-    
-    for stmt in &program.statements {
-        if let Statement::Decl(decl) = stmt {
-            if decl.comp_type == ComponentType::ModulePort {
-                continue;
+    for comp in &circuit.components {
+        let value_str = format_spice_value(comp);
+        match &comp.kind {
+            ComponentKind::BJT(_) => {
+                let nc = graph.get_net_name(graph.get_net(&comp.id, "c"));
+                let nb = graph.get_net_name(graph.get_net(&comp.id, "b"));
+                let ne = graph.get_net_name(graph.get_net(&comp.id, "e"));
+                spice.push_str(&format!("Q_{} {} {} {} {}\n", comp.id, nc, nb, ne, value_str));
             }
-
-            match decl.comp_type {
-                ComponentType::Transistor => {
-                    let nc = graph.get_net_name(graph.get_net(&decl.name, "c"));
-                    let nb = graph.get_net_name(graph.get_net(&decl.name, "b"));
-                    let ne = graph.get_net_name(graph.get_net(&decl.name, "e"));
-                    spice.push_str(&format!("Q_{} {} {} {} {}\n", decl.name, nc, nb, ne, decl.value));
-                }
-                ComponentType::Mosfet => {
-                    let nd = graph.get_net_name(graph.get_net(&decl.name, "d"));
-                    let ng = graph.get_net_name(graph.get_net(&decl.name, "g"));
-                    let ns = graph.get_net_name(graph.get_net(&decl.name, "s"));
-                    spice.push_str(&format!("M_{} {} {} {} {} {}\n", decl.name, nd, ng, ns, ns, decl.value));
-                }
-                ComponentType::OpAmp => {
-                    let np = graph.get_net_name(graph.get_net(&decl.name, "in_p"));
-                    let nn = graph.get_net_name(graph.get_net(&decl.name, "in_n"));
-                    let vcc = graph.get_net_name(graph.get_net(&decl.name, "vcc"));
-                    let vee = graph.get_net_name(graph.get_net(&decl.name, "vee"));
-                    let out = graph.get_net_name(graph.get_net(&decl.name, "out"));
-                    spice.push_str(&format!("X_{} {} {} {} {} {} {}\n", decl.name, np, nn, vcc, vee, out, decl.value));
-                }
-                _ => {
-                    let (p1, p2, prefix) = match decl.comp_type {
-                        ComponentType::Resistor => ("p1", "p2", "R"),
-                        ComponentType::Source => ("plus", "minus", "V"),
-                        ComponentType::Capacitor => ("p1", "p2", "C"),
-                        ComponentType::Inductor => ("p1", "p2", "L"),
-                        ComponentType::Diode => ("p1", "p2", "D"),
-                        _ => unreachable!(),
-                    };
-                    let net1 = graph.get_net_name(graph.get_net(&decl.name, p1));
-                    let net2 = graph.get_net_name(graph.get_net(&decl.name, p2));
-                    spice.push_str(&format!("{}_{} {} {} {}\n", prefix, decl.name, net1, net2, decl.value));
-                }
+            ComponentKind::MOSFET(_) => {
+                let nd = graph.get_net_name(graph.get_net(&comp.id, "d"));
+                let ng = graph.get_net_name(graph.get_net(&comp.id, "g"));
+                let ns = graph.get_net_name(graph.get_net(&comp.id, "s"));
+                spice.push_str(&format!("M_{} {} {} {} {} {}\n", comp.id, nd, ng, ns, ns, value_str));
             }
-            if let Some(model_str) = get_standard_model(&decl.value) {
-                used_models.insert(model_str);
+            ComponentKind::OpAmp => {
+                let np = graph.get_net_name(graph.get_net(&comp.id, "in_p"));
+                let nn = graph.get_net_name(graph.get_net(&comp.id, "in_n"));
+                let vcc = graph.get_net_name(graph.get_net(&comp.id, "vcc"));
+                let vee = graph.get_net_name(graph.get_net(&comp.id, "vee"));
+                let out = graph.get_net_name(graph.get_net(&comp.id, "out"));
+                spice.push_str(&format!("X_{} {} {} {} {} {} {}\n", comp.id, np, nn, vcc, vee, out, value_str));
             }
+            ComponentKind::Resistor | ComponentKind::Capacitor | ComponentKind::Inductor | ComponentKind::Diode | ComponentKind::VoltageSource | ComponentKind::CurrentSource => {
+                let (p1, p2, prefix) = match &comp.kind {
+                    ComponentKind::Resistor => ("p1", "p2", "R"),
+                    ComponentKind::VoltageSource => ("plus", "minus", "V"),
+                    ComponentKind::CurrentSource => ("plus", "minus", "I"),
+                    ComponentKind::Capacitor => ("p1", "p2", "C"),
+                    ComponentKind::Inductor => ("p1", "p2", "L"),
+                    ComponentKind::Diode => ("p1", "p2", "D"),
+                    _ => unreachable!(),
+                };
+                let net1 = graph.get_net_name(graph.get_net(&comp.id, p1));
+                let net2 = graph.get_net_name(graph.get_net(&comp.id, p2));
+                spice.push_str(&format!("{}_{} {} {} {}\n", prefix, comp.id, net1, net2, value_str));
+            }
+        }
+        if let Some(model_str) = get_standard_model(&value_str) {
+            used_models.insert(model_str);
         }
     }
     
-    // Add models
     if !used_models.is_empty() {
         spice.push_str("\n* Standard Models\n");
         for model in used_models {
@@ -208,18 +204,14 @@ pub fn generate_spice(program: &Program, graph: &NetlistGraph) -> String {
         }
     }
     
-    // Add simulation control blocks
     let mut has_sim = false;
     let mut control_block = String::from("\n.control\n");
-    for stmt in &program.statements {
-        if let Statement::Simulate(sim) = stmt {
-            has_sim = true;
-            let args_str = sim.args.join(" ");
-            control_block.push_str(&format!("{} {}\n", sim.cmd, args_str));
-        }
+    for sim in &circuit.analyses {
+        has_sim = true;
+        let args_str = sim.args.join(" ");
+        control_block.push_str(&format!("{} {}\n", sim.cmd, args_str));
     }
     
-    // Inject 1G dummy resistors for floating/NC nodes to prevent SPICE singular matrix crashes
     let mut dummy_count = 0;
     let mut net_counts: HashMap<usize, usize> = HashMap::new();
     let mut nc_nets: HashSet<usize> = HashSet::new();
