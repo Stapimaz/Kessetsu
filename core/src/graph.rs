@@ -254,7 +254,57 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
         }
     }
 
+    let mut main_analysis = "tran";
     if has_sim {
+        for sim in &circuit.analyses {
+            let cmd = sim.cmd.to_lowercase();
+            if cmd == "tran" || cmd == "dc" || cmd == "ac" || cmd == "op" {
+                main_analysis = Box::leak(cmd.into_boxed_str());
+                break;
+            }
+        }
+        
+        for assert in &circuit.assertions {
+            let raw_name = format!("{}_{}", assert.metric, assert.signal);
+            let safe_name = raw_name.replace("(", "_").replace(")", "").to_lowercase();
+            let metric = match assert.metric.to_uppercase().as_str() {
+                "MAX" => "MAX",
+                "MIN" => "MIN",
+                "PEAK" => "MAX", // Ngspice MAX is peak positive, PP is peak-to-peak
+                "RMS" => "RMS",
+                _ => "MAX",
+            };
+            
+            // Note: `op` does not support MAX/MIN/RMS measurements over time.
+            // If main_analysis is op, we should use FIND instead or just use DC eval.
+            // For now, if metric is MAX/MIN/RMS we assume we need to use it.
+            // If it's op, ngspice .meas op expects `FIND v(node) AT=0` or similar, 
+            // but for simplicity we'll just output the metric.
+            let mut sp_signal = assert.signal.clone();
+            if sp_signal.to_uppercase().starts_with("I(") {
+                let inside = &sp_signal[2..sp_signal.len()-1];
+                let prefix = match inside.chars().next() {
+                    Some('R') | Some('r') => "R_",
+                    Some('V') | Some('v') => "V_",
+                    Some('I') | Some('i') => "I_",
+                    Some('C') | Some('c') => "C_",
+                    Some('L') | Some('l') => "L_",
+                    Some('D') | Some('d') => "D_",
+                    Some('Q') | Some('q') => "Q_",
+                    Some('M') | Some('m') => "M_",
+                    Some('X') | Some('x') => "X_",
+                    _ => "",
+                };
+                sp_signal = format!("I({}{})", prefix, inside);
+            }
+            
+            if main_analysis == "op" {
+                control_block.push_str(&format!("meas {} {} FIND {} AT=0\n", main_analysis, safe_name, sp_signal));
+            } else {
+                control_block.push_str(&format!("meas {} {} {} {}\n", main_analysis, safe_name, metric, sp_signal));
+            }
+        }
+
         control_block.push_str("print all\nquit\n.endc\n");
         spice.push_str(&control_block);
     }

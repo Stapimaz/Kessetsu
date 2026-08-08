@@ -175,7 +175,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, String> {
         match stmt {
             Statement::Decl(decl) => {
                 let val_str = decl.value.as_deref().unwrap_or("");
-                let model = resolve_model(val_str);
+                let mut model = resolve_model(val_str);
                 
                 let (kind, params) = match decl.comp_type {
                     ComponentType::ModulePort => {
@@ -225,24 +225,35 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, String> {
                     ComponentType::Transistor => {
                         let mut polarity = BJTPolarity::NPN; // Default
                         
-                        // First check subtype
                         if let Some(sub) = &decl.subtype {
                             if sub.to_lowercase() == "pnp" { polarity = BJTPolarity::PNP; }
                         } else if let Some(m) = &model {
-                            // Fallback to model
                             if let ComponentKind::BJT(p) = &m.kind { polarity = p.clone(); }
                         }
+                        
+                        if val_str.is_empty() {
+                            let default_model = if polarity == BJTPolarity::NPN { "2N3904" } else { "2N3906" };
+                            model = resolve_model(default_model);
+                        }
+                        
                         (ComponentKind::BJT(polarity.clone()), ComponentParams::BJTParams { polarity })
                     },
                     ComponentType::Mosfet => {
-                        let polarity = if let Some(m) = &model {
-                            if let ComponentKind::MOSFET(p) = &m.kind { p.clone() } else { FETPolarity::NMOS }
-                        } else {
-                            FETPolarity::NMOS // Default
-                        };
+                        let mut polarity = FETPolarity::NMOS;
+                        if let Some(m) = &model {
+                            if let ComponentKind::MOSFET(p) = &m.kind { polarity = p.clone(); }
+                        }
+                        
+                        if val_str.is_empty() {
+                            model = resolve_model("IRF540");
+                        }
+                        
                         (ComponentKind::MOSFET(polarity.clone()), ComponentParams::MOSFETParams { polarity })
                     },
                     ComponentType::Diode => {
+                        if val_str.is_empty() {
+                            model = resolve_model("1N4148");
+                        }
                         (ComponentKind::Diode, ComponentParams::Unknown { original_value: val_str.to_string() })
                     },
                     ComponentType::OpAmp => {

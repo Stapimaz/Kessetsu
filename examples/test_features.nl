@@ -33,4 +33,4 @@ connect Q2.c to my_signal
 assert max(V(my_signal)) < 5V
 assert peak(I(V1)) < 100mA
 
-simulate op
+simulate tran 1us 10ms

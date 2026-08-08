@@ -335,12 +335,17 @@ Compile, simulate and test circuits like software.
 
 ---
 
-## Faz 3: Simülasyon & Doğrulama Altyapısı
+### Faz 3: Simülasyon & Doğrulama Altyapısı [x]
+- [x] **Ngspice CLI Entegrasyonu** (`sim_result.rs` içinde subprocess olarak ngspice'ı çağır)
+- [x] **Assertion Değerlendirme Motoru**
+  - Ngspice stdout'tan `.meas` sonuçlarını parse et
+  - Epsilon töleransıyla beklenen değer (threshold) ile ölçülen değeri karşılaştır
+- [x] **Simülasyon Hata Yönetimi** (DC OP Failure, convergence hataları)
+- [x] **`netlang test` CLI Komutu** eklendi (JSON format desteği ile)
 
-> **Hedef:** Ngspice sonuçlarını parse edip assertion'ları değerlendirmek. Simülasyon tabanlı kontroller. Confidence report.
->
-> **Başarı kriteri:** `netlang test circuit.nl` komutu assertion sonuçlarını PASS/FAIL olarak raporluyor. JSON formatında structured sonuç döndürüyor.
->
+**Kabul Kriterleri:**
+- `netlang test circuit.nl` komutu assertion sonuçlarını PASS/FAIL olarak raporluyor. JSON formatında structured sonuç döndürüyor.
+
 > **Ön koşul:** Faz 2 tamamen tamamlanmış olmalı.
 
 ### 3.1 — Ngspice Sonuç Parser'ı (`sim_result.rs`) — YENİ DOSYA

@@ -10,6 +10,7 @@ pub mod erc;
 pub mod layout;
 pub mod kicad;
 pub mod wasm;
+pub mod sim_result;
 
 pub use parser::parse_program;
 

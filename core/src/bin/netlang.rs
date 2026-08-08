@@ -27,6 +27,8 @@ enum Commands {
     Compile { file: String },
     /// Parse, ERC, generate netlist, and run Ngspice simulation
     Simulate { file: String },
+    /// Parse, ERC, generate netlist, simulate and evaluate assertions
+    Test { file: String },
     /// Parse, ERC, generate netlist, and render SVG schematic (Phase 3)
     Render { file: String },
 }
@@ -38,10 +40,20 @@ enum Format {
 }
 
 #[derive(Serialize)]
+pub struct JsonTestResult {
+    pub metric: String,
+    pub signal: String,
+    pub pass: bool,
+    pub actual: f64,
+    pub threshold: f64,
+}
+
+#[derive(Serialize)]
 struct JsonOutput {
     status: String,
     diagnostics: Vec<ErcDiagnostic>,
     spice_file: Option<String>,
+    tests: Option<Vec<JsonTestResult>>,
 }
 
 fn main() {
@@ -51,6 +63,7 @@ fn main() {
         Commands::Check { file } => file,
         Commands::Compile { file } => file,
         Commands::Simulate { file } => file,
+        Commands::Test { file } => file,
         Commands::Render { file } => file,
     };
 
@@ -104,6 +117,7 @@ fn main() {
                 status: "error".to_string(),
                 diagnostics: errors,
                 spice_file: None,
+                tests: None,
             };
             println!("{}", serde_json::to_string_pretty(&out).unwrap());
         } else {
@@ -120,6 +134,7 @@ fn main() {
                 status: "success".to_string(),
                 diagnostics: vec![],
                 spice_file: None,
+                tests: None,
             };
             println!("{}", serde_json::to_string_pretty(&out).unwrap());
         } else {
@@ -146,6 +161,7 @@ fn main() {
                 status: "success".to_string(),
                 diagnostics: vec![],
                 spice_file: Some(spice_path.to_string_lossy().to_string()),
+                tests: None,
             };
             println!("{}", serde_json::to_string_pretty(&out).unwrap());
         } else {
@@ -187,6 +203,7 @@ fn main() {
                         status: "success".to_string(),
                         diagnostics: vec![],
                         spice_file: Some(spice_path.to_string_lossy().to_string()),
+                        tests: None,
                     };
                     println!("{}", serde_json::to_string_pretty(&out).unwrap());
                 } else {
@@ -204,6 +221,80 @@ fn main() {
                 print_error(&cli.format, &format!("Failed to execute ngspice: {}", e));
                 process::exit(3);
             }
+        }
+    }
+
+    if matches!(cli.command, Commands::Test { .. }) {
+        if cli.format == Format::Human {
+            println!("[INFO] Running tests and assertions...");
+        }
+
+        let sim_res = netlang_core::sim_result::run_simulation(&spice).unwrap_or_else(|e| {
+            print_error(&cli.format, &format!("Failed to run simulation: {}", e));
+            process::exit(3);
+        });
+
+        if !sim_res.success && cli.format == Format::Human {
+            eprintln!("[WARNING] Simulation returned an error (convergence or fatal error).");
+            for err in &sim_res.errors {
+                eprintln!("  > {}", err);
+            }
+        }
+
+        let results = netlang_core::sim_result::evaluate_assertions(&circuit, &sim_res);
+        let mut all_passed = true;
+        let mut json_results = Vec::new();
+
+        for r in &results {
+            if !r.pass {
+                all_passed = false;
+            }
+            json_results.push(JsonTestResult {
+                metric: r.assertion.metric.clone(),
+                signal: r.assertion.signal.clone(),
+                pass: r.pass,
+                actual: r.actual,
+                threshold: r.assertion.threshold,
+            });
+            if cli.format == Format::Human {
+                let status = if r.pass { "\x1b[32m[PASS]\x1b[0m" } else { "\x1b[31m[FAIL]\x1b[0m" };
+                let cmp_str = match r.assertion.cmp {
+                    netlang_core::ast::Cmp::Lt => "<",
+                    netlang_core::ast::Cmp::Gt => ">",
+                    netlang_core::ast::Cmp::Le => "<=",
+                    netlang_core::ast::Cmp::Ge => ">=",
+                    netlang_core::ast::Cmp::Eq => "==",
+                };
+                if r.actual.is_nan() {
+                    println!("{} {}({}) {} {} (actual: NaN/Not Found)", 
+                        status, r.assertion.metric, r.assertion.signal, cmp_str, r.assertion.threshold);
+                } else {
+                    println!("{} {}({}) {} {} (actual: {:.6})", 
+                        status, r.assertion.metric, r.assertion.signal, cmp_str, r.assertion.threshold, r.actual);
+                }
+            }
+        }
+
+        if cli.format == Format::Json {
+            let out = JsonOutput {
+                status: if all_passed { "success".to_string() } else { "test_failed".to_string() },
+                diagnostics: vec![],
+                spice_file: Some(spice_path.to_string_lossy().to_string()),
+                tests: Some(json_results),
+            };
+            println!("{}", serde_json::to_string_pretty(&out).unwrap());
+        }
+
+        if all_passed {
+            if cli.format == Format::Human {
+                println!("\n[SUCCESS] All assertions passed.");
+            }
+            process::exit(0);
+        } else {
+            if cli.format == Format::Human {
+                println!("\n[ERROR] One or more assertions failed.");
+            }
+            process::exit(4);
         }
     }
 
@@ -225,6 +316,7 @@ fn print_error(format: &Format, message: &str) {
                 pin: None,
             }],
             spice_file: None,
+            tests: None,
         };
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
     } else {
