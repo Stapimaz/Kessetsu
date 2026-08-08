@@ -99,3 +99,34 @@ fn source_and_assertion_values_reach_typed_ir() {
     ));
     assert_approx_eq(circuit.assertions[0].threshold, 0.1);
 }
+
+#[test]
+fn malformed_si_number_shapes_are_rejected() {
+    for value in ["not_a_number", "1.2.3V", "--1A"] {
+        assert!(
+            parse_si_value(value).is_err(),
+            "{value} unexpectedly parsed"
+        );
+    }
+}
+
+#[test]
+fn every_assertion_comparator_reaches_typed_ir() {
+    use netlang_core::ast::Cmp;
+
+    let cases = [
+        ("<", Cmp::Lt),
+        (">", Cmp::Gt),
+        ("==", Cmp::Eq),
+        ("<=", Cmp::Le),
+        (">=", Cmp::Ge),
+    ];
+
+    for (operator, expected) in cases {
+        let source = format!("assert max(V(out)) {operator} 5V\n");
+        let program = parse_program(&source).expect("assertion should parse");
+        let circuit = ast_to_ir(&program).expect("assertion should convert to IR");
+        assert_eq!(circuit.assertions[0].cmp, expected);
+        assert_approx_eq(circuit.assertions[0].threshold, 5.0);
+    }
+}

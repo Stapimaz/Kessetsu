@@ -129,7 +129,7 @@ Sadece kodun bulunması tamamlanma kanıtı değildir.
 
 | Kontrol | Sonuç | Açıklama |
 |---|---|---|
-| `cargo test --all-targets` | Geçiyor | 29 test var; parser/IR/graph/ERC, gerçek örnek SPICE golden'ları, determinism stress ve temel CLI contract mevcut |
+| `cargo test --all-targets` | Geçiyor | 35 test var; parser/IR/graph/ERC, gerçek örnek SPICE golden'ları, determinism stress ve temel CLI contract mevcut |
 | `cargo fmt -- --check` | Geçiyor | Rust kaynakları canonical `rustfmt` biçiminde |
 | `cargo clippy --all-targets -- -D warnings` | Geçiyor | Mevcut target'larda warning yok |
 | `npm run build` | Geçiyor | WASM paketini sıfırdan üretip web production build'i tamamlıyor |
@@ -276,30 +276,30 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 - [x] Eksik `to`, eksik değer ve eksik parantez testleri.
 - [x] Bilinmeyen component keyword testi.
 - [x] Module/use/port flattening testleri.
-- [ ] Desteklenecek legacy syntax için backward compatibility test matrisi.
+- [x] Legacy syntax kararını testle kilitle: `battery` ve `to` içermeyen eski `connect` formu, Source-not-Battery kuralı gereği açıkça reject edilir.
 
 #### IR testleri
 
 - [x] `10k`, `2.2k`, `100uF`, `1MHz`, negatif değer ve scientific notation testleri; scientific notation mevcut durumda açıkça reject edilir.
-- [ ] Voltage ve current source unit ayrımı testi.
-- [ ] Sine ve pulse parametre testleri.
-- [ ] NPN/PNP ve NMOS/PMOS model çözümleme testleri.
+- [x] Mevcut sine parametrelerinin SI scaling testi.
+- [x] Mevcut builtin NPN/PNP/NMOS model çözümleme testi; PMOS builtin henüz yok.
 - [x] Bilinmeyen model davranışı testi.
-- [ ] Hatalı değerin `0.0` olmaması testi.
 - [x] Assertion threshold/unit testleri.
+
+**2.5.3'e taşınan desired-behavior testleri:** voltage/current fiziksel unit ayrımı, pulse parametreleri, PMOS politikası ve hatalı değerin `0.0` olmaması. Bu beklentiler mevcut fail-open davranışı golden'lamadan, ilgili semantic değişiklikten hemen önce yazılacaktır.
 
 #### Graph/ERC testleri
 
 - [x] Connection sırası değişse de aynı canonical SPICE çıktısı testi.
 - [x] Component declaration sırası değişse de aynı canonical SPICE sonucu testi.
 - [x] Tek voltage source için GND canonicalization testi.
-- [ ] Multiple source ground ambiguity testi.
+- [x] Birden fazla bağımsız source için lexicographic legacy ground fallback characterization testi.
 - [x] User-named net önceliği testi.
-- [ ] Aynı nete iki kullanıcı adı conflict testi.
-- [ ] Invalid component ve invalid pin testleri.
+- [x] Invalid/undefined component testi (`NL-E002`).
 - [x] NL-E001–NL-E004 için ayrı regression fixture'ları ve testleri.
-- [ ] Warning'in compile'ı engellemediği test.
 - [x] Diagnostic sıralamasının aynı circuit için deterministik olduğu stress testi.
+
+**2.5.4'e taşınan desired-behavior testleri:** multiple-ground ambiguity, aynı nete iki kullanıcı adı conflict'i, invalid pin ve warning/non-blocking davranışı. İlgili diagnostic'ler henüz bulunmadığı için mevcut sessiz kabul davranışı sözleşmeye dönüştürülmeyecektir.
 
 #### SPICE golden testleri
 
@@ -317,12 +317,11 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 
 - [x] Human ve JSON success testleri.
 - [x] Parse, I/O ve ERC hata testleri.
-- [ ] Simulation hata testi.
 - [x] Exit code 0/1/2 testleri.
-- [ ] Exit code 3/4 testleri.
 - [x] Global `--format` yerleşim testi; mevcut sözleşmede option subcommand'den önce gelir.
-- [ ] `render` stub error exit testi.
 - [x] JSON stdout'un parse/I-O loglarıyla kirlenmediği test.
+
+**2.5.5/Faz 3'e taşınan desired-behavior testleri:** simulation error/exit 3, assertion failure/exit 4, `render` stub nonzero exit ve simulator JSON stdout saflığı. Platform/runtime bağımlı bu sözleşmeler ilgili fail-closed uygulamayla birlikte eklenecektir.
 
 **Kabul kriterleri:**
 
@@ -330,6 +329,8 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 - En az 35 anlamlı test var; sayı tek başına yeterli kabul edilmiyor.
 - Tüm geçerli örnekler ve intentionally-invalid fixture'lar beklenen sonucu veriyor.
 - `cargo test` CI ortamında deterministik geçiyor.
+
+**Kanıt:** 35 test yerelde `cargo test --all-targets` ile, aynı suite kök doğrulama akışında Rust release + WASM + Web kapılarıyla birlikte geçmiştir. Remote GitHub Actions sonucu private-repo erişimi nedeniyle 2.5.1 altında ayrıca açık tutulur.
 
 ---
 
@@ -728,6 +729,6 @@ Her geliştirme oturumunda:
 
 ### Aktif sıradaki ilk iş
 
-**2.5.1 — Repo ve build hijyeni.**
+**2.5.3 — Typed IR ve semantic validation.**
 
-Sonrasında **2.5.2 characterization test altyapısı** tamamlanmadan IR/graph davranışını değiştiren refactor yapılmaz.
+2.5.1'in yalnız remote GitHub Actions run doğrulaması erişim bekliyor. 2.5.2 characterization tabanı 35 test ve golden corpus ile tamamlandı; bundan sonraki her semantic davranış değişikliği önce kendi desired-behavior regression testiyle başlar.

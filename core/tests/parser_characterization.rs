@@ -121,3 +121,43 @@ fn module_use_flattening_prefixes_components_and_preserves_port_connections() {
         }
     }));
 }
+
+#[test]
+fn crlf_and_tabs_follow_the_same_grammar_as_lf_and_spaces() {
+    let source = "source\tV1\t5V\r\nresistor\tR1\t1k\r\nconnect\tV1.plus\tto\tR1.p1\r\nconnect V1.minus to R1.p2\r\n";
+    let program = parse_program(source).expect("CRLF/tab source should parse");
+    assert_eq!(program.statements.len(), 4);
+}
+
+#[test]
+fn multi_pin_connections_preserve_source_order_in_the_ast() {
+    let source = "connect A.p1, B.p2, named_net to C.p3\n";
+    let program = parse_program(source).expect("multi-pin connection should parse");
+    let Statement::Connect(connection) = &program.statements[0] else {
+        panic!("expected a connection statement");
+    };
+    let pins: Vec<_> = connection
+        .pins
+        .iter()
+        .map(|pin| (pin.component.as_str(), pin.pin.as_str()))
+        .collect();
+    assert_eq!(
+        pins,
+        [("A", "p1"), ("B", "p2"), ("", "named_net"), ("C", "p3")]
+    );
+}
+
+#[test]
+fn flattening_an_unknown_module_fails_explicitly() {
+    let program = parse_program("use Missing instance\n").expect("use statement should parse");
+    let error = program
+        .flatten()
+        .expect_err("unknown module must not flatten");
+    assert_eq!(error, "Module not found: Missing");
+}
+
+#[test]
+fn unsupported_legacy_battery_and_connect_forms_are_rejected() {
+    assert!(parse_program("battery B1 9V\n").is_err());
+    assert!(parse_program("connect B1.plus R1.p1\n").is_err());
+}
