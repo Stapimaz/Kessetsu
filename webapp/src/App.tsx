@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Editor from '@monaco-editor/react';
 import { Play, Code2, CircuitBoard, Terminal as TerminalIcon, Download } from 'lucide-react';
 import init, { compile_netlang } from 'netlang-core';
@@ -52,7 +52,7 @@ function App() {
     });
   }, []);
 
-  const compileCode = () => {
+  const compileCode = useCallback(() => {
     if (!isWasmLoaded) return;
     
     try {
@@ -87,11 +87,11 @@ function App() {
       setKicadSch('');
       setLayout(null);
     }
-  };
+  }, [code, isWasmLoaded]);
 
   useEffect(() => {
     compileCode();
-  }, [code, isWasmLoaded]);
+  }, [compileCode]);
 
   // Schematic Renderer using Rust Auto-Layout
   const renderCircuit = () => {

@@ -3,9 +3,12 @@
 
 # Generated WASM package (recreated by the documented build pipeline)
 /core/pkg/
+/core/wasm-pack-init.exe
+/core/wasm-pack-init.stamp
 
 # Local simulator/debug output
 /core/out.txt
+/examples/*.spice
 *.log
 
 # Web dependencies and build output

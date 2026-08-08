@@ -5,6 +5,9 @@
     "lib": ["ES2023", "DOM"],
     "module": "esnext",
     "types": ["vite/client"],
+    "paths": {
+      "netlang-core": ["../core/pkg"]
+    },
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,
 

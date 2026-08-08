@@ -216,14 +216,18 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 - [x] Kök `.gitignore` oluştur.
 - [x] `core/target` dizinini Git tracking'den çıkar; yerel build cache'i silme.
 - [x] `core/out.txt` debug çıktısını tracking'den çıkar.
-- [ ] Generated `examples/*.spice` dosyaları için açık politika belirle:
-  - Golden fixture olacaksa `tests/fixtures/golden` altına taşı.
-  - Generated output ise ignore et.
-- [ ] `core/pkg` için tek ve belgelenmiş WASM build komutu oluştur.
-- [ ] Web build'in önceden oluşturulmuş yerel artifact'e gizlice bağımlı olmamasını sağla.
+- [x] Generated `examples/*.spice` dosyaları için açık politika belirle:
+  - `examples/` yalnızca kullanıcıya yönelik `.nl` kaynaklarını tutar.
+  - Derlenen `examples/*.spice` dosyaları generated output olarak ignore edilir.
+  - Regression oracle'ları `core/tests/fixtures/golden/` altında açıkça takip edilir.
+- [x] `core/pkg` için tek ve belgelenmiş WASM build komutu oluştur: `cd webapp; npm run build:wasm`.
+- [x] Web build'in önceden oluşturulmuş yerel artifact'e gizlice bağımlı olmamasını sağla:
+  - `npm ci`, `core/pkg` bulunmayan çalışma ağacında doğrulandı.
+  - `npm run build`, önce WASM paketini üretir ve sonra web production build'i çalıştırır.
+- [x] `wasm-pack-init.exe` ve `wasm-pack-init.stamp` yerel bootstrap artifact'lerini tracking'den çıkar ve ignore et.
 - [ ] Ngspice runtime için gerekli minimum dosya setini, lisansı ve sürümü belgeleyip doğrula.
 - [ ] Ngspice kaynak/test ağacının tamamının repoda tutulup tutulmayacağına karar ver.
-- [ ] Kök doğrulama komutu veya script'i ekle.
+- [x] Kök doğrulama script'i ekle: `pwsh -File scripts/verify.ps1`.
 - [ ] CI ekle:
   - Rust fmt
   - Rust Clippy
@@ -469,13 +473,15 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 cargo build --release
 
-# Belgede kesinleştirilecek WASM build komutu
-wasm-pack build
-
 cd ../webapp
 npm.cmd ci
 npm.cmd run lint
-npm.cmd run build
+npm.cmd run build:wasm
+npm.cmd run build:web
+
+# Aynı kapıları kökten sırayla çalıştıran komut
+cd ..
+pwsh -File scripts/verify.ps1
 ```
 
 #### Final kabul matrisi

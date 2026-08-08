@@ -5,14 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build:wasm": "wasm-pack build ../core --target web --out-dir pkg --release",
+    "build:web": "tsc -b && vite build",
+    "build": "npm run build:wasm && npm run build:web",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
     "lucide-react": "^1.28.0",
-    "netlang-core": "file:../core/pkg",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "vite-plugin-top-level-await": "^1.6.0",

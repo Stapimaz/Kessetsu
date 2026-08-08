@@ -2,7 +2,7 @@ use wasm_bindgen::prelude::*;
 use crate::parser::parse_program;
 use crate::erc::check_rules;
 use crate::graph::{NetlistGraph, generate_spice};
-use serde::{Serialize, Deserialize};
+use serde::Serialize;
 
 #[derive(Serialize)]
 pub struct CompileResult {
