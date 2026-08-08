@@ -1,580 +1,714 @@
-# NetLang Geliştirme Yol Haritası (ROADMAP)
+# NetLang Geliştirme Yol Haritası
 
-> **Bu doküman, NetLang projesinin tek gerçek kaynağıdır (Single Source of Truth).**
-> Tüm AI ajanları ve geliştiriciler, herhangi bir geliştirme yapmadan önce bu dokümanı okumalı ve ilgili fazın durumunu kontrol etmelidir.
+> Bu doküman NetLang'in geliştirme durumu, aktif milestone'u, kabul kriterleri ve görev sırası için **tek gerçek kaynaktır (Single Source of Truth)**.
 >
-> Son güncelleme: 2026-08-08
+> Mimari kurallar için `docs/architecture.md`, kullanıcıya açık CLI sözleşmesi için `docs/cli_reference.md` kullanılır. Bu belgeler arasında çelişki varsa geliştirme durumu açısından bu roadmap esas alınır ve çelişki aktif milestone içinde düzeltilir.
+>
+> Son kapsamlı repo denetimi: **2026-08-08**
+>
+> Aktif milestone: **Faz 2.5 — Stabilizasyon ve Sağlamlaştırma**
+>
+> Sonraki milestone: **Faz 3 — Simülasyon ve Assertion Runtime**
 
 ---
 
-## Proje Kimliği
+## 1. Proje Kimliği
 
-**NetLang**, analog ve karma-sinyal devreleri metinle tanımlayan, deterministik SPICE netlist üreten, Ngspice ile simülasyon çalıştıran, yapılandırılmış ERC/test sonuçları veren ve doğrulanmış şema oluşturan bir **devre derleyicisi ve doğrulama altyapısıdır**.
+**NetLang**, elektriksel gereksinimlerden başlayarak devrelerin insanlar veya AI ajanları tarafından iteratif biçimde geliştirilmesini mümkün kılan; devreleri metinle tanımlayan, typed bir Circuit IR üzerinden deterministik SPICE netlist üreten, simülasyon ve ölçüm çalıştıran, yapılandırılmış doğrulama sonuçları veren ve profesyonel şema/EDA çıktıları oluşturmayı hedefleyen bir **agent-driven circuit engineering platformudur**.
 
-```
+```text
 Compile, simulate and test circuits like software.
 ```
 
-### Üç Sütun (Kapsamı daraltmıyoruz, sırayla yapıyoruz)
+### Ürün kuzey yıldızı
 
-| Sütun | Hedef Kullanıcı | Çıktı |
+NetLang'in hedefi belirli bir eğitim senaryosu, kullanıcı seviyesi veya tek bir devre sınıfıyla sınırlı değildir. Bir AI ajanı ya da insan, tasarım gereksinimlerini NetLang'in ölçülebilir constraint/assertion modeline dönüştürebilmeli; devre topolojisini ve component değerlerini iteratif olarak geliştirip her adımda güvenilir structured feedback alabilmelidir.
+
+Hedef döngü:
+
+```text
+Elektriksel gereksinimler
+    → devre/topoloji adayı
+    → compile + semantic validation + ERC
+    → simulate + measure + assert
+    → structured engineering feedback
+    → topoloji/değer/model revizyonu
+    → gereksinimleri karşılayan doğrulanmış tasarım
+    → yüksek kaliteli şema ve EDA export'ları
+```
+
+NetLang'in AI modelini kendi içinde barındırması zorunlu değildir. Öncelikli hedef, dışarıdaki herhangi bir yetkin AI ajanının CLI veya structured API üzerinden NetLang'i güvenilir bir **tasarım oracle'ı, simülasyon motoru ve doğrulama aracı** olarak kullanabilmesidir.
+
+Kapsam kademeli genişler: ilk güçlü dikey analog ve karma-sinyal/SPICE tabanlı tasarımlardır; uzun vadeli mimari yalnızca eğitim devrelerine, basit örneklere veya tek bir endüstri alanına göre sınırlandırılmaz. Desteklenmeyen fiziksel alanlar ve simulator sınırları açıkça raporlanır; doğrulanmayan bir tasarım doğrulanmış gibi sunulmaz.
+
+### Üç ana ürün yüzeyi
+
+| Yüzey | Hedef kullanıcı | Temel çıktı |
 |---|---|---|
-| **NetLang Core** | Tüm sistem | Rust crate: parser, IR, ERC, SPICE gen, layout |
-| **NetLang CLI** | AI ajanları + geliştiriciler | Tek binary: `netlang check/compile/simulate/test/render` |
-| **NetLang Web Hub** | İnsanlar | Browser playground: kod → şema → simülasyon → paylaşım |
+| NetLang Core | Tüm sistem | Parser, AST, typed IR, graph, ERC, simulation, ölçüm ve layout |
+| NetLang CLI/API | AI ajanları, otomasyon ve geliştiriciler | Tasarla-ölç-doğrula döngüsü için structured araç yüzeyi |
+| NetLang Web Hub | Kurulumsuz ürün deneyimi isteyen herkes | Kod/tasarım → doğrulama → şema → simülasyon → export → paylaşım |
 
-### Teknik Yığın
-- **Çekirdek:** Rust (tek `netlang-core` crate, çoklu modül)
-- **Parser:** PEG (`pest` crate, `netlang.pest`)
-- **Simülasyon:** Ngspice (native: subprocess, web: WASM Worker — ileride)
-- **Web:** React/TypeScript + Vite, WASM üzerinden `netlang-core`
-- **Şema:** SVG render (React tarafında, ileride server-side SVG)
+### Birinci sınıf ürün çıktıları
 
----
+- Structured engineering diagnostics ve ölçümler
+- Constraint/assertion PASS, FAIL, ERROR sonuçları
+- Deterministik SPICE ve simulation dataset'leri
+- Okunabilir ve bağlantısal olarak doğrulanmış şema
+- PNG, SVG ve ileride PDF gibi görsel export'lar
+- LTspice, KiCad schematic ve ileride diğer EDA formatları için düzenlenebilir export'lar
+- CLI/API ve Web arasında aynı Core semantiği
 
-## Mevcut Durum (Faz 0 — Tamamlandı)
+### Mevcut teknik yığın
 
-### Çalışan Özellikler
-- [x] PEG grammar ile parser (`netlang.pest`, 22 satır)
-- [x] AST yapısı (`ast.rs` — ComponentDecl, Connection, UseStmt, SimulateStmt)
-- [x] Modül sistemi (`module`, `use`, `flatten()`)
-- [x] Graph builder — flood-fill ile net ataması (`graph.rs`)
-- [x] Deterministik düğüm isimlendirme (N_{İlkPin} algoritması)
-- [x] GND = 0 canonicalization
-- [x] SPICE netlist üretimi (`generate_spice()`)
-- [x] 6 standart model otomatik injection (2N3904, 2N3906, 2N2222, 1N4148, 1N4007, IRF540)
-- [x] DRC kontrolleri (duplicate, undefined, floating pin, short circuit)
-- [x] DFS tabanlı layout motoru — chain-based vertical layout
-- [x] Wire routing (VCC/GND rail + L-shaped signal wires)
-- [x] WASM binding (`compile_netlang()`)
-- [x] React webapp — Monaco editör, SVG şema render, SPICE çıktısı, KiCad export
-- [x] CLI binary (`bin.rs`, `netlang-cli.rs`)
-- [x] 4 örnek devre (common emitter, voltage divider, wheatstone, NC test)
-- [x] NC dummy resistor injection (floating pin SPICE crash önleme)
-
-### Desteklenen Bileşenler
-| Bileşen | Keyword | Pinler | SPICE Prefix |
-|---|---|---|---|
-| Resistor | `resistor` | p1, p2 | R_ |
-| Capacitor | `capacitor` | p1, p2 | C_ |
-| Inductor | `inductor` | p1, p2 | L_ |
-| Diode | `diode` | p1, p2 | D_ |
-| Transistor (BJT) | `transistor` | c, b, e | Q_ |
-| MOSFET | `mosfet` | d, g, s | M_ |
-| Op-Amp | `opamp` | in_p, in_n, out, vcc, vee | X_ |
-| Voltage Source | `source` | plus, minus | V_ |
-
-### Bilinen Sorunlar ve Mimari Borçlar (Faz 0'dan kalan)
-1. **🔴 `value: String` — Typed IR yok.** Tüm bileşen değerleri (`10k`, `2N3904`, `SINE(0 1V 1kHz)`) tek bir `String` alanında tutuluyor. Statik doğrulama, typed assertion ve güvenli netlist üretimi imkansız.
-2. **🔴 Layout'ta `"Battery"` bug'ı.** `layout.rs`'de `comp_type == "Battery"` kontrolü var ama `ast.rs`'de `ComponentType::Source` → `Debug` format `"Source"` yazdırır. VCC/GND tespiti kırık olabilir.
-3. **🟡 DRC terminolojisi yanlış.** Schematic seviyesinde doğru terim ERC (Electrical Rules Check). DRC, PCB physical design için kullanılır.
-4. **🟡 `transistor` tipi belirsiz.** NPN/PNP ayrımı AST'de yok, sadece model adından çıkarılıyor.
-5. **🟡 `current_source` yok.** Sadece `source` (voltage) destekleniyor.
-6. **🟡 User-named net yok.** Netler yalnızca otomatik isimlendiriliyor (N_{İlkPin}).
-7. **🟡 Assert/test sistemi yok.** `simulate` komutu analiz başlatıyor ama sonuç doğrulama mekanizması yok.
-8. **🟡 CLI çıktısı yapılandırılmış değil.** JSON output yok, error code sistemi yok, source span yok.
-9. **🟢 İki ayrı CLI binary var** (`bin.rs` ve `bin/netlang-cli.rs`). Birleştirilmeli.
-10. **🟢 Test yetersiz.** Tek bir test (`lib.rs` L20-35). Golden test yok.
+- Core: Rust, tek `netlang-core` crate
+- Parser: `pest` PEG grammar
+- Native simulator: Windows sidecar Ngspice executable
+- Web: React, TypeScript, Vite ve WASM
+- Şema: Rust layout verisi, React SVG renderer ve deneysel KiCad export
 
 ---
 
-## Faz 1: Temel Güçlendirme (Mimari Borç Temizliği)
+## 2. Durum Modeli
 
-> **Hedef:** Typed IR katmanı ekleyerek projenin tüm ileri özelliklerini güvenli biçimde inşa edebileceği temeli kurmak.
->
-> **Başarı kriteri:** `value: String` kalıntısı kalmamış olmalı. Tüm bileşen parametreleri typed. Layout Battery bug'ı düzelmiş. ERC terminolojisi yerleşmiş. En az 10 golden test yazılmış olmalı.
+Roadmap görevleri aşağıdaki anlamlarla takip edilir:
 
-### 1.1 — Circuit IR Modülü (`ir.rs`) — YENİ DOSYA
-- [x] `ir.rs` modülü oluştur ve `lib.rs`'e ekle
-- [x] `CircuitIR` struct tanımla:
-...
-- [x] `IRComponent` tanımla — typed parameters:
+- `[x]`: Kod yazılmış, kabul kriteri doğrulanmış ve ilgili kalite kapıları geçmiştir.
+- `[ ]`: Yapılmamış veya kabul kriteri henüz kanıtlanmamıştır.
+- `PROTOTİP`: Çalışan kod vardır fakat API, test veya hata yönetimi tamamlanmamıştır.
+- `ERTELENDİ`: Bilinçli biçimde ileriki milestone'a taşınmıştır; mevcut fazın blocker'ı değildir.
+
+Bir başlık yalnızca alt görevlerin tamamı ve kabul kriterleri doğrulandıktan sonra tamamlanmış sayılır. Üst başlıkta bağımsız `[x]` işareti kullanılmaz.
+
+### Tamamlanma kanıtı
+
+Bir görev tamamlanırken mümkün olan yerlerde aşağıdakilerden biri eklenmelidir:
+
+- Otomatik test adı veya fixture
+- Doğrulama komutu
+- İlgili diagnostic/JSON sözleşmesi
+- Gerekliyse kısa karar notu
+
+Sadece kodun bulunması tamamlanma kanıtı değildir.
+
+---
+
+## 3. Değiştirilemez Mimari Kurallar
+
+1. **IR tek backend kaynağıdır.** ERC, SPICE, layout ve structured output AST'yi atlayarak doğrudan çıktı üretmez.
+2. **Source, Battery değildir.** Canonical dil ve IR terminolojisi `source`/`VoltageSource` kullanır. Backward compatibility destekleniyorsa yalnızca parser sınırında ele alınır.
+3. **ERC, DRC değildir.** Schematic seviyesindeki kontroller ERC olarak adlandırılır.
+4. **Net üretimi deterministiktir.** Aynı canonical circuit aynı node adlarını ve byte-for-byte aynı SPICE çıktısını üretmelidir.
+5. **User-named net otomatik adı ezer; belirsizlik sessiz çözülmez.** Aynı fiziksel nete birden fazla kullanıcı adı verilirse diagnostic üretilir.
+6. **Geçersiz değer fail-open olamaz.** Hatalı veya eksik değer sessizce `0`, boş model adı ya da geçersiz SPICE satırına dönüşmez.
+7. **Yeni syntax mevcut geçerli örnekleri sebepsiz yere kırmaz.** Bilinçli breaking change ayrı migration notu gerektirir.
+8. **Warning ve error farklıdır.** Warning tek başına derlemeyi durdurmaz; error downstream çıktı üretimini engeller.
+9. **Test ve build artifact'leri kaynak kontrolüne girmez.** Doğrulama komutlarından sonra çalışma ağacı temiz kalır.
+10. **Faz kapısı kanıtla kapanır.** `fmt`, `clippy`, test ve ilgili build adımları geçmeden milestone tamamlanmaz.
+
+---
+
+## 4. Mevcut Durum — 2026-08-08 Repo Denetimi
+
+### 4.1 Doğrulanmış çalışan parçalar
+
+- [x] PEG parser ve AST üretimi mevcut.
+- [x] Module/use flattening temel örnekte çalışıyor.
+- [x] Circuit IR katmanı mevcut ve backend'lerin ana girdisi olarak kullanılıyor.
+- [x] Resistor, capacitor, inductor, diode, BJT, MOSFET, op-amp, voltage source ve current source türleri tanımlı.
+- [x] User-named net syntax'ı parse ediliyor ve temel örnekte SPICE node adı olarak kullanılıyor.
+- [x] Typed DC/sine source syntax'ı temel örnekte parse ediliyor.
+- [x] Assertion syntax'ı IR'ye ve `.meas` komutlarına taşınıyor.
+- [x] ERC için `NL-E001`–`NL-E004` diagnostic'leri mevcut.
+- [x] `check`, `compile`, `simulate`, `test` ve stub `render` subcommand'leri mevcut.
+- [x] Ngspice sidecar executable repo ortamında çalışıyor.
+- [x] `examples/test_features.nl`, gerçek Ngspice çalıştırmasında iki assertion'ı PASS olarak raporluyor.
+- [x] Web production build mevcut yerel WASM paketiyle başarıyla tamamlanıyor.
+
+### 4.2 Denetimde doğrulanan kalite durumu
+
+| Kontrol | Sonuç | Açıklama |
+|---|---|---|
+| `cargo test` | Geçiyor | Yalnızca 1 Rust testi var; kapsam kabul için yetersiz |
+| `cargo fmt -- --check` | Başarısız | Rust kaynakları canonical formatta değil |
+| `cargo clippy --all-targets -- -D warnings` | Başarısız | 16 lint/error bulundu |
+| `npm run build` | Geçiyor | Yerel `core/pkg` artifact'ine dayanıyor |
+| `npm run lint` | Uyarılı | React hook dependency uyarısı var |
+| Örnek ERC matrisi | Beklendiği gibi | Geçerli örnekler geçiyor; intentionally-invalid `test_amp.nl` exit 1 veriyor |
+
+### 4.3 Bilinen kritik açıklar
+
+- Faz 1 golden/regression testleri yazılmamış.
+- `parse_si_value` ve IR conversion bazı hataları `0.0` ile sessizce kabul ediyor.
+- Current source, IR içinde voltage isimli alanla temsil ediliyor.
+- Bilinmeyen/eksik model geçersiz veya boş SPICE üretebiliyor.
+- Ground seçimi bir `HashMap` içinde bulunan ilk `.minus` pinine bağlı olabiliyor.
+- Graph, eksik net için `9999` sentinel kullanıyor.
+- Standard model çıktı sırası `HashSet` iteration'ına bağlı.
+- Invalid pin ve multiple user-net alias için yeterli semantic diagnostic yok.
+- CLI ve WASM compile pipeline'ı tekrarlıyor.
+- CLI JSON/exit-code sözleşmesi dokümanla tam uyumlu değil.
+- `render` error JSON üretirken exit code 0 döndürüyor.
+- `simulate --format json` simulator başarısını tam doğrulamadan success raporlayabiliyor.
+- `--format`, subcommand sonrasında kullanılamıyor.
+- Web default kodu güncel grammar ile uyumsuz; `battery` ve eski `connect` syntax'ı kullanıyor.
+- Layout, KiCad ve web renderer içinde `Battery` kalıntıları var.
+- `core/pkg` temiz clone'da reproducible biçimde oluşturulmuyor.
+- 3.106 adet `core/target` artifact'i Git tarafından takip ediliyor; repo gereksiz şekilde büyümüş durumda.
+- Ngspice runner sabit `netlang_temp.spice` dosyasını kullanıyor; paralel çalıştırmaya uygun değil.
+- Faz 3 sonuç modeli yalnızca `.meas` map'i ve string error listesi içeriyor; structured OP/transient/AC verisi yok.
+
+### 4.4 Faz yorumu
+
+- Faz 0: Tarihsel MVP tamamlandı.
+- Faz 1: Ana refactor kodu büyük ölçüde mevcut; test ve gerçek fail-closed kabul kriterleri tamamlanmadı.
+- Faz 2: Dil özellikleri uygulanmış durumda; determinism, semantic validation ve regression kanıtları eksik.
+- Faz 3: Temel `.meas` assertion akışı **PROTOTİP**; ayrıntılı Faz 3 kabul kriterleri tamamlanmadı.
+- Aktif çalışma: Önce Faz 1–2 borçlarını kapatan Faz 2.5 tamamlanacak.
+
+---
+
+## 5. Faz 2.5 — Stabilizasyon ve Sağlamlaştırma
+
+### Hedef
+
+Faz 0–2 özelliklerinin temiz clone'da reproducible, deterministik, fail-closed, testlerle korunan ve CLI/WASM/Web yüzeylerinde tutarlı çalıştığını kanıtlamak.
+
+### Başarı kriteri
+
+- Generated artifact'ler source control'u kirletmiyor.
+- Rust format, Clippy, test, WASM ve web build kapıları geçiyor.
+- Geçersiz input sessizce elektriksel olarak farklı bir circuit'e dönüşmüyor.
+- Aynı canonical circuit byte-for-byte aynı SPICE'ı üretiyor.
+- CLI ve WASM aynı compile pipeline'ından aynı diagnostic/IR/SPICE sonucunu alıyor.
+- Web default örneği güncel core ile çalışıyor.
+- Dokümanlar gerçek davranışı anlatıyor.
+
+### Faz 2.5 dışında kalanlar
+
+Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
+
+- Tam OP/transient/AC sonuç parser'ı
+- Datasheet tabanlı voltage/current limit kontrolleri
+- Confidence HIGH/MEDIUM/LOW skoru
+- Layout round-trip connectivity doğrulaması
+- Web simulation graph'ları
+- Yeni component aileleri
+
+---
+
+### 2.5.0 — Roadmap ve durum sözleşmesi
+
+- [x] Faz 3'ün yanlış tamamlandı işaretini kaldır.
+- [x] Aktif milestone'u Faz 2.5 olarak tanımla.
+- [x] Faz 0–3 mevcut durumunu repo denetimi kanıtlarıyla kaydet.
+- [x] Görev durumlarının anlamını ve milestone kapısını tanımla.
+- [x] Faz 3 kapsamından datasheet-limit ve confidence zorunluluklarını ayır.
+- [ ] `docs/architecture.md` içindeki mevcut-durum iddialarını bu roadmap ile eşitle. _(2.5.7'de)_
+- [ ] `docs/cli_reference.md` sözleşmesini gerçek CLI davranışıyla eşitle. _(2.5.7'de)_
+
+**Kabul kriteri:** Roadmap içinde tamamlandı görünen fakat alt görevleri boş olan faz bulunmuyor.
+
+---
+
+### 2.5.1 — Repo ve build hijyeni
+
+- [x] Kök `.gitignore` oluştur.
+- [x] `core/target` dizinini Git tracking'den çıkar; yerel build cache'i silme.
+- [x] `core/out.txt` debug çıktısını tracking'den çıkar.
+- [ ] Generated `examples/*.spice` dosyaları için açık politika belirle:
+  - Golden fixture olacaksa `tests/fixtures/golden` altına taşı.
+  - Generated output ise ignore et.
+- [ ] `core/pkg` için tek ve belgelenmiş WASM build komutu oluştur.
+- [ ] Web build'in önceden oluşturulmuş yerel artifact'e gizlice bağımlı olmamasını sağla.
+- [ ] Ngspice runtime için gerekli minimum dosya setini, lisansı ve sürümü belgeleyip doğrula.
+- [ ] Ngspice kaynak/test ağacının tamamının repoda tutulup tutulmayacağına karar ver.
+- [ ] Kök doğrulama komutu veya script'i ekle.
+- [ ] CI ekle:
+  - Rust fmt
+  - Rust Clippy
+  - Rust test
+  - WASM build
+  - Web lint
+  - Web build
+- [ ] Build/test sonrası `git status --short` temizliği için smoke check ekle.
+
+**Kabul kriterleri:**
+
+- `cargo test` çalışma ağacında tracked artifact değiştirmiyor.
+- Temiz clone belgelenmiş komutla Core, WASM ve Web build edebiliyor.
+- `core/target` Git tarafından takip edilmiyor.
+- Generated output politikası dokümante ve testlerde uygulanıyor.
+
+**Not:** Geçmiş Git objelerini küçültmek için history rewrite bu milestone'un zorunlu parçası değildir; gerekirse ayrı, açık onaylı bakım operasyonu olarak yapılır.
+
+---
+
+### 2.5.2 — Characterization ve regression test altyapısı
+
+#### Test organizasyonu
+
+- [ ] `core/tests/` integration test yapısını oluştur.
+- [ ] `core/tests/fixtures/valid` corpus'unu oluştur.
+- [ ] `core/tests/fixtures/invalid` corpus'unu oluştur.
+- [ ] `core/tests/fixtures/golden` snapshot'larını oluştur.
+- [ ] CLI testleri için isolated temp directory kullan.
+- [ ] Snapshot'larda platform path'i, CRLF ve nondeterministic alanları normalize et.
+
+#### Parser testleri
+
+- [ ] Tüm `examples/*.nl` dosyalarını parser test matrisine al.
+- [ ] Boş dosya testi.
+- [ ] Yalnızca yorum testi.
+- [ ] UTF-8 BOM testi.
+- [ ] Unicode davranışı testi ve açık politika.
+- [ ] Eksik `to`, eksik değer, eksik parantez ve hatalı waveform testleri.
+- [ ] Bilinmeyen component keyword testi.
+- [ ] Module/use/port flattening testleri.
+- [ ] Desteklenecek legacy syntax için backward compatibility test matrisi.
+
+#### IR testleri
+
+- [ ] `10k`, `2.2k`, `100uF`, `1MHz`, negatif değer ve scientific notation testleri.
+- [ ] Voltage ve current source unit ayrımı testi.
+- [ ] Sine ve pulse parametre testleri.
+- [ ] NPN/PNP ve NMOS/PMOS model çözümleme testleri.
+- [ ] Bilinmeyen model davranışı testi.
+- [ ] Hatalı değerin `0.0` olmaması testi.
+- [ ] Assertion threshold/unit testleri.
+
+#### Graph/ERC testleri
+
+- [ ] Connection sırası değişse de aynı node adı testi.
+- [ ] Component declaration sırası değişse de aynı canonical sonuç testi.
+- [ ] GND canonicalization testi.
+- [ ] Multiple source ground ambiguity testi.
+- [ ] User-named net önceliği testi.
+- [ ] Aynı nete iki kullanıcı adı conflict testi.
+- [ ] Invalid component ve invalid pin testleri.
+- [ ] NL-E001–NL-E004 için ayrı regression testleri.
+- [ ] Warning'in compile'ı engellemediği test.
+- [ ] Diagnostic sıralamasının deterministik olduğu test.
+
+#### SPICE golden testleri
+
+- [ ] `demo_circuit.nl` golden netlist.
+- [ ] `wheatstone.nl` golden netlist.
+- [ ] `test_features.nl` golden netlist.
+- [ ] Current source ve sine source golden netlist.
+- [ ] Named net golden netlist.
+- [ ] Model injection sırası golden testi.
+- [ ] Assertion `.meas` golden testi.
+- [ ] NC davranışını açıkça tanımlayan golden test.
+
+#### CLI contract testleri
+
+- [ ] Human ve JSON success testleri.
+- [ ] Parse, I/O, semantic/ERC ve simulation hata testleri.
+- [ ] Exit code 0/1/2/3/4 testleri.
+- [ ] Global `--format` yerleşim testi.
+- [ ] `render` stub error exit testi.
+- [ ] JSON stdout'un loglarla kirlenmediği test.
+
+**Kabul kriterleri:**
+
+- Kritik parser/IR/graph/ERC/SPICE/CLI dalları otomatik testlerle korunuyor.
+- En az 35 anlamlı test var; sayı tek başına yeterli kabul edilmiyor.
+- Tüm geçerli örnekler ve intentionally-invalid fixture'lar beklenen sonucu veriyor.
+- `cargo test` CI ortamında deterministik geçiyor.
+
+---
+
+### 2.5.3 — Typed IR ve semantic validation
+
+- [ ] `parse_si_value` yerine sayı, SI prefix ve fiziksel birimi ayrı doğrulayan parser oluştur.
+- [ ] Decimal, negatif ve scientific notation desteğini testlerle tanımla.
+- [ ] Desteklenmeyen trailing text'i semantic error yap.
+- [ ] Bütün `unwrap_or(0.0)` fail-open dönüşümlerini kaldır.
+- [ ] Eksik passive value'yu semantic error yap.
+- [ ] Voltage source ve current source parametrelerini fiziksel olarak doğru ayrı tiplerle temsil et.
+- [ ] DC ve waveform source değerlerini typed enum ile temsil et.
+- [ ] Waveform parametre sayısını ve her parametrenin unit boyutunu doğrula.
+- [ ] `Unknown { original_value }` fallback'ini yalnızca açıkça güvenli kullanım varsa koru; aksi halde kaldır.
+- [ ] Bilinmeyen model politikasını tanımla:
+  - Builtin model
+  - User-defined model
+  - Unsupported/unknown diagnostic
+- [ ] Modeli olmayan BJT/MOSFET/diode/op-amp'ın geçersiz SPICE üretmesini engelle.
+- [ ] Assertion signal, comparator, threshold ve unit validation ekle.
+- [ ] IR conversion diagnostic'leri için `NL-Cxxx` kod alanı oluştur.
+- [ ] IR tiplerine gerekli Serde desteğini ekle.
+- [ ] WASM structured output'a typed IR ekle.
+
+**Kabul kriterleri:**
+
+- Geçersiz veya eksik değer sessizce `0` olmaz.
+- Geçersiz model boş SPICE token'ı üretmez.
+- Current source, voltage isimli alanla temsil edilmez.
+- CLI ve WASM semantic hataları structured diagnostic olarak verir.
+- Tüm eski geçerli örnekler bilinçli migration kararı olmadan kırılmaz.
+
+---
+
+### 2.5.4 — Deterministik graph ve ERC sağlamlaştırması
+
+- [ ] `9999` sentinel yerine `Option<NetId>` veya typed lookup sonucu kullan.
+- [ ] Component pin tanımlarını graph/ERC/layout/SPICE için tek merkezde topla.
+- [ ] Invalid pin reference diagnostic'i ekle.
+- [ ] Component/net namespace collision politikasını tanımla ve test et.
+- [ ] Graph traversal başlangıçlarını canonical sıralamayla üret.
+- [ ] Net ID üretimini collection iteration sırasından bağımsız yap.
+- [ ] Ground çözümleme politikasını uygula:
+  1. Explicit GND/reference net öncelikli.
+  2. Legacy devreler için deterministik primary voltage-source fallback.
+  3. Birden fazla bağımsız olasılıkta ambiguity diagnostic.
+- [ ] User-named net conflict diagnostic'i ekle.
+- [ ] Diagnostic'leri code/component/pin temelinde canonical sırala.
+- [ ] Standard model injection için sıralı collection kullan.
+- [ ] SPICE sayı formatını canonical ve platform bağımsız yap.
+- [ ] Aynı circuit'i tekrarlı derleyen determinism stress testi ekle.
+
+**Kabul kriterleri:**
+
+- Aynı canonical circuit 100 tekrarda byte-for-byte aynı SPICE üretir.
+- Bağlantı ekleme sırası node adını değiştirmez.
+- Birden fazla user name veya ground ambiguity sessizce çözülmez.
+- Backend'ler ortak component/pin tanımlarını kullanır.
+
+---
+
+### 2.5.5 — Tek compile pipeline ve CLI sözleşmesi
+
+- [ ] Library seviyesinde tek compile entrypoint tasarla:
+
   ```rust
-  pub struct IRComponent {
-      pub id: String,
-      pub kind: ComponentKind,
-      pub parameters: ComponentParams,
-      pub model: Option<ModelRef>,
-  }
-  
-  pub enum ComponentKind {
-      Resistor, Capacitor, Inductor, Diode,
-      BJT(BJTPolarity),     // NPN, PNP
-      MOSFET(FETPolarity),  // NMOS, PMOS
-      OpAmp,
-      VoltageSource,
-      CurrentSource,
-  }
-  
-  pub enum BJTPolarity { NPN, PNP }
-  pub enum FETPolarity { NMOS, PMOS }
-  
-  pub enum ComponentParams {
-      TwoPinPassive { value: f64, unit: SIUnit },
-      BJTParams { polarity: BJTPolarity },
-      MOSFETParams { polarity: FETPolarity },
-      OpAmpParams,
-      DCSource { voltage: f64 },
-      ACSource { waveform: Waveform },
-  }
-  
-  pub enum Waveform {
-      Sine { offset: f64, amplitude: f64, frequency: f64 },
-      Pulse { v1: f64, v2: f64, delay: f64, rise: f64, fall: f64, width: f64, period: f64 },
-      PWL { points: Vec<(f64, f64)> },
-  }
-  
-  pub enum SIUnit { Ohm, Farad, Henry, Volt, Ampere, Hertz }
+  compile_source(source, options) -> CompileReport
   ```
-- [x] `ModelRef` struct tanımla:
-  ```rust
-  pub struct ModelRef {
-      pub name: String,           // "2N3904"
-      pub kind: ComponentKind,    // BJT(NPN)
-      pub source: ModelSource,    // Builtin, UserDefined
-  }
-  ```
-- [x] `ast_to_ir()` dönüşüm fonksiyonu yaz — AST'den IR'ye:
-  - [x] SI prefix parser (`10k` → 10000.0, `100uF` → 0.0001, `1MHz` → 1000000.0)
-  - [x] String value → typed params dönüşümü
-  - [x] Model name → ModelRef çözümleme
-  - [x] Source string parsing (`"SINE(0 1V 1kHz)"` → `Waveform::Sine`)
-- [x] Tüm downstream kodları IR kullanacak şekilde güncelle:
-  - [x] `graph.rs`: `generate_spice()` → IR'den SPICE üret
-  - [x] `erc.rs` (eski drc.rs): IR üzerinde kontrol yap
-  - [x] `layout.rs`: IR'den layout üret
-  - [x] `wasm.rs`: IR'yi JSON olarak da döndür
 
-**Kabul Kriterleri:**
-- `cargo test` geçiyor
-- `value: String` artık SPICE üretiminde doğrudan kullanılmıyor
-- Tüm örnek devreler (`examples/*.nl`) doğru IR üretiyor
-- `10k`, `2.2k`, `100uF`, `1MHz` gibi SI prefixler doğru parse ediliyor
+- [ ] `CompileReport` içinde aşağıdaki alanları tanımla:
+  - Schema version
+  - AST (opsiyonel/debug)
+  - Typed IR
+  - Diagnostics
+  - Net/graph özeti
+  - SPICE netlist
+  - Layout
+- [ ] Parser → flatten → IR → graph → ERC → backend sırasını tek yerde uygula.
+- [ ] CLI'nin bu entrypoint'i kullanmasını sağla.
+- [ ] WASM'in aynı entrypoint'i kullanmasını sağla.
+- [ ] Error severity varsa downstream output üretimini tek merkezden engelle.
+- [ ] Warning varsa başarılı output ile birlikte döndür.
+- [ ] JSON çıktıya `schema_version` ekle.
+- [ ] `--format` seçeneğini gerçek global CLI option yap.
+- [ ] Exit code sözleşmesini kesinleştir:
+  - 0: success
+  - 1: semantic/ERC failure
+  - 2: parse/I-O failure
+  - 3: simulation failure
+  - 4: assertion failure
+- [ ] JSON stdout'a log veya progress yazma; logları stderr'e taşı.
+- [ ] `render` uygulanmadıysa nonzero error ver veya uygulanana kadar CLI yüzeyinden kaldır.
+- [ ] `simulate` JSON success sonucunun process status ve simulator errors ile uyumlu olmasını sağla.
+- [ ] Output file ve overwrite politikasını tanımla.
 
-### 1.2 — Battery Bug Fix (`layout.rs`)
-- [x] `layout.rs` içindeki tüm `"Battery"` string karşılaştırmalarını `"Source"` ile değiştir
-- [x] `get_through_pin()` fonksiyonundaki `"Battery"` → `"Source"` düzelt
-- [x] VCC/GND tespitinin doğru çalıştığını test et
+**Kabul kriterleri:**
 
-**Kabul Kriterleri:**
-- `demo_circuit.nl` doğru layout üretiyor (VCC üstte, GND altta)
-- `wheatstone.nl` çökmüyor
-
-### 1.3 — DRC → ERC Yeniden Adlandırma
-- [x] `drc.rs` → `erc.rs` olarak yeniden adlandır
-- [x] `DrcError` → `ErcDiagnostic` olarak yeniden adlandır
-- [x] Error code sistemi ekle:
-  ```rust
-  pub struct ErcDiagnostic {
-      pub code: String,        // "NL-E001"
-      pub severity: Severity,  // Error, Warning, Info
-      pub message: String,
-      pub component: Option<String>,
-      pub pin: Option<String>,
-  }
-  pub enum Severity { Error, Warning, Info }
-  ```
-- [x] Tüm referansları güncelle (`lib.rs`, `wasm.rs`, `bin.rs`, `netlang-cli.rs`)
-- [x] Mevcut 4 kontrol için error code ata:
-  - `NL-E001`: Duplicate component declaration
-  - `NL-E002`: Undefined component reference
-  - `NL-E003`: Floating pin
-  - `NL-E004`: Direct short circuit
-
-**Kabul Kriterleri:**
-- `cargo test` geçiyor
-- Projede `drc` kelimesi kalmamış (WASM API hariç — geriye uyumluluk)
-- Her hata mesajı `NL-EXXX` kodu içeriyor
-
-### 1.4 — CLI Birleştirme ve JSON Output
-- [x] `bin.rs` ve `bin/netlang-cli.rs`'yi tek CLI olarak birleştir → `bin/netlang.rs`
-- [x] Alt komut yapısı ekle:
-  ```
-  netlang check <file.nl>       # Parse + ERC
-  netlang compile <file.nl>     # Parse + ERC + SPICE netlist üret
-  netlang simulate <file.nl>    # compile + Ngspice çalıştır
-  netlang render <file.nl>      # compile + SVG şema üret (Faz 3)
-  ```
-- [x] `--format json` flag'i ekle — JSON diagnostic output
-- [x] `--format human` (varsayılan) — insan-okunur renkli output
-- [x] Exit code standardı: 0 = başarılı, 1 = ERC hatası, 2 = parse hatası, 3 = simülasyon hatası
-
-**Kabul Kriterleri:**
-- `netlang check examples/demo_circuit.nl` çalışıyor
-- `netlang check examples/test_amp.nl --format json` yapılandırılmış JSON döndürüyor (floating pin hatası)
-- Eski `bin.rs` ve `netlang-cli.rs` silinmiş
-
-### 1.5 — Temel Test Altyapısı
-- [ ] Parser golden testler:
-  - Tüm `examples/*.nl` dosyaları için AST snapshot testleri
-  - Geçersiz syntax corpus'u (en az 5 hatalı input)
-  - Edge case'ler: Unicode karakter, boş dosya, sadece yorum
-- [ ] Graph golden testler:
-  - Pin sırasından bağımsız aynı net ID (determinism)
-  - GND canonicalization
-  - NC pin dummy resistor injection
-- [ ] SPICE snapshot testler:
-  - `demo_circuit.nl` → beklenen SPICE netlist karşılaştırma
-  - `wheatstone.nl` → beklenen SPICE netlist karşılaştırma
-- [ ] IR dönüşüm testleri:
-  - `resistor R1 10k` → `ComponentParams::TwoPinPassive { value: 10000.0, unit: Ohm }`
-  - `source Vin "SINE(0 1V 1kHz)"` → `Waveform::Sine { ... }`
-  - Bilinmeyen model warning testi
-
-**Kabul Kriterleri:**
-- En az 15 test, hepsi geçiyor
-- `cargo test` CI-ready
-
-### 1.6 — Doküman Güncellemeleri
-- [ ] `architecture.md` güncelle (aşağıdaki "Architecture Güncellemeleri" bölümüne bak)
-- [ ] `AGENTS.md` güncelle — yeni modül isimleri ve kurallar
-- [ ] Bu ROADMAP.md'deki Faz 1 checkbox'larını güncelle
-
-**Kabul Kriterleri:**
-- architecture.md, gerçek kod yapısını doğru yansıtıyor
-- Terminoloji tutarlı (ERC, Source, IR)
+- Aynı source CLI ve WASM'de aynı IR, diagnostics ve SPICE sonucunu üretir.
+- Human ve JSON modları aynı exit code semantiğini kullanır.
+- Error JSON ile exit code 0 birlikte görülmez.
+- CLI reference'taki bütün örnekler integration test olarak çalışır.
 
 ---
 
-## Faz 2: Dil Genişletme
+### 2.5.6 — Web/WASM senkronizasyonu
 
-> **Hedef:** NetLang'ı "başlangıç sözlüğü"nden "gerçek bir DSL"ye dönüştürmek. User-named nets, assertions, typed source expressions ve current source desteği.
->
-> **Başarı kriteri:** `assert` keyword'ü çalışıyor. User-named netler SPICE çıktısında görünüyor. `current_source` destekleniyor. Grammar 40+ satır.
->
-> **Ön koşul:** Faz 1 tamamen tamamlanmış olmalı.
+- [ ] Web default kodunu güncel grammar'a geçir.
+- [ ] Default kodda `source` terminolojisi kullan.
+- [ ] Eski `connect A B` syntax'ını güncel `connect A to B` ile değiştir.
+- [ ] Default circuit'i mümkünse ortak fixture/example üzerinden yükle.
+- [ ] SVG renderer'a `Source` sembolü ekle; `Battery` kalıntısını kaldır.
+- [ ] `CurrentSource` sembolünü veya açık geçici fallback'i tanımla.
+- [ ] KiCad export'ta `Source`/`CurrentSource` mapping'ini düzelt.
+- [ ] Layout içindeki bütün `Battery` fallback'lerini kaldır.
+- [ ] WASM package build'ini npm/kök build akışına bağla.
+- [ ] WASM result için `any` yerine TypeScript interface/generated type kullan.
+- [ ] React hook lint uyarısını düzelt.
+- [ ] Kullanılmayan Vite template CSS ve asset'lerini temizle.
+- [ ] Web default circuit compile smoke testi ekle.
 
-### 2.1 — Grammar Genişletme (`netlang.pest`)
-- [x] `net` keyword'ü ekle:
-  ```
-  net output
-  connect R1.p2 output
-  connect C1.p1 output
-  ```
-- [x] Çoklu connect syntax'ı ekle:
-  ```
-  connect R1.p2, C1.p1, Q1.b to output
-  ```
-- [x] `assert` keyword'ü ekle:
-  ```
-  assert max(V(out)) < 3.3V
-  assert min(V(out)) > 0V
-  assert peak(I(D1)) < 100mA
-  ```
-- [x] Typed source expression ekle:
-  ```
-  source Vin sine(0V, 1V, 1kHz)
-  source Vdc 5V
-  source Ipulse pulse(0mA, 100mA, 1ms, 10us, 10us, 500us, 1ms)
-  ```
-  Eski string syntax da geriye uyumlu kalsın.
-- [x] `current_source` keyword'ü ekle:
-  ```
-  current_source I1 10mA
-  current_source Iac sine(0mA, 5mA, 10kHz)
-  ```
-- [x] BJT alt-tip ipucu ekle (opsiyonel):
-  ```
-  transistor Q1 2N3904          // Model'den NPN çıkarılır
-  transistor Q2 npn             // Explicit polarity, ideal model
-  transistor Q3 pnp 2N3906     // Explicit polarity + model
-  ```
+**Kabul kriterleri:**
 
-**Kabul Kriterleri:**
-- Tüm yeni syntax'lar parse ediliyor
-- Eski syntax geriye uyumlu çalışıyor
-- Grammar 40+ satır
-
-### 2.2 — User-Named Nets (Graph + SPICE)
-- [x] `graph.rs`'de user-named net desteği:
-  - `net output` ifadesi bir net oluşturur
-  - `connect X.pin output` o net'e bağlar
-  - User-named net isimleri otomatik N_{...} isimlerinden önceliklidir
-- [x] SPICE çıktısında user net isimleri kullanılsın:
-  - `v(output)` — user-named
-  - `v(N_C1_p1)` — otomatik (fallback)
-- [x] Otomatik isimlendirme algoritması KORUNUR — sadece user ismi yoksa devreye girer
-
-**Kabul Kriterleri:**
-- User-named net SPICE'ta doğru isimle görünüyor
-- Aynı nete hem `net output` hem N_{...} atanamıyor (user ismi kazanır)
-- Mevcut örnekler kırılmadan çalışıyor
-
-### 2.3 — Current Source Desteği
-- [x] `ComponentType::CurrentSource` → `ast.rs`
-- [x] `ComponentKind::CurrentSource` → `ir.rs`
-- [x] Parser'da `current_source` keyword'ü
-- [x] SPICE prefix: `I_`
-- [x] Pinler: `plus`, `minus` (voltage source ile aynı)
-- [x] ERC: source ile aynı kontroller
-- [x] Layout: source ile aynı sembol (farklı render sonra)
-
-**Kabul Kriterleri:**
-- `current_source I1 10mA` çalışıyor
-- SPICE çıktısında `I_I1 N_... 0 10mA` görünüyor
-
-### 2.4 — Assertion Altyapısı (Temel)
-- [x] AST'de `AssertStmt` ekle:
-  ```rust
-  pub struct AssertStmt {
-      pub metric: String,    // "max", "min", "peak", "rms", "settle"
-      pub signal: String,    // "V(out)", "I(D1)"
-      pub comparator: Cmp,   // Lt, Gt, Eq, Le, Ge
-      pub threshold: f64,
-      pub unit: SIUnit,
-  }
-  ```
-- [x] IR'de `Assertion` olarak temsil et
-- [x] SPICE `.control` bloğuna `.meas` komutları olarak dönüştür
-- [x] Simülasyon sonuç parsing'i (Faz 3'te tam çalışacak, burada altyapı)
-
-**Kabul Kriterleri:**
-- `assert max(V(out)) < 3.3V` parse ediliyor
-- IR'de assertion olarak temsil ediliyor
-- SPICE'ta `.meas` komutu olarak görünüyor (sonuç evalution Faz 3)
+- Temiz clone'da WASM üretildikten sonra web build geçer.
+- Default circuit parse, semantic validation, ERC, SPICE ve layout üretimini tamamlar.
+- Canonical source kodunda ve renderer mapping'lerinde `Battery` kalmaz.
+- `npm run lint` warning vermeden geçer.
 
 ---
 
-### Faz 3: Simülasyon & Doğrulama Altyapısı [x]
-- [x] **Ngspice CLI Entegrasyonu** (`sim_result.rs` içinde subprocess olarak ngspice'ı çağır)
-- [x] **Assertion Değerlendirme Motoru**
-  - Ngspice stdout'tan `.meas` sonuçlarını parse et
-  - Epsilon töleransıyla beklenen değer (threshold) ile ölçülen değeri karşılaştır
-- [x] **Simülasyon Hata Yönetimi** (DC OP Failure, convergence hataları)
-- [x] **`netlang test` CLI Komutu** eklendi (JSON format desteği ile)
+### 2.5.7 — Doküman ve final kalite kapısı
 
-**Kabul Kriterleri:**
-- `netlang test circuit.nl` komutu assertion sonuçlarını PASS/FAIL olarak raporluyor. JSON formatında structured sonuç döndürüyor.
+- [ ] Kök `README.md` oluştur:
+  - Proje amacı
+  - Hızlı başlangıç
+  - Core/WASM/Web build
+  - Örnek komutlar
+- [ ] `docs/architecture.md` dosyasını gerçek code path ve sınırlarla eşitle.
+- [ ] `docs/cli_reference.md` içine `test`, exit code 4, JSON schema ve option yerleşimini ekle.
+- [ ] `.agents/AGENTS.md` kurallarını güncel test/build kapısıyla eşitle.
+- [ ] `webapp/README.md` Vite template metni yerine gerçek Web Hub dokümanı yap.
+- [ ] Ngspice runtime sürüm/lisans/dağıtım belgesini ekle.
+- [ ] Roadmap Faz 2.5 checkbox'larını yalnızca kanıtlanan sonuçlara göre kapat.
+- [ ] Faz 3 başlangıç denetimi yap ve audit notu ekle.
 
-> **Ön koşul:** Faz 2 tamamen tamamlanmış olmalı.
+#### Zorunlu final komutları
 
-### 3.1 — Ngspice Sonuç Parser'ı (`sim_result.rs`) — YENİ DOSYA
-- [ ] Ngspice stdout'unu parse eden modül
-- [ ] Operating Point sonuçları → `HashMap<String, f64>`
-- [ ] Transient sonuçları → `Vec<(f64, HashMap<String, f64>)>` (zaman serileri)
-- [ ] AC sonuçları → frekans domain verileri
-- [ ] Convergence hatası tespiti
-- [ ] Ngspice error/warning mesajları ayrıştırma
+```powershell
+cd core
+cargo fmt -- --check
+cargo clippy --all-targets -- -D warnings
+cargo test
+cargo build --release
 
-### 3.2 — Assertion Runtime
-- [ ] `.meas` sonuçlarını Ngspice çıktısından çıkar
-- [ ] Assertion değerlendirme motoru:
-  ```
-  PASS NL-T001: max(V(out)) = 3.21V < 3.3V
-  FAIL NL-T002: peak(I(D1)) = 184mA, expected < 100mA
-  ```
-- [ ] `netlang test <file.nl>` komutu — compile + simulate + assert
-- [ ] JSON test sonuç formatı:
-  ```json
-  {
-    "tests": [
-      { "code": "NL-T001", "status": "PASS", "metric": "max(V(out))", "actual": 3.21, "threshold": 3.3 },
-      { "code": "NL-T002", "status": "FAIL", "metric": "peak(I(D1))", "actual": 0.184, "threshold": 0.1 }
-    ],
-    "summary": { "total": 2, "passed": 1, "failed": 1 }
-  }
-  ```
+# Belgede kesinleştirilecek WASM build komutu
+wasm-pack build
 
-### 3.3 — Simülasyon Tabanlı ERC Kontrolleri
-- [ ] Voltaj limit aşımı tespiti (model/datasheet'ten)
-- [ ] Akım limit aşımı tespiti
-- [ ] DC operating point başarısızlığı
-- [ ] Convergence problemi raporlama
-- [ ] Yeni ERC kodları: NL-S001 ~ NL-S010 (simulation-based)
-
-### 3.4 — Confidence Report
-- [ ] Her derleme sonucunda coverage raporu:
-  ```
-  ERC: 4/4 structural checks passed
-  Simulation: completed (tran 10ms)
-  Model coverage: 5/6 components have physical models
-  Assertions: 3/4 passed
-  Confidence: HIGH
-  ```
-- [ ] Confidence seviyeleri: `HIGH`, `MEDIUM`, `LOW`, `UNKNOWN`
-- [ ] JSON formatında da döndür
-
-### 3.5 — Layout Round-Trip Connectivity Check
-- [ ] Layout çıktısındaki wire'lardan connectivity graph oluştur
-- [ ] Orijinal netlist graph ile karşılaştır
-- [ ] `✓ Schematic connectivity verified` veya hata raporu
-
----
-
-## Faz 4: Web Hub & Agent API
-
-> **Hedef:** Web arayüzünü tam işlevsel playground'a dönüştürmek. AI ajanları için structured API. URL paylaşım.
->
-> **Başarı kriteri:** Web'de simülasyon çalışıyor. URL ile devre paylaşılabiliyor. JSON-RPC ile agent erişimi mümkün.
->
-> **Ön koşul:** Faz 3'ün en az 3.1 ve 3.2 maddesi tamamlanmış olmalı.
-
-### 4.1 — Web Worker WASM Simülasyonu
-- [ ] Ngspice WASM derlenmesi araştır (Emscripten)
-- [ ] Web Worker içinde `netlang-core.wasm` + `ngspice.wasm` çalıştır
-- [ ] Ana thread donmadan simülasyon
-- [ ] Simülasyon progress callback'i
-
-### 4.2 — Monaco NetLang Syntax Desteği
-- [ ] Özel language definition: keyword highlighting, autocomplete
-- [ ] Inline ERC hata gösterimi (squiggly lines)
-- [ ] Hover ile bileşen bilgisi
-
-### 4.3 — Simülasyon Grafik Paneli
-- [ ] Transient analiz sonuçlarını grafik olarak çiz (Chart.js veya Plotly)
-- [ ] AC analiz Bode plot
-- [ ] DC sweep grafik
-- [ ] Assert threshold'larını grafik üzerinde çizgi olarak göster
-
-### 4.4 — URL Paylaşım Sistemi
-- [ ] Client-side compressed URL: `/#/c/<base64-compressed-code>`
-  - Küçük devreler için, sunucuya veri göndermez
-  - LZ-String veya benzer sıkıştırma
-- [ ] URL'den kod yükleme ve otomatik derleme
-
-### 4.5 — SVG Export
-- [ ] Server-side (veya WASM-side) SVG render — React bağımlılığı olmadan
-- [ ] `netlang render circuit.nl -o circuit.svg` CLI komutu
-- [ ] SVG içinde net label'ları, bileşen değerleri
-
-### 4.6 — Agent API (JSON-RPC / Structured Output)
-- [ ] `netlang agent` modu — stdin'den JSON komut al, stdout'a JSON sonuç yaz
-- [ ] Komutlar:
-  ```json
-  {"cmd": "check", "code": "resistor R1 10k\n..."}
-  {"cmd": "compile", "code": "..."}
-  {"cmd": "simulate", "code": "..."}
-  {"cmd": "test", "code": "..."}
-  ```
-- [ ] Structured `suggested_actions`:
-  ```json
-  {
-    "kind": "insert_component",
-    "component": "resistor",
-    "reason": "Current limiting for LED"
-  }
-  ```
-- [ ] Idempotent komutlar — aynı input, aynı output garantisi
-
----
-
-## Uzun Vadeli Vizyon (Faz 5+)
-
-Bu maddeler aktif geliştirme planında değil, ama vizyondan silinmemiştir:
-
-- **Component Knowledge Base** — Datasheet rules, manufacturer models, model registry
-- **Lockfile sistemi** — `netlang.lock` ile reproducible builds
-- **VS Code Extension** — Syntax highlighting, inline diagnostics, preview
-- **PCB Export** — KiCad footprint mapping, BOM üretimi
-- **Cloud simulation** — Büyük devreler için sunucu taraflı Ngspice
-- **Subcircuit library** — Hazır devre blokları (voltage regulator, H-bridge, filter)
-- **Multi-ground** — AGND, DGND, chassis ground desteği
-- **Advanced layout** — Sugiyama/layered algorithm, hypergraph support
-- **Trait SimulationBackend** — Farklı simulator backend'leri (LTSpice, Xyce)
-- **Ticari model** — Private registry, team projects, CI dashboards
-
----
-
-## Pipeline Akışı (Hedef Mimari — Faz 2 Sonrası)
-
-```
-NetLang Source (.nl)
-      │
-      ▼
-┌─────────────┐
-│   Parser    │  netlang.pest → pest → AST
-│  (parser.rs) │
-└──────┬──────┘
-       │
-       ▼
-┌──────────────┐
-│  AST → IR    │  ast_to_ir() — typed dönüşüm
-│  (ir.rs)     │
-└──────┬───────┘
-       │
-       ▼
-┌──────────────────────────────────────────────────────┐
-│                  Circuit IR (Typed)                    │
-│  components: Vec<IRComponent>                         │
-│  nets: Vec<NetDef>                                    │
-│  analyses: Vec<Analysis>                              │
-│  assertions: Vec<Assertion>                           │
-└───┬──────────┬──────────────┬────────────┬───────────┘
-    │          │              │            │
-    ▼          ▼              ▼            ▼
-┌───────┐ ┌────────┐   ┌──────────┐  ┌──────────┐
-│  ERC  │ │ SPICE  │   │ Layout   │  │  JSON    │
-│       │ │ Backend│   │ Engine   │  │  Output  │
-└───────┘ └────────┘   └──────────┘  └──────────┘
-    │          │              │            │
-    ▼          ▼              ▼            ▼
-  Diagnostics  .spice       SVG/KiCad    API Response
-  (NL-EXXX)    netlist      schematic    (structured)
+cd ../webapp
+npm.cmd ci
+npm.cmd run lint
+npm.cmd run build
 ```
 
+#### Final kabul matrisi
+
+- [ ] Rust fmt geçiyor.
+- [ ] Rust Clippy `-D warnings` ile geçiyor.
+- [ ] Tüm Rust ve CLI testleri geçiyor.
+- [ ] Release build geçiyor.
+- [ ] WASM build geçiyor.
+- [ ] Web lint warning vermeden geçiyor.
+- [ ] Web production build geçiyor.
+- [ ] Tüm geçerli örnekler check/compile matrisinden geçiyor.
+- [ ] Invalid corpus beklenen diagnostic kodlarını veriyor.
+- [ ] Determinism stress testi geçiyor.
+- [ ] Doğrulama sonrası Git çalışma ağacı temiz.
+
+**Faz 2.5 ancak yukarıdaki final matrisinin tamamı geçtiğinde kapanır.**
+
 ---
 
-## Dosya Yapısı (Hedef — Faz 2 Sonrası)
+## 6. Faz 3 — Simülasyon ve Assertion Runtime
 
+### Ön koşul
+
+Faz 2.5 final kabul matrisinin tamamı geçmelidir.
+
+### Mevcut prototip
+
+- [x] Ngspice sidecar subprocess ile çağrılabiliyor. _(PROTOTİP)_
+- [x] Basit `.meas` satırları stdout'tan çıkarılabiliyor. _(PROTOTİP)_
+- [x] Basit comparator evaluation çalışıyor. _(PROTOTİP)_
+- [x] `netlang test` human/JSON temel sonuç üretiyor. _(PROTOTİP)_
+
+Bu maddeler Faz 3'ün tamamlandığı anlamına gelmez; aşağıdaki structured runtime bunların yerini alacaktır.
+
+### 3.1 — Simulation domain modeli ve runner
+
+- [ ] `SimulationRequest` ve `SimulationResult` domain tiplerini tanımla.
+- [ ] Analysis türlerini typed enum yap: OP, transient, AC, DC sweep.
+- [ ] Measurement, warning, error ve raw-log alanlarını ayır.
+- [ ] Simulator process status'unu structured biçimde sakla.
+- [ ] Her çalıştırma için benzersiz temp directory kullan.
+- [ ] Temp cleanup ve failure artifact saklama politikasını tanımla.
+- [ ] `simulate` ve `test` için tek runner kullan.
+- [ ] Ngspice executable discovery ve version check'i güvenilir yap.
+- [ ] Timeout/cancellation desteği ekle.
+
+### 3.2 — Structured Ngspice sonuçları
+
+- [ ] `.meas` parser'ını ayrı ve fixture tabanlı modül yap.
+- [ ] Operating point sonuçlarını structured map'e çevir.
+- [ ] Transient time-series sonuçlarını structured dataset'e çevir.
+- [ ] AC complex/frequency-domain sonuçlarını structured dataset'e çevir.
+- [ ] Mümkünse stdout tablo scraping yerine Ngspice raw/wrdata çıktısı kullan.
+- [ ] Warning, convergence ve fatal error sınıflandırması yap.
+- [ ] Locale, exponent ve line-ending fixture'ları ekle.
+
+### 3.3 — Assertion runtime
+
+- [ ] Her assertion'a deterministik `NL-Txxx` kodu ata.
+- [ ] Sonuç durumlarını tanımla: PASS, FAIL, ERROR, SKIPPED.
+- [ ] Missing measurement'ı NaN yerine açıklamalı ERROR yap.
+- [ ] Absolute ve relative tolerance politikası tanımla.
+- [ ] `peak` semantiğini absolute peak olarak kesinleştir.
+- [ ] OP analizinde desteklenen assertion metric'lerini tanımla.
+- [ ] Current direction/sign convention'ı belgele ve test et.
+- [ ] Unit-aware human output üret.
+- [ ] JSON sonuçlarına summary ekle.
+
+Örnek hedef JSON:
+
+```json
+{
+  "schema_version": "1",
+  "tests": [
+    {
+      "code": "NL-T001",
+      "status": "PASS",
+      "metric": "max(V(out))",
+      "actual": 3.21,
+      "threshold": 3.3,
+      "unit": "V"
+    }
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "errors": 0
+  }
+}
 ```
-NetLang/
-├── .agents/
-│   └── AGENTS.md               # AI ajan kuralları
-├── core/
-│   ├── Cargo.toml
-│   └── src/
-│       ├── lib.rs              # Modül export'ları
-│       ├── netlang.pest        # PEG grammar
-│       ├── parser.rs           # Source → AST
-│       ├── ast.rs              # AST tipleri
-│       ├── ir.rs               # ★ Circuit IR (typed) — YENİ
-│       ├── graph.rs            # Net assignment + SPICE generation
-│       ├── erc.rs              # ★ Electrical Rules Check (eski drc.rs)
-│       ├── layout.rs           # Schematic layout engine
-│       ├── kicad.rs            # KiCad export
-│       ├── sim_result.rs       # ★ Ngspice result parser — YENİ (Faz 3)
-│       ├── wasm.rs             # WASM bindings
-│       └── bin/
-│           └── netlang.rs      # ★ Birleşik CLI — YENİ
-├── docs/
-│   ├── architecture.md         # Mimari anayasa (güncel tutulacak)
-│   ├── cli_reference.md        # ★ CLI Komutları ve JSON yapısı
-│   └── ROADMAP.md              # ★ Bu dosya
-├── examples/
-│   ├── demo_circuit.nl
-│   ├── test_amp.nl
-│   ├── wheatstone.nl
-│   └── test_nc.nl
-└── webapp/
-    ├── src/
-    │   ├── App.tsx
-    │   ├── App.css
-    │   ├── index.css
-    │   └── main.tsx
-    └── ...
+
+### 3.4 — Simulation CLI/API sözleşmesi
+
+- [ ] `netlang simulate` structured analysis sonucu döndürür.
+- [ ] `netlang test` structured assertion sonucu döndürür.
+- [ ] Human ve JSON modları aynı domain sonucunu render eder.
+- [ ] Simulation failure exit 3, assertion failure exit 4 verir.
+- [ ] JSON stdout parse edilebilir ve logsuzdur.
+- [ ] Simulation fixture'ları CI'da güvenilir çalışır.
+
+### Faz 3 kabul kriterleri
+
+- [ ] OP, transient ve AC için en az birer gerçek Ngspice integration fixture'ı geçer.
+- [ ] Simulation result'ları typed ve serialize edilebilirdir.
+- [ ] Assertion sonuçları PASS/FAIL/ERROR ayrımını doğru yapar.
+- [ ] Paralel iki simulation dosya çakışması yaşamaz.
+- [ ] CLI human/JSON ve exit-code contract testleri geçer.
+- [ ] Faz 2.5 kalite kapıları geçmeye devam eder.
+
+### Faz 3'ten ertelenen işler
+
+- `ERTELENDİ` Datasheet voltage/current limit ERC: Component Knowledge Base gerektirir.
+- `ERTELENDİ` HIGH/MEDIUM/LOW confidence skoru: önce ölçülebilir verification report tanımlanmalıdır.
+- `ERTELENDİ` Layout round-trip connectivity: layout/export milestone'una taşınmıştır.
+
+---
+
+## 7. Faz 4 — Layout, Web Hub ve Agent API
+
+Faz 4 ayrıntıları Faz 3 kapanışında yeniden denetlenecektir. Mevcut yön:
+
+### 4.1 — Layout doğrulanabilirliği ve export
+
+- [ ] Layout wire/pin veri modelini açık bağlantı semantiğiyle güçlendir.
+- [ ] Geometry crossing ile electrical junction ayrımını temsil et.
+- [ ] Layout round-trip connectivity kontrolü.
+- [ ] Native/server-side SVG export.
+- [ ] `netlang render circuit.nl -o circuit.svg`.
+- [ ] KiCad export doğrulama fixture'ları.
+
+### 4.2 — Web simulation runtime
+
+- [ ] Ngspice WASM feasibility ve lisans/performans kararı.
+- [ ] Web Worker içinde simulation.
+- [ ] Cancellation ve progress callback.
+- [ ] Ana thread'i bloklamayan runtime.
+
+### 4.3 — Monaco NetLang desteği
+
+- [ ] Syntax highlighting.
+- [ ] Autocomplete.
+- [ ] Inline diagnostic ve source span.
+- [ ] Hover component bilgisi.
+
+### 4.4 — Simulation grafik paneli
+
+- [ ] Transient plot.
+- [ ] AC/Bode plot.
+- [ ] DC sweep plot.
+- [ ] Assertion threshold overlay.
+
+### 4.5 — Paylaşım
+
+- [ ] Client-side compressed circuit URL.
+- [ ] URL'den güvenli yükleme ve compile.
+- [ ] Format/schema version migration.
+
+### 4.6 — Agent API
+
+- [ ] stdin/stdout JSON agent modu.
+- [ ] `check`, `compile`, `simulate`, `test` komutları.
+- [ ] Versioned schema.
+- [ ] Idempotent ve deterministik sonuç.
+- [ ] Structured suggested actions.
+
+---
+
+## 8. Faz 5+ — Uzun Vadeli Vizyon
+
+- Component Knowledge Base ve datasheet kuralları
+- Üretici SPICE model registry'si ve provenance
+- `netlang.lock` ile reproducible model builds
+- Requirements/constraint schema ve agent-driven design loop araçları
+- Parametric sweep, optimization ve design-space exploration
+- Output power, gain, bandwidth, efficiency, dissipation, distortion ve stability ölçümleri
+- Simulation-based voltage/current/thermal kontroller
+- Ölçülebilir Verification Report; gerekirse sonrasında calibrated confidence
+- Subcircuit/component library
+- VS Code extension
+- PCB export, footprint mapping ve BOM
+- LTspice ve diğer EDA schematic/netlist export adapter'ları
+- Advanced layout: layered/Sugiyama ve hypergraph
+- Multi-ground: AGND, DGND, chassis
+- Alternative simulator backend'leri: Xyce/LTspice adapter'ları
+- Cloud simulation ve ekip/CI dashboard'ları
+
+---
+
+## 9. Hedef Pipeline
+
+```text
+NetLang source
+    │
+    ▼
+Parser ─────────────► NL-Pxxx diagnostics
+    │
+    ▼
+AST + source spans
+    │
+    ▼
+Semantic analysis / typed Circuit IR ─► NL-Cxxx diagnostics
+    │
+    ├────────► Graph + structural ERC ─► NL-Exxx diagnostics
+    ├────────► Deterministic SPICE
+    ├────────► Layout IR
+    └────────► Structured JSON/WASM
+                    │
+                    ▼
+              Simulation backend
+                    │
+                    ├────► NL-Sxxx diagnostics
+                    └────► NL-Txxx assertion results
 ```
 
 ---
 
-## Kurallar ve Kırmızı Çizgiler
+## 10. Çalışma ve Güncelleme Protokolü
 
-Bu kurallar tüm fazlarda geçerlidir ve ihlal edilemez:
+Her geliştirme oturumunda:
 
-1. **Source, Battery Değil.** Voltaj kaynakları için `battery` kelimesi ASLA kullanılmaz, `source` kullanılır. (Parser'da backward-compat olarak kabul edilir ama AST'de `Source`'a dönüşür.)
-2. **Düğüm Algoritması Deterministik.** `graph.rs`'deki N_{İlkPin} algoritması her zaman aynı graph için aynı sonucu üretir. User-named netler bu algoritmayı değiştirmez, üstüne eklenir.
-3. **Orientation Kuralları.** `layout.rs`'de GND aşağı, VCC yukarı, input sola, output sağa yönelir. `is_signal_pin` ve `get_comp_def` pin koordinatları bu kurallara uyar.
-4. **IR Tek Gerçek Kaynak.** Faz 1 sonrasında tüm backend'ler (SPICE, Layout, ERC, JSON) yalnızca Circuit IR üzerinden çalışır. AST'den doğrudan SPICE üretimi yapılmaz.
-5. **Geriye Uyumluluk.** Yeni syntax eklenirken mevcut `.nl` dosyaları kırılmamalıdır. Mevcut örnekler her zaman çalışmalıdır.
-6. **Test Kapısı.** Her faz tamamlandığında `cargo test` %100 geçmelidir. Başarısız test ile commit yapılmaz.
+1. `docs/ROADMAP.md` içinden aktif milestone ve ilk açık görevi kontrol et.
+2. İlgili mimari kuralı `docs/architecture.md` içinde doğrula.
+3. Davranış değişecekse önce characterization/regression testi ekle.
+4. Kodu uygula.
+5. İlgili kalite kapılarını çalıştır.
+6. Yalnızca kanıtlanan checkbox'ları `[x]` yap.
+7. Gerekirse karar veya kapsam değişikliğini roadmap'e yaz.
+8. Çalışma ağacının beklenmeyen artifact ile kirlenmediğini kontrol et.
 
----
+### Aktif sıradaki ilk iş
 
-## Nasıl Kullanılır (AI Ajanları İçin)
+**2.5.1 — Repo ve build hijyeni.**
 
-1. **İlk adım:** Bu dosyayı oku.
-2. **Mevcut fazı bul:** Checkbox'lara bak, `[ ]` olan ilk görev nerede?
-3. **O fazın ön koşullarını kontrol et:** Önceki faz tamamen `[x]` mi?
-4. **Görevi yap, testi yaz, checkbox'ı `[x]` yap.**
-5. **Bu dosyayı güncelle** — tarih ve durum notu ekle.
-
-> **⚠️ Faz atlama YASAKTIR.** Faz 2'ye geçmek için Faz 1'in tüm checkbox'ları `[x]` olmalıdır.
+Sonrasında **2.5.2 characterization test altyapısı** tamamlanmadan IR/graph davranışını değiştiren refactor yapılmaz.

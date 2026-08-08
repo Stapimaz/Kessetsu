@@ -1,0 +1,20 @@
+# Rust build artifacts
+/core/target/
+
+# Generated WASM package (recreated by the documented build pipeline)
+/core/pkg/
+
+# Local simulator/debug output
+/core/out.txt
+*.log
+
+# Web dependencies and build output
+/webapp/node_modules/
+/webapp/dist/
+/webapp/dist-ssr/
+
+# Local editor and OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
