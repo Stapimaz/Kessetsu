@@ -390,12 +390,14 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 - [x] User-named net conflict diagnostic'i ekle.
 - [x] Diagnostic'leri code/component/pin temelinde canonical sırala.
 - [x] Component emission ve standard model injection için sıralı collection kullan.
-- [ ] SPICE sayı formatını canonical ve platform bağımsız yap.
+- [x] SPICE sayı formatını canonical ve platform bağımsız yap.
 - [x] Aynı circuit'i 100 kez tekrarlı derleyen byte-for-byte determinism stress testi ekle.
 
 **Typed net/pin kataloğu kanıtı (2026-08-09):** `NetId` serde-transparent newtype olarak tanımlandı; `get_net` bağlantısız pin için `None` döndürüyor ve `9999` sentinel üretim kodundan kaldırıldı. `component.rs` pin adları, canonical SPICE sırası, layout koordinatları, source prefix'i ve signal/through metadata'sı için graph/ERC/SPICE/layout'un ortak kaynağıdır. `invalid_pin.nl` artık `NL-E005` üretir. Katalog invariant ve sentinel-yokluğu regression testleriyle toplam 47 Rust testi, golden SPICE ve tam Rust/WASM/Web kapısı geçti.
 
 **Namespace/ground paketi kanıtı (2026-08-09):** Component/net collision `NL-E006`, aynı fiziksel net üzerindeki birden fazla user name `NL-E007`, bağımsız ground adayları `NL-E008`, duplicate net declaration `NL-E009` üretir. Explicit `net GND` legacy source-minus fallback'ten önce gelir; explicit referans yoksa fallback lexicographic ve deterministiktir fakat ambiguity artık sessiz değildir. ERC diagnostic'leri `(code, component, pin, message)` ile canonical sıralanır. Dört invalid fixture ve explicit/legacy ground regression testleri dahil toplam 50 Rust testi; golden SPICE, audit=0 ve tam Rust/WASM/Web kapısı geçti.
+
+**Canonical SPICE number kanıtı (2026-08-09):** Passive, DC source ve SINE/PULSE/PWL waveform değerleri tek `format_spice_number` yolundan geçer. Negative zero `0`, orta aralık trimlenmiş decimal, küçük/büyük değer normalize edilmiş lowercase exponent olarak yazılır; binary float artıkları golden netlist'e sızmaz (`100uF -> 1e-4`). Formatter regression testiyle toplam 51 Rust testi ve güncellenmiş golden corpus geçti. Üretilen `demo_circuit.spice` ayrıca gömülü Ngspice 46 batch OP analizini exit 0 tamamladı; audit=0 dahil tam Rust/WASM/Web kapısı geçti.
 
 **Kabul kriterleri:**
 
@@ -745,6 +747,6 @@ Her geliştirme oturumunda:
 
 ### Aktif sıradaki ilk iş
 
-**2.5.4 — Canonical ve platform-bağımsız SPICE sayı formatı.**
+**2.5.5 — Tek compile pipeline ve CLI sözleşmesi.**
 
-2.5.1'in yalnız remote GitHub Actions run doğrulaması erişim bekliyor; production dependency audit sıfırlandı ve kök kalite kapısına bağlandı. 2.5.3 typed IR/semantic validation kapandı. 2.5.4'te typed net/pin kataloğu, namespace, explicit ground/ambiguity ve canonical diagnostic paketleri doğrulandı. Sıradaki son 2.5.4 işi SPICE numeric formatter'dır.
+2.5.1'in yalnız remote GitHub Actions run doğrulaması erişim bekliyor; production dependency audit sıfırlandı ve kök kalite kapısına bağlandı. 2.5.3 typed IR/semantic validation ve 2.5.4 deterministik graph/ERC sağlamlaştırması kapandı. Sıradaki iş library seviyesinde versioned `compile_source -> CompileReport` entrypoint'idir; CLI ve WASM bunun üzerine taşınacaktır.

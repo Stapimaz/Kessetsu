@@ -96,6 +96,7 @@ Ngspice entegrasyonu gömülü çalışır.
 - Eğer IR içerisinde `2N3904`, `1N4148`, `IRF540` gibi bilinen bir parça kullanılırsa, SPICE jeneratörü bu parçanın `.model` veya `.subckt` tanımını otomatik olarak netlist'in sonuna ekler. Kullanıcıların `.model` yazmasına gerek yoktur.
 - **Model provenance:** Her modelin kaynağı (builtin/user-defined) ve tipi (NPN/PNP/NMOS/PMOS/D) IR'de belirtilir.
 - **Model kalitesi:** Dahili modeller "generic" kalitededir. İleri sürümlerde üretici-spesifik modeller ve kalite seviyeleri eklenecektir.
+- **Canonical sayılar:** Generated SPICE sayıları tek formatter kullanır. Orta büyüklükler trimlenmiş decimal, çok küçük/büyük değerler normalize edilmiş lowercase exponent ile yazılır; `-0` ve binary float artıkları output'a taşınmaz.
 
 ### Desteklenen Modeller
 | Model | Tür | Kaynak |

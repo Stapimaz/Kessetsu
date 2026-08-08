@@ -255,15 +255,42 @@ fn format_spice_value(comp: &IRComponent) -> String {
         return m.name.clone();
     }
     match &comp.parameters {
-        ComponentParams::TwoPinPassive { value } => format!("{}", value.value),
+        ComponentParams::TwoPinPassive { value } => format_spice_number(value.value),
         ComponentParams::VoltageSource { value } | ComponentParams::CurrentSource { value } => {
             match value {
-                SourceValue::Dc(quantity) => format!("{}", quantity.value),
+                SourceValue::Dc(quantity) => format_spice_number(quantity.value),
                 SourceValue::Waveform(waveform) => format_waveform(waveform),
             }
         }
         _ => "".to_string(),
     }
+}
+
+pub fn format_spice_number(value: f64) -> String {
+    if !value.is_finite() {
+        return value.to_string();
+    }
+    if value == 0.0 {
+        return "0".to_string();
+    }
+
+    let absolute = value.abs();
+    if (1e-3..1e6).contains(&absolute) {
+        return format!("{value:.15}")
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_string();
+    }
+
+    let scientific = format!("{value:.12e}");
+    let (mantissa, exponent) = scientific
+        .split_once('e')
+        .expect("Rust scientific formatting must include an exponent");
+    let mantissa = mantissa.trim_end_matches('0').trim_end_matches('.');
+    let exponent = exponent
+        .parse::<i32>()
+        .expect("Rust scientific exponent must be an integer");
+    format!("{mantissa}e{exponent}")
 }
 
 fn format_waveform(waveform: &Waveform) -> String {
@@ -274,7 +301,9 @@ fn format_waveform(waveform: &Waveform) -> String {
             frequency,
         } => format!(
             "SINE({} {} {})",
-            offset.value, amplitude.value, frequency.value
+            format_spice_number(offset.value),
+            format_spice_number(amplitude.value),
+            format_spice_number(frequency.value)
         ),
         Waveform::Pulse {
             v1,
@@ -286,12 +315,24 @@ fn format_waveform(waveform: &Waveform) -> String {
             period,
         } => format!(
             "PULSE({} {} {} {} {} {} {})",
-            v1.value, v2.value, delay.value, rise.value, fall.value, width.value, period.value
+            format_spice_number(v1.value),
+            format_spice_number(v2.value),
+            format_spice_number(delay.value),
+            format_spice_number(rise.value),
+            format_spice_number(fall.value),
+            format_spice_number(width.value),
+            format_spice_number(period.value)
         ),
         Waveform::PWL { points } => {
             let values = points
                 .iter()
-                .map(|(time, value)| format!("{} {}", time.value, value.value))
+                .map(|(time, value)| {
+                    format!(
+                        "{} {}",
+                        format_spice_number(time.value),
+                        format_spice_number(value.value)
+                    )
+                })
                 .collect::<Vec<_>>()
                 .join(" ");
             format!("PWL({values})")

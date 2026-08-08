@@ -3,7 +3,7 @@ mod common;
 use common::read_fixture;
 use netlang_core::component::component_definition;
 use netlang_core::erc::{ErcDiagnostic, check_rules};
-use netlang_core::graph::{NetId, NetlistGraph, generate_spice};
+use netlang_core::graph::{NetId, NetlistGraph, format_spice_number, generate_spice};
 use netlang_core::ir::{BJTPolarity, CircuitIR, ComponentKind, FETPolarity, ast_to_ir};
 use netlang_core::parse_program;
 
@@ -247,4 +247,20 @@ fn diagnostics_are_sorted_by_code_component_pin_and_message() {
         })
         .collect();
     assert!(keys.windows(2).all(|pair| pair[0] <= pair[1]), "{keys:?}");
+}
+
+#[test]
+fn spice_numbers_use_one_canonical_human_readable_format() {
+    for (value, expected) in [
+        (0.0, "0"),
+        (-0.0, "0"),
+        (10_000.0, "10000"),
+        (999_999.5, "999999.5"),
+        (1_000_000.0, "1e6"),
+        (100.0 * 1e-6, "1e-4"),
+        (-2.0 * 1e-3, "-0.002"),
+        (1e-12, "1e-12"),
+    ] {
+        assert_eq!(format_spice_number(value), expected, "value={value:?}");
+    }
 }

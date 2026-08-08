@@ -1,7 +1,7 @@
 * NetLang Generated SPICE Netlist
-C_Ce N_Ce_p1 0 0.00009999999999999999
-C_Cin N_Cin_p1 N_Cin_p2 0.000009999999999999999
-C_Cout N_Cout_p1 N_Cout_p2 0.000009999999999999999
+C_Ce N_Ce_p1 0 1e-4
+C_Cin N_Cin_p1 N_Cin_p2 1e-5
+C_Cout N_Cout_p1 N_Cout_p2 1e-5
 Q_Q1 N_Cout_p1 N_Cin_p2 N_Ce_p1 2N3904
 R_R1 N_R1_p1 N_Cin_p2 10000
 R_R2 N_Cin_p2 0 2200

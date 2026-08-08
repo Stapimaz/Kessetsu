@@ -1,5 +1,5 @@
 * NetLang Generated SPICE Netlist
-C_C1 N_C1_p1 my_signal 0.00009999999999999999
+C_C1 N_C1_p1 my_signal 1e-4
 I_I1 my_power 0 SINE(0 0.005 10000)
 Q_Q1 N_Q1_c N_C1_p1 my_power 2N3906
 Q_Q2 my_signal N_Q1_c 0 2N3904
