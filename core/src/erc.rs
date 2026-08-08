@@ -1,3 +1,4 @@
+use crate::component::{component_definition, is_valid_pin};
 use crate::graph::NetlistGraph;
 use crate::ir::*;
 use serde::{Deserialize, Serialize};
@@ -51,41 +52,58 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
         }
     }
 
-    // 3. Floating Pin Check (NL-E003)
-    for comp in &circuit.components {
-        let pins: Vec<&str> = match comp.kind {
-            ComponentKind::VoltageSource | ComponentKind::CurrentSource => vec!["plus", "minus"],
-            ComponentKind::BJT(_) => vec!["c", "b", "e"],
-            ComponentKind::MOSFET(_) => vec!["d", "g", "s"],
-            ComponentKind::OpAmp => vec!["in_p", "in_n", "out", "vcc", "vee"],
-            ComponentKind::ModulePort => continue,
-            _ => vec!["p1", "p2"], // Resistor, Capacitor, Inductor, Diode
-        };
-
-        for pin in pins {
-            let net = graph.get_net(&comp.id, pin);
-            if net == 9999 {
+    // 3. Invalid component pin check (NL-E005). Module ports are dynamic until
+    // module interface pins are carried into IR.
+    for conn in &circuit.connections {
+        for pin in &conn.pins {
+            if pin.component.is_empty() {
+                continue;
+            }
+            if let Some(component) = circuit
+                .components
+                .iter()
+                .find(|component| component.id == pin.component)
+                && !is_valid_pin(&component.kind, &pin.pin)
+            {
                 errors.push(ErcDiagnostic {
-                    code: "NL-E003".to_string(),
+                    code: "NL-E005".to_string(),
                     severity: Severity::Error,
                     message: format!(
-                        "Floating Pin: {}.{} is not connected to anything.",
-                        comp.id, pin
+                        "Invalid pin reference: {}.{} does not exist.",
+                        pin.component, pin.pin
                     ),
-                    component: Some(comp.id.clone()),
-                    pin: Some(pin.to_string()),
+                    component: Some(pin.component.clone()),
+                    pin: Some(pin.pin.clone()),
                 });
             }
         }
     }
 
-    // 4. Short Circuit Check (Direct short across a power source) (NL-E004)
+    // 4. Floating Pin Check (NL-E003)
+    for comp in &circuit.components {
+        for pin in component_definition(&comp.kind).pins {
+            if graph.get_net(&comp.id, pin.name).is_none() {
+                errors.push(ErcDiagnostic {
+                    code: "NL-E003".to_string(),
+                    severity: Severity::Error,
+                    message: format!(
+                        "Floating Pin: {}.{} is not connected to anything.",
+                        comp.id, pin.name
+                    ),
+                    component: Some(comp.id.clone()),
+                    pin: Some(pin.name.to_string()),
+                });
+            }
+        }
+    }
+
+    // 5. Short Circuit Check (Direct short across a power source) (NL-E004)
     for comp in &circuit.components {
         if comp.kind == ComponentKind::VoltageSource {
             let net1 = graph.get_net(&comp.id, "plus");
             let net2 = graph.get_net(&comp.id, "minus");
 
-            if net1 != 9999 && net2 != 9999 && net1 == net2 {
+            if net1.is_some() && net1 == net2 {
                 errors.push(ErcDiagnostic {
                     code: "NL-E004".to_string(),
                     severity: Severity::Error,

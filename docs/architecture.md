@@ -74,6 +74,8 @@ AST ile SPICE/Layout/ERC arasında **typed bir ara katman** bulunur. Bu katmanı
 
 ## 4. Düğüm (Node) İsimlendirme Algoritması (`graph.rs`)
 
+Component pin adları, canonical backend sırası, SPICE prefix'i ve layout pin koordinatları `core/src/component.rs` kataloğunda tek kez tanımlanır. Graph, ERC, SPICE ve layout kendi ayrı pin listelerini üretmez. Fiziksel bağlantısı olmayan bir pin magic integer ile değil `Option<NetId>::None` ile temsil edilir; `NetId(0)` typed ground kimliğidir.
+
 SPICE motoru için düğüm isimleri rastgele tam sayılar DEĞİLDİR. Okunabilirlik ve determinism için özel bir algoritma kullanılır:
 
 1. `GND` hattına bağlı her şey (örn: `Vin.minus`) her zaman `"0"` düğümündedir.

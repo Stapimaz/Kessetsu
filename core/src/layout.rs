@@ -1,4 +1,5 @@
-use crate::graph::NetlistGraph;
+use crate::component::{ComponentDefinition, component_definition, is_signal_pin, through_pin};
+use crate::graph::{NetId, NetlistGraph};
 use crate::ir::*;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -21,94 +22,8 @@ pub struct ComponentPos {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Wire {
-    pub net_id: usize,
+    pub net_id: NetId,
     pub points: Vec<(i32, i32)>,
-}
-
-#[derive(Clone, Debug)]
-struct ComponentDef {
-    width: i32,
-    height: i32,
-    pins: HashMap<String, (i32, i32)>,
-}
-
-fn kind_to_string(kind: &ComponentKind) -> String {
-    match kind {
-        ComponentKind::Resistor => "Resistor".to_string(),
-        ComponentKind::Capacitor => "Capacitor".to_string(),
-        ComponentKind::Inductor => "Inductor".to_string(),
-        ComponentKind::Diode => "Diode".to_string(),
-        ComponentKind::BJT(_) => "Transistor".to_string(),
-        ComponentKind::MOSFET(_) => "Mosfet".to_string(),
-        ComponentKind::OpAmp => "OpAmp".to_string(),
-        ComponentKind::VoltageSource => "Source".to_string(),
-        ComponentKind::CurrentSource => "CurrentSource".to_string(),
-        ComponentKind::ModulePort => "ModulePort".to_string(),
-    }
-}
-
-fn get_comp_def(kind: &ComponentKind) -> ComponentDef {
-    let mut pins = HashMap::new();
-    match kind {
-        ComponentKind::Resistor
-        | ComponentKind::Capacitor
-        | ComponentKind::Inductor
-        | ComponentKind::Diode => {
-            pins.insert("p1".to_string(), (0, 0));
-            pins.insert("p2".to_string(), (2, 0));
-            ComponentDef {
-                width: 2,
-                height: 1,
-                pins,
-            }
-        }
-        ComponentKind::VoltageSource | ComponentKind::CurrentSource => {
-            pins.insert("plus".to_string(), (0, 0));
-            pins.insert("minus".to_string(), (2, 0));
-            ComponentDef {
-                width: 2,
-                height: 1,
-                pins,
-            }
-        }
-        ComponentKind::BJT(_) => {
-            pins.insert("b".to_string(), (0, 1));
-            pins.insert("c".to_string(), (2, 0));
-            pins.insert("e".to_string(), (2, 2));
-            ComponentDef {
-                width: 3,
-                height: 3,
-                pins,
-            }
-        }
-        ComponentKind::MOSFET(_) => {
-            pins.insert("g".to_string(), (0, 1));
-            pins.insert("d".to_string(), (2, 0));
-            pins.insert("s".to_string(), (2, 2));
-            ComponentDef {
-                width: 3,
-                height: 3,
-                pins,
-            }
-        }
-        ComponentKind::OpAmp => {
-            pins.insert("in_n".to_string(), (0, 0));
-            pins.insert("in_p".to_string(), (0, 2));
-            pins.insert("vcc".to_string(), (1, -1));
-            pins.insert("vee".to_string(), (1, 3));
-            pins.insert("out".to_string(), (3, 1));
-            ComponentDef {
-                width: 3,
-                height: 3,
-                pins,
-            }
-        }
-        ComponentKind::ModulePort => ComponentDef {
-            width: 2,
-            height: 2,
-            pins,
-        },
-    }
 }
 
 fn get_bbox(pos: &ComponentPos) -> (i32, i32, i32, i32) {
@@ -121,55 +36,13 @@ fn get_bbox(pos: &ComponentPos) -> (i32, i32, i32, i32) {
     }
 }
 
-fn get_through_pin(comp_type: &str, entry_pin: &str) -> String {
-    match comp_type {
-        "Resistor" | "Capacitor" | "Inductor" | "Diode" => {
-            if entry_pin == "p1" {
-                "p2".to_string()
-            } else {
-                "p1".to_string()
-            }
-        }
-        "Source" | "CurrentSource" => {
-            if entry_pin == "plus" {
-                "minus".to_string()
-            } else {
-                "plus".to_string()
-            }
-        }
-        "Transistor" => match entry_pin {
-            "c" => "e".to_string(),
-            "e" => "c".to_string(),
-            _ => "e".to_string(),
-        },
-        "Mosfet" => match entry_pin {
-            "d" => "s".to_string(),
-            "s" => "d".to_string(),
-            _ => "s".to_string(),
-        },
-        "OpAmp" => match entry_pin {
-            "vcc" => "vee".to_string(),
-            "vee" => "vcc".to_string(),
-            _ => "out".to_string(),
-        },
-        _ => "p2".to_string(),
-    }
-}
-
-fn is_signal_pin(comp_type: &str, pin: &str) -> bool {
-    match comp_type {
-        "Transistor" => pin == "b",
-        "Mosfet" => pin == "g",
-        _ => false,
-    }
-}
-
 pub fn generate_layout(circuit: &CircuitIR) -> LayoutResult {
     let mut components = HashMap::new();
-    let mut defs = HashMap::new();
+    let mut defs: HashMap<String, ComponentDefinition> = HashMap::new();
+    let mut component_kinds: HashMap<String, ComponentKind> = HashMap::new();
 
     let graph = NetlistGraph::build(circuit);
-    let mut nets_map: HashMap<usize, Vec<(String, String)>> = HashMap::new();
+    let mut nets_map: HashMap<NetId, Vec<(String, String)>> = HashMap::new();
 
     for (pin_id, net_id) in &graph.pin_to_net {
         let parts: Vec<&str> = pin_id.split('.').collect();
@@ -182,14 +55,15 @@ pub fn generate_layout(circuit: &CircuitIR) -> LayoutResult {
     }
 
     for comp in &circuit.components {
-        let def = get_comp_def(&comp.kind);
-        defs.insert(comp.id.clone(), def.clone());
+        let def = component_definition(&comp.kind);
+        defs.insert(comp.id.clone(), def);
+        component_kinds.insert(comp.id.clone(), comp.kind.clone());
         components.insert(
             comp.id.clone(),
             ComponentPos {
                 x: 0,
                 y: 0,
-                comp_type: kind_to_string(&comp.kind),
+                comp_type: def.display_name.to_string(),
                 width: def.width,
                 height: def.height,
                 rotation: 0,
@@ -204,15 +78,13 @@ pub fn generate_layout(circuit: &CircuitIR) -> LayoutResult {
         };
     }
 
-    let mut vcc_net: Option<usize> = None;
-    let mut gnd_net: Option<usize> = None;
+    let mut vcc_net: Option<NetId> = None;
+    let mut gnd_net: Option<NetId> = None;
     let mut battery_name: Option<String> = None;
 
     for (net_id, pins) in &nets_map {
         for (comp_name, pin_name) in pins {
-            if let Some(pos) = components.get(comp_name)
-                && (pos.comp_type == "Source" || pos.comp_type == "Battery")
-            {
+            if component_kinds.get(comp_name) == Some(&ComponentKind::VoltageSource) {
                 // fallback match string
                 battery_name = Some(comp_name.clone());
                 if pin_name == "plus" {
@@ -240,39 +112,25 @@ pub fn generate_layout(circuit: &CircuitIR) -> LayoutResult {
             .filter(|(c, _)| components.contains_key(c) && !used.contains(c))
             .cloned()
             .collect();
+        let has_through_connection = |entry: &(String, String)| {
+            let kind = &component_kinds[&entry.0];
+            let Some(exit) = through_pin(kind, &entry.1) else {
+                return false;
+            };
+            let Some(exit_net) = graph.get_net(&entry.0, exit) else {
+                return false;
+            };
+            nets_map.get(&exit_net).is_some_and(|pins| {
+                pins.iter().any(|(next_component, next_pin)| {
+                    next_component != &entry.0
+                        && components.contains_key(next_component)
+                        && !is_signal_pin(&component_kinds[next_component], next_pin)
+                })
+            })
+        };
         vcc_entries.sort_by(|a, b| {
-            let a_through = {
-                let ct = &components[&a.0].comp_type;
-                let exit = get_through_pin(ct, &a.1);
-                let enet = graph.get_net(&a.0, &exit);
-                if enet == 9999 {
-                    false
-                } else if let Some(np) = nets_map.get(&enet) {
-                    np.iter().any(|(nc, npin)| {
-                        nc != &a.0
-                            && components.contains_key(nc)
-                            && !is_signal_pin(&components[nc].comp_type, npin)
-                    })
-                } else {
-                    false
-                }
-            };
-            let b_through = {
-                let ct = &components[&b.0].comp_type;
-                let exit = get_through_pin(ct, &b.1);
-                let enet = graph.get_net(&b.0, &exit);
-                if enet == 9999 {
-                    false
-                } else if let Some(np) = nets_map.get(&enet) {
-                    np.iter().any(|(nc, npin)| {
-                        nc != &b.0
-                            && components.contains_key(nc)
-                            && !is_signal_pin(&components[nc].comp_type, npin)
-                    })
-                } else {
-                    false
-                }
-            };
+            let a_through = has_through_connection(a);
+            let b_through = has_through_connection(b);
             b_through.cmp(&a_through).then(a.0.cmp(&b.0))
         });
 
@@ -292,14 +150,15 @@ pub fn generate_layout(circuit: &CircuitIR) -> LayoutResult {
                 used.insert(current.clone());
                 chain.push((current.clone(), entry_pin.clone()));
 
-                let comp_type = components[&current].comp_type.clone();
-                let exit_pin = get_through_pin(&comp_type, &entry_pin);
-                let exit_net = graph.get_net(&current, &exit_pin);
+                let kind = &component_kinds[&current];
+                let Some(exit_pin) = through_pin(kind, &entry_pin) else {
+                    break;
+                };
+                let Some(exit_net) = graph.get_net(&current, exit_pin) else {
+                    break;
+                };
 
                 if Some(exit_net) == gnd_net {
-                    break;
-                }
-                if exit_net == 9999 {
                     break;
                 }
 
@@ -312,8 +171,8 @@ pub fn generate_layout(circuit: &CircuitIR) -> LayoutResult {
                         })
                         .collect();
                     candidates.sort_by(|a, b| {
-                        let a_sig = is_signal_pin(&components[&a.0].comp_type, &a.1);
-                        let b_sig = is_signal_pin(&components[&b.0].comp_type, &b.1);
+                        let a_sig = is_signal_pin(&component_kinds[&a.0], &a.1);
+                        let b_sig = is_signal_pin(&component_kinds[&b.0], &b.1);
                         a_sig.cmp(&b_sig).then(a.0.cmp(&b.0))
                     });
 
@@ -342,25 +201,23 @@ pub fn generate_layout(circuit: &CircuitIR) -> LayoutResult {
         .collect();
     remaining.sort();
     for name in remaining {
-        let comp_type = components[&name].comp_type.clone();
-        let pins: Vec<&str> = match comp_type.as_str() {
-            "Transistor" => vec!["c", "b", "e"],
-            "Mosfet" => vec!["d", "g", "s"],
-            "Source" | "Battery" => vec!["plus", "minus"],
-            _ => vec!["p1", "p2"],
-        };
-        let mut entry = pins[0].to_string();
-        for &p in &pins {
-            let net = graph.get_net(&name, p);
-            if Some(net) == gnd_net {
-                entry = get_through_pin(&comp_type, p);
+        let kind = &component_kinds[&name];
+        let definition = component_definition(kind);
+        let mut entry = definition
+            .pins
+            .first()
+            .map_or_else(String::new, |pin| pin.name.to_string());
+        for pin in definition.pins {
+            let net = graph.get_net(&name, pin.name);
+            if net == gnd_net {
+                entry = through_pin(kind, pin.name).unwrap_or(pin.name).to_string();
                 break;
             }
         }
-        for &p in &pins {
-            let net = graph.get_net(&name, p);
-            if Some(net) == vcc_net {
-                entry = p.to_string();
+        for pin in definition.pins {
+            let net = graph.get_net(&name, pin.name);
+            if net == vcc_net {
+                entry = pin.name.to_string();
                 break;
             }
         }
@@ -370,9 +227,10 @@ pub fn generate_layout(circuit: &CircuitIR) -> LayoutResult {
 
     chains.sort_by_key(|chain| {
         let has_active = chain.iter().any(|(c, _)| {
-            components
-                .get(c)
-                .is_some_and(|p| p.comp_type == "Transistor" || p.comp_type == "Mosfet")
+            matches!(
+                component_kinds.get(c),
+                Some(ComponentKind::BJT(_) | ComponentKind::MOSFET(_))
+            )
         });
         if has_active { 1 } else { 0 }
     });
@@ -435,13 +293,14 @@ pub fn generate_layout(circuit: &CircuitIR) -> LayoutResult {
         pos.y -= min_y;
     }
 
-    let mut net_pin_positions: HashMap<usize, Vec<(i32, i32)>> = HashMap::new();
+    let mut net_pin_positions: HashMap<NetId, Vec<(i32, i32)>> = HashMap::new();
     for (net_id, pins) in &nets_map {
         let mut positions = Vec::new();
         for (comp_name, pin_name) in pins {
             if let (Some(pos), Some(def)) = (components.get(comp_name), defs.get(comp_name))
-                && let Some(&(px, py)) = def.pins.get(pin_name)
+                && let Some(pin) = def.pins.iter().find(|pin| pin.name == pin_name)
             {
+                let (px, py) = (pin.x, pin.y);
                 let (rx, ry) = match pos.rotation {
                     0 => (pos.x + px, pos.y + py),
                     1 => (pos.x - py, pos.y + px),

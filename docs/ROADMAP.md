@@ -243,6 +243,10 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
   - [x] Yerel/CI drift'ini önlemek için `scripts/verify.ps1` entrypoint'ini kullan.
   - [ ] İlk remote GitHub Actions run'ının başarıyla tamamlandığını doğrula.
 - [x] Build/test'in çalışma ağacında yeni non-ignored değişiklik üretmediğini önce/sonra Git snapshot'ıyla doğrula.
+- [ ] Production dependency audit bulgularını gider ve `npm audit --omit=dev` kapısını sıfır bilinen vulnerability ile doğrula:
+  - 2026-08-09 baseline: 1 high, 3 moderate, 1 low.
+  - Etkilenen zincirler: `vite -> postcss -> nanoid`, `vite-plugin-top-level-await -> uuid`, `@monaco-editor/react -> monaco-editor -> dompurify`.
+  - `audit fix --force` kullanılmadan; doğrudan/transitive upgrade veya gereksiz plugin kaldırma kararı build smoke testiyle kanıtlanacak.
 
 **Kabul kriterleri:**
 
@@ -371,9 +375,9 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 
 ### 2.5.4 — Deterministik graph ve ERC sağlamlaştırması
 
-- [ ] `9999` sentinel yerine `Option<NetId>` veya typed lookup sonucu kullan.
-- [ ] Component pin tanımlarını graph/ERC/layout/SPICE için tek merkezde topla.
-- [ ] Invalid pin reference diagnostic'i ekle.
+- [x] `9999` sentinel yerine `Option<NetId>` veya typed lookup sonucu kullan.
+- [x] Component pin tanımlarını graph/ERC/layout/SPICE için tek merkezde topla.
+- [x] Invalid pin reference diagnostic'i ekle.
 - [ ] Component/net namespace collision politikasını tanımla ve test et.
 - [x] Graph traversal başlangıçlarını canonical pin sırasıyla üret.
 - [x] Net ID üretimini collection iteration sırasından bağımsız yap.
@@ -386,6 +390,8 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 - [x] Component emission ve standard model injection için sıralı collection kullan.
 - [ ] SPICE sayı formatını canonical ve platform bağımsız yap.
 - [x] Aynı circuit'i 100 kez tekrarlı derleyen byte-for-byte determinism stress testi ekle.
+
+**Typed net/pin kataloğu kanıtı (2026-08-09):** `NetId` serde-transparent newtype olarak tanımlandı; `get_net` bağlantısız pin için `None` döndürüyor ve `9999` sentinel üretim kodundan kaldırıldı. `component.rs` pin adları, canonical SPICE sırası, layout koordinatları, source prefix'i ve signal/through metadata'sı için graph/ERC/SPICE/layout'un ortak kaynağıdır. `invalid_pin.nl` artık `NL-E005` üretir. Katalog invariant ve sentinel-yokluğu regression testleriyle toplam 47 Rust testi, golden SPICE ve tam Rust/WASM/Web kapısı geçti.
 
 **Kabul kriterleri:**
 
@@ -733,6 +739,6 @@ Her geliştirme oturumunda:
 
 ### Aktif sıradaki ilk iş
 
-**2.5.4 — Deterministik graph ve ERC sağlamlaştırması.**
+**2.5.1 — Production dependency audit remediation; ardından 2.5.4'e devam.**
 
-2.5.1'in yalnız remote GitHub Actions run doğrulaması erişim bekliyor. 2.5.2 characterization tabanı 35 test ve golden corpus ile tamamlandı; 2.5.3 typed IR/semantic validation 45 testlik güncel suite ve tam Rust/WASM/Web kapısıyla kapandı. Sıradaki paket `9999` sentinel kaldırma ve ortak component/pin tanımlarından başlar.
+2.5.1'in remote GitHub Actions run doğrulaması erişim bekliyor. 2026-08-09 production npm audit'inde bulunan beş transitive vulnerability yeni aktif hijyen işi olarak kaydedildi ve Faz 2.5 kapanmadan giderilecek. 2.5.3 typed IR/semantic validation kapandı; 2.5.4'te typed net/pin kataloğu paketi doğrulandı. Audit temizlendikten sonra 2.5.4 namespace/ground ambiguity paketine dönülür.

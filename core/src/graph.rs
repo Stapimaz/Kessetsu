@@ -1,9 +1,25 @@
+use crate::component::component_definition;
 use crate::ir::*;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap, HashSet};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct NetId(pub usize);
+
+impl NetId {
+    pub const GROUND: Self = Self(0);
+}
+
+impl std::fmt::Display for NetId {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(formatter)
+    }
+}
+
 pub struct NetlistGraph {
-    pub pin_to_net: HashMap<String, usize>,
-    pub net_names: HashMap<usize, String>,
+    pub pin_to_net: HashMap<String, NetId>,
+    pub net_names: HashMap<NetId, String>,
 }
 
 impl NetlistGraph {
@@ -15,17 +31,8 @@ impl NetlistGraph {
         let mut all_pins = HashSet::new();
 
         for comp in &circuit.components {
-            let pins: Vec<&str> = match comp.kind {
-                ComponentKind::VoltageSource | ComponentKind::CurrentSource => {
-                    vec!["plus", "minus"]
-                }
-                ComponentKind::BJT(_) => vec!["c", "b", "e"],
-                ComponentKind::MOSFET(_) => vec!["d", "g", "s"],
-                ComponentKind::OpAmp => vec!["in_p", "in_n", "out", "vcc", "vee"],
-                _ => vec!["p1", "p2"],
-            };
-            for pin in pins {
-                all_pins.insert(format!("{}.{}", comp.id, pin));
+            for pin in component_definition(&comp.kind).pins {
+                all_pins.insert(format!("{}.{}", comp.id, pin.name));
             }
         }
 
@@ -65,7 +72,7 @@ impl NetlistGraph {
         let mut visited = HashSet::new();
         for pin in &ordered_pins {
             if !visited.contains(pin) {
-                let current_net = next_net_id;
+                let current_net = NetId(next_net_id);
                 next_net_id += 1;
 
                 let mut stack = vec![pin.clone()];
@@ -102,17 +109,17 @@ impl NetlistGraph {
         if let Some(gnd) = ground_net {
             for net in pin_to_net.values_mut() {
                 if *net == gnd {
-                    *net = 0;
+                    *net = NetId::GROUND;
                 }
             }
         }
 
         let mut net_names = HashMap::new();
-        net_names.insert(0, "0".to_string());
+        net_names.insert(NetId::GROUND, "0".to_string());
 
-        let mut net_to_pins: HashMap<usize, Vec<String>> = HashMap::new();
+        let mut net_to_pins: HashMap<NetId, Vec<String>> = HashMap::new();
         for (pin, net) in &pin_to_net {
-            if *net != 0 {
+            if *net != NetId::GROUND {
                 net_to_pins.entry(*net).or_default().push(pin.clone());
             }
         }
@@ -142,12 +149,12 @@ impl NetlistGraph {
         }
     }
 
-    pub fn get_net(&self, component: &str, pin: &str) -> usize {
+    pub fn get_net(&self, component: &str, pin: &str) -> Option<NetId> {
         let pin_id = format!("{}.{}", component, pin);
-        *self.pin_to_net.get(&pin_id).unwrap_or(&9999)
+        self.pin_to_net.get(&pin_id).copied()
     }
 
-    pub fn get_net_name(&self, net_id: usize) -> String {
+    pub fn get_net_name(&self, net_id: NetId) -> String {
         self.net_names
             .get(&net_id)
             .cloned()
@@ -228,6 +235,19 @@ fn format_waveform(waveform: &Waveform) -> String {
     }
 }
 
+fn component_net_names(graph: &NetlistGraph, component: &IRComponent) -> Vec<String> {
+    component_definition(&component.kind)
+        .pins
+        .iter()
+        .map(|pin| {
+            graph
+                .get_net(&component.id, pin.name)
+                .map(|net| graph.get_net_name(net))
+                .unwrap_or_else(|| format!("NC_{}_{}", component.id, pin.name))
+        })
+        .collect()
+}
+
 pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
     let mut spice = String::from("* NetLang Generated SPICE Netlist\n");
     let mut used_models = BTreeSet::new();
@@ -237,34 +257,25 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
 
     for comp in components {
         let value_str = format_spice_value(comp);
+        let definition = component_definition(&comp.kind);
+        let nets = component_net_names(graph, comp);
         match &comp.kind {
             ComponentKind::BJT(_) => {
-                let nc = graph.get_net_name(graph.get_net(&comp.id, "c"));
-                let nb = graph.get_net_name(graph.get_net(&comp.id, "b"));
-                let ne = graph.get_net_name(graph.get_net(&comp.id, "e"));
                 spice.push_str(&format!(
                     "Q_{} {} {} {} {}\n",
-                    comp.id, nc, nb, ne, value_str
+                    comp.id, nets[0], nets[1], nets[2], value_str
                 ));
             }
             ComponentKind::MOSFET(_) => {
-                let nd = graph.get_net_name(graph.get_net(&comp.id, "d"));
-                let ng = graph.get_net_name(graph.get_net(&comp.id, "g"));
-                let ns = graph.get_net_name(graph.get_net(&comp.id, "s"));
                 spice.push_str(&format!(
                     "M_{} {} {} {} {} {}\n",
-                    comp.id, nd, ng, ns, ns, value_str
+                    comp.id, nets[0], nets[1], nets[2], nets[2], value_str
                 ));
             }
             ComponentKind::OpAmp => {
-                let np = graph.get_net_name(graph.get_net(&comp.id, "in_p"));
-                let nn = graph.get_net_name(graph.get_net(&comp.id, "in_n"));
-                let vcc = graph.get_net_name(graph.get_net(&comp.id, "vcc"));
-                let vee = graph.get_net_name(graph.get_net(&comp.id, "vee"));
-                let out = graph.get_net_name(graph.get_net(&comp.id, "out"));
                 spice.push_str(&format!(
                     "X_{} {} {} {} {} {} {}\n",
-                    comp.id, np, nn, vcc, vee, out, value_str
+                    comp.id, nets[0], nets[1], nets[2], nets[3], nets[4], value_str
                 ));
             }
             ComponentKind::Resistor
@@ -273,20 +284,12 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
             | ComponentKind::Diode
             | ComponentKind::VoltageSource
             | ComponentKind::CurrentSource => {
-                let (p1, p2, prefix) = match &comp.kind {
-                    ComponentKind::Resistor => ("p1", "p2", "R"),
-                    ComponentKind::VoltageSource => ("plus", "minus", "V"),
-                    ComponentKind::CurrentSource => ("plus", "minus", "I"),
-                    ComponentKind::Capacitor => ("p1", "p2", "C"),
-                    ComponentKind::Inductor => ("p1", "p2", "L"),
-                    ComponentKind::Diode => ("p1", "p2", "D"),
-                    _ => unreachable!(),
-                };
-                let net1 = graph.get_net_name(graph.get_net(&comp.id, p1));
-                let net2 = graph.get_net_name(graph.get_net(&comp.id, p2));
+                let prefix = definition
+                    .spice_prefix
+                    .expect("emitted components must define a SPICE prefix");
                 spice.push_str(&format!(
                     "{}_{} {} {} {}\n",
-                    prefix, comp.id, net1, net2, value_str
+                    prefix, comp.id, nets[0], nets[1], value_str
                 ));
             }
             ComponentKind::ModulePort => {}
@@ -317,8 +320,8 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
         }
     }
 
-    let mut net_counts: HashMap<usize, usize> = HashMap::new();
-    let mut nc_nets: HashSet<usize> = HashSet::new();
+    let mut net_counts: HashMap<NetId, usize> = HashMap::new();
+    let mut nc_nets: HashSet<NetId> = HashSet::new();
 
     for (pin, net) in &graph.pin_to_net {
         *net_counts.entry(*net).or_insert(0) += 1;
@@ -329,7 +332,7 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
 
     let mut dangling_net_names: Vec<_> = net_counts
         .into_iter()
-        .filter(|(net, count)| *net != 0 && (*count == 1 || nc_nets.contains(net)))
+        .filter(|(net, count)| *net != NetId::GROUND && (*count == 1 || nc_nets.contains(net)))
         .map(|(net, _)| graph.get_net_name(net))
         .collect();
     dangling_net_names.sort();

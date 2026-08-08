@@ -1,9 +1,10 @@
 mod common;
 
 use common::read_fixture;
+use netlang_core::component::component_definition;
 use netlang_core::erc::{ErcDiagnostic, check_rules};
-use netlang_core::graph::{NetlistGraph, generate_spice};
-use netlang_core::ir::{CircuitIR, ast_to_ir};
+use netlang_core::graph::{NetId, NetlistGraph, generate_spice};
+use netlang_core::ir::{BJTPolarity, CircuitIR, ComponentKind, FETPolarity, ast_to_ir};
 use netlang_core::parse_program;
 
 fn circuit_from(source: &str) -> CircuitIR {
@@ -27,6 +28,7 @@ fn each_existing_erc_code_has_a_regression_fixture() {
         ("invalid/semantic/undefined_component.nl", "NL-E002"),
         ("invalid/semantic/floating_pin.nl", "NL-E003"),
         ("invalid/semantic/shorted_source.nl", "NL-E004"),
+        ("invalid/semantic/invalid_pin.nl", "NL-E005"),
     ];
 
     for (fixture, expected_code) in cases {
@@ -49,9 +51,9 @@ fn voltage_source_minus_net_is_canonical_ground() {
     let circuit = circuit_from(&read_fixture("valid/minimal.nl"));
     let graph = NetlistGraph::build(&circuit);
 
-    assert_eq!(graph.get_net("V1", "minus"), 0);
-    assert_eq!(graph.get_net("R1", "p2"), 0);
-    assert_eq!(graph.get_net_name(0), "0");
+    assert_eq!(graph.get_net("V1", "minus"), Some(NetId::GROUND));
+    assert_eq!(graph.get_net("R1", "p2"), Some(NetId::GROUND));
+    assert_eq!(graph.get_net_name(NetId::GROUND), "0");
 }
 
 #[test]
@@ -61,12 +63,18 @@ fn user_named_net_takes_precedence_over_generated_name() {
     let graph = NetlistGraph::build(&circuit);
 
     let output_net = graph.get_net("R1", "p2");
-    assert_eq!(graph.get_net_name(output_net), "0");
+    assert_eq!(
+        graph.get_net_name(output_net.expect("net should exist")),
+        "0"
+    );
 
     let named_source = "net output\nsource V1 5V\nresistor R1 1k\nresistor R2 1k\nconnect V1.plus to R1.p1\nconnect R1.p2, R2.p1 to output\nconnect R2.p2 to V1.minus\n";
     let circuit = circuit_from(named_source);
     let graph = NetlistGraph::build(&circuit);
-    assert_eq!(graph.get_net_name(graph.get_net("R1", "p2")), "output");
+    assert_eq!(
+        graph.get_net_name(graph.get_net("R1", "p2").expect("net should exist")),
+        "output"
+    );
 }
 
 #[test]
@@ -112,8 +120,8 @@ fn disconnected_source_ground_fallback_is_lexicographically_stable() {
     let circuit = circuit_from(source);
     let graph = NetlistGraph::build(&circuit);
 
-    assert_eq!(graph.get_net("A1", "minus"), 0);
-    assert_ne!(graph.get_net("Z1", "minus"), 0);
+    assert_eq!(graph.get_net("A1", "minus"), Some(NetId::GROUND));
+    assert_ne!(graph.get_net("Z1", "minus"), Some(NetId::GROUND));
 }
 
 #[test]
@@ -153,5 +161,39 @@ fn diagnostic_order_is_repeatable_for_the_same_circuit() {
             .map(|diagnostic| (diagnostic.code, diagnostic.component, diagnostic.pin))
             .collect();
         assert_eq!(actual, baseline);
+    }
+}
+
+#[test]
+fn absent_connections_use_option_instead_of_a_magic_net_id() {
+    let circuit = circuit_from("resistor R1 1k\n");
+    let graph = NetlistGraph::build(&circuit);
+
+    assert_eq!(graph.get_net("R1", "p1"), None);
+    assert_eq!(graph.get_net("R1", "p2"), None);
+    assert!(!graph.net_names.contains_key(&NetId(9999)));
+}
+
+#[test]
+fn shared_component_catalog_defines_canonical_backend_pin_order() {
+    let cases = [
+        (ComponentKind::Resistor, vec!["p1", "p2"]),
+        (ComponentKind::VoltageSource, vec!["plus", "minus"]),
+        (ComponentKind::BJT(BJTPolarity::NPN), vec!["c", "b", "e"]),
+        (
+            ComponentKind::MOSFET(FETPolarity::NMOS),
+            vec!["d", "g", "s"],
+        ),
+        (
+            ComponentKind::OpAmp,
+            vec!["in_p", "in_n", "vcc", "vee", "out"],
+        ),
+    ];
+
+    for (kind, expected_pins) in cases {
+        let definition = component_definition(&kind);
+        let actual: Vec<_> = definition.pins.iter().map(|pin| pin.name).collect();
+        assert_eq!(actual, expected_pins, "unexpected catalog for {kind:?}");
+        assert!(definition.spice_prefix.is_some());
     }
 }

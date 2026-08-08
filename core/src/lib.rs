@@ -3,6 +3,7 @@ extern crate pest;
 extern crate pest_derive;
 
 pub mod ast;
+pub mod component;
 pub mod erc;
 pub mod graph;
 pub mod ir;
