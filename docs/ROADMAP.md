@@ -131,9 +131,9 @@ Sadece kodun bulunması tamamlanma kanıtı değildir.
 |---|---|---|
 | `cargo test` | Geçiyor | Yalnızca 1 Rust testi var; kapsam kabul için yetersiz |
 | `cargo fmt -- --check` | Başarısız | Rust kaynakları canonical formatta değil |
-| `cargo clippy --all-targets -- -D warnings` | Başarısız | 16 lint/error bulundu |
-| `npm run build` | Geçiyor | Yerel `core/pkg` artifact'ine dayanıyor |
-| `npm run lint` | Uyarılı | React hook dependency uyarısı var |
+| `cargo clippy --all-targets -- -D warnings` | Başarısız | 15 mevcut lint ihlali bulundu; mekanik temizlik bekliyor |
+| `npm run build` | Geçiyor | WASM paketini sıfırdan üretip web production build'i tamamlıyor |
+| `npm run lint` | Geçiyor | React hook dependency uyarısı giderildi; warning yok |
 | Örnek ERC matrisi | Beklendiği gibi | Geçerli örnekler geçiyor; intentionally-invalid `test_amp.nl` exit 1 veriyor |
 
 ### 4.3 Bilinen kritik açıklar
@@ -153,8 +153,7 @@ Sadece kodun bulunması tamamlanma kanıtı değildir.
 - `--format`, subcommand sonrasında kullanılamıyor.
 - Web default kodu güncel grammar ile uyumsuz; `battery` ve eski `connect` syntax'ı kullanıyor.
 - Layout, KiCad ve web renderer içinde `Battery` kalıntıları var.
-- `core/pkg` temiz clone'da reproducible biçimde oluşturulmuyor.
-- 3.106 adet `core/target` artifact'i Git tarafından takip ediliyor; repo gereksiz şekilde büyümüş durumda.
+- Native Ngspice discovery yalnız Windows sidecar yolunu destekliyor; Linux/macOS ve sistem kurulumu henüz kapsanmıyor.
 - Ngspice runner sabit `netlang_temp.spice` dosyasını kullanıyor; paralel çalıştırmaya uygun değil.
 - Faz 3 sonuç modeli yalnızca `.meas` map'i ve string error listesi içeriyor; structured OP/transient/AC verisi yok.
 
@@ -225,8 +224,12 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
   - `npm ci`, `core/pkg` bulunmayan çalışma ağacında doğrulandı.
   - `npm run build`, önce WASM paketini üretir ve sonra web production build'i çalıştırır.
 - [x] `wasm-pack-init.exe` ve `wasm-pack-init.stamp` yerel bootstrap artifact'lerini tracking'den çıkar ve ignore et.
-- [ ] Ngspice runtime için gerekli minimum dosya setini, lisansı ve sürümü belgeleyip doğrula.
-- [ ] Ngspice kaynak/test ağacının tamamının repoda tutulup tutulmayacağına karar ver.
+- [x] Ngspice runtime için gerekli minimum dosya setini, lisansı ve sürümü belgeleyip doğrula:
+  - Windows x86-64 `ngspice-46` konsol runtime'ı temiz geçici dizinde doğrulandı.
+  - Tutulan dosyalar ve lisans/release kapısı `core/tools/ngspice/README.md` içinde kayıtlı.
+- [x] Ngspice kaynak/test ağacının tamamının repoda tutulup tutulmayacağına karar ver:
+  - GUI, 707 upstream örneği, opsiyonel XSPICE/OSDI kütüphaneleri ve fazla vendor dokümanları kaldırıldı.
+  - Minimal analog runtime 7 dosya ve yaklaşık 8.36 MB olarak tutuluyor.
 - [x] Kök doğrulama script'i ekle: `pwsh -File scripts/verify.ps1`.
 - [ ] CI ekle:
   - Rust fmt
@@ -460,7 +463,7 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 - [ ] `docs/cli_reference.md` içine `test`, exit code 4, JSON schema ve option yerleşimini ekle.
 - [ ] `.agents/AGENTS.md` kurallarını güncel test/build kapısıyla eşitle.
 - [ ] `webapp/README.md` Vite template metni yerine gerçek Web Hub dokümanı yap.
-- [ ] Ngspice runtime sürüm/lisans/dağıtım belgesini ekle.
+- [x] Ngspice runtime sürüm/lisans/dağıtım belgesini ekle: `core/tools/ngspice/README.md`.
 - [ ] Roadmap Faz 2.5 checkbox'larını yalnızca kanıtlanan sonuçlara göre kapat.
 - [ ] Faz 3 başlangıç denetimi yap ve audit notu ekle.
 
@@ -490,9 +493,9 @@ pwsh -File scripts/verify.ps1
 - [ ] Rust Clippy `-D warnings` ile geçiyor.
 - [ ] Tüm Rust ve CLI testleri geçiyor.
 - [ ] Release build geçiyor.
-- [ ] WASM build geçiyor.
-- [ ] Web lint warning vermeden geçiyor.
-- [ ] Web production build geçiyor.
+- [x] WASM build geçiyor.
+- [x] Web lint warning vermeden geçiyor.
+- [x] Web production build geçiyor.
 - [ ] Tüm geçerli örnekler check/compile matrisinden geçiyor.
 - [ ] Invalid corpus beklenen diagnostic kodlarını veriyor.
 - [ ] Determinism stress testi geçiyor.
