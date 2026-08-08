@@ -77,11 +77,14 @@ impl TestWorkspace {
     pub fn normalize_cli_text(&self, bytes: &[u8]) -> String {
         let text = String::from_utf8_lossy(bytes);
         let root = self.root.to_string_lossy();
-        normalize_text(
-            &text
-                .replace(root.as_ref(), "<TEMP>")
-                .replace(&root.replace('\\', "/"), "<TEMP>"),
-        )
+        let json_escaped_root = root.replace('\\', "\\\\");
+        let normalized = text
+            .replace(&json_escaped_root, "<TEMP>")
+            .replace(root.as_ref(), "<TEMP>")
+            .replace(&root.replace('\\', "/"), "<TEMP>")
+            .replace('\\', "/")
+            .replace("<TEMP>//", "<TEMP>/");
+        normalize_text(&normalized)
     }
 }
 

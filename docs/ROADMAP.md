@@ -129,7 +129,7 @@ Sadece kodun bulunması tamamlanma kanıtı değildir.
 
 | Kontrol | Sonuç | Açıklama |
 |---|---|---|
-| `cargo test --all-targets` | Geçiyor | 19 test var; parser/IR/graph/ERC ve ilk SPICE golden katmanı mevcut, CLI kapsamı bekliyor |
+| `cargo test --all-targets` | Geçiyor | 25 test var; parser/IR/graph/ERC, ilk SPICE golden ve temel CLI contract katmanı mevcut |
 | `cargo fmt -- --check` | Geçiyor | Rust kaynakları canonical `rustfmt` biçiminde |
 | `cargo clippy --all-targets -- -D warnings` | Geçiyor | Mevcut target'larda warning yok |
 | `npm run build` | Geçiyor | WASM paketini sıfırdan üretip web production build'i tamamlıyor |
@@ -263,8 +263,8 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 - [x] `core/tests/fixtures/valid` corpus'unu oluştur.
 - [x] `core/tests/fixtures/invalid` parser/semantic corpus'unu oluştur.
 - [x] `core/tests/fixtures/golden` snapshot altyapısını ve ilk canonical fixture'ı oluştur.
-- [ ] CLI testleri için isolated temp directory kullan.
-- [ ] Snapshot'larda platform path'i, CRLF ve nondeterministic alanları normalize et.
+- [x] CLI testleri için process/sequence bazlı isolated temp directory kullan.
+- [x] Snapshot/CLI helper'ında platform path'i, JSON-escaped path ve CRLF'i normalize et.
 
 #### Parser testleri
 
@@ -315,12 +315,14 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 
 #### CLI contract testleri
 
-- [ ] Human ve JSON success testleri.
-- [ ] Parse, I/O, semantic/ERC ve simulation hata testleri.
-- [ ] Exit code 0/1/2/3/4 testleri.
-- [ ] Global `--format` yerleşim testi.
+- [x] Human ve JSON success testleri.
+- [x] Parse, I/O ve ERC hata testleri.
+- [ ] Simulation hata testi.
+- [x] Exit code 0/1/2 testleri.
+- [ ] Exit code 3/4 testleri.
+- [x] Global `--format` yerleşim testi; mevcut sözleşmede option subcommand'den önce gelir.
 - [ ] `render` stub error exit testi.
-- [ ] JSON stdout'un loglarla kirlenmediği test.
+- [x] JSON stdout'un parse/I-O loglarıyla kirlenmediği test.
 
 **Kabul kriterleri:**
 
