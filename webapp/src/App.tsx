@@ -3,6 +3,23 @@ import Editor from '@monaco-editor/react';
 import { Play, Code2, CircuitBoard, Terminal as TerminalIcon, Download } from 'lucide-react';
 import init, { compile_netlang } from 'netlang-core';
 
+const COMPILE_SCHEMA_VERSION = 'netlang.compile.v1';
+
+interface CompileDiagnostic {
+  code: string;
+  severity: 'error' | 'warning' | 'info';
+  stage: 'parse' | 'flatten' | 'semantic' | 'erc';
+  message: string;
+}
+
+interface CompileReport {
+  schema_version: string;
+  diagnostics: CompileDiagnostic[];
+  layout: unknown | null;
+  kicad_sch: string | null;
+  spice_netlist: string | null;
+}
+
 const DEFAULT_CODE = `// NetLang Micro-DSL MVP (Rust/WASM Core)
 
 module VoltageDivider(in, out, gnd) {
@@ -56,29 +73,28 @@ function App() {
     if (!isWasmLoaded) return;
     
     try {
-      const result = compile_netlang(code);
-      
-      if (result.parse_error) {
-        setErrors([{ message: `Syntax Error: ${result.parse_error}`, type: 'error' }]);
+      const result = compile_netlang(code) as CompileReport;
+      if (result.schema_version !== COMPILE_SCHEMA_VERSION) {
+        throw new Error(`Unsupported compile report schema: ${result.schema_version}`);
+      }
+
+      const diagnostics = result.diagnostics || [];
+      const hasErrors = diagnostics.some((diagnostic) => diagnostic.severity === 'error');
+      setErrors(diagnostics.map((diagnostic) => ({
+        message: `[${diagnostic.code}/${diagnostic.stage}] ${diagnostic.message}`,
+        type: diagnostic.severity,
+      })));
+
+      if (hasErrors) {
         setSuccess(false);
         setSpiceNetlist('');
+        setKicadSch('');
         setLayout(null);
       } else {
-        const ercErrors = result.erc_errors || [];
-        if (result.layout) {
-           setLayout(result.layout);
-        }
-        
-        if (ercErrors.length > 0) {
-          setErrors(ercErrors.map((e: any) => ({ message: `[${e.code}] ${e.message}`, type: 'error' })));
-          setSuccess(false);
-          setSpiceNetlist('');
-        } else {
-          setErrors([]);
-          setSuccess(true);
-          setSpiceNetlist(result.spice_netlist || '');
-          setKicadSch(result.kicad_sch || '');
-        }
+        setSuccess(true);
+        setLayout(result.layout);
+        setSpiceNetlist(result.spice_netlist || '');
+        setKicadSch(result.kicad_sch || '');
       }
     } catch (e: any) {
       setErrors([{ message: `WASM Execution Error: ${e.message}`, type: 'error' }]);
