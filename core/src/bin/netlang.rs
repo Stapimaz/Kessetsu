@@ -261,7 +261,7 @@ fn main() {
                 signal: r.assertion.signal.clone(),
                 pass: r.pass,
                 actual: r.actual,
-                threshold: r.assertion.threshold,
+                threshold: r.assertion.threshold.value,
             });
             if cli.format == Format::Human {
                 let status = if r.pass {
@@ -283,7 +283,7 @@ fn main() {
                         r.assertion.metric,
                         r.assertion.signal,
                         cmp_str,
-                        r.assertion.threshold
+                        r.assertion.threshold.value
                     );
                 } else {
                     println!(
@@ -292,7 +292,7 @@ fn main() {
                         r.assertion.metric,
                         r.assertion.signal,
                         cmp_str,
-                        r.assertion.threshold,
+                        r.assertion.threshold.value,
                         r.actual
                     );
                 }

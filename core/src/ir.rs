@@ -1,7 +1,8 @@
 use crate::ast::{ComponentType, Connection, Program, Statement};
+use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CircuitIR {
     pub components: Vec<IRComponent>,
     pub connections: Vec<Connection>, // Preserved from AST for graph generation
@@ -10,7 +11,7 @@ pub struct CircuitIR {
     pub assertions: Vec<Assertion>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct IRComponent {
     pub id: String,
     pub kind: ComponentKind,
@@ -18,7 +19,7 @@ pub struct IRComponent {
     pub model: Option<ModelRef>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ComponentKind {
     Resistor,
     Capacitor,
@@ -32,51 +33,57 @@ pub enum ComponentKind {
     ModulePort,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BJTPolarity {
     NPN,
     PNP,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FETPolarity {
     NMOS,
     PMOS,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ComponentParams {
-    TwoPinPassive { value: f64, unit: SIUnit },
+    TwoPinPassive { value: Quantity },
     BJTParams { polarity: BJTPolarity },
     MOSFETParams { polarity: FETPolarity },
     OpAmpParams,
-    DCSource { voltage: f64 },
-    ACSource { waveform: Waveform },
+    VoltageSource { value: SourceValue },
+    CurrentSource { value: SourceValue },
     Unknown { original_value: String }, // Temporary fallback if we can't parse it
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum SourceValue {
+    Dc(Quantity),
+    Waveform(Waveform),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Waveform {
     Sine {
-        offset: f64,
-        amplitude: f64,
-        frequency: f64,
+        offset: Quantity,
+        amplitude: Quantity,
+        frequency: Quantity,
     },
     Pulse {
-        v1: f64,
-        v2: f64,
-        delay: f64,
-        rise: f64,
-        fall: f64,
-        width: f64,
-        period: f64,
+        v1: Quantity,
+        v2: Quantity,
+        delay: Quantity,
+        rise: Quantity,
+        fall: Quantity,
+        width: Quantity,
+        period: Quantity,
     },
     PWL {
-        points: Vec<(f64, f64)>,
+        points: Vec<(Quantity, Quantity)>,
     },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SIUnit {
     Ohm,
     Farad,
@@ -84,104 +91,207 @@ pub enum SIUnit {
     Volt,
     Ampere,
     Hertz,
+    Second,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Quantity {
+    pub value: f64,
+    pub unit: SIUnit,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ModelRef {
     pub name: String,
     pub kind: ComponentKind,
     pub source: ModelSource,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ModelSource {
     Builtin,
     UserDefined,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Analysis {
     pub cmd: String,
     pub args: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Assertion {
     pub metric: String,
     pub signal: String,
     pub cmp: crate::ast::Cmp,
-    pub threshold: f64,
+    pub threshold: Quantity,
 }
 
-pub fn parse_si_value(s: &str) -> Result<f64, String> {
-    let mut num_str = String::new();
-    let mut suffix = String::new();
+fn split_number_and_suffix(input: &str) -> Result<(&str, &str), String> {
+    let input = input.trim();
+    if input.is_empty() {
+        return Err("value is missing".to_string());
+    }
 
-    for c in s.chars() {
-        if c.is_ascii_digit() || c == '.' || c == '-' || c == '+' {
-            num_str.push(c);
-        } else {
-            suffix.push(c);
+    let bytes = input.as_bytes();
+    let mut index = 0;
+    if matches!(bytes.first(), Some(b'+') | Some(b'-')) {
+        index += 1;
+    }
+
+    let integer_start = index;
+    while index < bytes.len() && bytes[index].is_ascii_digit() {
+        index += 1;
+    }
+    let mut has_digits = index > integer_start;
+
+    if index < bytes.len() && bytes[index] == b'.' {
+        index += 1;
+        let fractional_start = index;
+        while index < bytes.len() && bytes[index].is_ascii_digit() {
+            index += 1;
+        }
+        has_digits |= index > fractional_start;
+    }
+
+    if !has_digits {
+        return Err(format!("invalid numeric value '{input}'"));
+    }
+
+    if index < bytes.len() && matches!(bytes[index], b'e' | b'E') {
+        index += 1;
+        if index < bytes.len() && matches!(bytes[index], b'+' | b'-') {
+            index += 1;
+        }
+        let exponent_start = index;
+        while index < bytes.len() && bytes[index].is_ascii_digit() {
+            index += 1;
+        }
+        if index == exponent_start {
+            return Err(format!("invalid exponent in '{input}'"));
         }
     }
 
-    if num_str.is_empty() {
-        return Err(format!("Invalid SI value: {}", s));
-    }
-
-    let mut val = f64::from_str(&num_str).map_err(|e| format!("Parse float error: {}", e))?;
-
-    let suffix_trim = suffix.trim();
-    if suffix_trim.starts_with("p") {
-        val *= 1e-12;
-    } else if suffix_trim.starts_with("n") {
-        val *= 1e-9;
-    } else if suffix_trim.starts_with("u") || suffix_trim.starts_with("µ") {
-        val *= 1e-6;
-    } else if suffix_trim.starts_with("m") && !suffix_trim.starts_with("meg") {
-        val *= 1e-3;
-    } else if suffix_trim.starts_with("k") || suffix_trim.starts_with("K") {
-        val *= 1e3;
-    } else if suffix_trim.starts_with("meg") || suffix_trim.starts_with("M") {
-        val *= 1e6;
-    } else if suffix_trim.starts_with("G") {
-        val *= 1e9;
-    } else if suffix_trim.starts_with("T") {
-        val *= 1e12;
-    }
-
-    Ok(val)
+    Ok((&input[..index], &input[index..]))
 }
 
-pub fn parse_waveform(val: &str) -> Option<Waveform> {
-    // Basic SINE(offset amplitude frequency) parser
-    let val_trim = val.trim();
-    if val_trim.to_lowercase().starts_with("sine(")
-        || val_trim.to_lowercase().starts_with("\"sine(")
+fn parse_unit_suffix(suffix: &str) -> Result<(f64, Option<SIUnit>), String> {
+    let (factor, unit_text) = if let Some(rest) = suffix.strip_prefix("meg") {
+        (1e6, rest)
+    } else if let Some(rest) = suffix.strip_prefix('T') {
+        (1e12, rest)
+    } else if let Some(rest) = suffix.strip_prefix('G') {
+        (1e9, rest)
+    } else if let Some(rest) = suffix.strip_prefix('M') {
+        (1e6, rest)
+    } else if let Some(rest) = suffix.strip_prefix(['k', 'K']) {
+        (1e3, rest)
+    } else if let Some(rest) = suffix.strip_prefix('m') {
+        (1e-3, rest)
+    } else if let Some(rest) = suffix.strip_prefix(['u', 'µ']) {
+        (1e-6, rest)
+    } else if let Some(rest) = suffix.strip_prefix('n') {
+        (1e-9, rest)
+    } else if let Some(rest) = suffix.strip_prefix('p') {
+        (1e-12, rest)
+    } else {
+        (1.0, suffix)
+    };
+
+    let unit = match unit_text {
+        "" => None,
+        "Ohm" | "ohm" | "OHM" | "Ω" => Some(SIUnit::Ohm),
+        "F" => Some(SIUnit::Farad),
+        "H" => Some(SIUnit::Henry),
+        "V" | "v" => Some(SIUnit::Volt),
+        "A" | "a" => Some(SIUnit::Ampere),
+        "Hz" | "hz" | "HZ" => Some(SIUnit::Hertz),
+        "s" | "S" => Some(SIUnit::Second),
+        _ => return Err(format!("unsupported unit or trailing text '{suffix}'")),
+    };
+
+    Ok((factor, unit))
+}
+
+fn parse_value(input: &str) -> Result<(f64, Option<SIUnit>), String> {
+    let (number, suffix) = split_number_and_suffix(input)?;
+    let parsed =
+        f64::from_str(number).map_err(|error| format!("invalid number '{number}': {error}"))?;
+    if !parsed.is_finite() {
+        return Err(format!("non-finite value '{input}' is not supported"));
+    }
+    let (factor, unit) = parse_unit_suffix(suffix)?;
+    Ok((parsed * factor, unit))
+}
+
+pub fn parse_quantity(input: &str, expected_unit: SIUnit) -> Result<Quantity, String> {
+    let (value, explicit_unit) = parse_value(input)?;
+    if let Some(actual_unit) = explicit_unit
+        && actual_unit != expected_unit
     {
-        // Find the contents inside the parentheses
-        let start = val_trim.find('(')?;
-        let end = val_trim.rfind(')')?;
-        if start < end {
-            let inside = &val_trim[start + 1..end];
-            // Split by commas or whitespace
-            let parts: Vec<&str> = inside
-                .split([',', ' ', '\t'])
-                .filter(|s| !s.is_empty())
-                .collect();
-            if parts.len() >= 3 {
-                let offset = parse_si_value(parts[0]).unwrap_or(0.0);
-                let amp = parse_si_value(parts[1]).unwrap_or(0.0);
-                let freq = parse_si_value(parts[2]).unwrap_or(0.0);
-                return Some(Waveform::Sine {
-                    offset,
-                    amplitude: amp,
-                    frequency: freq,
-                });
-            }
-        }
+        return Err(format!(
+            "unit mismatch for '{input}': expected {expected_unit:?}, got {actual_unit:?}"
+        ));
     }
-    None
+    Ok(Quantity {
+        value,
+        unit: expected_unit,
+    })
+}
+
+pub fn parse_si_value(input: &str) -> Result<f64, String> {
+    parse_value(input).map(|(value, _)| value)
+}
+
+pub fn parse_waveform(val: &str, value_unit: SIUnit) -> Result<Option<Waveform>, String> {
+    let val_trim = val.trim().trim_matches('"').trim();
+    let Some(start) = val_trim.find('(') else {
+        return Ok(None);
+    };
+    if !val_trim.ends_with(')') || start == 0 {
+        return Err(format!("malformed waveform '{val}'"));
+    }
+
+    let name = &val_trim[..start];
+    let inside = &val_trim[start + 1..val_trim.len() - 1];
+    let parts: Vec<&str> = inside
+        .split([',', ' ', '\t'])
+        .filter(|part| !part.is_empty())
+        .collect();
+
+    if name.eq_ignore_ascii_case("sine") {
+        if parts.len() != 3 {
+            return Err(format!(
+                "SINE expects exactly 3 parameters, got {}",
+                parts.len()
+            ));
+        }
+        return Ok(Some(Waveform::Sine {
+            offset: parse_quantity(parts[0], value_unit)?,
+            amplitude: parse_quantity(parts[1], value_unit)?,
+            frequency: parse_quantity(parts[2], SIUnit::Hertz)?,
+        }));
+    }
+
+    if name.eq_ignore_ascii_case("pulse") {
+        if parts.len() != 7 {
+            return Err(format!(
+                "PULSE expects exactly 7 parameters, got {}",
+                parts.len()
+            ));
+        }
+        return Ok(Some(Waveform::Pulse {
+            v1: parse_quantity(parts[0], value_unit)?,
+            v2: parse_quantity(parts[1], value_unit)?,
+            delay: parse_quantity(parts[2], SIUnit::Second)?,
+            rise: parse_quantity(parts[3], SIUnit::Second)?,
+            fall: parse_quantity(parts[4], SIUnit::Second)?,
+            width: parse_quantity(parts[5], SIUnit::Second)?,
+            period: parse_quantity(parts[6], SIUnit::Second)?,
+        }));
+    }
+
+    Err(format!("unsupported waveform '{name}'"))
 }
 
 pub fn resolve_model(name: &str) -> Option<ModelRef> {
@@ -233,49 +343,50 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, String> {
                     ComponentType::Resistor => (
                         ComponentKind::Resistor,
                         ComponentParams::TwoPinPassive {
-                            value: parse_si_value(val_str).unwrap_or(0.0),
-                            unit: SIUnit::Ohm,
+                            value: parse_quantity(val_str, SIUnit::Ohm)
+                                .map_err(|error| format!("resistor {}: {error}", decl.name))?,
                         },
                     ),
                     ComponentType::Capacitor => (
                         ComponentKind::Capacitor,
                         ComponentParams::TwoPinPassive {
-                            value: parse_si_value(val_str).unwrap_or(0.0),
-                            unit: SIUnit::Farad,
+                            value: parse_quantity(val_str, SIUnit::Farad)
+                                .map_err(|error| format!("capacitor {}: {error}", decl.name))?,
                         },
                     ),
                     ComponentType::Inductor => (
                         ComponentKind::Inductor,
                         ComponentParams::TwoPinPassive {
-                            value: parse_si_value(val_str).unwrap_or(0.0),
-                            unit: SIUnit::Henry,
+                            value: parse_quantity(val_str, SIUnit::Henry)
+                                .map_err(|error| format!("inductor {}: {error}", decl.name))?,
                         },
                     ),
                     ComponentType::Source => {
                         let kind = ComponentKind::VoltageSource;
-                        if let Some(wf) = parse_waveform(val_str) {
-                            (kind, ComponentParams::ACSource { waveform: wf })
+                        let value = if let Some(waveform) = parse_waveform(val_str, SIUnit::Volt)
+                            .map_err(|error| format!("source {}: {error}", decl.name))?
+                        {
+                            SourceValue::Waveform(waveform)
                         } else {
-                            (
-                                kind,
-                                ComponentParams::DCSource {
-                                    voltage: parse_si_value(val_str).unwrap_or(0.0),
-                                },
+                            SourceValue::Dc(
+                                parse_quantity(val_str, SIUnit::Volt)
+                                    .map_err(|error| format!("source {}: {error}", decl.name))?,
                             )
-                        }
+                        };
+                        (kind, ComponentParams::VoltageSource { value })
                     }
                     ComponentType::CurrentSource => {
                         let kind = ComponentKind::CurrentSource;
-                        if let Some(wf) = parse_waveform(val_str) {
-                            (kind, ComponentParams::ACSource { waveform: wf })
+                        let value = if let Some(waveform) = parse_waveform(val_str, SIUnit::Ampere)
+                            .map_err(|error| format!("current source {}: {error}", decl.name))?
+                        {
+                            SourceValue::Waveform(waveform)
                         } else {
-                            (
-                                kind,
-                                ComponentParams::DCSource {
-                                    voltage: parse_si_value(val_str).unwrap_or(0.0),
-                                },
-                            )
-                        }
+                            SourceValue::Dc(parse_quantity(val_str, SIUnit::Ampere).map_err(
+                                |error| format!("current source {}: {error}", decl.name),
+                            )?)
+                        };
+                        (kind, ComponentParams::CurrentSource { value })
                     }
                     ComponentType::Transistor => {
                         let mut polarity = BJTPolarity::NPN; // Default
@@ -287,7 +398,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, String> {
                         } else if let Some(m) = &model
                             && let ComponentKind::BJT(p) = &m.kind
                         {
-                            polarity = p.clone();
+                            polarity = *p;
                         }
 
                         if val_str.is_empty() {
@@ -300,7 +411,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, String> {
                         }
 
                         (
-                            ComponentKind::BJT(polarity.clone()),
+                            ComponentKind::BJT(polarity),
                             ComponentParams::BJTParams { polarity },
                         )
                     }
@@ -309,7 +420,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, String> {
                         if let Some(m) = &model
                             && let ComponentKind::MOSFET(p) = &m.kind
                         {
-                            polarity = p.clone();
+                            polarity = *p;
                         }
 
                         if val_str.is_empty() {
@@ -317,7 +428,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, String> {
                         }
 
                         (
-                            ComponentKind::MOSFET(polarity.clone()),
+                            ComponentKind::MOSFET(polarity),
                             ComponentParams::MOSFETParams { polarity },
                         )
                     }
@@ -354,7 +465,20 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, String> {
                     metric: assert.metric.clone(),
                     signal: assert.signal.clone(),
                     cmp: assert.cmp.clone(),
-                    threshold: parse_si_value(&assert.threshold).unwrap_or(0.0),
+                    threshold: parse_quantity(
+                        &assert.threshold,
+                        if assert.signal.starts_with("V(") {
+                            SIUnit::Volt
+                        } else if assert.signal.starts_with("I(") {
+                            SIUnit::Ampere
+                        } else {
+                            return Err(format!(
+                                "assertion signal '{}' must be a voltage V(...) or current I(...)",
+                                assert.signal
+                            ));
+                        },
+                    )
+                    .map_err(|error| format!("assertion {}: {error}", assert.signal))?,
                 });
             }
             Statement::Simulate(sim) => {

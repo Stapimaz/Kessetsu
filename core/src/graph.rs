@@ -184,18 +184,48 @@ fn format_spice_value(comp: &IRComponent) -> String {
         return m.name.clone();
     }
     match &comp.parameters {
-        ComponentParams::TwoPinPassive { value, .. } => format!("{}", value),
-        ComponentParams::DCSource { voltage } => format!("{}", voltage),
-        ComponentParams::ACSource { waveform } => match waveform {
-            Waveform::Sine {
-                offset,
-                amplitude,
-                frequency,
-            } => format!("SINE({} {} {})", offset, amplitude, frequency),
-            _ => "0".to_string(),
-        },
+        ComponentParams::TwoPinPassive { value } => format!("{}", value.value),
+        ComponentParams::VoltageSource { value } | ComponentParams::CurrentSource { value } => {
+            match value {
+                SourceValue::Dc(quantity) => format!("{}", quantity.value),
+                SourceValue::Waveform(waveform) => format_waveform(waveform),
+            }
+        }
         ComponentParams::Unknown { original_value } => original_value.clone(),
         _ => "".to_string(),
+    }
+}
+
+fn format_waveform(waveform: &Waveform) -> String {
+    match waveform {
+        Waveform::Sine {
+            offset,
+            amplitude,
+            frequency,
+        } => format!(
+            "SINE({} {} {})",
+            offset.value, amplitude.value, frequency.value
+        ),
+        Waveform::Pulse {
+            v1,
+            v2,
+            delay,
+            rise,
+            fall,
+            width,
+            period,
+        } => format!(
+            "PULSE({} {} {} {} {} {} {})",
+            v1.value, v2.value, delay.value, rise.value, fall.value, width.value, period.value
+        ),
+        Waveform::PWL { points } => {
+            let values = points
+                .iter()
+                .map(|(time, value)| format!("{} {}", time.value, value.value))
+                .collect::<Vec<_>>()
+                .join(" ");
+            format!("PWL({values})")
+        }
     }
 }
 

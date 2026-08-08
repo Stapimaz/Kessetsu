@@ -7,6 +7,7 @@ use wasm_bindgen::prelude::*;
 #[derive(Serialize)]
 pub struct CompileResult {
     pub ast: Option<crate::ast::Program>,
+    pub ir: Option<crate::ir::CircuitIR>,
     #[serde(rename = "erc_errors")]
     pub erc_errors: Vec<crate::erc::ErcDiagnostic>,
     pub layout: Option<crate::layout::LayoutResult>,
@@ -19,6 +20,7 @@ pub struct CompileResult {
 pub fn compile_netlang(input: &str) -> JsValue {
     let mut result = CompileResult {
         ast: None,
+        ir: None,
         erc_errors: Vec::new(),
         layout: None,
         kicad_sch: None,
@@ -42,6 +44,7 @@ pub fn compile_netlang(input: &str) -> JsValue {
                     }
 
                     result.ast = Some(flat_program.clone());
+                    result.ir = Some(circuit_ir);
                     result.erc_errors = errors;
                 }
                 Err(e) => {

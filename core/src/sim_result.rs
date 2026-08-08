@@ -137,7 +137,7 @@ pub fn evaluate_assertions(circuit: &CircuitIR, sim_result: &SimResult) -> Vec<T
         let safe_name = raw_name.replace("(", "_").replace(")", "").to_lowercase();
 
         if let Some(&actual) = sim_result.meas_results.get(&safe_name) {
-            let pass = evaluate_cmp(actual, assert.threshold, &assert.cmp);
+            let pass = evaluate_cmp(actual, assert.threshold.value, &assert.cmp);
             results.push(TestResult {
                 pass,
                 assertion: assert.clone(),

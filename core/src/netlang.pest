@@ -3,11 +3,11 @@ NEWLINE = _{ "\n" | "\r\n" | "\r" }
 COMMENT = _{ "//" ~ (!NEWLINE ~ ANY)* ~ NEWLINE? }
 
 ident = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
-comp_value = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" | (ASCII_ALPHANUMERIC | "." | "-" | "_")+ }
+comp_value = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" | (ASCII_ALPHANUMERIC | "." | "+" | "-" | "_" | "µ" | "Ω")+ }
 
 // Components
 comp_type = { "resistor" | "capacitor" | "inductor" | "diode" | "mosfet" | "opamp" }
-polarity = { "npn" | "pnp" }
+polarity = { ^"npn" | ^"pnp" }
 transistor_decl = { "transistor" ~ ident ~ polarity? ~ comp_value? }
 standard_decl = { comp_type ~ ident ~ comp_value? }
 
