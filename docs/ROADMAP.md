@@ -6,9 +6,9 @@
 >
 > Son kapsamlı repo denetimi: **2026-08-08**
 >
-> Aktif milestone: **Faz 2.5 — Stabilizasyon ve Sağlamlaştırma**
+> Aktif milestone: **Faz 3 — Simülasyon ve Assertion Runtime**
 >
-> Sonraki milestone: **Faz 3 — Simülasyon ve Assertion Runtime**
+> Sonraki milestone: **Faz 4 — Layout, Web Hub ve Agent API**
 
 ---
 
@@ -140,7 +140,6 @@ Sadece kodun bulunması tamamlanma kanıtı değildir.
 
 ### 4.3 Kalan kritik açıklar
 
-- Remote GitHub Actions sonucu private-repo erişimi nedeniyle bu oturumdan doğrulanamadı.
 - Dağıtılan Ngspice runtime yalnız Windows x86-64 sidecar'dır; Linux/macOS paketleme tamamlanmadı. `NETLANG_NGSPICE` açık executable override'ı mevcuttur.
 - Ngspice runner sabit `netlang_temp.spice` dosyasını kullanıyor; paralel çalıştırmaya uygun değil.
 - Faz 3 sonuç modeli yalnızca `.meas` map'i ve string error listesi içeriyor; structured OP/transient/AC verisi yok.
@@ -154,7 +153,7 @@ Sadece kodun bulunması tamamlanma kanıtı değildir.
 - Faz 1: Golden/regression ve fail-closed kabul kriterleri Faz 2.5 içinde kapatıldı.
 - Faz 2: Typed IR, determinism, semantic validation ve regression borçları Faz 2.5 içinde kapatıldı.
 - Faz 3: Temel `.meas` assertion akışı **PROTOTİP**; ayrıntılı Faz 3 kabul kriterleri tamamlanmadı.
-- Aktif çalışma: Faz 2.5 final doküman/kalite kapısı ve remote CI kanıtı tamamlanacak; ardından Faz 3 runner/structured result çalışması başlayacak.
+- Aktif çalışma: Faz 3 başlangıç audit'inde tanımlanan sırayla simulation domain modeli ve tek runner geliştirilecek.
 
 ---
 
@@ -228,11 +227,11 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
   - Minimum Rust `1.97.1`: `core/Cargo.toml`; CI aynı exact sürümü, rustfmt, Clippy ve `wasm32-unknown-unknown` target'ını kurar.
   - Node.js `24.15.0`: `.nvmrc`
   - CI wasm-pack `0.13.1`: `.github/workflows/ci.yml`
-- [ ] CI'yı `origin/main` üzerinde yeşil doğrula:
+- [x] CI'yı `origin/main` üzerinde yeşil doğrula:
   - [x] `.github/workflows/ci.yml` içine Rust fmt, Clippy, test ve release build kapılarını ekle.
   - [x] Aynı job'a WASM build, web lint ve web production build kapılarını ekle.
   - [x] Yerel/CI drift'ini önlemek için `scripts/verify.ps1` entrypoint'ini kullan.
-  - [ ] İlk remote GitHub Actions run'ının başarıyla tamamlandığını doğrula.
+  - [x] Remote GitHub Actions run'ının başarıyla tamamlandığını doğrula. _[`db24ee3` için CI run #31282475618](https://github.com/Stapimaz/NetLang/actions/runs/31282475618), 2026-08-09 tarihinde 4m56s içinde başarıyla tamamlandı._
 - [x] Build/test'in çalışma ağacında yeni non-ignored değişiklik üretmediğini önce/sonra Git snapshot'ıyla doğrula.
 - [x] Production dependency audit bulgularını gider ve `npm audit --omit=dev` kapısını sıfır bilinen vulnerability ile doğrula:
   - 2026-08-09 baseline: 1 high, 3 moderate, 1 low.
@@ -532,7 +531,7 @@ pwsh -NoProfile -File scripts/verify.ps1
 
 **Final yerel kapı kanıtı (2026-08-09):** Dependency kurulumu atlanmadan `scripts/verify.ps1` çalıştı: `npm ci` 50 paketi temiz kurdu ve audit etti; 69 Rust/CLI testi, fmt, Clippy `-D warnings`, release build, WASM release package, ikinci production audit (`0 vulnerabilities`), Web lint ve production build geçti. CLI example integration matrisi dört geçerli repository example'ını check+compile eder; intentionally-invalid `test_amp.nl` için `NL-E003`/exit 1 bekler. ERC `NL-E001..009`, parser/semantic invalid corpus ve 100x SPICE + 50x diagnostic determinism tekrarları testlerle korunur. Doğrulama scripti öncesi/sonrası worktree snapshot'ını karşılaştırarak yeni artifact oluşmadığını da denetledi; bu final doküman commit'i sonrası status ayrıca temiz doğrulanacaktır.
 
-**Faz 2.5 ancak yukarıdaki final matrisinin tamamı geçtiğinde kapanır.**
+**Faz 2.5 kapanış kanıtı (2026-08-09):** Yerel final matrisinin tamamı ve aynı canonical `scripts/verify.ps1` akışını kullanan remote GitHub Actions run'ı geçti. Milestone kapandı; Faz 3 ön koşulu sağlandı.
 
 ---
 
@@ -763,6 +762,6 @@ Her geliştirme oturumunda:
 
 ### Aktif sıradaki ilk iş
 
-**2.5.5 — Tek compile pipeline ve CLI sözleşmesi.**
+**3.1 — Simulation domain modeli ve runner.**
 
-Yerel Faz 2.5 final matrisi tamamen geçti; 2.5.3–2.5.7 kapalıdır ve repo talimatları güncel root `AGENTS.md` dosyasına taşınmıştır. Milestone'u bütünüyle kapatmadan önce kalan tek dış koşul private repository'deki remote GitHub Actions run sonucunun doğrulanmasıdır. Bu kanıt gelmeden Faz 3 implementasyonuna geçilmeyecek; Faz 3 başlangıç audit'i ve ilk uygulama sırası hazırdır.
+Faz 2.5 yerel ve remote kalite kanıtlarıyla tamamen kapandı. Faz 3 başlangıç audit'i günceldir; ilk uygulama paketi typed `SimulationRequest`/`SimulationResult`, analysis enum'u ve `simulate`/`test` tarafından paylaşılacak tek runner sınırıdır.
