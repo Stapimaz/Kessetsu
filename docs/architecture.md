@@ -56,7 +56,7 @@ Simulator executable discovery, dağıtılan binary konumlarını ve sistem fall
 | `diode` | Yarı-iletken | p1, p2 | D_ |
 | `transistor` | BJT (NPN/PNP) | c, b, e | Q_ |
 | `mosfet` | MOSFET (NMOS/PMOS) | d, g, s | M_ |
-| `opamp` | Op-Amp | in_p, in_n, out, vcc, vee | X_ |
+| `opamp` | Op-Amp | in_p, in_n, vcc, vee, out | X_ |
 | `source` | Voltaj Kaynağı | plus, minus | V_ |
 | `current_source` | Akım Kaynağı | plus, minus | I_ |
 
@@ -83,7 +83,7 @@ AST ile SPICE/Layout/ERC arasında **typed bir ara katman** bulunur. Bu katmanı
 1. **Tip güvenliği:** `value: String` yerine typed parameters (resistance, capacitance, waveform, vb.)
 2. **Statik doğrulama:** IR üzerinde SPICE çalıştırmadan kontrol yapılabilir
 3. **Backend bağımsızlığı:** Syntax değişse bile backend'ler etkilenmez
-4. **Agent erişimi:** AI ajanları doğrudan IR JSON'ı üretebilir/okuyabilir
+4. **Agent erişimi:** AI ajanları compile raporundaki typed IR ve diagnostics alanlarını okuyabilir; backend input'u olarak raw IR kabul edilmez
 
 **Kural:** Hiçbir backend, IR'yi atlayarak doğrudan AST üzerinden çalışmamalıdır.
 
@@ -107,8 +107,8 @@ SPICE motoru için düğüm isimleri rastgele tam sayılar DEĞİLDİR. Okunabil
 
 ## 5. SPICE Motoru ve Standart Modeller
 
-Ngspice entegrasyonu gömülü çalışır.
-- Eğer IR içerisinde `2N3904`, `1N4148`, `IRF540` gibi bilinen bir parça kullanılırsa, SPICE jeneratörü bu parçanın `.model` veya `.subckt` tanımını otomatik olarak netlist'in sonuna ekler. Kullanıcıların `.model` yazmasına gerek yoktur.
+Ngspice entegrasyonu Windows'ta repository/release sidecar ile, otomasyon ve diğer paketleme ortamlarında `NETLANG_NGSPICE` override'ı ile çalışır.
+- Eğer IR içerisinde `2N3904`, `1N4148`, `IRF540` gibi bilinen bir parça kullanılırsa, SPICE jeneratörü builtin `.model` tanımını otomatik olarak netlist'in sonuna ekler. Kullanıcıların `.model` yazmasına gerek yoktur.
 - **Model provenance:** Her modelin kaynağı (builtin/user-defined) ve tipi (NPN/PNP/NMOS/PMOS/D) IR'de belirtilir.
 - **Model kalitesi:** Dahili modeller "generic" kalitededir. İleri sürümlerde üretici-spesifik modeller ve kalite seviyeleri eklenecektir.
 - **Canonical sayılar:** Generated SPICE sayıları tek formatter kullanır. Orta büyüklükler trimlenmiş decimal, çok küçük/büyük değerler normalize edilmiş lowercase exponent ile yazılır; `-0` ve binary float artıkları output'a taşınmaz.
@@ -136,25 +136,34 @@ User-defined model declaration/include syntax'ı henüz tanımlı değildir. Bu 
 | NL-E002 | Error | Undefined component reference |
 | NL-E003 | Error | Floating pin (bağlantısız zorunlu pin) |
 | NL-E004 | Error | Direct short circuit (source plus=minus) |
+| NL-E005 | Error | Component türünde bulunmayan pin referansı |
+| NL-E006 | Error | Component/net namespace çakışması |
+| NL-E007 | Error | Aynı fiziksel net için birden fazla user-name |
+| NL-E008 | Error | Birden fazla bağımsız ground adayı |
+| NL-E009 | Error | Duplicate net declaration |
 
-### Simülasyon Tabanlı Kontroller (İleri sürüm)
+### Runtime Diagnostic'leri
 | Kod | Severity | Açıklama |
 |---|---|---|
-| NL-S001 | Warning | Voltaj limit aşımı |
-| NL-S002 | Warning | Akım limit aşımı |
-| NL-S003 | Error | DC operating point bulunamadı |
-| NL-S004 | Warning | Convergence problemi |
+| NL-S001 | Error | Simulator executable başlatılamadı |
+| NL-S002 | Error | Simulator process/output başarısızlığı |
+
+Faz 3'te convergence, ölçüm ve assertion durumları daha ayrıntılı ayrı diagnostic/result kodlarına bölünecektir.
 
 ### Çıktı Formatı
-- **İnsan modu (varsayılan):** Renkli, span bilgili, suggestion içeren mesajlar
+- **İnsan modu (varsayılan):** Stage/code/message içeren stderr diagnostic'leri; assertion PASS/FAIL satırlarında terminal rengi
 - **JSON modu (`--format json`):** Makine-okunabilir structured diagnostics
   ```json
   {
     "code": "NL-E003",
     "severity": "error",
+    "stage": "erc",
     "message": "Floating Pin: R1.p1 is not connected to anything.",
     "component": "R1",
-    "pin": "p1"
+    "pin": "p1",
+    "field": null,
+    "line": null,
+    "column": null
   }
   ```
 
@@ -164,11 +173,8 @@ User-defined model declaration/include syntax'ı henüz tanımlı değildir. Bu 
 
 Şematiği çizerken parçaları x/y koordinatlarına yerleştirmek için **chain-based vertical layout** yaklaşımı kullanılır. DFS, layout pipeline'ında traversal ve başlangıç sıralaması için kullanılan heuristic'lerden biridir.
 
-- **KURAL:** Algoritma "Yön Farkındalığına (Orientation Awareness)" sahiptir.
-  - GND pinlerine doğru olan yollar her zaman AŞAĞI yönlendirilir.
-  - Çıkış (Output) pinleri SAĞA, Giriş (Input) pinleri SOLA bakmalıdır.
-  - Sinyal akışında `is_signal_pin` fonksiyonu kullanılarak yollar önceliklendirilir. (Örneğin BJT'de `b` pini sinyal girişi sayılır, Akım `c`'den `e`'ye akar.)
-- **Connectivity doğrulaması:** Layout çıktısı, orijinal netlist ile bağlantısal eşdeğerlik açısından doğrulanmalıdır (round-trip check).
+- **Mevcut heuristic:** Voltage-source rail'leri, GND yönü, through-pin ve `is_signal_pin` bilgisi chain sıralamasını ve rotation seçimini etkiler. BJT/MOSFET gibi aktif elemanlar için ayrı yerleşim davranışı vardır; bütün topolojilerde ideal yön garanti edilmez.
+- **Henüz açık kabul kapısı:** Layout çıktısının canonical graph ile bağlantısal eşdeğerliğini otomatik kanıtlayan round-trip check mevcut değildir.
 - **Bilinen sınırlamalar:** Döngüsel topolojiler (Wheatstone bridge, feedback loop), çok yüksek fan-out ve bidirectional sinyaller için layout kalitesi düşebilir. Bu topolojiler için gelişmiş algoritmalar (Sugiyama/layered) ileride eklenecektir.
 
 ## 8. NetLang Vizyonu ve Ekosistem Manifestosu
@@ -185,19 +191,19 @@ Bu ekosistem üç sütun üzerinde yükselir:
 Projenin kalbi. Parser, IR, ERC, SPICE jeneratör ve layout motoru tek bir Rust crate içinde yaşar. Hem kütüphane (`lib`), hem CLI, hem WASM olarak derlenir. Deterministik davranış sağlar — aynı devre, her platformda aynı sonucu üretir.
 
 ### 2. NetLang CLI (Yapay Zeka ve Geliştiriciler İçin Motor)
-Hiçbir dış kurulum veya internet bağlantısı gerektirmeyen, içine endüstri standardı simülasyon fizik motoru (Ngspice) gömülmüş tek parça bir Rust derleyicisidir.
+Derleme/ERC/SPICE üretimi için internet gerektirmeyen Rust CLI'dır. Repository şu anda Windows x86-64 için Ngspice sidecar taşır; diğer platformlarda paketleme tamamlanmamıştır ve açık executable override'ı gerekir.
 
-- **Dağıtım:** İndirilebilir tek binary (`netlang`), `cargo install`, ileride VS Code extension.
-- **Kullanım:** AI ajanları ve donanım mühendisleri devreyi derlemek, test etmek ve otomatik JSON formatında hataları ayıklamak için kullanır. CLI komutları, exit kodları ve JSON yapısı hakkında detaylı bilgi için lütfen [CLI Reference (docs/cli_reference.md)](file:///c:/Users/stapi/OneDrive/Belgeler/NetLang/docs/cli_reference.md) dosyasına bakınız.
+- **Mevcut dağıtım:** Source build + Windows sidecar. Tek-binary release, `cargo install` ve VS Code extension gelecek dağıtım hedefleridir.
+- **Kullanım:** AI ajanları ve donanım mühendisleri devreyi derlemek, test etmek ve otomatik JSON formatında hataları ayıklamak için kullanır. Ayrıntılar [CLI Reference](cli_reference.md) içindedir.
 - **TDD Döngüsü:** Ajan, assertion'ları yazılım testleri gibi kullanarak devreyi iteratif olarak düzeltebilir (Self-Healing). Her iterasyonda structured feedback alır.
 
 ### 3. NetLang Web Hub (İnsanlar İçin Vitrin ve Oyun Alanı)
 Kullanıcıların kayıtsız, indirmesiz kullanabildiği; Rust çekirdeğini WASM ile tarayıcıda çalıştıran arayüz.
 
-- **Playground:** Hızlı prototip testi. Kod yaz → anında ERC + şema + simülasyon.
-- **Paylaşım:** Devre kodu URL'ye gömülür. Linke tıklayan herkes devreyi kendi tarayıcısında çalıştırabilir.
-- **API Vitrini:** Motorun hızını ve doğruluğunu gösteren canlı demo.
+- **Mevcut playground:** Kod yaz → WASM compile/ERC + SPICE metni + deneysel SVG/KiCad çıktısı.
+- **Planlanan simülasyon:** Browser içinde güvenilir simulator runtime ve structured plot/result modeli henüz uygulanmadı.
+- **Planlanan paylaşım:** URL-embedded circuit ve kalıcı paylaşım akışı ürün hedefidir; mevcut Web arayüzünde yoktur.
 
 **Güvenlik notu:** Web playground'da kullanıcı girdisi doğrudan SPICE string olarak netlist'e eklenmez. Tüm girdiler IR üzerinden typed olarak işlenir. Raw SPICE erişimi (ileride `unsafe spice_raw {}`) web sürümünde varsayılan olarak kapalıdır.
 
-**ÖZETLE:** NetLang bir "çizim programı" değil, bir devre derleyicisi ve doğrulama altyapısıdır. Yapay zeka ajanları için terminalde otonom çalışan bir simülasyon/test motoru; insanlar içinse donanımı URL'ler üzerinden paylaşılabilir ve saniyeler içinde test edilebilir kılan evrensel bir web oyun alanıdır.
+**ÖZETLE:** NetLang bir "çizim programı" değil, bir devre derleyicisi ve doğrulama altyapısıdır. Bugünkü ürün CLI'da agent-oriented compile/test geri bildirimi ve Web'de WASM compile/şema playground'u sunar. Güvenilir cross-platform simulator, profesyonel EDA round-trip ve URL tabanlı paylaşım tamamlanması gereken ürün hedefleridir.

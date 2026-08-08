@@ -12,9 +12,11 @@ değildir.
 - Resmî dokümantasyon: <https://ngspice.sourceforge.io/docs.html>
 - Resmî geliştirme ve lisans özeti: <https://ngspice.sourceforge.io/devel.html>
 
-Sürüm, `bin/ngspice_con.exe --version` çıktısıyla doğrulanır. Mevcut NetLang
-runner yalnız Windows sidecar'ını keşfeder; Linux/macOS paketleme veya sistem
-Ngspice discovery henüz desteklenmez.
+Sürüm, `bin/ngspice_con.exe --version` çıktısıyla doğrulanır. NetLang önce
+`NETLANG_NGSPICE` ile verilen açık executable yolunu, ardından repository/release
+Windows sidecar konumlarını ve son olarak `ngspice_con.exe` sistem fallback'ini
+dener. Linux/macOS paketleme ve standart `ngspice` executable discovery henüz
+tamamlanmamıştır.
 
 ## Takip edilen runtime profili
 

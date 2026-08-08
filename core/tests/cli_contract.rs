@@ -4,6 +4,7 @@ use common::{TestWorkspace, read_fixture};
 use netlang_core::compiler::{COMPILE_SCHEMA_VERSION, CompileOptions, compile_source};
 use serde_json::Value;
 use std::fs;
+use std::path::Path;
 
 fn path_argument(path: &std::path::Path) -> String {
     path.to_string_lossy().into_owned()
@@ -294,4 +295,49 @@ fn failed_assertion_has_structured_result_and_exit_code_four() {
     assert_eq!(value["status"], "test_failed");
     assert_eq!(value["tests"][0]["pass"], false);
     assert_eq!(value["tests"][0]["actual"], 0.2);
+}
+
+#[test]
+fn every_repository_example_has_an_explicit_cli_check_and_compile_outcome() {
+    let workspace = TestWorkspace::new("example-matrix");
+    let examples = Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples");
+
+    for name in [
+        "demo_circuit.nl",
+        "test_features.nl",
+        "test_nc.nl",
+        "wheatstone.nl",
+    ] {
+        let source = examples.join(name);
+        let source_arg = path_argument(&source);
+        let check = workspace.run_cli(&["check", &source_arg, "--format", "json"]);
+        assert_eq!(check.status.code(), Some(0), "check failed for {name}");
+
+        let output_path = workspace.path().join(name).with_extension("spice");
+        let output_arg = path_argument(&output_path);
+        let compile = workspace.run_cli(&[
+            "compile",
+            &source_arg,
+            "--output",
+            &output_arg,
+            "--format",
+            "json",
+        ]);
+        assert_eq!(compile.status.code(), Some(0), "compile failed for {name}");
+        assert!(output_path.is_file(), "missing SPICE output for {name}");
+    }
+
+    let intentionally_invalid = examples.join("test_amp.nl");
+    let invalid_arg = path_argument(&intentionally_invalid);
+    let output = workspace.run_cli(&["check", &invalid_arg, "--format", "json"]);
+    assert_eq!(output.status.code(), Some(1));
+    let value: Value =
+        serde_json::from_slice(&output.stdout).expect("invalid example should return JSON");
+    assert!(
+        value["diagnostics"]
+            .as_array()
+            .expect("diagnostics should be an array")
+            .iter()
+            .any(|diagnostic| diagnostic["code"] == "NL-E003")
+    );
 }

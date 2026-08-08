@@ -108,62 +108,53 @@ Sadece kodun bulunması tamamlanma kanıtı değildir.
 
 ---
 
-## 4. Mevcut Durum — 2026-08-08 Repo Denetimi
+## 4. Başlangıç Denetimi ve Güncel Durum
+
+> 2026-08-08 başlangıç denetiminde bulunan borçlar Faz 2.5 görevlerinin kaynağıdır. Aşağıdaki durum 2026-08-09 itibarıyla günceldir; tarihsel test sayıları ve kapanmış riskler ilgili görevlerin kanıt notlarında korunur.
 
 ### 4.1 Doğrulanmış çalışan parçalar
 
 - [x] PEG parser ve AST üretimi mevcut.
 - [x] Module/use flattening temel örnekte çalışıyor.
-- [x] Circuit IR katmanı mevcut ve backend'lerin ana girdisi olarak kullanılıyor.
+- [x] Versioned `compile_source -> CompileReport` hattı mevcut; CLI ve WASM aynı hattı kullanıyor.
 - [x] Resistor, capacitor, inductor, diode, BJT, MOSFET, op-amp, voltage source ve current source türleri tanımlı.
 - [x] User-named net syntax'ı parse ediliyor ve temel örnekte SPICE node adı olarak kullanılıyor.
 - [x] Typed DC/sine source syntax'ı temel örnekte parse ediliyor.
 - [x] Assertion syntax'ı IR'ye ve `.meas` komutlarına taşınıyor.
-- [x] ERC için `NL-E001`–`NL-E004` diagnostic'leri mevcut.
+- [x] ERC için `NL-E001`–`NL-E009`, parser için `NL-P001`, semantic conversion için `NL-Cxxx` diagnostic alanları mevcut.
 - [x] `check`, `compile`, `simulate`, `test` ve stub `render` subcommand'leri mevcut.
 - [x] Ngspice sidecar executable repo ortamında çalışıyor.
-- [x] `examples/test_features.nl`, gerçek Ngspice çalıştırmasında iki assertion'ı PASS olarak raporluyor.
-- [x] Web production build mevcut yerel WASM paketiyle başarıyla tamamlanıyor.
+- [x] CLI success/simulation failure/assertion failure yolları process-boundary integration testleriyle exit 0/3/4 üretiyor.
+- [x] Web default source ortak example'dan geliyor; SPICE, layout ve KiCad backend smoke testi var.
 
 ### 4.2 Denetimde doğrulanan kalite durumu
 
 | Kontrol | Sonuç | Açıklama |
 |---|---|---|
-| `cargo test --all-targets` | Geçiyor | 35 test var; parser/IR/graph/ERC, gerçek örnek SPICE golden'ları, determinism stress ve temel CLI contract mevcut |
+| `cargo test --all-targets` | Geçiyor | 69 test; parser/IR/compiler/graph/ERC/SPICE/CLI/runtime contract kapsamı mevcut |
 | `cargo fmt -- --check` | Geçiyor | Rust kaynakları canonical `rustfmt` biçiminde |
 | `cargo clippy --all-targets -- -D warnings` | Geçiyor | Mevcut target'larda warning yok |
 | `npm run build` | Geçiyor | WASM paketini sıfırdan üretip web production build'i tamamlıyor |
 | `npm run lint` | Geçiyor | React hook dependency uyarısı giderildi; warning yok |
-| Örnek ERC matrisi | Beklendiği gibi | Geçerli örnekler geçiyor; intentionally-invalid `test_amp.nl` exit 1 veriyor |
+| Örnek CLI matrisi | Geçiyor | Dört geçerli example check+compile oluyor; intentionally-invalid `test_amp.nl`, `NL-E003`/exit 1 veriyor |
 
-### 4.3 Bilinen kritik açıklar
+### 4.3 Kalan kritik açıklar
 
-- Faz 1 golden/regression testleri yazılmamış.
-- `parse_si_value` ve IR conversion bazı hataları `0.0` ile sessizce kabul ediyor.
-- Current source, IR içinde voltage isimli alanla temsil ediliyor.
-- Bilinmeyen/eksik model geçersiz veya boş SPICE üretebiliyor.
-- Ground seçimi bir `HashMap` içinde bulunan ilk `.minus` pinine bağlı olabiliyor.
-- Graph, eksik net için `9999` sentinel kullanıyor.
-- Standard model çıktı sırası `HashSet` iteration'ına bağlı.
-- Invalid pin ve multiple user-net alias için yeterli semantic diagnostic yok.
-- CLI ve WASM compile pipeline'ı tekrarlıyor.
-- CLI JSON/exit-code sözleşmesi dokümanla tam uyumlu değil.
-- `render` error JSON üretirken exit code 0 döndürüyor.
-- `simulate --format json` simulator başarısını tam doğrulamadan success raporlayabiliyor.
-- `--format`, subcommand sonrasında kullanılamıyor.
-- Web default kodu güncel grammar ile uyumsuz; `battery` ve eski `connect` syntax'ı kullanıyor.
-- Layout, KiCad ve web renderer içinde `Battery` kalıntıları var.
-- Native Ngspice discovery yalnız Windows sidecar yolunu destekliyor; Linux/macOS ve sistem kurulumu henüz kapsanmıyor.
+- Remote GitHub Actions sonucu private-repo erişimi nedeniyle bu oturumdan doğrulanamadı.
+- Dağıtılan Ngspice runtime yalnız Windows x86-64 sidecar'dır; Linux/macOS paketleme tamamlanmadı. `NETLANG_NGSPICE` açık executable override'ı mevcuttur.
 - Ngspice runner sabit `netlang_temp.spice` dosyasını kullanıyor; paralel çalıştırmaya uygun değil.
 - Faz 3 sonuç modeli yalnızca `.meas` map'i ve string error listesi içeriyor; structured OP/transient/AC verisi yok.
+- Assertion measurement eksikliği halen `NaN/Not Found` prototip davranışına dayanıyor; Faz 3'te typed ERROR sonucuna dönüşmelidir.
+- Layout/KiCad çıktısı deneyseldir; connectivity round-trip, collision ve gerçek KiCad açılabilirlik fixture'ları tamamlanmadı.
+- Web runtime için otomatik gerçek-browser smoke testi yok; WASM build + TypeScript/Vite build ve Rust all-output smoke testi mevcut.
 
 ### 4.4 Faz yorumu
 
 - Faz 0: Tarihsel MVP tamamlandı.
-- Faz 1: Ana refactor kodu büyük ölçüde mevcut; test ve gerçek fail-closed kabul kriterleri tamamlanmadı.
-- Faz 2: Dil özellikleri uygulanmış durumda; determinism, semantic validation ve regression kanıtları eksik.
+- Faz 1: Golden/regression ve fail-closed kabul kriterleri Faz 2.5 içinde kapatıldı.
+- Faz 2: Typed IR, determinism, semantic validation ve regression borçları Faz 2.5 içinde kapatıldı.
 - Faz 3: Temel `.meas` assertion akışı **PROTOTİP**; ayrıntılı Faz 3 kabul kriterleri tamamlanmadı.
-- Aktif çalışma: Önce Faz 1–2 borçlarını kapatan Faz 2.5 tamamlanacak.
+- Aktif çalışma: Faz 2.5 final doküman/kalite kapısı ve remote CI kanıtı tamamlanacak; ardından Faz 3 runner/structured result çalışması başlayacak.
 
 ---
 
@@ -203,8 +194,8 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 - [x] Faz 0–3 mevcut durumunu repo denetimi kanıtlarıyla kaydet.
 - [x] Görev durumlarının anlamını ve milestone kapısını tanımla.
 - [x] Faz 3 kapsamından datasheet-limit ve confidence zorunluluklarını ayır.
-- [ ] `docs/architecture.md` içindeki mevcut-durum iddialarını bu roadmap ile eşitle. _(2.5.7'de)_
-- [ ] `docs/cli_reference.md` sözleşmesini gerçek CLI davranışıyla eşitle. _(2.5.7'de)_
+- [x] `docs/architecture.md` içindeki mevcut-durum iddialarını bu roadmap ile eşitle. _(2.5.7'de tamamlandı.)_
+- [x] `docs/cli_reference.md` sözleşmesini gerçek CLI davranışıyla eşitle. _(2.5.7'de tamamlandı.)_
 
 **Kabul kriteri:** Roadmap içinde tamamlandı görünen fakat alt görevleri boş olan faz bulunmuyor.
 
@@ -363,7 +354,7 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 
 **Typed quantity paketi kanıtı (2026-08-09):** `Quantity + SIUnit`, ayrı `VoltageSource`/`CurrentSource` parametreleri ve `SourceValue::{Dc, Waveform}` IR sözleşmesine eklendi. SINE/PULSE değer, frekans ve zaman boyutları strict doğrulanıyor; invalid/missing değerler IR'ye ulaşmıyor. `ir_characterization` içindeki 12 test dahil toplam 40 Rust testi, mevcut SPICE golden corpus'u ve kök `scripts/verify.ps1` Rust release + WASM + Web kapılarıyla birlikte geçti. Büyük/küçük harf BJT polarity parser sınırında normalize edildi; `examples/test_amp.nl` artık boş model token'ı yerine default 2N3904 modeline çözülür.
 
-**Model/diagnostic paketi kanıtı (2026-08-09):** `SemanticDiagnostic` için `NL-C001..NL-C007` alanı oluşturuldu. Builtin default model, unsupported model, model-kind/polarity mismatch, modelsiz op-amp, explicit module-port parametresi ve serializable diagnostic davranışları `ir_characterization` ile; CLI semantic exit 1 ve saf JSON diagnostic sözleşmesi `cli_contract` ile korunuyor. WASM parse ve semantic hataları ayrı alanlarda döndürüyor. Toplam 45 Rust testi ile Rust fmt/Clippy/release, SPICE golden, WASM ve Web lint/build kapılarının tamamı `scripts/verify.ps1` üzerinden geçti.
+**Model/diagnostic paketi kanıtı (2026-08-09):** `SemanticDiagnostic` için `NL-C001..NL-C007` alanı oluşturuldu. Builtin default model, unsupported model, model-kind/polarity mismatch, modelsiz op-amp, explicit module-port parametresi ve serializable diagnostic davranışları `ir_characterization` ile; CLI semantic exit 1 ve saf JSON diagnostic sözleşmesi `cli_contract` ile korunuyor. Bu dilimdeki legacy WASM parse/semantic alanları daha sonra 2.5.5 ortak `diagnostics` sözleşmesiyle değiştirildi. Toplam 45 Rust testi ile Rust fmt/Clippy/release, SPICE golden, WASM ve Web lint/build kapılarının tamamı `scripts/verify.ps1` üzerinden geçti.
 
 **Kabul kriterleri:**
 
@@ -487,18 +478,18 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 
 ### 2.5.7 — Doküman ve final kalite kapısı
 
-- [ ] Kök `README.md` oluştur:
+- [x] Kök `README.md` oluştur:
   - Proje amacı
   - Hızlı başlangıç
   - Core/WASM/Web build
   - Örnek komutlar
-- [ ] `docs/architecture.md` dosyasını gerçek code path ve sınırlarla eşitle.
-- [ ] `docs/cli_reference.md` içine `test`, exit code 4, JSON schema ve option yerleşimini ekle.
-- [ ] `.agents/AGENTS.md` kurallarını güncel test/build kapısıyla eşitle.
-- [ ] `webapp/README.md` Vite template metni yerine gerçek Web Hub dokümanı yap.
+- [x] `docs/architecture.md` dosyasını gerçek code path ve sınırlarla eşitle.
+- [x] `docs/cli_reference.md` içine `test`, exit code 4, JSON schema ve option yerleşimini ekle.
+- [ ] `.agents/AGENTS.md` kurallarını güncel test/build kapısıyla eşitle. _(Dosya bu oturumda salt-okunur korumalı alanda; patch izin hatası verdi. Özellikle legacy `battery` kabulü, eski `get_comp_def` adı ve yalnız `cargo test` kapısı stale.)_
+- [x] `webapp/README.md` Vite template metni yerine gerçek Web Hub dokümanı yap.
 - [x] Ngspice runtime sürüm/lisans/dağıtım belgesini ekle: `core/tools/ngspice/README.md`.
-- [ ] Roadmap Faz 2.5 checkbox'larını yalnızca kanıtlanan sonuçlara göre kapat.
-- [ ] Faz 3 başlangıç denetimi yap ve audit notu ekle.
+- [x] Roadmap Faz 2.5 checkbox'larını yalnızca kanıtlanan sonuçlara göre kapat.
+- [x] Faz 3 başlangıç denetimi yap ve audit notu ekle.
 
 #### Zorunlu final komutları
 
@@ -528,16 +519,18 @@ pwsh -NoProfile -File scripts/verify.ps1
 
 - [x] Rust fmt geçiyor.
 - [x] Rust Clippy `-D warnings` ile geçiyor.
-- [ ] Tüm Rust ve CLI testleri geçiyor.
+- [x] Tüm Rust ve CLI testleri geçiyor.
 - [x] Release build geçiyor.
 - [x] WASM build geçiyor.
 - [x] Web lint warning vermeden geçiyor.
 - [x] Web production build geçiyor.
 - [x] Production npm audit sıfır bilinen vulnerability ile geçiyor.
-- [ ] Tüm geçerli örnekler check/compile matrisinden geçiyor.
-- [ ] Invalid corpus beklenen diagnostic kodlarını veriyor.
-- [ ] Determinism stress testi geçiyor.
-- [ ] Doğrulama sonrası Git çalışma ağacı temiz.
+- [x] Tüm geçerli örnekler check/compile matrisinden geçiyor.
+- [x] Invalid corpus beklenen diagnostic kodlarını veriyor.
+- [x] Determinism stress testi geçiyor.
+- [x] Doğrulama sonrası Git çalışma ağacı temiz.
+
+**Final yerel kapı kanıtı (2026-08-09):** Dependency kurulumu atlanmadan `scripts/verify.ps1` çalıştı: `npm ci` 50 paketi temiz kurdu ve audit etti; 69 Rust/CLI testi, fmt, Clippy `-D warnings`, release build, WASM release package, ikinci production audit (`0 vulnerabilities`), Web lint ve production build geçti. CLI example integration matrisi dört geçerli repository example'ını check+compile eder; intentionally-invalid `test_amp.nl` için `NL-E003`/exit 1 bekler. ERC `NL-E001..009`, parser/semantic invalid corpus ve 100x SPICE + 50x diagnostic determinism tekrarları testlerle korunur. Doğrulama scripti öncesi/sonrası worktree snapshot'ını karşılaştırarak yeni artifact oluşmadığını da denetledi; bu final doküman commit'i sonrası status ayrıca temiz doğrulanacaktır.
 
 **Faz 2.5 ancak yukarıdaki final matrisinin tamamı geçtiğinde kapanır.**
 
@@ -557,6 +550,20 @@ Faz 2.5 final kabul matrisinin tamamı geçmelidir.
 - [x] `netlang test` human/JSON temel sonuç üretiyor. _(PROTOTİP)_
 
 Bu maddeler Faz 3'ün tamamlandığı anlamına gelmez; aşağıdaki structured runtime bunların yerini alacaktır.
+
+### Faz 3 başlangıç audit'i — 2026-08-09
+
+Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak simulation domain modeli halen prototiptir. Uygulamaya başlamadan önce geçerli code path gerçekleri:
+
+1. `simulate`, SPICE dosyasını doğrudan `Command::output()` ile çalıştırırken `test`, `sim_result::run_simulation` yolunu kullanıyor; tek runner yok.
+2. `run_simulation`, processler arasında paylaşılan sabit `netlang_temp.spice` yolunu kullanıyor; önce benzersiz run directory ve cleanup/artifact politikası gerekir.
+3. `SimResult`, `HashMap<String, f64> + Vec<String>` taşır; process status, raw log, warning, analysis türü ve typed dataset domain alanları yoktur.
+4. `.meas` parsing stdout satır bölme heuristic'idir; locale, exponent, duplicate measurement ve malformed output fixture'ları yoktur.
+5. Missing measurement internal olarak `NaN`, CLI JSON'da `actual: null` olur; PASS/FAIL/ERROR/SKIPPED ayrımı yoktur.
+6. Analysis komutları IR'de raw `cmd/args` string'idir; unsupported simulator komutu compile aşamasında doğrulanmaz.
+7. `NETLANG_NGSPICE` override'ı ve exit 0/3/4 contract testleri vardır; executable version/capability check ve timeout/cancellation yoktur.
+
+**Uygulama sırası kararı:** 3.1'de önce typed `SimulationRequest/Result`, analysis enum'u ve tek runner; ardından unique temp lifecycle + timeout. 3.2 parser/fixture katmanı bu domain üzerine kurulacak. 3.3 assertion result modeli, raw `f64/NaN` davranışını kullanan son consumer olarak daha sonra taşınacak. Mevcut stdout parser genişletilerek kalıcı API yapılmamalıdır.
 
 ### 3.1 — Simulation domain modeli ve runner
 
@@ -621,8 +628,8 @@ Bu maddeler Faz 3'ün tamamlandığı anlamına gelmez; aşağıdaki structured 
 - [ ] `netlang simulate` structured analysis sonucu döndürür.
 - [ ] `netlang test` structured assertion sonucu döndürür.
 - [ ] Human ve JSON modları aynı domain sonucunu render eder.
-- [ ] Simulation failure exit 3, assertion failure exit 4 verir.
-- [ ] JSON stdout parse edilebilir ve logsuzdur.
+- [x] Simulation failure exit 3, assertion failure exit 4 verir. _(Faz 2.5 cross-platform fake-process contract testleri.)_
+- [x] JSON stdout parse edilebilir ve logsuzdur. _(Success/failure/assertion CLI integration testleri.)_
 - [ ] Simulation fixture'ları CI'da güvenilir çalışır.
 
 ### Faz 3 kabul kriterleri
@@ -758,4 +765,4 @@ Her geliştirme oturumunda:
 
 **2.5.5 — Tek compile pipeline ve CLI sözleşmesi.**
 
-2.5.1'in yalnız remote GitHub Actions run doğrulaması erişim bekliyor; production dependency audit sıfırlandı ve kök kalite kapısına bağlandı. 2.5.3 typed IR/semantic validation, 2.5.4 graph/ERC sağlamlaştırması, 2.5.5 ortak compile/CLI sözleşmesi ve 2.5.6 Web/WASM senkronizasyonu kapandı. Sıradaki iş 2.5.7 doküman/final kalite kapısıdır: önce repo belgelerindeki implementasyonla çelişen iddiaları ve stale örnekleri denetlemek gerekir.
+Yerel Faz 2.5 final matrisi tamamen geçti; 2.5.3–2.5.6 kapalı ve 2.5.7 doküman/audit işleri tamamlandı. Milestone'u bütünüyle kapatmadan önce iki açık dış koşul var: salt-okunur `.agents/AGENTS.md` dosyasının güncel kurallarla yazılabilmesi ve private repository'de remote GitHub Actions run sonucunun doğrulanması. Bu iki kanıt gelmeden Faz 3 implementasyonuna geçilmeyecek; Faz 3 başlangıç audit'i ve ilk uygulama sırası hazırdır.
