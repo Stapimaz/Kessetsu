@@ -410,13 +410,13 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 
 ### 2.5.5 — Tek compile pipeline ve CLI sözleşmesi
 
-- [ ] Library seviyesinde tek compile entrypoint tasarla:
+- [x] Library seviyesinde tek compile entrypoint tasarla:
 
   ```rust
   compile_source(source, options) -> CompileReport
   ```
 
-- [ ] `CompileReport` içinde aşağıdaki alanları tanımla:
+- [x] `CompileReport` içinde aşağıdaki alanları tanımla:
   - Schema version
   - AST (opsiyonel/debug)
   - Typed IR
@@ -424,11 +424,12 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
   - Net/graph özeti
   - SPICE netlist
   - Layout
-- [ ] Parser → flatten → IR → graph → ERC → backend sırasını tek yerde uygula.
+  - KiCad schematic _(opsiyonel backend çıktısı)_
+- [x] Parser → flatten → IR → graph → ERC → backend sırasını tek yerde uygula.
 - [ ] CLI'nin bu entrypoint'i kullanmasını sağla.
 - [ ] WASM'in aynı entrypoint'i kullanmasını sağla.
-- [ ] Error severity varsa downstream output üretimini tek merkezden engelle.
-- [ ] Warning varsa başarılı output ile birlikte döndür.
+- [x] Error severity varsa downstream output üretimini tek merkezden engelle.
+- [x] Warning varsa başarılı output ile birlikte döndür.
 - [ ] JSON çıktıya `schema_version` ekle.
 - [ ] `--format` seçeneğini gerçek global CLI option yap.
 - [ ] Exit code sözleşmesini kesinleştir:
@@ -441,6 +442,8 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 - [ ] `render` uygulanmadıysa nonzero error ver veya uygulanana kadar CLI yüzeyinden kaldır.
 - [ ] `simulate` JSON success sonucunun process status ve simulator errors ile uyumlu olmasını sağla.
 - [ ] Output file ve overwrite politikasını tanımla.
+
+**Compile API dilimi kanıtı (2026-08-09):** `netlang.compile.v1` şema sürümüne sahip, filesystem/process I/O yapmayan `compile_source(source, options) -> CompileReport` çekirdek entrypoint'i eklendi. Parse (`NL-P001` + satır/sütun), flatten (`NL-C008`), semantic (`NL-Cxxx`) ve ERC (`NL-Exxx`) sonuçları stage/severity bilgili ortak diagnostic tipine normalize ediliyor. IR ve deterministik sıralı graph özeti raporda korunurken error-severity diagnostic backend üretimini merkezi olarak kesiyor; AST, SPICE, layout ve KiCad çıktıları typed options ile seçiliyor. Bu kütüphane sözleşmesi 9 yeni integration testiyle korunuyor. CLI ve WASM migrasyonu ayrı, sıradaki paketlerdir; bu aşamada mevcut dış sözleşmeleri değiştirilmedi.
 
 **Kabul kriterleri:**
 
@@ -749,4 +752,4 @@ Her geliştirme oturumunda:
 
 **2.5.5 — Tek compile pipeline ve CLI sözleşmesi.**
 
-2.5.1'in yalnız remote GitHub Actions run doğrulaması erişim bekliyor; production dependency audit sıfırlandı ve kök kalite kapısına bağlandı. 2.5.3 typed IR/semantic validation ve 2.5.4 deterministik graph/ERC sağlamlaştırması kapandı. Sıradaki iş library seviyesinde versioned `compile_source -> CompileReport` entrypoint'idir; CLI ve WASM bunun üzerine taşınacaktır.
+2.5.1'in yalnız remote GitHub Actions run doğrulaması erişim bekliyor; production dependency audit sıfırlandı ve kök kalite kapısına bağlandı. 2.5.3 typed IR/semantic validation ve 2.5.4 deterministik graph/ERC sağlamlaştırması kapandı. Library seviyesindeki versioned `compile_source -> CompileReport` entrypoint'i tamamlandı. Sıradaki iş WASM'i bu ortak sözleşmenin ince adaptörüne dönüştürmek, ardından CLI'yi aynı entrypoint'e taşımaktır.

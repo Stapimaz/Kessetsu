@@ -20,15 +20,26 @@ NetLang Source (.nl)
   Parser (netlang.pest → pest → AST)
     │
     ▼
-  AST → Circuit IR (typed dönüşüm)
+  Module Flattening → Canonical AST
     │
-    ├──► ERC (structural kontroller)
-    ├──► SPICE Netlist üretimi
-    ├──► Layout (şema yerleşim)
-    └──► JSON Output (API/Agent)
+    ▼
+  Circuit IR (typed dönüşüm + semantic validation)
+    │
+    ▼
+  Canonical Graph → ERC
+    │
+    ├──► SPICE Netlist
+    ├──► Layout → KiCad Schematic
+    └──► CompileReport (CLI/WASM/API)
 ```
 
 **Kritik kural:** Tüm backend'ler (SPICE, Layout, ERC, JSON) yalnızca Circuit IR üzerinden çalışır. AST'den doğrudan çıktı üretilmez.
+
+### Tek Compile Sözleşmesi
+
+Çekirdeğin canonical derleme girişi `compile_source(source, options) -> CompileReport` fonksiyonudur. Bu fonksiyon dosya yazmaz, process başlatmaz ve log basmaz; bu yan etkiler CLI gibi frontend'lere aittir. Rapor şeması `netlang.compile.v1` ile sürümlüdür ve opsiyonlara göre flattened AST, typed IR, deterministik graph özeti, SPICE, layout ve KiCad çıktıları taşıyabilir.
+
+Parse, flatten, semantic ve ERC hataları ortak `Diagnostic` modeline dönüştürülür. Error severity varsa hiçbir backend çıktısı üretilmez; warning ve info sonuçları başarılı çıktılarla birlikte taşınabilir. CLI ve WASM kendi paralel derleme akışlarını kurmamalı, yalnızca bu entrypoint'in adaptörü olmalıdır.
 
 ## 2. Dilin Sözdizimi (Syntax) ve Kurallar
 

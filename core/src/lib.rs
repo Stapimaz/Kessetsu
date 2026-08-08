@@ -3,6 +3,7 @@ extern crate pest;
 extern crate pest_derive;
 
 pub mod ast;
+pub mod compiler;
 pub mod component;
 pub mod erc;
 pub mod graph;
@@ -13,6 +14,7 @@ pub mod parser;
 pub mod sim_result;
 pub mod wasm;
 
+pub use compiler::{CompileOptions, CompileReport, compile_source};
 pub use parser::parse_program;
 
 #[cfg(test)]
