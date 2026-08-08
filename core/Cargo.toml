@@ -2,6 +2,7 @@
 name = "netlang-core"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.97.1"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

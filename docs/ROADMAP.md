@@ -233,13 +233,15 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 - [x] Kök doğrulama script'i ekle:
   - Windows PowerShell: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify.ps1`
   - PowerShell 7: `pwsh -NoProfile -File scripts/verify.ps1`
-- [ ] CI ekle:
-  - Rust fmt
-  - Rust Clippy
-  - Rust test
-  - WASM build
-  - Web lint
-  - Web build
+- [x] Build toolchain sürümlerini sabitle:
+  - Minimum Rust `1.97.1`: `core/Cargo.toml`; CI aynı exact sürümü, rustfmt, Clippy ve `wasm32-unknown-unknown` target'ını kurar.
+  - Node.js `24.15.0`: `.nvmrc`
+  - CI wasm-pack `0.13.1`: `.github/workflows/ci.yml`
+- [ ] CI'yı `origin/main` üzerinde yeşil doğrula:
+  - [x] `.github/workflows/ci.yml` içine Rust fmt, Clippy, test ve release build kapılarını ekle.
+  - [x] Aynı job'a WASM build, web lint ve web production build kapılarını ekle.
+  - [x] Yerel/CI drift'ini önlemek için `scripts/verify.ps1` entrypoint'ini kullan.
+  - [ ] İlk remote GitHub Actions run'ının başarıyla tamamlandığını doğrula.
 - [x] Build/test'in çalışma ağacında yeni non-ignored değişiklik üretmediğini önce/sonra Git snapshot'ıyla doğrula.
 
 **Kabul kriterleri:**
