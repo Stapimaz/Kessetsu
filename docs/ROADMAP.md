@@ -380,20 +380,22 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 - [x] `9999` sentinel yerine `Option<NetId>` veya typed lookup sonucu kullan.
 - [x] Component pin tanımlarını graph/ERC/layout/SPICE için tek merkezde topla.
 - [x] Invalid pin reference diagnostic'i ekle.
-- [ ] Component/net namespace collision politikasını tanımla ve test et.
+- [x] Component/net namespace collision politikasını tanımla ve test et.
 - [x] Graph traversal başlangıçlarını canonical pin sırasıyla üret.
 - [x] Net ID üretimini collection iteration sırasından bağımsız yap.
-- [ ] Ground çözümleme politikasını tamamla:
-  - [ ] Explicit GND/reference net önceliği.
+- [x] Ground çözümleme politikasını tamamla:
+  - [x] Explicit GND/reference net önceliği.
   - [x] Legacy devreler için lexicographic primary source-minus fallback.
-  - [ ] Birden fazla bağımsız olasılıkta ambiguity diagnostic.
-- [ ] User-named net conflict diagnostic'i ekle.
-- [ ] Diagnostic'leri code/component/pin temelinde canonical sırala.
+  - [x] Birden fazla bağımsız olasılıkta ambiguity diagnostic.
+- [x] User-named net conflict diagnostic'i ekle.
+- [x] Diagnostic'leri code/component/pin temelinde canonical sırala.
 - [x] Component emission ve standard model injection için sıralı collection kullan.
 - [ ] SPICE sayı formatını canonical ve platform bağımsız yap.
 - [x] Aynı circuit'i 100 kez tekrarlı derleyen byte-for-byte determinism stress testi ekle.
 
 **Typed net/pin kataloğu kanıtı (2026-08-09):** `NetId` serde-transparent newtype olarak tanımlandı; `get_net` bağlantısız pin için `None` döndürüyor ve `9999` sentinel üretim kodundan kaldırıldı. `component.rs` pin adları, canonical SPICE sırası, layout koordinatları, source prefix'i ve signal/through metadata'sı için graph/ERC/SPICE/layout'un ortak kaynağıdır. `invalid_pin.nl` artık `NL-E005` üretir. Katalog invariant ve sentinel-yokluğu regression testleriyle toplam 47 Rust testi, golden SPICE ve tam Rust/WASM/Web kapısı geçti.
+
+**Namespace/ground paketi kanıtı (2026-08-09):** Component/net collision `NL-E006`, aynı fiziksel net üzerindeki birden fazla user name `NL-E007`, bağımsız ground adayları `NL-E008`, duplicate net declaration `NL-E009` üretir. Explicit `net GND` legacy source-minus fallback'ten önce gelir; explicit referans yoksa fallback lexicographic ve deterministiktir fakat ambiguity artık sessiz değildir. ERC diagnostic'leri `(code, component, pin, message)` ile canonical sıralanır. Dört invalid fixture ve explicit/legacy ground regression testleri dahil toplam 50 Rust testi; golden SPICE, audit=0 ve tam Rust/WASM/Web kapısı geçti.
 
 **Kabul kriterleri:**
 
@@ -743,6 +745,6 @@ Her geliştirme oturumunda:
 
 ### Aktif sıradaki ilk iş
 
-**2.5.4 — Namespace collision, ground ambiguity ve canonical diagnostics.**
+**2.5.4 — Canonical ve platform-bağımsız SPICE sayı formatı.**
 
-2.5.1'in yalnız remote GitHub Actions run doğrulaması erişim bekliyor; production dependency audit sıfırlandı ve kök kalite kapısına bağlandı. 2.5.3 typed IR/semantic validation kapandı. 2.5.4'te typed net/pin kataloğu doğrulandı; sıradaki paket component/net namespace collision, explicit ground/ambiguity ve diagnostic canonical sıralamasıdır.
+2.5.1'in yalnız remote GitHub Actions run doğrulaması erişim bekliyor; production dependency audit sıfırlandı ve kök kalite kapısına bağlandı. 2.5.3 typed IR/semantic validation kapandı. 2.5.4'te typed net/pin kataloğu, namespace, explicit ground/ambiguity ve canonical diagnostic paketleri doğrulandı. Sıradaki son 2.5.4 işi SPICE numeric formatter'dır.

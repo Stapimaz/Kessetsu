@@ -37,6 +37,30 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
         }
     }
 
+    let mut declared_nets = HashSet::new();
+    for net in &circuit.nets {
+        if !declared_nets.insert(net) {
+            errors.push(ErcDiagnostic {
+                code: "NL-E009".to_string(),
+                severity: Severity::Error,
+                message: format!("Duplicate net declaration: {net}"),
+                component: None,
+                pin: Some(net.clone()),
+            });
+        }
+        if declared.contains(net) {
+            errors.push(ErcDiagnostic {
+                code: "NL-E006".to_string(),
+                severity: Severity::Error,
+                message: format!(
+                    "Namespace collision: '{net}' is declared as both a component and a net."
+                ),
+                component: Some(net.clone()),
+                pin: Some(net.clone()),
+            });
+        }
+    }
+
     // 2. Undefined component check (NL-E002)
     for conn in &circuit.connections {
         for p in &conn.pins {
@@ -117,6 +141,48 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
             }
         }
     }
+
+    // 6. A physical net may have at most one user-facing name (NL-E007).
+    for conflict in &graph.net_name_conflicts {
+        errors.push(ErcDiagnostic {
+            code: "NL-E007".to_string(),
+            severity: Severity::Error,
+            message: format!(
+                "Conflicting user net names refer to the same physical net: {}.",
+                conflict.names.join(", ")
+            ),
+            component: None,
+            pin: conflict.names.first().cloned(),
+        });
+    }
+
+    // 7. Ground selection remains deterministic for diagnostics, but ambiguity
+    // is an error until the source explicitly names a single GND net (NL-E008).
+    if graph.ground_candidates.len() > 1 {
+        errors.push(ErcDiagnostic {
+            code: "NL-E008".to_string(),
+            severity: Severity::Error,
+            message: format!(
+                "Ambiguous {} ground candidates: {}. Connect the intended reference to a single explicit 'net GND'.",
+                if graph.ground_is_explicit {
+                    "explicit"
+                } else {
+                    "source-minus"
+                },
+                graph.ground_candidates.join(", ")
+            ),
+            component: None,
+            pin: graph.ground_candidates.first().cloned(),
+        });
+    }
+
+    errors.sort_by(|left, right| {
+        left.code
+            .cmp(&right.code)
+            .then(left.component.cmp(&right.component))
+            .then(left.pin.cmp(&right.pin))
+            .then(left.message.cmp(&right.message))
+    });
 
     errors
 }

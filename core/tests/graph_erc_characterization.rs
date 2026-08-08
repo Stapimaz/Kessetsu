@@ -29,6 +29,10 @@ fn each_existing_erc_code_has_a_regression_fixture() {
         ("invalid/semantic/floating_pin.nl", "NL-E003"),
         ("invalid/semantic/shorted_source.nl", "NL-E004"),
         ("invalid/semantic/invalid_pin.nl", "NL-E005"),
+        ("invalid/semantic/namespace_collision.nl", "NL-E006"),
+        ("invalid/semantic/net_name_conflict.nl", "NL-E007"),
+        ("invalid/semantic/ground_ambiguity.nl", "NL-E008"),
+        ("invalid/semantic/duplicate_net.nl", "NL-E009"),
     ];
 
     for (fixture, expected_code) in cases {
@@ -196,4 +200,51 @@ fn shared_component_catalog_defines_canonical_backend_pin_order() {
         assert_eq!(actual, expected_pins, "unexpected catalog for {kind:?}");
         assert!(definition.spice_prefix.is_some());
     }
+}
+
+#[test]
+fn explicit_gnd_net_takes_priority_over_legacy_source_minus_order() {
+    let source = "net GND\nsource A1 5V\nsource Z1 9V\nresistor R1 1k\nresistor R2 2k\nconnect A1.plus to R1.p1\nconnect A1.minus to R1.p2\nconnect Z1.plus to R2.p1\nconnect Z1.minus, R2.p2 to GND\n";
+    let circuit = circuit_from(source);
+    let graph = NetlistGraph::build(&circuit);
+
+    assert!(graph.ground_is_explicit);
+    assert_eq!(graph.ground_candidates, ["GND"]);
+    assert_eq!(graph.get_net("Z1", "minus"), Some(NetId::GROUND));
+    assert_ne!(graph.get_net("A1", "minus"), Some(NetId::GROUND));
+    assert!(
+        check_rules(&circuit, &graph)
+            .iter()
+            .all(|diagnostic| diagnostic.code != "NL-E008")
+    );
+}
+
+#[test]
+fn multiple_legacy_ground_candidates_are_reported_but_resolved_deterministically() {
+    let circuit = circuit_from(&read_fixture("invalid/semantic/ground_ambiguity.nl"));
+    let graph = NetlistGraph::build(&circuit);
+    let diagnostics = check_rules(&circuit, &graph);
+
+    assert!(!graph.ground_is_explicit);
+    assert_eq!(graph.ground_candidates, ["A1.minus", "Z1.minus"]);
+    assert_eq!(graph.get_net("A1", "minus"), Some(NetId::GROUND));
+    assert!(diagnostics.iter().any(|item| item.code == "NL-E008"));
+}
+
+#[test]
+fn diagnostics_are_sorted_by_code_component_pin_and_message() {
+    let source = "net R1\nnet R1\nresistor R1 1k\nconnect R1.invalid to Missing.p1\n";
+    let diagnostics = diagnostics_for(source);
+    let keys: Vec<_> = diagnostics
+        .iter()
+        .map(|item| {
+            (
+                item.code.as_str(),
+                item.component.as_deref(),
+                item.pin.as_deref(),
+                item.message.as_str(),
+            )
+        })
+        .collect();
+    assert!(keys.windows(2).all(|pair| pair[0] <= pair[1]), "{keys:?}");
 }

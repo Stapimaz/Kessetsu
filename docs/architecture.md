@@ -78,8 +78,10 @@ Component pin adları, canonical backend sırası, SPICE prefix'i ve layout pin 
 
 SPICE motoru için düğüm isimleri rastgele tam sayılar DEĞİLDİR. Okunabilirlik ve determinism için özel bir algoritma kullanılır:
 
-1. `GND` hattına bağlı her şey (örn: `Vin.minus`) her zaman `"0"` düğümündedir.
+1. Explicit `net GND` hattına bağlı her şey her zaman `"0"` düğümündedir ve bu referans legacy fallback'ten önceliklidir. Explicit GND yoksa lexicographic olarak ilk voltage-source `minus` neti geriye uyumluluk fallback'i olur. Birden fazla bağımsız aday deterministic seçilse bile `NL-E008` ambiguity diagnostic üretilir; belirsizlik sessizce başarılı sayılmaz.
 2. **User-named netler birinci sınıf kimliktir.** Kullanıcı `net output` tanımladıysa, o net SPICE'ta `output` olarak görünür.
+   - Component ve net aynı exact identifier'ı paylaşamaz (`NL-E006`).
+   - Aynı fiziksel nete birden fazla user-name bağlanamaz (`NL-E007`).
 3. User ismi olmayan netlerde, kendisine bağlı pinlerin listesi **alfabetik olarak sıralanır** ve en baştaki pinin adı alınır.
 4. Pin adındaki nokta `.` karakteri alt çizgiye `_` çevrilip başına `N_` eklenir.
    - *Örnek:* Bir düğüme `R1.p2`, `C1.p1` ve `Q1.b` bağlıysa. Alfabetik sırada ilk gelen `C1.p1`'dir. Düğüm ismi **`N_C1_p1`** olur. SPICE çıktısında voltaj `v(N_C1_p1)` olarak okunur.

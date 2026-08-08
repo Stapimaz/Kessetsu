@@ -20,6 +20,15 @@ impl std::fmt::Display for NetId {
 pub struct NetlistGraph {
     pub pin_to_net: HashMap<String, NetId>,
     pub net_names: HashMap<NetId, String>,
+    pub ground_candidates: Vec<String>,
+    pub ground_is_explicit: bool,
+    pub net_name_conflicts: Vec<NetNameConflict>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NetNameConflict {
+    pub net: NetId,
+    pub names: Vec<String>,
 }
 
 impl NetlistGraph {
@@ -100,11 +109,55 @@ impl NetlistGraph {
             }
         }
 
-        let ground_net = pin_to_net
+        let mut explicit_ground_by_net: HashMap<NetId, String> = HashMap::new();
+        for ground_name in circuit
+            .nets
             .iter()
-            .filter(|(pin, _)| pin.ends_with(".minus"))
-            .min_by(|(left_pin, _), (right_pin, _)| left_pin.cmp(right_pin))
-            .map(|(_, net)| *net);
+            .filter(|name| name.eq_ignore_ascii_case("gnd"))
+        {
+            if let Some(net) = pin_to_net.get(ground_name) {
+                explicit_ground_by_net
+                    .entry(*net)
+                    .and_modify(|existing| {
+                        if ground_name < existing {
+                            *existing = ground_name.clone();
+                        }
+                    })
+                    .or_insert_with(|| ground_name.clone());
+            }
+        }
+
+        let ground_is_explicit = !explicit_ground_by_net.is_empty();
+        let mut ground_candidates: Vec<(String, NetId)> = if ground_is_explicit {
+            explicit_ground_by_net
+                .into_iter()
+                .map(|(net, name)| (name, net))
+                .collect()
+        } else {
+            let mut source_minus_by_net: HashMap<NetId, String> = HashMap::new();
+            for (pin, net) in &pin_to_net {
+                if pin.ends_with(".minus") {
+                    source_minus_by_net
+                        .entry(*net)
+                        .and_modify(|existing| {
+                            if pin < existing {
+                                *existing = pin.clone();
+                            }
+                        })
+                        .or_insert_with(|| pin.clone());
+                }
+            }
+            source_minus_by_net
+                .into_iter()
+                .map(|(net, pin)| (pin, net))
+                .collect()
+        };
+        ground_candidates.sort_by(|left, right| left.0.cmp(&right.0));
+        let ground_net = ground_candidates.first().map(|(_, net)| *net);
+        let ground_candidate_names = ground_candidates
+            .iter()
+            .map(|(name, _)| name.clone())
+            .collect();
 
         if let Some(gnd) = ground_net {
             for net in pin_to_net.values_mut() {
@@ -119,24 +172,32 @@ impl NetlistGraph {
 
         let mut net_to_pins: HashMap<NetId, Vec<String>> = HashMap::new();
         for (pin, net) in &pin_to_net {
-            if *net != NetId::GROUND {
-                net_to_pins.entry(*net).or_default().push(pin.clone());
-            }
+            net_to_pins.entry(*net).or_default().push(pin.clone());
         }
 
+        let mut net_name_conflicts = Vec::new();
         for (net, mut pins) in net_to_pins {
             pins.sort();
 
-            let mut user_name = None;
-            for p in &pins {
-                if circuit.nets.contains(p) {
-                    user_name = Some(p.clone());
-                    break;
-                }
+            let mut user_names: Vec<_> = pins
+                .iter()
+                .filter(|pin| circuit.nets.contains(*pin))
+                .cloned()
+                .collect();
+            user_names.sort();
+            user_names.dedup();
+            if user_names.len() > 1 {
+                net_name_conflicts.push(NetNameConflict {
+                    net,
+                    names: user_names.clone(),
+                });
             }
 
-            if let Some(name) = user_name {
-                net_names.insert(net, name);
+            if net == NetId::GROUND {
+                continue;
+            }
+            if let Some(name) = user_names.first() {
+                net_names.insert(net, name.clone());
             } else if let Some(first_pin) = pins.first() {
                 let name = format!("N_{}", first_pin.replace(".", "_"));
                 net_names.insert(net, name);
@@ -146,6 +207,9 @@ impl NetlistGraph {
         NetlistGraph {
             pin_to_net,
             net_names,
+            ground_candidates: ground_candidate_names,
+            ground_is_explicit,
+            net_name_conflicts,
         }
     }
 
