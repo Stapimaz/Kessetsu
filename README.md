@@ -11,7 +11,7 @@ Proje belirli bir eğitim senaryosu veya devre sınıfıyla sınırlı değildir
 ## Mevcut kapsam
 
 - Rust parser, module flattening ve typed Circuit IR
-- Sürümlü `netlang.compile.v2` compile raporu
+- Sürümlü `netlang.compile.v3` compile raporu ve `netlang.schematic.v1` şema sözleşmesi
 - Deterministik net isimlendirme ve `NL-P/C/E/I/S/F` diagnostic alanları
 - SPICE üretimi ve Windows ngspice-46 sidecar runtime
 - Typed OP/transient/AC/DC simulation sonucu ve PASS/FAIL/ERROR/SKIPPED assertion runtime

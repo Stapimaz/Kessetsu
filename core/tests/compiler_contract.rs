@@ -18,6 +18,8 @@ fn successful_compile_returns_a_versioned_structured_report() {
     assert!(report.graph.is_some());
     assert!(report.spice_netlist.is_some());
     assert!(report.layout.is_some());
+    assert!(report.schematic.is_some());
+    assert!(report.schematic_svg.is_some());
     assert!(report.kicad_sch.is_some());
 }
 
@@ -28,6 +30,8 @@ fn default_options_keep_debug_and_schematic_outputs_opt_in() {
     assert!(report.ast.is_none());
     assert!(report.spice_netlist.is_some());
     assert!(report.layout.is_none());
+    assert!(report.schematic.is_none());
+    assert!(report.schematic_svg.is_none());
     assert!(report.kicad_sch.is_none());
 }
 
@@ -48,6 +52,8 @@ fn parser_failure_is_structured_and_stops_downstream_stages() {
     assert!(report.graph.is_none());
     assert!(report.spice_netlist.is_none());
     assert!(report.layout.is_none());
+    assert!(report.schematic.is_none());
+    assert!(report.schematic_svg.is_none());
     assert!(report.kicad_sch.is_none());
 }
 

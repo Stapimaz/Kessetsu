@@ -37,7 +37,7 @@ NetLang Source (.nl)
 
 ### Tek Compile Sözleşmesi
 
-Çekirdeğin canonical derleme girişi `compile_source(source, options) -> CompileReport` fonksiyonudur. Bu fonksiyon dosya yazmaz, process başlatmaz ve log basmaz; bu yan etkiler CLI gibi frontend'lere aittir. Rapor şeması `netlang.compile.v2` ile sürümlüdür ve opsiyonlara göre flattened AST, typed IR, deterministik graph özeti, SPICE, layout ve KiCad çıktıları taşıyabilir.
+Çekirdeğin canonical derleme girişi `compile_source(source, options) -> CompileReport` fonksiyonudur. Bu fonksiyon dosya yazmaz, process başlatmaz ve log basmaz; bu yan etkiler CLI gibi frontend'lere aittir. Rapor şeması `netlang.compile.v3` ile sürümlüdür ve opsiyonlara göre flattened AST, typed IR, deterministik graph özeti, SPICE, canonical `netlang.schematic.v1`, SVG, geçici legacy layout ve KiCad çıktıları taşıyabilir.
 
 Parse, flatten, semantic ve ERC hataları ortak `Diagnostic` modeline dönüştürülür. Error severity varsa hiçbir backend çıktısı üretilmez; warning ve info sonuçları başarılı çıktılarla birlikte taşınabilir. CLI ve WASM kendi paralel derleme akışlarını kurmamalı, yalnızca bu entrypoint'in adaptörü olmalıdır.
 
@@ -241,8 +241,9 @@ Legacy `layout.rs` için başlangıç davranışı aşağıdaki gibidir; Faz 4 m
 Şematiği çizerken parçaları x/y koordinatlarına yerleştirmek için **chain-based vertical layout** yaklaşımı kullanılır. DFS, layout pipeline'ında traversal ve başlangıç sıralaması için kullanılan heuristic'lerden biridir.
 
 - **Mevcut heuristic:** Voltage-source rail'leri, GND yönü, through-pin ve `is_signal_pin` bilgisi chain sıralamasını ve rotation seçimini etkiler. BJT/MOSFET gibi aktif elemanlar için ayrı yerleşim davranışı vardır; bütün topolojilerde ideal yön garanti edilmez.
-- **Henüz açık kabul kapısı:** Layout çıktısının canonical graph ile bağlantısal eşdeğerliğini otomatik kanıtlayan round-trip check mevcut değildir.
-- **Bilinen sınırlamalar:** Döngüsel topolojiler (Wheatstone bridge, feedback loop), çok yüksek fan-out ve bidirectional sinyaller için layout kalitesi düşebilir. Bu topolojiler için gelişmiş algoritmalar (Sugiyama/layered) ileride eklenecektir.
+- **Canonical kapı:** `netlang.schematic.v1`, her bağlı graph pinini typed wire endpoint veya semantic net label ile temsil eder; eksik/fazla pin/net varsa `NL-L001` ile fail-closed olur.
+- **Yerleşim/router:** Deterministik layered placement, shared pin-side metadata, orthogonal cost-based routing ve yüksek fan-out/power netleri için semantic label kullanır. Symbol/wire/label collision, crossing ve bend sayıları versioned kalite raporundadır.
+- **Visual regression:** Altı devrelik corpus'un deterministic SVG SHA-256 golden'ları Rust testinde, gerçek browser görüntüsü Playwright corpus testinde korunur.
 
 ## 8. NetLang Vizyonu ve Ekosistem Manifestosu
 

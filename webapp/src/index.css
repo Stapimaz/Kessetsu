@@ -47,6 +47,17 @@ body {
   color: var(--text-muted);
 }
 
+.panel-header-spread {
+  justify-content: space-between;
+}
+
+.header-title,
+.artifact-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .left-panel {
   flex: 1;
 }
@@ -62,12 +73,34 @@ body {
   position: relative;
 }
 
-.canvas-container {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.2);
+.schematic-surface {
+  flex: 2;
+  min-height: 300px;
+  overflow: hidden;
+  background: #e8edf3;
+  cursor: grab;
+}
+
+.schematic-surface.is-dragging {
+  cursor: grabbing;
+}
+
+.schematic-document {
+  width: 100%;
+  height: 100%;
+  transform-origin: center;
+  transition: transform 80ms ease-out;
+}
+
+.schematic-document svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.subpanel-header {
+  border-top: 1px solid var(--border-color);
+  border-bottom: none;
 }
 
 .terminal-container {
@@ -78,6 +111,20 @@ body {
   font-family: 'Fira Code', monospace;
   overflow-y: auto;
   font-size: 13px;
+}
+
+.terminal-container pre {
+  margin: 0;
+}
+
+.spice-output {
+  height: 120px;
+  color: #f59e0b;
+  background: #1e293b;
+}
+
+.empty-state {
+  color: var(--text-muted);
 }
 
 .error-msg {
@@ -114,6 +161,28 @@ body {
   font-weight: 600;
   transition: all 0.2s;
   margin-left: auto;
+}
+
+.compile-btn,
+.artifact-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.artifact-btn {
+  border: 1px solid #475569;
+  border-radius: 6px;
+  padding: 5px 8px;
+  color: #cbd5e1;
+  background: #1f2937;
+  cursor: pointer;
+}
+
+.artifact-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .compile-btn:hover {

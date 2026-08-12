@@ -4,11 +4,12 @@ use crate::graph::{NetId, NetlistGraph, generate_spice};
 use crate::ir::{CircuitIR, SemanticDiagnostic, ast_to_ir};
 use crate::layout::LayoutResult;
 use crate::parser::{Rule, parse_program};
+use crate::schematic::Schematic;
 use pest::error::LineColLocation;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const COMPILE_SCHEMA_VERSION: &str = "netlang.compile.v2";
+pub const COMPILE_SCHEMA_VERSION: &str = "netlang.compile.v3";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -29,6 +30,7 @@ pub enum DiagnosticStage {
     Cli,
     Simulation,
     Assertion,
+    Schematic,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -98,6 +100,8 @@ pub struct CompileReport {
     pub graph: Option<GraphSummary>,
     pub spice_netlist: Option<String>,
     pub layout: Option<LayoutResult>,
+    pub schematic: Option<Schematic>,
+    pub schematic_svg: Option<String>,
     pub kicad_sch: Option<String>,
     pub model_lock: Option<String>,
 }
@@ -112,6 +116,8 @@ impl CompileReport {
             graph: None,
             spice_netlist: None,
             layout: None,
+            schematic: None,
+            schematic_svg: None,
             kicad_sch: None,
             model_lock: None,
         }
@@ -281,6 +287,28 @@ pub fn compile_source(source: &str, options: CompileOptions) -> CompileReport {
     }
 
     if options.generate_layout || options.generate_kicad {
+        let schematic = match crate::schematic::generate_schematic(&circuit) {
+            Ok(schematic) => schematic,
+            Err(error) => {
+                report.diagnostics.push(Diagnostic {
+                    code: "NL-L001".to_string(),
+                    severity: DiagnosticSeverity::Error,
+                    stage: DiagnosticStage::Schematic,
+                    message: error.to_string(),
+                    component: None,
+                    pin: None,
+                    field: None,
+                    line: None,
+                    column: None,
+                });
+                return report;
+            }
+        };
+        report.schematic_svg = Some(crate::schematic_svg::render_svg(&schematic));
+        report.schematic = Some(schematic);
+
+        // Transitional compatibility outputs. Exporters migrate to Schematic IR
+        // in Phase 4.5 and must not use this legacy shape for new behavior.
         let layout = crate::layout::generate_layout(&circuit);
         if options.generate_kicad {
             report.kicad_sch = Some(crate::kicad::generate_kicad_sch(&layout));

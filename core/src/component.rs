@@ -1,4 +1,29 @@
 use crate::ir::ComponentKind;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PinSide {
+    Left,
+    Right,
+    Top,
+    Bottom,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CatalogSymbol {
+    Resistor,
+    Capacitor,
+    Inductor,
+    Diode,
+    Bjt,
+    Mosfet,
+    OpAmp,
+    VoltageSource,
+    CurrentSource,
+    ModulePort,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PinDefinition {
@@ -6,10 +31,12 @@ pub struct PinDefinition {
     pub x: i32,
     pub y: i32,
     pub is_signal: bool,
+    pub side: PinSide,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ComponentDefinition {
+    pub symbol: CatalogSymbol,
     pub display_name: &'static str,
     pub spice_prefix: Option<&'static str>,
     pub width: i32,
@@ -23,12 +50,14 @@ const TWO_PIN: &[PinDefinition] = &[
         x: 0,
         y: 0,
         is_signal: false,
+        side: PinSide::Left,
     },
     PinDefinition {
         name: "p2",
         x: 2,
         y: 0,
         is_signal: false,
+        side: PinSide::Right,
     },
 ];
 
@@ -38,12 +67,14 @@ const SOURCE_PINS: &[PinDefinition] = &[
         x: 0,
         y: 0,
         is_signal: false,
+        side: PinSide::Left,
     },
     PinDefinition {
         name: "minus",
         x: 2,
         y: 0,
         is_signal: false,
+        side: PinSide::Right,
     },
 ];
 
@@ -53,18 +84,21 @@ const BJT_PINS: &[PinDefinition] = &[
         x: 2,
         y: 0,
         is_signal: false,
+        side: PinSide::Top,
     },
     PinDefinition {
         name: "b",
         x: 0,
         y: 1,
         is_signal: true,
+        side: PinSide::Left,
     },
     PinDefinition {
         name: "e",
         x: 2,
         y: 2,
         is_signal: false,
+        side: PinSide::Bottom,
     },
 ];
 
@@ -74,18 +108,21 @@ const MOSFET_PINS: &[PinDefinition] = &[
         x: 2,
         y: 0,
         is_signal: false,
+        side: PinSide::Top,
     },
     PinDefinition {
         name: "g",
         x: 0,
         y: 1,
         is_signal: true,
+        side: PinSide::Left,
     },
     PinDefinition {
         name: "s",
         x: 2,
         y: 2,
         is_signal: false,
+        side: PinSide::Bottom,
     },
 ];
 
@@ -95,30 +132,35 @@ const OPAMP_PINS: &[PinDefinition] = &[
         x: 0,
         y: 2,
         is_signal: true,
+        side: PinSide::Left,
     },
     PinDefinition {
         name: "in_n",
         x: 0,
         y: 0,
         is_signal: true,
+        side: PinSide::Left,
     },
     PinDefinition {
         name: "vcc",
         x: 1,
         y: -1,
         is_signal: false,
+        side: PinSide::Top,
     },
     PinDefinition {
         name: "vee",
         x: 1,
         y: 3,
         is_signal: false,
+        side: PinSide::Bottom,
     },
     PinDefinition {
         name: "out",
         x: 3,
         y: 1,
         is_signal: false,
+        side: PinSide::Right,
     },
 ];
 
@@ -126,16 +168,39 @@ const MODULE_PORT_PINS: &[PinDefinition] = &[];
 
 pub fn component_definition(kind: &ComponentKind) -> ComponentDefinition {
     match kind {
-        ComponentKind::Resistor => definition("Resistor", "R", 2, 1, TWO_PIN),
-        ComponentKind::Capacitor => definition("Capacitor", "C", 2, 1, TWO_PIN),
-        ComponentKind::Inductor => definition("Inductor", "L", 2, 1, TWO_PIN),
-        ComponentKind::Diode => definition("Diode", "D", 2, 1, TWO_PIN),
-        ComponentKind::BJT(_) => definition("Transistor", "Q", 3, 3, BJT_PINS),
-        ComponentKind::MOSFET(_) => definition("Mosfet", "M", 3, 3, MOSFET_PINS),
-        ComponentKind::OpAmp => definition("OpAmp", "X", 3, 3, OPAMP_PINS),
-        ComponentKind::VoltageSource => definition("Source", "V", 2, 1, SOURCE_PINS),
-        ComponentKind::CurrentSource => definition("CurrentSource", "I", 2, 1, SOURCE_PINS),
+        ComponentKind::Resistor => {
+            definition(CatalogSymbol::Resistor, "Resistor", "R", 2, 1, TWO_PIN)
+        }
+        ComponentKind::Capacitor => {
+            definition(CatalogSymbol::Capacitor, "Capacitor", "C", 2, 1, TWO_PIN)
+        }
+        ComponentKind::Inductor => {
+            definition(CatalogSymbol::Inductor, "Inductor", "L", 2, 1, TWO_PIN)
+        }
+        ComponentKind::Diode => definition(CatalogSymbol::Diode, "Diode", "D", 2, 1, TWO_PIN),
+        ComponentKind::BJT(_) => definition(CatalogSymbol::Bjt, "Transistor", "Q", 3, 3, BJT_PINS),
+        ComponentKind::MOSFET(_) => {
+            definition(CatalogSymbol::Mosfet, "Mosfet", "M", 3, 3, MOSFET_PINS)
+        }
+        ComponentKind::OpAmp => definition(CatalogSymbol::OpAmp, "OpAmp", "X", 3, 3, OPAMP_PINS),
+        ComponentKind::VoltageSource => definition(
+            CatalogSymbol::VoltageSource,
+            "Source",
+            "V",
+            2,
+            1,
+            SOURCE_PINS,
+        ),
+        ComponentKind::CurrentSource => definition(
+            CatalogSymbol::CurrentSource,
+            "CurrentSource",
+            "I",
+            2,
+            1,
+            SOURCE_PINS,
+        ),
         ComponentKind::ModulePort => ComponentDefinition {
+            symbol: CatalogSymbol::ModulePort,
             display_name: "ModulePort",
             spice_prefix: None,
             width: 2,
@@ -146,6 +211,7 @@ pub fn component_definition(kind: &ComponentKind) -> ComponentDefinition {
 }
 
 fn definition(
+    symbol: CatalogSymbol,
     display_name: &'static str,
     spice_prefix: &'static str,
     width: i32,
@@ -153,6 +219,7 @@ fn definition(
     pins: &'static [PinDefinition],
 ) -> ComponentDefinition {
     ComponentDefinition {
+        symbol,
         display_name,
         spice_prefix: Some(spice_prefix),
         width,

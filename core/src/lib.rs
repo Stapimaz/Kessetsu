@@ -13,6 +13,8 @@ pub mod layout;
 pub mod measurement;
 pub mod models;
 pub mod parser;
+pub mod schematic;
+pub mod schematic_svg;
 pub mod sim_result;
 pub mod simulation;
 pub mod simulation_parser;

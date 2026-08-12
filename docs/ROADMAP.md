@@ -781,16 +781,16 @@ Mevcut Web/layout kodu tamamen boş değildir ve kanıt görmeden silinmeyecekti
 
 ### 4.1 — Canonical ve doğrulanabilir Schematic IR
 
-- [ ] Versioned, serialize edilebilir ve collection-order'dan bağımsız `netlang.schematic.v1` sözleşmesini tanımla.
-- [ ] Component instance, symbol kind/variant, value/model label, orientation ve canonical pin anchor'larını açık tiplerle taşı.
-- [ ] Wire segment, pin endpoint, named net, junction ve bağlanmayan geometry crossing kavramlarını ayrı temsil et.
-- [ ] GND, supply ve net-label kullanımını uzun rail/karmaşık kablo kalabalığını azaltan semantik öğeler yap.
-- [ ] Layout sonucundan canonical `NetlistGraph` connectivity'sini yeniden kurup net/pin eşdeğerliğini fail-closed doğrula.
-- [ ] Aynı Circuit IR'nin tekrarlar ve declaration/connection sırası değişimlerinde byte-stable Schematic IR ürettiğini test et.
-- [ ] Symbol tanımlarını Core component kataloğuyla tek kaynaktan eşle; Web'in ayrı ve drift edebilen pin geometrisi tanımlamasını engelle.
-- [ ] Mevcut chain heuristic'ini baseline olarak tutup feedback/bridge/fan-out/power-amplifier corpus'unda iyileştir veya daha uygun algoritmayla değiştir.
-- [ ] Wire–symbol, label–symbol, symbol–symbol collision ve gereksiz crossing/bend ölçütleri için otomatik kalite raporu oluştur.
-- [ ] Connectivity golden ve visual golden corpus'unu Windows/Linux'ta deterministik hale getir.
+- [x] Versioned, serialize edilebilir ve collection-order'dan bağımsız `netlang.schematic.v1` sözleşmesini tanımla. _Kanıt: `core/src/schematic.rs`; compile contract `netlang.compile.v3`._
+- [x] Component instance, symbol kind/variant, value/model label, orientation ve canonical pin anchor'larını açık tiplerle taşı. _`SchematicComponent` ve `PinAnchor`._
+- [x] Wire segment, pin endpoint, named net, junction ve bağlanmayan geometry crossing kavramlarını ayrı temsil et. _`SchematicWire`, `WireEndpoint`, `SchematicNet`, `Junction`, `Crossing`._
+- [x] GND, supply ve net-label kullanımını uzun rail/karmaşık kablo kalabalığını azaltan semantik öğeler yap. _Ground/supply ve explicit yüksek-fan-out netler typed label olur._
+- [x] Layout sonucundan canonical `NetlistGraph` connectivity'sini yeniden kurup net/pin eşdeğerliğini fail-closed doğrula. _`ConnectivityReport`; mismatch `NL-L001` ile backend'i durdurur._
+- [x] Aynı Circuit IR'nin tekrarlar ve declaration/connection sırası değişimlerinde byte-stable Schematic IR ürettiğini test et. _`schematic_json_and_svg_are_byte_stable_across_repeated_compiles`, `declaration_and_connection_order_do_not_change_schematic`._
+- [x] Symbol tanımlarını Core component kataloğuyla tek kaynaktan eşle; Web'in ayrı ve drift edebilen pin geometrisi tanımlamasını engelle. _`CatalogSymbol`/`PinSide`; Web yalnız Core SVG'yi gösterir._
+- [x] Mevcut chain heuristic'ini baseline olarak tutup feedback/bridge/fan-out/power-amplifier corpus'unda iyileştir veya daha uygun algoritmayla değiştir. _Legacy korunup canonical yol deterministic layered placement + orthogonal cost router ile değiştirildi._
+- [x] Wire–symbol, label–symbol, symbol–symbol collision ve gereksiz crossing/bend ölçütleri için otomatik kalite raporu oluştur. _`QualityReport`; altı-devre corpus kapısı._
+- [x] Connectivity golden ve visual golden corpus'unu Windows/Linux'ta deterministik hale getir. _SVG SHA-256 golden testi platform-bağımsızdır; Playwright altı devreyi gerçek Chromium'da render eder ve isteğe bağlı screenshot üretir._
 
 **4.1 kabul kriteri:** Şema yalnız güzel görünen bir polyline koleksiyonu değildir; canonical circuit ile bağlantısal eşdeğerliği otomatik kanıtlanır ve karmaşık benchmark corpus'unda tanımlı okunabilirlik kapılarını geçer.
 
