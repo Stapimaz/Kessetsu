@@ -65,6 +65,7 @@ Repository bütünleşik ürün geliştirmesi sırasında private kalır. CLI/Ag
 - [x] Faz 4'ü birbirinden kopuk subsystem teslimleri yerine RC ile başlayan ve power-amplifier'a genişleyen dikey ürün dilimleri olarak planla.
 - [x] Mevcut Web/layout kodunu kanıtsız silme veya koruma; browser ve schematic characterization sonrasında katman bazında reuse/refactor/rewrite kararı ver.
 - [x] Web Hub içine gömülü doğal-dil AI tasarım/chat arayüzünü ilk public yayın için kritik yol dışında tutup provider-independent Faz 5+ fikri olarak kaydet.
+- [x] Şema ve EDA export'larını Web'e özel özellik yapma; bütün desteklenen formatları canonical Schematic IR kullanan Core exporter adaptörleri ve CLI artifact sözleşmesi üzerinden sun.
 
 ### Üç ana ürün yüzeyi
 
@@ -736,7 +737,7 @@ Faz 4 subsystem'leri birbirinden kopuk biçimde sonuna kadar geliştirmez. Önce
 
 ### Faz 4 kapsam sınırı
 
-**Bu fazda zorunlu:** doğrulanabilir profesyonel şema, browser simulation, interaktif sonuçlar, canonical benchmark parity'si, SVG/PNG/KiCad/LTspice export, paylaşım, cross-platform CLI paketleri, public dokümantasyon ve production yayın.
+**Bu fazda zorunlu:** doğrulanabilir profesyonel şema, browser simulation, interaktif sonuçlar, canonical benchmark parity'si, görsel/makine-okunabilir/düzenlenebilir export ailesi, paylaşım, cross-platform CLI paketleri, public dokümantasyon ve production yayın.
 
 **Bu fazda ertelendi:** Web Hub içine gömülü doğal-dil AI tasarım/chat arayüzü, yönetilen AI sağlayıcısı veya kullanıcı API-key akışı, hesaplar/cloud project storage, ekip özellikleri, otomatik optimization/design-space exploration ve geniş üretici model registry'si. Web AI daha sonra aynı provider-independent Core/CLI tool sözleşmelerinin ince consumer'ı olarak eklenebilir; Faz 4 UI'sı devre semantiğini kendi içinde yeniden uygulayarak bu yolu kapatmamalıdır.
 
@@ -849,18 +850,26 @@ Mevcut Web/layout kodu tamamen boş değildir ve kanıt görmeden silinmeyecekti
 
 ### 4.5 — Profesyonel render ve EDA export
 
-- [ ] Web SVG, native SVG/PNG, KiCad ve LTspice exporter'larını yalnız canonical Schematic IR üzerinden çalıştır.
+- [ ] Core içinde versioned exporter adapter/capability sözleşmesi tanımla; Web, CLI veya her exporter kendi devre/layout semantiğini yeniden kurmasın.
+- [ ] İlk yayın format matrisini kullanım amacı, format açıklığı, lisans, bağlantı fidelity'si, hedef uygulama doğrulanabilirliği ve bakım maliyetiyle kaydet.
+- [ ] İlk sınıf görsel çıktılar olarak SVG, PNG ve PDF'i yalnız canonical Schematic IR üzerinden üret.
+- [ ] Makine-okunabilir/değişimsiz çıktılar olarak canonical SPICE ve versioned Schematic IR JSON'u CLI/Web artifact'i yap.
+- [ ] İlk sınıf düzenlenebilir EDA çıktıları olarak KiCad schematic ve LTspice schematic üret.
+- [ ] Qucs-S, CircuitJS, EasyEDA/EDIF ve güncel kullanım araştırmasında değerli bulunan diğer açık/erişilebilir hedefleri capability matrisiyle değerlendir; doğrulanamayan formatı yalnız dosya üretiyor diye desteklenmiş sayma.
 - [ ] Aynı sembol/geometri/font ölçüm sözleşmesini browser ve native render'da paylaş.
 - [ ] SVG export'ta semantic text, deterministic viewBox ve theme-independent okunabilir stil üret.
 - [ ] PNG export için açık çözünürlük/scale/background seçenekleri ve görsel parity testi ekle.
-- [ ] `netlang render circuit.nl -o circuit.svg|png` komutunu güvenli overwrite ve structured diagnostic sözleşmesiyle uygula.
+- [ ] PDF export'ta sayfa boyutu, orientation, margin, vector text ve multi-page politikasını tanımla.
+- [ ] `netlang render circuit.nl -o circuit.svg|png|pdf` komutunu güvenli overwrite ve structured diagnostic sözleşmesiyle uygula.
+- [ ] `netlang export circuit.nl --format <target> --output <path>` komutuyla bütün düzenlenebilir/makine-okunabilir hedefleri aynı structured artifact sözleşmesinden sun.
+- [ ] CLI JSON'da exporter schema/version, artifact path/hash, connectivity verification ve warning/loss report alanlarını taşı.
 - [ ] KiCad schematic export'ta symbol, pin, wire, junction, label ve model/value alanlarını connectivity fixture'larıyla doğrula.
 - [ ] LTspice schematic export adaptörü ve aynı bağlantı fixture'larını oluştur.
 - [ ] KiCad/LTspice dosyalarının desteklenen hedef uygulama sürümlerinde gerçekten açıldığını release smoke testine ekle.
-- [ ] SPICE, SVG, PNG, KiCad ve LTspice indirmelerini Web Hub'da tek ve anlaşılır export alanında sun.
+- [ ] Desteklenen her Core/CLI export'unu Web Hub'da aynı capability/loss bilgisiyle tek ve anlaşılır export alanında sun.
 - [ ] Unsupported exporter özelliğini sessiz veri kaybı yerine structured fail-closed diagnostic yap.
 
-**4.5 kabul kriteri:** İndirilen şema görsel olarak okunabilir, canonical graph ile bağlantısal olarak eşdeğer ve hedef EDA uygulamasında düzenlenebilir biçimde açılır.
+**4.5 kabul kriteri:** Her ilan edilen format Core ve CLI'dan üretilebilir; Web aynı motorun ince arayüzüdür. Görsel çıktılar okunabilir, makine çıktıları sürümlü/deterministik, düzenlenebilir EDA çıktıları canonical graph ile bağlantısal olarak eşdeğer ve hedef uygulamada doğrulanmış biçimde açılır. Lossy dönüşüm sessiz yapılmaz.
 
 ---
 
@@ -897,7 +906,8 @@ Mevcut Web/layout kodu tamamen boş değildir ve kanıt görmeden silinmeyecekti
 - [ ] Kullanıcı hesap veya yerel kurulum olmadan Web Hub'ı açıp canonical bir devreyi compile, simulate, measure, inspect ve export edebilir.
 - [ ] Web ve CLI aynı Core semantiğini ve versioned compile/schematic/simulation/measurement/assertion sözleşmelerini kullanır.
 - [ ] Şema canonical graph connectivity kontrolünden geçer; karmaşık power-amplifier topolojisinde tanımlı readability/collision kapılarını sağlar.
-- [ ] SVG/PNG indirilebilir; KiCad/LTspice fixture'ları hedef uygulamalarda bağlantı kaybı olmadan açılır.
+- [ ] SVG/PNG/PDF ve Schematic IR JSON indirilebilir; KiCad/LTspice ile ilan edilen diğer EDA fixture'ları hedef uygulamalarda bağlantı kaybı olmadan açılır.
+- [ ] Web'de sunulan her export aynı source için CLI'dan da alınabilir ve aynı exporter schema/capability sözleşmesine bağlıdır.
 - [ ] OP, transient, AC ve DC sweep sonuçları Web'de interaktif olarak görüntülenir; assertions ilgili signal/threshold ile ilişkilidir.
 - [ ] User-defined ve packaged modeller native/Web yüzeylerinde reproducible, provenance bilgili ve injection-safe çalışır.
 - [ ] RC filtre, gain-stage ve power-amplifier benchmark'ları CLI ve Web Hub'da aynı mühendislik kararlarını verir.
