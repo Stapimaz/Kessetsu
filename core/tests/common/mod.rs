@@ -94,7 +94,7 @@ impl TestWorkspace {
         let (file_name, contents) = (
             format!("{name}.cmd"),
             format!(
-                "@echo off\r\nif \"%~1\"==\"-v\" (\r\n  echo ngspice-test-1\r\n  exit /b 0\r\n)\r\n{}{}exit /b {code}\r\n",
+                "@echo off\r\nif \"%~1\"==\"-v\" (\r\n  echo ngspice-test-1\r\n  exit /b 0\r\n)\r\nif exist circuit.spice (\r\n  findstr /c:\"wrdata netlang-analysis-000-op.data\" circuit.spice > nul && (\r\n    >netlang-analysis-000-op.data echo scale scale\r\n    >>netlang-analysis-000-op.data echo 0 0\r\n  )\r\n)\r\n{}{}exit /b {code}\r\n",
                 stdout
                     .lines()
                     .map(|line| format!("echo {line}\r\n"))
@@ -110,7 +110,7 @@ impl TestWorkspace {
         let (file_name, contents) = (
             format!("{name}.sh"),
             format!(
-                "#!/bin/sh\nif [ \"$1\" = \"-v\" ]; then\n  printf '%s\\n' 'ngspice-test-1'\n  exit 0\nfi\n{}{}exit {code}\n",
+                "#!/bin/sh\nif [ \"$1\" = \"-v\" ]; then\n  printf '%s\\n' 'ngspice-test-1'\n  exit 0\nfi\nif [ -f circuit.spice ] && grep -q 'wrdata netlang-analysis-000-op.data' circuit.spice; then\n  printf '%s\\n' 'scale scale' '0 0' > netlang-analysis-000-op.data\nfi\n{}{}exit {code}\n",
                 stdout
                     .lines()
                     .map(|line| format!("printf '%s\\n' '{line}'\n"))

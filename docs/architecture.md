@@ -148,6 +148,10 @@ User-defined model declaration/include syntax'ı henüz tanımlı değildir. Bu 
 |---|---|---|
 | NL-S001 | Error | Simulator executable başlatılamadı |
 | NL-S002 | Error | Simulator process/output başarısızlığı |
+| NL-S003 | Warning | Simulator warning veya runtime cleanup uyarısı |
+| NL-S004 | Error | Convergence/singular-matrix/timestep başarısızlığı |
+| NL-S005 | Error | Fatal veya aborted simulator çıktısı |
+| NL-S006 | Error | Measurement veya analysis dataset parse başarısızlığı |
 
 Faz 3'te convergence, ölçüm ve assertion durumları daha ayrıntılı ayrı diagnostic/result kodlarına bölünecektir.
 
@@ -156,6 +160,8 @@ Faz 3'te convergence, ölçüm ve assertion durumları daha ayrıntılı ayrı d
 Native simulator process ayrıntıları Core'un ortak simulation sözleşmesine sızdırılmaz. Versioned `SimulationRequest` typed analysis listesi, netlist, timeout ve artifact politikasını; `SimulationResult` ise analysis, simulator/process status, measurement, warning, error, raw log ve artifact referanslarını ayrı alanlarda taşır. Native Ngspice adaptörü ile gelecekteki browser adaptörü aynı `SimulationRunner` sınırını uygular.
 
 Native runner her çalıştırma için benzersiz bir temporary directory oluşturur. Başarılı çalışmanın artifact'ları temizlenir; hata artifact'ları yalnız açık `retain_on_failure` politikasıyla korunur. Runner executable discovery ve version probe uygular, timeout'ta process'i sonlandırır ve paylaşılabilir cancellation token kabul eder. CLI `simulate` ve `test` aynı runner üzerinden çalışır.
+
+Ngspice analysis verileri stdout tablo metninden çıkarılmaz. Generated SPICE her typed analysis sonrasında deterministic isimli `wrdata` çıktısı üretir. OP sonucu sorted scalar map'e, transient/DC sonucu ortak axis ve real signal serilerine, AC sonucu frequency axis ile real/imaginary signal serilerine parse edilir. Parser exponent, decimal-comma ve LF/CRLF farklarını normalize eder; malformed, duplicate veya non-finite veri `NL-S006` ile fail-closed olur.
 
 ### Çıktı Formatı
 - **İnsan modu (varsayılan):** Stage/code/message içeren stderr diagnostic'leri; assertion PASS/FAIL satırlarında terminal rengi

@@ -65,10 +65,76 @@ pub struct SimulationResult {
     pub simulator: SimulatorInfo,
     pub process: SimulatorProcessStatus,
     pub measurements: BTreeMap<String, f64>,
+    pub datasets: Vec<AnalysisDataset>,
+    pub diagnostics: Vec<SimulatorDiagnostic>,
     pub warnings: Vec<String>,
     pub errors: Vec<String>,
     pub raw_log: SimulatorLog,
     pub artifacts: Vec<SimulationArtifact>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AnalysisDataset {
+    pub index: usize,
+    pub analysis: Analysis,
+    pub data: Dataset,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum Dataset {
+    OperatingPoint { values: BTreeMap<String, f64> },
+    Transient(RealSeriesDataset),
+    Ac(ComplexSeriesDataset),
+    DcSweep(RealSeriesDataset),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RealSeriesDataset {
+    pub axis: SeriesAxis,
+    pub signals: BTreeMap<String, Vec<f64>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ComplexSeriesDataset {
+    pub frequency_hz: Vec<f64>,
+    pub signals: BTreeMap<String, ComplexSeries>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ComplexSeries {
+    pub real: Vec<f64>,
+    pub imaginary: Vec<f64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SeriesAxis {
+    pub name: String,
+    pub values: Vec<f64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SimulatorDiagnosticSeverity {
+    Warning,
+    Error,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SimulatorDiagnosticKind {
+    Warning,
+    Convergence,
+    Fatal,
+    ResultParse,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SimulatorDiagnostic {
+    pub code: String,
+    pub severity: SimulatorDiagnosticSeverity,
+    pub kind: SimulatorDiagnosticKind,
+    pub message: String,
 }
 
 impl SimulationResult {
@@ -138,9 +204,16 @@ pub trait SimulationRunner {
     ) -> Result<SimulationResult, SimulationRunError>;
 }
 
+pub fn analysis_data_filename(index: usize, analysis: &Analysis) -> String {
+    format!("netlang-analysis-{index:03}-{}.data", analysis.kind_name())
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 mod native {
     use super::*;
+    use crate::simulation_parser::{
+        classify_simulator_log, parse_measurements, parse_wrdata, result_parse_diagnostic,
+    };
     use std::env;
     use std::fs;
     use std::io::Read;
@@ -255,22 +328,66 @@ mod native {
                 cancellation,
             )?;
 
-            let mut warnings = collect_matching_lines(&captured.stdout, &captured.stderr, |line| {
-                line.to_ascii_lowercase().contains("warning")
-            });
-            let errors = collect_matching_lines(&captured.stdout, &captured.stderr, |line| {
-                let lower = line.to_ascii_lowercase();
-                lower.contains("error") || lower.contains("fatal") || lower.contains("aborted")
-            });
+            let mut diagnostics = classify_simulator_log(&captured.stdout, &captured.stderr);
+            let measurements = match parse_measurements(&captured.stdout) {
+                Ok(measurements) => measurements,
+                Err(parse_errors) => {
+                    diagnostics.extend(parse_errors.into_iter().map(|error| {
+                        result_parse_diagnostic(format!("Could not parse measurement: {error}"))
+                    }));
+                    BTreeMap::new()
+                }
+            };
+            let mut datasets = Vec::new();
+            for (index, analysis) in request.analyses.iter().enumerate() {
+                let filename = analysis_data_filename(index, analysis);
+                let path = run_directory.path().join(&filename);
+                if path.is_file() {
+                    match fs::read_to_string(&path) {
+                        Ok(contents) => match parse_wrdata(analysis, &contents) {
+                            Ok(data) => datasets.push(AnalysisDataset {
+                                index,
+                                analysis: analysis.clone(),
+                                data,
+                            }),
+                            Err(error) => diagnostics.push(result_parse_diagnostic(format!(
+                                "Could not parse analysis dataset '{filename}': {error}"
+                            ))),
+                        },
+                        Err(error) => diagnostics.push(result_parse_diagnostic(format!(
+                            "Could not read analysis dataset '{filename}': {error}"
+                        ))),
+                    }
+                } else if request.netlist.contains(&format!("wrdata {filename} ")) {
+                    diagnostics.push(result_parse_diagnostic(format!(
+                        "Ngspice did not produce expected analysis dataset '{filename}'."
+                    )));
+                }
+            }
+
+            let has_diagnostic_errors = diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.severity == SimulatorDiagnosticSeverity::Error);
             let status = if captured.cancelled {
                 SimulationStatus::Cancelled
             } else if captured.timed_out {
                 SimulationStatus::TimedOut
-            } else if captured.success && errors.is_empty() {
+            } else if captured.success && !has_diagnostic_errors {
                 SimulationStatus::Succeeded
             } else {
                 SimulationStatus::Failed
             };
+
+            let mut warnings = diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.severity == SimulatorDiagnosticSeverity::Warning)
+                .map(|diagnostic| diagnostic.message.clone())
+                .collect::<Vec<_>>();
+            let errors = diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.severity == SimulatorDiagnosticSeverity::Error)
+                .map(|diagnostic| diagnostic.message.clone())
+                .collect::<Vec<_>>();
 
             let mut artifacts = Vec::new();
             if request.artifact_policy == ArtifactPolicy::RetainOnFailure
@@ -282,10 +399,17 @@ mod native {
                     path: run_directory.path().to_string_lossy().into_owned(),
                 });
             } else if let Err(error) = run_directory.cleanup() {
-                warnings.push(format!(
+                let message = format!(
                     "Could not remove temporary simulation directory '{}': {error}",
                     run_directory.path().display()
-                ));
+                );
+                warnings.push(message.clone());
+                diagnostics.push(SimulatorDiagnostic {
+                    code: "NL-S003".to_string(),
+                    severity: SimulatorDiagnosticSeverity::Warning,
+                    kind: SimulatorDiagnosticKind::Warning,
+                    message,
+                });
             }
 
             Ok(SimulationResult {
@@ -300,7 +424,9 @@ mod native {
                     exit_code: captured.exit_code,
                     success: captured.success,
                 },
-                measurements: parse_prototype_measurements(&captured.stdout),
+                measurements,
+                datasets,
+                diagnostics,
                 warnings,
                 errors,
                 raw_log: SimulatorLog {
@@ -492,36 +618,6 @@ mod native {
         Ok(bytes)
     }
 
-    fn collect_matching_lines(
-        stdout: &str,
-        stderr: &str,
-        predicate: impl Fn(&str) -> bool,
-    ) -> Vec<String> {
-        stdout
-            .lines()
-            .chain(stderr.lines())
-            .filter(|line| predicate(line))
-            .map(|line| line.trim().to_string())
-            .collect()
-    }
-
-    pub(super) fn parse_prototype_measurements(stdout: &str) -> BTreeMap<String, f64> {
-        let mut measurements = BTreeMap::new();
-        for line in stdout.lines() {
-            if line.trim().starts_with("Doing analysis") || line.trim().starts_with("Warning") {
-                continue;
-            }
-            let Some((name, value)) = line.split_once('=') else {
-                continue;
-            };
-            let value = value.split_whitespace().next().unwrap_or_default();
-            if let Ok(value) = value.parse::<f64>() {
-                measurements.insert(name.trim().to_ascii_lowercase(), value);
-            }
-        }
-        measurements
-    }
-
     fn discover_ngspice_path() -> PathBuf {
         if let Some(configured_path) = env::var_os("NETLANG_NGSPICE")
             && !configured_path.is_empty()
@@ -567,6 +663,8 @@ mod native {
                 success: false,
             },
             measurements: BTreeMap::new(),
+            datasets: Vec::new(),
+            diagnostics: Vec::new(),
             warnings: Vec::new(),
             errors: Vec::new(),
             raw_log: SimulatorLog {
@@ -632,21 +730,5 @@ mod tests {
         drop(second);
         assert!(!first_path.exists());
         assert!(!second_path.exists());
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    #[test]
-    fn prototype_measurements_are_deterministic_until_fixture_parser_replaces_them() {
-        use super::native::parse_prototype_measurements;
-
-        let values = parse_prototype_measurements(
-            "z_value = 2.0e-1 at=1e-3\nDoing analysis at = ignored\na_value = -4.5\n",
-        );
-        assert_eq!(
-            values.keys().cloned().collect::<Vec<_>>(),
-            ["a_value", "z_value"]
-        );
-        assert_eq!(values["z_value"], 0.2);
-        assert_eq!(values["a_value"], -4.5);
     }
 }

@@ -600,13 +600,15 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 
 ### 3.2 — Structured Ngspice sonuçları
 
-- [ ] `.meas` parser'ını ayrı ve fixture tabanlı modül yap.
-- [ ] Operating point sonuçlarını structured map'e çevir.
-- [ ] Transient time-series sonuçlarını structured dataset'e çevir.
-- [ ] AC complex/frequency-domain sonuçlarını structured dataset'e çevir.
-- [ ] Mümkünse stdout tablo scraping yerine Ngspice raw/wrdata çıktısı kullan.
-- [ ] Warning, convergence ve fatal error sınıflandırması yap.
-- [ ] Locale, exponent ve line-ending fixture'ları ekle.
+- [x] `.meas` parser'ını ayrı ve fixture tabanlı modül yap.
+- [x] Operating point sonuçlarını structured map'e çevir.
+- [x] Transient time-series sonuçlarını structured dataset'e çevir.
+- [x] AC complex/frequency-domain sonuçlarını structured dataset'e çevir.
+- [x] Mümkünse stdout tablo scraping yerine Ngspice raw/wrdata çıktısı kullan.
+- [x] Warning, convergence ve fatal error sınıflandırması yap.
+- [x] Locale, exponent ve line-ending fixture'ları ekle.
+
+**3.2 kapanış kanıtı (2026-08-12):** Prototip stdout splitter kaldırıldı; `.meas` ve `wrdata` için ayrı `simulation_parser` modülü eklendi. Measurement parser duplicate/malformed/non-finite değerleri fail-closed reddeder; exponent, decimal-comma ve LF/CRLF fixture'larıyla korunur. Generated SPICE deterministic analysis artifact isimleri ve `wrdata all` kullanır. OP sorted scalar map'e, transient/DC real-series dataset'e, AC frequency + complex-series dataset'e dönüşür. `NL-S003..006` warning/convergence/fatal/result-parse sınıfları structured runtime diagnostics olarak taşınır. Bundled Ngspice ile gerçek OP, transient ve AC integration fixture'ları geçer; Linux CI aynı testler için Ngspice kurar. Canonical `scripts/verify.ps1` kapısı 88 Rust/CLI testi, gerçek Ngspice fixtures, fmt, Clippy `-D warnings`, release/WASM build, production audit (`0 vulnerabilities`), Web lint ve production build ile geçti.
 
 ### 3.3 — Assertion runtime
 
@@ -689,10 +691,10 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 
 ### Faz 3 kabul kriterleri
 
-- [ ] OP, transient ve AC için en az birer gerçek Ngspice integration fixture'ı geçer.
-- [ ] Simulation result'ları typed ve serialize edilebilirdir.
+- [x] OP, transient ve AC için en az birer gerçek Ngspice integration fixture'ı geçer. _(3.2 real Ngspice fixture matrisi.)_
+- [x] Simulation result'ları typed ve serialize edilebilirdir. _(`netlang.simulation.v1` + serde contract testleri.)_
 - [ ] Assertion sonuçları PASS/FAIL/ERROR ayrımını doğru yapar.
-- [ ] Paralel iki simulation dosya çakışması yaşamaz.
+- [x] Paralel iki simulation dosya çakışması yaşamaz. _(3.1 unique run-directory integration testi.)_
 - [ ] CLI human/JSON ve exit-code contract testleri geçer.
 - [ ] Dış AI ajanı human terminal metni parse etmeden versioned sözleşmeyle tasarım döngüsü kurabilir.
 - [ ] User-defined ve packaged model/subcircuit çözümlemesi reproducible, provenance bilgili ve fail-closed çalışır.
@@ -849,6 +851,6 @@ Her geliştirme oturumunda:
 
 ### Aktif sıradaki ilk iş
 
-**3.2 — Structured Ngspice sonuçları.**
+**3.3 — Assertion runtime.**
 
-3.1 typed simulation domain ve ortak native runner ile kapandı. Sıradaki uygulama paketi prototip measurement satır ayrıştırmasını ayrı, fixture tabanlı bir parser'a taşımak; ardından OP, transient ve AC sonuçlarını mümkünse raw/wrdata tabanlı structured dataset'lere dönüştürmektir.
+3.2 measurement parser, typed OP/transient/AC/DC dataset'leri ve gerçek Ngspice fixture'larıyla kapandı. Sıradaki paket assertion kimliği/status/tolerance modelini kuracak; missing measurement `NaN` yerine typed ERROR olacak ve human/JSON renderer aynı assertion sonucunu kullanacak.

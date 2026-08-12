@@ -13,6 +13,7 @@ pub mod layout;
 pub mod parser;
 pub mod sim_result;
 pub mod simulation;
+pub mod simulation_parser;
 pub mod wasm;
 
 pub use compiler::{CompileOptions, CompileReport, compile_source};

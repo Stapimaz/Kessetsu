@@ -264,7 +264,12 @@ fn simulator_process_status_and_json_status_cannot_disagree() {
         "NETLANG_NGSPICE",
         &success_simulator,
     );
-    assert_eq!(success.status.code(), Some(0));
+    assert_eq!(
+        success.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&success.stdout)
+    );
     assert!(success.stderr.is_empty());
     let success_json: Value =
         serde_json::from_slice(&success.stdout).expect("success stdout should be JSON only");
@@ -306,7 +311,12 @@ fn failed_assertion_has_structured_result_and_exit_code_four() {
         "NETLANG_NGSPICE",
         &simulator,
     );
-    assert_eq!(output.status.code(), Some(4));
+    assert_eq!(
+        output.status.code(),
+        Some(4),
+        "{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
     assert!(output.stderr.is_empty());
     let value: Value =
         serde_json::from_slice(&output.stdout).expect("assertion stdout should be JSON only");

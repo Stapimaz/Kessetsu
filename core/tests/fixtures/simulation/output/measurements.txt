@@ -1,0 +1,4 @@
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+max_v_out = 3.210000E-01 at= 4.0e-08
+min_v_out = -1,250000d-03
+rms_i_v1 = 6.20e-08

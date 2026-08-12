@@ -1,0 +1,13 @@
+* NetLang structured transient fixture
+V_INPUT in 0 PULSE(0 5 0 1u 1u 2m 4m)
+R_FILTER in out 1k
+C_FILTER out 0 1u
+
+.control
+set wr_singlescale
+set wr_vecnames
+tran 10u 5m
+wrdata netlang-analysis-000-tran.data all
+quit
+.endc
+.end

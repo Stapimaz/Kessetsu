@@ -7,7 +7,11 @@ R_Rx N_R1_p2 N_R3_p2 5000
 V_V1 N_R1_p1 0 10
 
 .control
+set wr_singlescale
+set wr_vecnames
+set numdgt=17
 op
+wrdata netlang-analysis-000-op.data all
 print all
 quit
 .endc

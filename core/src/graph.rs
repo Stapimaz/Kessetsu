@@ -1,5 +1,6 @@
 use crate::component::component_definition;
 use crate::ir::*;
+use crate::simulation::analysis_data_filename;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap, HashSet};
 
@@ -466,10 +467,17 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
 
     let mut has_sim = false;
     let mut control_block = String::from("\n.control\n");
-    for analysis in &circuit.analyses {
+    if !circuit.analyses.is_empty() {
+        control_block.push_str("set wr_singlescale\nset wr_vecnames\nset numdgt=17\n");
+    }
+    for (index, analysis) in circuit.analyses.iter().enumerate() {
         has_sim = true;
         control_block.push_str(&format_analysis(analysis, circuit));
         control_block.push('\n');
+        control_block.push_str(&format!(
+            "wrdata {} all\n",
+            analysis_data_filename(index, analysis)
+        ));
     }
 
     let mut net_counts: HashMap<NetId, usize> = HashMap::new();

@@ -1,0 +1,13 @@
+* NetLang structured AC fixture
+V_INPUT in 0 DC 0 AC 1
+R_FILTER in out 1k
+C_FILTER out 0 1u
+
+.control
+set wr_singlescale
+set wr_vecnames
+ac dec 10 10 100k
+wrdata netlang-analysis-000-ac.data all
+quit
+.endc
+.end

@@ -1,10 +1,10 @@
 mod common;
 
-use common::TestWorkspace;
-use netlang_core::ir::Analysis;
+use common::{TestWorkspace, read_fixture};
+use netlang_core::ir::{AcScale, Analysis, Quantity, SIUnit};
 use netlang_core::simulation::{
-    ArtifactPolicy, CancellationToken, NgspiceRunner, SimulationRequest, SimulationRunErrorKind,
-    SimulationRunner, SimulationStatus,
+    ArtifactPolicy, CancellationToken, Dataset, NgspiceRunner, SimulationRequest,
+    SimulationRunErrorKind, SimulationRunner, SimulationStatus,
 };
 use std::fs;
 use std::time::Duration;
@@ -138,4 +138,72 @@ fn parallel_runs_do_not_share_a_netlist_path() {
             .unwrap()
             .succeeded()
     );
+}
+
+#[test]
+fn real_ngspice_produces_structured_op_transient_and_ac_datasets() {
+    let cases = [
+        (
+            "simulation/netlists/op.spice",
+            Analysis::OperatingPoint,
+            "operating_point",
+        ),
+        (
+            "simulation/netlists/tran.spice",
+            Analysis::Transient {
+                step: Quantity {
+                    value: 10e-6,
+                    unit: SIUnit::Second,
+                },
+                stop: Quantity {
+                    value: 5e-3,
+                    unit: SIUnit::Second,
+                },
+            },
+            "transient",
+        ),
+        (
+            "simulation/netlists/ac.spice",
+            Analysis::Ac {
+                scale: AcScale::Decade,
+                points: 10,
+                start: Quantity {
+                    value: 10.0,
+                    unit: SIUnit::Hertz,
+                },
+                stop: Quantity {
+                    value: 100_000.0,
+                    unit: SIUnit::Hertz,
+                },
+            },
+            "ac",
+        ),
+    ];
+
+    let runner = NgspiceRunner::discover();
+    for (fixture, analysis, expected_kind) in cases {
+        let request = SimulationRequest::new(read_fixture(fixture), vec![analysis]);
+        let result = runner
+            .run(&request, &CancellationToken::new())
+            .unwrap_or_else(|error| panic!("real Ngspice fixture '{fixture}' failed: {error}"));
+        assert_eq!(result.status, SimulationStatus::Succeeded, "{fixture}");
+        assert_eq!(result.datasets.len(), 1, "{fixture}");
+        let serialized = serde_json::to_value(&result).expect("simulation result should serialize");
+        assert_eq!(serialized["schema_version"], "netlang.simulation.v1");
+        let dataset = &result.datasets[0].data;
+        match (expected_kind, dataset) {
+            ("operating_point", Dataset::OperatingPoint { values }) => {
+                assert!((values["out"] - 2.5).abs() < 1e-12);
+            }
+            ("transient", Dataset::Transient(series)) => {
+                assert!(series.axis.values.len() > 100);
+                assert_eq!(series.axis.values.len(), series.signals["out"].len());
+            }
+            ("ac", Dataset::Ac(series)) => {
+                assert_eq!(series.frequency_hz.len(), 41);
+                assert_eq!(series.frequency_hz.len(), series.signals["out"].real.len());
+            }
+            _ => panic!("unexpected dataset for {fixture}: {dataset:?}"),
+        }
+    }
 }
