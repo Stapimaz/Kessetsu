@@ -24,7 +24,7 @@ test('runs the canonical RC filter in a worker and evaluates Core assertions', a
   await page.goto('/');
   await replaceSource(page, source);
 
-  await page.getByRole('button', { name: 'Simüle Et' }).click();
+  await page.getByRole('button', { name: 'Run' }).click();
   const summary = page.getByTestId('simulation-summary');
   await expect(summary).toHaveAttribute('data-state', 'succeeded', { timeout: 100_000 });
   await expect(summary).toContainText('ngspice-45.2+');
@@ -58,18 +58,29 @@ test('normalizes OP, transient, AC and DC sweep results and restarts after cance
   await page.goto('/');
   await replaceSource(page, source);
 
-  await page.getByRole('button', { name: 'Simüle Et' }).click();
-  await page.getByRole('button', { name: 'İptal' }).click();
+  await page.getByRole('button', { name: 'Run' }).click();
+  await page.getByRole('button', { name: 'Cancel' }).click();
   await expect(page.getByTestId('simulation-summary')).toHaveAttribute('data-state', 'cancelled');
 
-  await page.getByRole('button', { name: 'Simüle Et' }).click();
+  await page.getByRole('button', { name: 'Run' }).click();
   const summary = page.getByTestId('simulation-summary');
   await expect(summary).toHaveAttribute('data-state', 'succeeded', { timeout: 100_000 });
   await expect(summary.getByTestId('dataset-kind')).toHaveText([
-    'operating_point',
+    'operating point',
     'transient',
     'ac',
-    'dc_sweep',
+    'dc sweep',
   ]);
-  await expect(summary.locator('.assertion-pass')).toHaveCount(4);
+  await expect(summary.locator('.assertion-pass')).toHaveCount(5);
+  await summary.getByRole('tab', { name: 'operating point' }).click();
+  await expect(summary.locator('.op-grid')).toBeVisible();
+  await summary.getByRole('tab', { name: 'transient' }).click();
+  await expect(summary.locator('.result-plot')).toHaveCount(1);
+  await expect(summary.locator('.threshold-line')).toHaveCount(1);
+  await summary.locator('.result-plot').hover({ position: { x: 250, y: 80 } });
+  await expect(summary.locator('.cursor-readout')).toBeVisible();
+  await summary.getByRole('tab', { name: 'ac' }).click();
+  await expect(summary.locator('.result-plot')).toHaveCount(2);
+  await summary.getByRole('tab', { name: 'dc sweep' }).click();
+  await expect(summary.locator('.result-plot')).toHaveCount(1);
 });

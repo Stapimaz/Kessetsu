@@ -16,6 +16,7 @@ simulate tran 10us 2ms
 simulate ac dec 20 10Hz 100kHz
 simulate dc VIN -1V 1V 100mV
 assert value(V(IN)) == 0V
+assert max(V(OUT)) < 1.1V
 assert gain(V(OUT),V(IN)) > 0.7
 assert cutoff(V(OUT),V(IN)) > 990Hz
 assert cutoff(V(OUT),V(IN)) < 1010Hz

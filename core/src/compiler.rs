@@ -155,6 +155,46 @@ fn parser_diagnostic(error: pest::error::Error<Rule>) -> Diagnostic {
     }
 }
 
+fn annotate_source_location(source: &str, diagnostic: &mut Diagnostic) {
+    if diagnostic.line.is_some() {
+        return;
+    }
+    let needle = diagnostic
+        .component
+        .as_deref()
+        .or(diagnostic.field.as_deref())
+        .or_else(|| {
+            diagnostic
+                .message
+                .split(|character: char| {
+                    character.is_whitespace() || matches!(character, '\'' | '"' | ':' | ',' | '.')
+                })
+                .find(|token| {
+                    !token.is_empty()
+                        && source.lines().any(|line| {
+                            line.split(|character: char| {
+                                !character.is_ascii_alphanumeric() && character != '_'
+                            })
+                            .any(|candidate| candidate.eq_ignore_ascii_case(token))
+                        })
+                })
+        });
+    let Some(needle) = needle else { return };
+    for (line_index, line) in source.lines().enumerate() {
+        if let Some(column) = line.to_ascii_lowercase().find(&needle.to_ascii_lowercase()) {
+            diagnostic.line = Some(line_index + 1);
+            diagnostic.column = Some(column + 1);
+            return;
+        }
+    }
+}
+
+fn annotate_source_locations(source: &str, diagnostics: &mut [Diagnostic]) {
+    for diagnostic in diagnostics {
+        annotate_source_location(source, diagnostic);
+    }
+}
+
 fn flatten_diagnostic(message: String) -> Diagnostic {
     Diagnostic {
         code: "NL-C008".to_string(),
@@ -251,6 +291,7 @@ pub fn compile_source(source: &str, options: CompileOptions) -> CompileReport {
         Ok(program) => program,
         Err(message) => {
             report.diagnostics.push(flatten_diagnostic(message));
+            annotate_source_locations(source, &mut report.diagnostics);
             return report;
         }
     };
@@ -263,6 +304,7 @@ pub fn compile_source(source: &str, options: CompileOptions) -> CompileReport {
         Ok(circuit) => circuit,
         Err(diagnostic) => {
             report.diagnostics.push(diagnostic.into());
+            annotate_source_locations(source, &mut report.diagnostics);
             return report;
         }
     };
@@ -275,6 +317,7 @@ pub fn compile_source(source: &str, options: CompileOptions) -> CompileReport {
         .into_iter()
         .map(Diagnostic::from)
         .collect();
+    annotate_source_locations(source, &mut report.diagnostics);
     report.graph = Some(GraphSummary::from_graph(&graph));
     report.ir = Some(circuit.clone());
 

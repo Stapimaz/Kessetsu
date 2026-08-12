@@ -1,7 +1,7 @@
 export type Analysis =
   | { kind: 'operating_point' }
   | { kind: 'transient'; step: Quantity; stop: Quantity }
-  | { kind: 'ac'; scale: 'Decade' | 'Octave' | 'Linear'; points: number; start: Quantity; stop: Quantity }
+  | { kind: 'ac'; scale: 'decade' | 'octave' | 'linear'; points: number; start: Quantity; stop: Quantity }
   | { kind: 'dc_sweep'; source: string; start: Quantity; stop: Quantity; step: Quantity };
 
 interface Quantity {

@@ -6,12 +6,17 @@ use crate::simulation::{SIMULATION_SCHEMA_VERSION, SimulationResult};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
+fn to_json_compatible<T: Serialize>(value: &T, context: &str) -> Result<JsValue, JsValue> {
+    value
+        .serialize(&serde_wasm_bindgen::Serializer::json_compatible())
+        .map_err(|error| JsValue::from_str(&format!("Could not serialize {context}: {error}")))
+}
+
 /// Thin browser adapter over the canonical, side-effect-free compile pipeline.
 #[wasm_bindgen]
 pub fn compile_netlang(input: &str) -> Result<JsValue, JsValue> {
     let report = compile_source(input, CompileOptions::all_outputs());
-    serde_wasm_bindgen::to_value(&report)
-        .map_err(|error| JsValue::from_str(&format!("Could not serialize compile report: {error}")))
+    to_json_compatible(&report, "compile report")
 }
 
 /// Returns the compile-report contract implemented by this WASM build.
@@ -59,12 +64,14 @@ pub fn prepare_browser_simulation(input: &str) -> Result<JsValue, JsValue> {
             netlist: generate_browser_analysis_netlist(&circuit, &graph, analysis),
         })
         .collect();
-    serde_wasm_bindgen::to_value(&BrowserSimulationPlan {
-        schema_version: SIMULATION_SCHEMA_VERSION.to_string(),
-        simulator_adapter: "eecircuit-engine@1.7.0".to_string(),
-        analyses,
-    })
-    .map_err(|error| JsValue::from_str(&format!("Could not serialize simulation plan: {error}")))
+    to_json_compatible(
+        &BrowserSimulationPlan {
+            schema_version: SIMULATION_SCHEMA_VERSION.to_string(),
+            simulator_adapter: "eecircuit-engine@1.7.0".to_string(),
+            analyses,
+        },
+        "simulation plan",
+    )
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -95,9 +102,11 @@ pub fn evaluate_browser_simulation(input: &str, simulation: JsValue) -> Result<J
         )));
     }
     let assertions = evaluate_assertions(&circuit, &simulation);
-    serde_wasm_bindgen::to_value(&BrowserEvaluation {
-        simulation,
-        assertions,
-    })
-    .map_err(|error| JsValue::from_str(&format!("Could not serialize browser result: {error}")))
+    to_json_compatible(
+        &BrowserEvaluation {
+            simulation,
+            assertions,
+        },
+        "browser result",
+    )
 }

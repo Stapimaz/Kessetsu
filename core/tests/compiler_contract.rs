@@ -73,6 +73,8 @@ fn semantic_failure_preserves_ast_but_blocks_graph_and_backends() {
 
     assert_eq!(report.diagnostics[0].code, "NL-C001");
     assert_eq!(report.diagnostics[0].stage, DiagnosticStage::Semantic);
+    assert_eq!(report.diagnostics[0].line, Some(1));
+    assert!(report.diagnostics[0].column.is_some());
     assert!(report.ast.is_some());
     assert!(report.ir.is_none());
     assert!(report.graph.is_none());
@@ -97,6 +99,12 @@ fn erc_failure_preserves_ir_and_graph_but_blocks_backends() {
             .all(|diagnostic| diagnostic.stage == DiagnosticStage::Erc)
     );
     assert!(report.ir.is_some());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.line.is_some())
+    );
     assert!(report.graph.is_some());
     assert!(report.spice_netlist.is_none());
     assert!(report.layout.is_none());

@@ -814,17 +814,17 @@ Mevcut Web/layout kodu tamamen boş değildir ve kanıt görmeden silinmeyecekti
 
 ### 4.3 — İlk zero-friction dikey Web Hub dilimi
 
-- [ ] Mevcut Web shell'i 4.0 kararına göre modülerleştir veya değiştir; editor, diagnostics, schematic, results ve export ayrı sorumluluklar taşısın.
-- [ ] İlk açılışta çalışan RC filtre örneği ve tek belirgin `Run` akışı sun.
-- [ ] CodePen sadeliğinde editor + diagnostics + şema + sonuç panelini responsive tek çalışma alanında birleştir.
-- [ ] Monaco NetLang syntax highlighting, autocomplete ve hover component/model bilgisini ekle.
-- [ ] Parser/semantic/ERC diagnostic source span'lerini editörde inline göster; panel ile source konumu arasında navigasyon sağla.
-- [ ] Debounced live compile ile bilinçli simulation çalıştırmasını ayır; pahalı simulation her keystroke'ta tetiklenmesin.
-- [ ] OP değer görünümü, transient plot, AC magnitude/phase (Bode) ve DC sweep plot bileşenlerini ortak typed dataset modelinden üret.
-- [ ] Signal seçimi, engineering unit/prefix, cursor değeri, zoom/pan ve okunabilir empty/error/loading/cancelled state'lerini ekle.
-- [ ] Assertion PASS/FAIL/ERROR/SKIPPED sonuçlarını ve threshold overlay'lerini ilgili grafik/sinyalle ilişkilendir.
-- [ ] Klavye erişilebilirliği, temel mobil/tablet davranışı ve koyu/açık tema kontrastını doğrula.
-- [ ] Browser E2E testinde kaynak düzenleme → diagnostic → düzeltme → simulation → assertion → şema güncelleme döngüsünü geçir.
+- [x] Mevcut Web shell'i 4.0 kararına göre modülerleştir veya değiştir; editor, diagnostics, schematic, results ve export ayrı sorumluluklar taşısın. _Kanıt: workspace hook'u ve `EditorPanel`/`SchematicPanel`/`ResultsPanel`/`ArtifactBar` ayrımı._
+- [x] İlk açılışta çalışan RC filtre örneği ve tek belirgin `Run` akışı sun. _RC fixture varsayılandır; simulation yalnız Results header'daki Run ile başlar._
+- [x] CodePen sadeliğinde editor + diagnostics + şema + sonuç panelini responsive tek çalışma alanında birleştir. _Desktop iki sütunlu çalışma alanı, 900 px altında tek sütun._
+- [x] Monaco NetLang syntax highlighting, autocomplete ve hover component/model bilgisini ekle. _`monaco.ts` Monarch grammar, completion ve hover provider'ları._
+- [x] Parser/semantic/ERC diagnostic source span'lerini editörde inline göster; panel ile source konumu arasında navigasyon sağla. _Parser exact, Core semantic/ERC source annotation; Monaco markers ve tıklanabilir diagnostic satırları._
+- [x] Debounced live compile ile bilinçli simulation çalıştırmasını ayır; pahalı simulation her keystroke'ta tetiklenmesin. _250 ms compile debounce; source değişimi eski simulation sonucunu temizler._
+- [x] OP değer görünümü, transient plot, AC magnitude/phase (Bode) ve DC sweep plot bileşenlerini ortak typed dataset modelinden üret. _Dört dataset sekmesi `simulation-parity.spec.ts` ile gerçek browser'da doğrulanır._
+- [x] Signal seçimi, engineering unit/prefix, cursor değeri, zoom/pan ve okunabilir empty/error/loading/cancelled state'lerini ekle. _Plot signal seçici/cursor/wheel zoom; schematic pointer+keyboard pan/zoom; lifecycle state'leri._
+- [x] Assertion PASS/FAIL/ERROR/SKIPPED sonuçlarını ve threshold overlay'lerini ilgili grafik/sinyalle ilişkilendir. _Assertion chip'leri ve primitive metric threshold çizgisi; transient matrix E2E kapısı._
+- [x] Klavye erişilebilirliği, temel mobil/tablet davranışı ve koyu/açık tema kontrastını doğrula. _Semantic region/label/focus kontrolleri, 390×844 E2E ve theme toggle._
+- [x] Browser E2E testinde kaynak düzenleme → diagnostic → düzeltme → simulation → assertion → şema güncelleme döngüsünü geçir. _Kanıt: `web-workspace.spec.ts`._
 
 **4.3 kabul kriteri:** Yeni kullanıcı RC filtrenin kodunu değiştirip cutoff sonucunu ve şemasını aynı çalışma alanında görebilir; hiçbir adım terminal, hesap veya yerel kurulum istemez.
 
