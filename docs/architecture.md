@@ -68,10 +68,11 @@ Simulator executable discovery, dağıtılan binary konumlarını ve sistem fall
   - `source Vin 5V` → 5V DC
   - `source Vin sine(0V, 1V, 1kHz)` → AC sinüs kaynağı
   - Geriye uyumluluk: `source Vin "SINE(0 1V 1kHz)"` da kabul edilir (string olarak)
-- **Simülasyon Komutları:** `simulate <cmd> <args*>`
+- **Simülasyon Komutları:** Analysis komutları raw SPICE metni olarak taşınmaz; semantic aşamada typed `Analysis` varyantlarına çevrilir. Desteklenmeyen komut, arity, birim veya sweep yönü `NL-C009` ile fail-closed reddedilir.
   - `simulate op` — DC Operating Point
   - `simulate tran 10us 1ms` — Transient
   - `simulate ac dec 10 1Hz 1MHz` — AC Analiz
+  - `simulate dc V1 0V 5V 100mV` — Bağımsız voltage/current source sweep
 - **Assertion'lar (Test):**
   - `assert max(V(out)) < 3.3V`
   - `assert peak(I(D1)) < 100mA`
@@ -149,6 +150,12 @@ User-defined model declaration/include syntax'ı henüz tanımlı değildir. Bu 
 | NL-S002 | Error | Simulator process/output başarısızlığı |
 
 Faz 3'te convergence, ölçüm ve assertion durumları daha ayrıntılı ayrı diagnostic/result kodlarına bölünecektir.
+
+### Simulation domain ve runner sınırı
+
+Native simulator process ayrıntıları Core'un ortak simulation sözleşmesine sızdırılmaz. Versioned `SimulationRequest` typed analysis listesi, netlist, timeout ve artifact politikasını; `SimulationResult` ise analysis, simulator/process status, measurement, warning, error, raw log ve artifact referanslarını ayrı alanlarda taşır. Native Ngspice adaptörü ile gelecekteki browser adaptörü aynı `SimulationRunner` sınırını uygular.
+
+Native runner her çalıştırma için benzersiz bir temporary directory oluşturur. Başarılı çalışmanın artifact'ları temizlenir; hata artifact'ları yalnız açık `retain_on_failure` politikasıyla korunur. Runner executable discovery ve version probe uygular, timeout'ta process'i sonlandırır ve paylaşılabilir cancellation token kabul eder. CLI `simulate` ve `test` aynı runner üzerinden çalışır.
 
 ### Çıktı Formatı
 - **İnsan modu (varsayılan):** Stage/code/message içeren stderr diagnostic'leri; assertion PASS/FAIL satırlarında terminal rengi

@@ -585,16 +585,18 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 
 ### 3.1 — Simulation domain modeli ve runner
 
-- [ ] `SimulationRequest` ve `SimulationResult` domain tiplerini tanımla.
-- [ ] Domain sözleşmesini native process ve gelecekteki browser simulator adaptörlerinden bağımsız tut.
-- [ ] Analysis türlerini typed enum yap: OP, transient, AC, DC sweep.
-- [ ] Measurement, warning, error ve raw-log alanlarını ayır.
-- [ ] Simulator process status'unu structured biçimde sakla.
-- [ ] Her çalıştırma için benzersiz temp directory kullan.
-- [ ] Temp cleanup ve failure artifact saklama politikasını tanımla.
-- [ ] `simulate` ve `test` için tek runner kullan.
-- [ ] Ngspice executable discovery ve version check'i güvenilir yap.
-- [ ] Timeout/cancellation desteği ekle.
+- [x] `SimulationRequest` ve `SimulationResult` domain tiplerini tanımla.
+- [x] Domain sözleşmesini native process ve gelecekteki browser simulator adaptörlerinden bağımsız tut.
+- [x] Analysis türlerini typed enum yap: OP, transient, AC, DC sweep.
+- [x] Measurement, warning, error ve raw-log alanlarını ayır.
+- [x] Simulator process status'unu structured biçimde sakla.
+- [x] Her çalıştırma için benzersiz temp directory kullan.
+- [x] Temp cleanup ve failure artifact saklama politikasını tanımla.
+- [x] `simulate` ve `test` için tek runner kullan.
+- [x] Ngspice executable discovery ve version check'i güvenilir yap.
+- [x] Timeout/cancellation desteği ekle.
+
+**3.1 kapanış kanıtı (2026-08-12):** `netlang.simulation.v1` request/result sözleşmesi ve backend-neutral `SimulationRunner` sınırı eklendi. OP/transient/AC/DC sweep artık typed ve unit-aware Circuit IR analysis varyantlarıdır; malformed veya unsupported analysis, module-flatten için ayrılmış `NL-C008` ile çakışmadan `NL-C009` diagnostic'iyle simulator öncesinde fail-closed olur. Native Ngspice runner executable discovery + version probe, structured process/log/warning/error/measurement alanları, benzersiz run directory, cleanup/retain-on-failure politikası, 30 saniyelik default timeout ve cancellation token uygular. `simulate` ile `test` aynı runner'ı kullanır. Fake-process integration testleri success, launch failure, simulator failure, timeout, cancellation, artifact retention ve paralel iki run izolasyonunu doğrular; gerçek bundled Ngspice 46 version probe'u ayrıca geçti. Canonical `scripts/verify.ps1` kapısı 81 Rust/CLI testi, fmt, Clippy `-D warnings`, release/WASM build, production npm audit (`0 vulnerabilities`), Web lint ve production build ile tamamen geçti.
 
 ### 3.2 — Structured Ngspice sonuçları
 
@@ -847,6 +849,6 @@ Her geliştirme oturumunda:
 
 ### Aktif sıradaki ilk iş
 
-**3.1 — Simulation domain modeli ve runner.**
+**3.2 — Structured Ngspice sonuçları.**
 
-Faz 2.5 yerel ve remote kalite kanıtlarıyla tamamen kapandı. Faz 3 başlangıç audit'i günceldir; ilk uygulama paketi typed `SimulationRequest`/`SimulationResult`, analysis enum'u ve `simulate`/`test` tarafından paylaşılacak tek runner sınırıdır.
+3.1 typed simulation domain ve ortak native runner ile kapandı. Sıradaki uygulama paketi prototip measurement satır ayrıştırmasını ayrı, fixture tabanlı bir parser'a taşımak; ardından OP, transient ve AC sonuçlarını mümkünse raw/wrdata tabanlı structured dataset'lere dönüştürmektir.

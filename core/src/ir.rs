@@ -114,9 +114,44 @@ pub enum ModelSource {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Analysis {
-    pub cmd: String,
-    pub args: Vec<String>,
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum Analysis {
+    OperatingPoint,
+    Transient {
+        step: Quantity,
+        stop: Quantity,
+    },
+    Ac {
+        scale: AcScale,
+        points: u32,
+        start: Quantity,
+        stop: Quantity,
+    },
+    DcSweep {
+        source: String,
+        start: Quantity,
+        stop: Quantity,
+        step: Quantity,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AcScale {
+    Decade,
+    Octave,
+    Linear,
+}
+
+impl Analysis {
+    pub fn kind_name(&self) -> &'static str {
+        match self {
+            Self::OperatingPoint => "op",
+            Self::Transient { .. } => "tran",
+            Self::Ac { .. } => "ac",
+            Self::DcSweep { .. } => "dc",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -350,11 +385,133 @@ pub fn resolve_model(name: &str) -> Option<ModelRef> {
     }
 }
 
+fn parse_analysis(
+    command: &crate::ast::SimulateStmt,
+    components: &[IRComponent],
+) -> Result<Analysis, SemanticDiagnostic> {
+    let invalid = |message: String| semantic_error("NL-C009", message, None, Some("analysis"));
+    let cmd = command.cmd.to_ascii_lowercase();
+
+    match cmd.as_str() {
+        "op" => {
+            if command.args.is_empty() {
+                Ok(Analysis::OperatingPoint)
+            } else {
+                Err(invalid(format!(
+                    "simulate op expects no arguments, got {}",
+                    command.args.len()
+                )))
+            }
+        }
+        "tran" => {
+            if command.args.len() != 2 {
+                return Err(invalid(format!(
+                    "simulate tran expects step and stop, got {} arguments",
+                    command.args.len()
+                )));
+            }
+            let step = parse_quantity(&command.args[0], SIUnit::Second)
+                .map_err(|error| invalid(format!("invalid transient step: {error}")))?;
+            let stop = parse_quantity(&command.args[1], SIUnit::Second)
+                .map_err(|error| invalid(format!("invalid transient stop: {error}")))?;
+            if step.value <= 0.0 || stop.value <= 0.0 || step.value > stop.value {
+                return Err(invalid(
+                    "transient step and stop must be positive, with step <= stop".to_string(),
+                ));
+            }
+            Ok(Analysis::Transient { step, stop })
+        }
+        "ac" => {
+            if command.args.len() != 4 {
+                return Err(invalid(format!(
+                    "simulate ac expects scale, points, start and stop, got {} arguments",
+                    command.args.len()
+                )));
+            }
+            let scale = match command.args[0].to_ascii_lowercase().as_str() {
+                "dec" => AcScale::Decade,
+                "oct" => AcScale::Octave,
+                "lin" => AcScale::Linear,
+                value => {
+                    return Err(invalid(format!(
+                        "unsupported AC scale '{value}'; expected dec, oct or lin"
+                    )));
+                }
+            };
+            let points = command.args[1]
+                .parse::<u32>()
+                .map_err(|_| invalid("AC points must be a positive integer".to_string()))?;
+            let start = parse_quantity(&command.args[2], SIUnit::Hertz)
+                .map_err(|error| invalid(format!("invalid AC start frequency: {error}")))?;
+            let stop = parse_quantity(&command.args[3], SIUnit::Hertz)
+                .map_err(|error| invalid(format!("invalid AC stop frequency: {error}")))?;
+            if points == 0 || start.value <= 0.0 || stop.value <= start.value {
+                return Err(invalid(
+                    "AC points must be positive and frequencies must satisfy 0 < start < stop"
+                        .to_string(),
+                ));
+            }
+            Ok(Analysis::Ac {
+                scale,
+                points,
+                start,
+                stop,
+            })
+        }
+        "dc" => {
+            if command.args.len() != 4 {
+                return Err(invalid(format!(
+                    "simulate dc expects source, start, stop and step, got {} arguments",
+                    command.args.len()
+                )));
+            }
+            let source = &command.args[0];
+            let source_kind = components
+                .iter()
+                .find(|component| component.id == *source)
+                .map(|component| &component.kind)
+                .ok_or_else(|| invalid(format!("DC sweep source '{source}' is not declared")))?;
+            let unit = match source_kind {
+                ComponentKind::VoltageSource => SIUnit::Volt,
+                ComponentKind::CurrentSource => SIUnit::Ampere,
+                _ => {
+                    return Err(invalid(format!(
+                        "DC sweep target '{source}' must be a voltage or current source"
+                    )));
+                }
+            };
+            let start = parse_quantity(&command.args[1], unit)
+                .map_err(|error| invalid(format!("invalid DC sweep start: {error}")))?;
+            let stop = parse_quantity(&command.args[2], unit)
+                .map_err(|error| invalid(format!("invalid DC sweep stop: {error}")))?;
+            let step = parse_quantity(&command.args[3], unit)
+                .map_err(|error| invalid(format!("invalid DC sweep step: {error}")))?;
+            if step.value == 0.0
+                || (stop.value - start.value).is_sign_positive() != step.value.is_sign_positive()
+            {
+                return Err(invalid(
+                    "DC sweep step must be non-zero and move from start toward stop".to_string(),
+                ));
+            }
+            Ok(Analysis::DcSweep {
+                source: source.clone(),
+                start,
+                stop,
+                step,
+            })
+        }
+        _ => Err(invalid(format!(
+            "unsupported simulation analysis '{}'; expected op, tran, ac or dc",
+            command.cmd
+        ))),
+    }
+}
+
 pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
     let mut components = Vec::new();
     let mut connections = Vec::new();
     let mut nets = Vec::new();
-    let mut analyses = Vec::new();
+    let mut analysis_statements = Vec::new();
     let mut assertions = Vec::new();
 
     for stmt in &program.statements {
@@ -643,10 +800,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
                 });
             }
             Statement::Simulate(sim) => {
-                analyses.push(Analysis {
-                    cmd: sim.cmd.clone(),
-                    args: sim.args.clone(),
-                });
+                analysis_statements.push(sim.clone());
             }
             Statement::Use(_) => {
                 return Err(semantic_error(
@@ -658,6 +812,11 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
             }
         }
     }
+
+    let analyses = analysis_statements
+        .iter()
+        .map(|analysis| parse_analysis(analysis, &components))
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(CircuitIR {
         components,

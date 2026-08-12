@@ -293,6 +293,58 @@ pub fn format_spice_number(value: f64) -> String {
     format!("{mantissa}e{exponent}")
 }
 
+fn format_analysis(analysis: &Analysis, circuit: &CircuitIR) -> String {
+    match analysis {
+        Analysis::OperatingPoint => "op".to_string(),
+        Analysis::Transient { step, stop } => format!(
+            "tran {} {}",
+            format_spice_number(step.value),
+            format_spice_number(stop.value)
+        ),
+        Analysis::Ac {
+            scale,
+            points,
+            start,
+            stop,
+        } => {
+            let scale = match scale {
+                AcScale::Decade => "dec",
+                AcScale::Octave => "oct",
+                AcScale::Linear => "lin",
+            };
+            format!(
+                "ac {scale} {points} {} {}",
+                format_spice_number(start.value),
+                format_spice_number(stop.value)
+            )
+        }
+        Analysis::DcSweep {
+            source,
+            start,
+            stop,
+            step,
+        } => {
+            let source_kind = circuit
+                .components
+                .iter()
+                .find(|component| component.id == *source)
+                .map(|component| &component.kind)
+                .expect("typed DC sweep source must exist in Circuit IR");
+            let prefix = match source_kind {
+                ComponentKind::VoltageSource => "V_",
+                ComponentKind::CurrentSource => "I_",
+                _ => unreachable!("typed DC sweep source must be an independent source"),
+            };
+            format!(
+                "dc {prefix}{source} {} {} {}",
+                format_spice_number(start.value),
+                format_spice_number(stop.value),
+                format_spice_number(step.value)
+            )
+        }
+    }
+}
+
 fn format_waveform(waveform: &Waveform) -> String {
     match waveform {
         Waveform::Sine {
@@ -414,15 +466,10 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
 
     let mut has_sim = false;
     let mut control_block = String::from("\n.control\n");
-    for sim in &circuit.analyses {
+    for analysis in &circuit.analyses {
         has_sim = true;
-        let args_str = sim.args.join(" ");
-        if args_str.is_empty() {
-            control_block.push_str(&sim.cmd);
-            control_block.push('\n');
-        } else {
-            control_block.push_str(&format!("{} {}\n", sim.cmd, args_str));
-        }
+        control_block.push_str(&format_analysis(analysis, circuit));
+        control_block.push('\n');
     }
 
     let mut net_counts: HashMap<NetId, usize> = HashMap::new();
@@ -448,12 +495,8 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
 
     let mut main_analysis = "tran";
     if has_sim {
-        for sim in &circuit.analyses {
-            let cmd = sim.cmd.to_lowercase();
-            if cmd == "tran" || cmd == "dc" || cmd == "ac" || cmd == "op" {
-                main_analysis = Box::leak(cmd.into_boxed_str());
-                break;
-            }
+        if let Some(analysis) = circuit.analyses.first() {
+            main_analysis = analysis.kind_name();
         }
 
         for assert in &circuit.assertions {

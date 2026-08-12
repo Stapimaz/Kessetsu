@@ -44,7 +44,9 @@ netlang compile examples/demo_circuit.nl --force
 
 ### `simulate`
 
-Derler, aynı output politikasına göre SPICE dosyasını yazar ve Ngspice'ı batch modunda çalıştırır. Simulator process status veya fatal/error çıktısı başarısızsa exit `3` döner; JSON modunda simulator logları stdout'a karışmaz.
+Derler, aynı output politikasına göre SPICE dosyasını yazar ve ortak simulation runner üzerinden Ngspice'ı batch modunda çalıştırır. Runner executable sürümünü doğrular, her çalışma için benzersiz temporary directory kullanır ve varsayılan 30 saniyelik timeout uygular. Simulator process status veya fatal/error çıktısı başarısızsa exit `3` döner; JSON modunda simulator logları stdout'a karışmaz.
+
+Dil seviyesinde `op`, `tran`, `ac` ve bağımsız voltage/current source için `dc` sweep desteklenir. Analysis argümanları ve fiziksel birimleri semantic aşamada doğrulanır; desteklenmeyen veya hatalı analysis `NL-C009` verir ve simulator başlatılmaz.
 
 ```bash
 netlang simulate examples/demo_circuit.nl --force

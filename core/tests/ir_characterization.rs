@@ -1,7 +1,7 @@
 use netlang_core::ast::Statement;
 use netlang_core::ir::{
-    BJTPolarity, ComponentKind, ComponentParams, SIUnit, SourceValue, Waveform, ast_to_ir,
-    parse_quantity, parse_si_value, parse_waveform, resolve_model,
+    AcScale, Analysis, BJTPolarity, ComponentKind, ComponentParams, SIUnit, SourceValue, Waveform,
+    ast_to_ir, parse_quantity, parse_si_value, parse_waveform, resolve_model,
 };
 use netlang_core::parse_program;
 
@@ -299,4 +299,61 @@ fn semantic_diagnostics_are_serializable_for_cli_and_wasm() {
     assert_eq!(json["code"], "NL-C003");
     assert_eq!(json["component"], "D1");
     assert_eq!(json["field"], "model");
+}
+
+#[test]
+fn simulation_analyses_are_typed_and_unit_checked_in_ir() {
+    let source = "source V1 5V\ncurrent_source I1 1mA\nsimulate op\nsimulate tran 1us 10ms\nsimulate ac dec 20 10Hz 1MHz\nsimulate dc V1 -1V 5V 100mV\nsimulate dc I1 2mA -2mA -100uA\n";
+    let program = parse_program(source).expect("analyses should parse");
+    let circuit = ast_to_ir(&program).expect("analyses should reach typed IR");
+
+    assert_eq!(circuit.analyses[0], Analysis::OperatingPoint);
+    assert!(matches!(
+        &circuit.analyses[1],
+        Analysis::Transient { step, stop }
+            if step.unit == SIUnit::Second && step.value == 1e-6 && stop.value == 1e-2
+    ));
+    assert!(matches!(
+        &circuit.analyses[2],
+        Analysis::Ac { scale: AcScale::Decade, points: 20, start, stop }
+            if start.unit == SIUnit::Hertz && start.value == 10.0 && stop.value == 1e6
+    ));
+    assert!(matches!(
+        &circuit.analyses[3],
+        Analysis::DcSweep { source, start, stop, step }
+            if source == "V1" && start.unit == SIUnit::Volt && start.value == -1.0
+                && stop.value == 5.0 && step.value == 0.1
+    ));
+    assert!(matches!(
+        &circuit.analyses[4],
+        Analysis::DcSweep { source, start, stop, step }
+            if source == "I1" && start.unit == SIUnit::Ampere
+                && (start.value - 2e-3).abs() < 1e-15
+                && (stop.value + 2e-3).abs() < 1e-15
+                && (step.value + 100e-6).abs() < 1e-15
+    ));
+}
+
+#[test]
+fn unsupported_or_malformed_analyses_fail_closed() {
+    for source in [
+        "simulate noise\n",
+        "simulate op extra\n",
+        "simulate tran 1V 10ms\n",
+        "simulate tran 10ms 1ms\n",
+        "simulate ac log 10 1Hz 1kHz\n",
+        "simulate ac dec zero 1Hz 1kHz\n",
+        "simulate ac dec 10 1kHz 1Hz\n",
+        "simulate dc V1 0V 5V 1V\n",
+        "resistor R1 1k\nsimulate dc R1 0V 5V 1V\n",
+        "source V1 5V\nsimulate dc V1 0V 5V -1V\n",
+    ] {
+        let program = parse_program(source).expect("analysis syntax should parse");
+        let diagnostic = ast_to_ir(&program).expect_err("invalid analysis reached typed IR");
+        assert_eq!(
+            diagnostic.code, "NL-C009",
+            "unexpected error for {source:?}"
+        );
+        assert_eq!(diagnostic.field.as_deref(), Some("analysis"));
+    }
 }

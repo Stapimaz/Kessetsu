@@ -48,3 +48,16 @@ fn valid_repository_examples_match_canonical_spice_snapshots() {
         assert_eq!(actual, expected, "golden mismatch for {source_name}");
     }
 }
+
+#[test]
+fn typed_ac_and_dc_analyses_emit_canonical_spice_commands() {
+    let source = "source BIAS 5V\ncurrent_source LOAD 1mA\nresistor R1 1k\nconnect BIAS.plus to R1.p1\nconnect R1.p2 to BIAS.minus\nsimulate ac dec 20 10Hz 1MHz\nsimulate dc BIAS -1V 5V 100mV\nsimulate dc LOAD 2mA -2mA -100uA\n";
+    let program = parse_program(source).expect("source should parse");
+    let circuit = ast_to_ir(&program).expect("source should reach typed IR");
+    let graph = NetlistGraph::build(&circuit);
+    let spice = generate_spice(&circuit, &graph);
+
+    assert!(spice.contains("\nac dec 20 10 1e6\n"));
+    assert!(spice.contains("\ndc V_BIAS -1 5 0.1\n"));
+    assert!(spice.contains("\ndc I_LOAD 0.002 -0.002 -1e-4\n"));
+}

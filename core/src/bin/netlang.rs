@@ -3,10 +3,13 @@ use netlang_core::compiler::{
     COMPILE_SCHEMA_VERSION, CompileOptions, CompileReport, Diagnostic, DiagnosticSeverity,
     DiagnosticStage, compile_source,
 };
+use netlang_core::simulation::{
+    CancellationToken, NgspiceRunner, SimulationRequest, SimulationResult, SimulationRunner,
+};
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{self, Output};
+use std::process;
 
 #[derive(Parser)]
 #[command(name = "netlang", about = "NetLang Circuit Compiler and Simulator")]
@@ -174,7 +177,7 @@ fn run(cli: Cli) -> i32 {
     }
 
     if matches!(cli.command, Commands::Simulate(_)) {
-        return run_simulate(&cli.format, report, spice_file, &spice_path);
+        return run_simulate(&cli.format, report, spice_file, &spice);
     }
 
     run_assertions(&cli.format, report, spice_file, &spice)
@@ -249,27 +252,19 @@ fn run_simulate(
     format: &Format,
     mut report: CompileReport,
     spice_file: Option<String>,
-    spice_path: &Path,
+    spice: &str,
 ) -> i32 {
     if *format == Format::Human {
         println!("[INFO] Running ngspice simulation...");
     }
 
-    let executable = netlang_core::sim_result::get_ngspice_path();
-    let output = match process::Command::new(&executable)
-        .arg("-b")
-        .arg(spice_path)
-        .output()
-    {
-        Ok(output) => output,
+    let simulation = match run_simulation(&report, spice) {
+        Ok(simulation) => simulation,
         Err(error) => {
             report.diagnostics.push(diagnostic(
                 "NL-S001",
                 DiagnosticStage::Simulation,
-                format!(
-                    "Failed to execute ngspice at '{}': {error}",
-                    executable.display()
-                ),
+                error.to_string(),
             ));
             emit(format, "simulation_error", report, spice_file, None);
             return 3;
@@ -277,21 +272,18 @@ fn run_simulate(
     };
 
     if *format == Format::Human {
-        print_simulator_logs(&output);
+        print_simulator_logs(&simulation);
     }
 
-    if simulator_failed(&output) {
-        report.diagnostics.push(diagnostic(
-            "NL-S002",
-            DiagnosticStage::Simulation,
-            format!(
-                "Ngspice failed with process status {}.",
-                output
-                    .status
-                    .code()
-                    .map_or_else(|| "terminated".to_string(), |code| code.to_string())
-            ),
-        ));
+    if !simulation.succeeded() {
+        let details = if simulation.errors.is_empty() {
+            format!("Ngspice ended with {:?} status.", simulation.status)
+        } else {
+            format!("Ngspice errors: {}", simulation.errors.join(" | "))
+        };
+        report
+            .diagnostics
+            .push(diagnostic("NL-S002", DiagnosticStage::Simulation, details));
         emit(format, "simulation_error", report, spice_file, None);
         return 3;
     }
@@ -302,30 +294,27 @@ fn run_simulate(
     0
 }
 
-fn simulator_failed(output: &Output) -> bool {
-    !output.status.success()
-        || contains_simulator_error(&String::from_utf8_lossy(&output.stdout))
-        || contains_simulator_error(&String::from_utf8_lossy(&output.stderr))
+fn print_simulator_logs(simulation: &SimulationResult) {
+    if !simulation.raw_log.stdout.is_empty() {
+        println!("\n--- NGSPICE OUTPUT ---\n{}", simulation.raw_log.stdout);
+    }
+    if !simulation.raw_log.stderr.is_empty() {
+        eprintln!("\n--- NGSPICE ERRORS ---\n{}", simulation.raw_log.stderr);
+    }
 }
 
-fn contains_simulator_error(text: &str) -> bool {
-    let lowercase = text.to_ascii_lowercase();
-    lowercase.contains("error") || lowercase.contains("fatal") || lowercase.contains("aborted")
-}
-
-fn print_simulator_logs(output: &Output) {
-    if !output.stdout.is_empty() {
-        println!(
-            "\n--- NGSPICE OUTPUT ---\n{}",
-            String::from_utf8_lossy(&output.stdout)
-        );
-    }
-    if !output.stderr.is_empty() {
-        eprintln!(
-            "\n--- NGSPICE ERRORS ---\n{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-    }
+fn run_simulation(
+    report: &CompileReport,
+    spice: &str,
+) -> Result<SimulationResult, netlang_core::simulation::SimulationRunError> {
+    let analyses = report
+        .ir
+        .as_ref()
+        .expect("successful compile report must preserve typed IR")
+        .analyses
+        .clone();
+    let request = SimulationRequest::new(spice, analyses);
+    NgspiceRunner::discover().run(&request, &CancellationToken::new())
 }
 
 fn run_assertions(
@@ -338,18 +327,20 @@ fn run_assertions(
         println!("[INFO] Running tests and assertions...");
     }
 
-    let simulation = match netlang_core::sim_result::run_simulation(spice) {
+    let simulation = match run_simulation(&report, spice) {
         Ok(simulation) => simulation,
         Err(error) => {
-            report
-                .diagnostics
-                .push(diagnostic("NL-S001", DiagnosticStage::Simulation, error));
+            report.diagnostics.push(diagnostic(
+                "NL-S001",
+                DiagnosticStage::Simulation,
+                error.to_string(),
+            ));
             emit(format, "simulation_error", report, spice_file, None);
             return 3;
         }
     };
 
-    if !simulation.success {
+    if !simulation.succeeded() {
         let details = if simulation.errors.is_empty() {
             "Ngspice returned an unsuccessful result.".to_string()
         } else {
@@ -489,17 +480,5 @@ fn emit_human_diagnostics(report: &CompileReport) {
             "[{} {:?}] {}: {}",
             severity, diagnostic.stage, diagnostic.code, diagnostic.message
         );
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::contains_simulator_error;
-
-    #[test]
-    fn simulator_error_classifier_is_case_insensitive_and_fail_closed() {
-        assert!(contains_simulator_error("Fatal error: singular matrix"));
-        assert!(contains_simulator_error("run ABORTED"));
-        assert!(!contains_simulator_error("No. of Data Rows : 1"));
     }
 }

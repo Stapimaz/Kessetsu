@@ -150,6 +150,24 @@ fn semantic_errors_are_structured_and_use_the_semantic_exit_code() {
 }
 
 #[test]
+fn invalid_analysis_fails_before_simulator_launch() {
+    let workspace = TestWorkspace::new("analysis-error");
+    let source_text = read_fixture("valid/minimal.nl").replace("simulate op", "simulate noise");
+    let source = workspace.write("invalid-analysis.nl", &source_text);
+    let source_arg = path_argument(&source);
+
+    let output = workspace.run_cli(&["simulate", &source_arg, "--format", "json"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stderr.is_empty());
+    let value: Value =
+        serde_json::from_slice(&output.stdout).expect("analysis error should be structured JSON");
+    assert_eq!(value["status"], "error");
+    assert_eq!(value["diagnostics"][0]["code"], "NL-C009");
+    assert_eq!(value["diagnostics"][0]["stage"], "semantic");
+    assert!(!source.with_extension("spice").exists());
+}
+
+#[test]
 fn compile_json_matches_the_canonical_library_report() {
     let workspace = TestWorkspace::new("canonical-report");
     let source_text = read_fixture("valid/minimal.nl");

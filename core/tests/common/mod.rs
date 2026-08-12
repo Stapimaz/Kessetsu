@@ -94,7 +94,7 @@ impl TestWorkspace {
         let (file_name, contents) = (
             format!("{name}.cmd"),
             format!(
-                "@echo off\r\n{}{}exit /b {code}\r\n",
+                "@echo off\r\nif \"%~1\"==\"-v\" (\r\n  echo ngspice-test-1\r\n  exit /b 0\r\n)\r\n{}{}exit /b {code}\r\n",
                 stdout
                     .lines()
                     .map(|line| format!("echo {line}\r\n"))
@@ -110,7 +110,7 @@ impl TestWorkspace {
         let (file_name, contents) = (
             format!("{name}.sh"),
             format!(
-                "#!/bin/sh\n{}{}exit {code}\n",
+                "#!/bin/sh\nif [ \"$1\" = \"-v\" ]; then\n  printf '%s\\n' 'ngspice-test-1'\n  exit 0\nfi\n{}{}exit {code}\n",
                 stdout
                     .lines()
                     .map(|line| format!("printf '%s\\n' '{line}'\n"))
@@ -119,6 +119,37 @@ impl TestWorkspace {
                     .lines()
                     .map(|line| format!("printf '%s\\n' '{line}' >&2\n"))
                     .collect::<String>()
+            ),
+        );
+
+        let path = self.write(file_name, &contents);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = fs::metadata(&path)
+                .expect("fake simulator metadata should be readable")
+                .permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(&path, permissions).expect("fake simulator should be executable");
+        }
+        path
+    }
+
+    pub fn write_slow_fake_simulator(&self, name: &str, seconds: u64) -> PathBuf {
+        #[cfg(windows)]
+        let (file_name, contents) = (
+            format!("{name}.cmd"),
+            format!(
+                "@echo off\r\nif \"%~1\"==\"-v\" (\r\n  echo ngspice-test-1\r\n  exit /b 0\r\n)\r\nping 127.0.0.1 -n {} > nul\r\necho completed\r\n",
+                seconds + 1
+            ),
+        );
+
+        #[cfg(not(windows))]
+        let (file_name, contents) = (
+            format!("{name}.sh"),
+            format!(
+                "#!/bin/sh\nif [ \"$1\" = \"-v\" ]; then\n  printf '%s\\n' 'ngspice-test-1'\n  exit 0\nfi\nsleep {seconds}\nprintf '%s\\n' 'completed'\n"
             ),
         );
 
