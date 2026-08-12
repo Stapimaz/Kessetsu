@@ -116,6 +116,16 @@ fn component_declaration_order_does_not_change_generated_spice() {
         generate_spice(&circuit_a, &graph_a),
         generate_spice(&circuit_b, &graph_b)
     );
+
+    let active_a =
+        circuit_from("source V1 5V\ntransistor Q2 npn\ntransistor Q1 pnp\nsimulate op\n");
+    let active_b =
+        circuit_from("transistor Q1 pnp\nsource V1 5V\ntransistor Q2 npn\nsimulate op\n");
+    assert_eq!(
+        generate_spice(&active_a, &NetlistGraph::build(&active_a)),
+        generate_spice(&active_b, &NetlistGraph::build(&active_b)),
+        "saved active-device vectors must also be canonical"
+    );
 }
 
 #[test]

@@ -174,6 +174,9 @@ fn invalid_or_missing_component_values_fail_ir_conversion() {
 fn waveform_arity_and_units_are_validated() {
     for source in [
         "source V1 sine(0V, 1V)\n",
+        "source V1 ac(1A)\n",
+        "source V1 sine_ac(0V, 1V, 1kHz)\n",
+        "source V1 sine_ac(0V, 1V, 1ms, 1V)\n",
         "source V1 sine(0V, 1A, 1kHz)\n",
         "source V1 sine(0V, 1V, 1ms)\n",
         "current_source I1 pulse(0A, 1A, 1ms, 1us, 1us, 5V, 10ms)\n",
@@ -194,6 +197,22 @@ fn waveform_arity_and_units_are_validated() {
         ComponentParams::VoltageSource {
             value: SourceValue::Waveform(Waveform::Pulse { period, .. })
         } if period.unit == SIUnit::Second && period.value == 0.01
+    ));
+
+    let source = "source V1 sine_ac(0V, 2V, 1kHz, 1V)\ncurrent_source I1 ac(1mA)\n";
+    let circuit = ast_to_ir(&parse_program(source).expect("AC sources should parse"))
+        .expect("AC sources should reach typed IR");
+    assert!(matches!(
+        &circuit.components[0].parameters,
+        ComponentParams::VoltageSource {
+            value: SourceValue::Waveform(Waveform::SineAc { ac_amplitude, .. })
+        } if ac_amplitude.unit == SIUnit::Volt && ac_amplitude.value == 1.0
+    ));
+    assert!(matches!(
+        &circuit.components[1].parameters,
+        ComponentParams::CurrentSource {
+            value: SourceValue::Waveform(Waveform::Ac { amplitude })
+        } if amplitude.unit == SIUnit::Ampere && amplitude.value == 0.001
     ));
 }
 

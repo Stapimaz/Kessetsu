@@ -11,7 +11,7 @@ Proje belirli bir eğitim senaryosu veya devre sınıfıyla sınırlı değildir
 ## Mevcut kapsam
 
 - Rust parser, module flattening ve typed Circuit IR
-- Sürümlü `netlang.compile.v1` compile raporu
+- Sürümlü `netlang.compile.v2` compile raporu
 - Deterministik net isimlendirme ve `NL-P/C/E/I/S/F` diagnostic alanları
 - SPICE üretimi ve Windows ngspice-46 sidecar runtime
 - Typed OP/transient/AC/DC simulation sonucu ve PASS/FAIL/ERROR/SKIPPED assertion runtime
@@ -21,7 +21,7 @@ Proje belirli bir eğitim senaryosu veya devre sınıfıyla sınırlı değildir
 - WASM tabanlı React playground
 - Deneysel automatic layout ve KiCad schematic export
 
-Engineering measurement/benchmark katmanı ve profesyonel şema kalitesi halen Faz 3'ün son paketi ve sonraki fazın kapsamındadır. Güncel görev ve sınırlar için [roadmap](docs/ROADMAP.md), mimari kurallar için [architecture](docs/architecture.md) esas alınır.
+Engineering measurement/benchmark katmanı `netlang.measurement.v1` sözleşmesiyle tamamlanmıştır; profesyonel şema kalitesi sonraki fazın kapsamındadır. Güncel görev ve sınırlar için [roadmap](docs/ROADMAP.md), mimari kurallar için [architecture](docs/architecture.md), formül ve sign convention'lar için [engineering measurements](docs/engineering_measurements.md) esas alınır.
 
 ## Web Hub
 

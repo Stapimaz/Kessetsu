@@ -3,6 +3,7 @@ use netlang_core::compiler::{
     COMPILE_SCHEMA_VERSION, CompileOptions, CompileReport, Diagnostic, DiagnosticSeverity,
     DiagnosticStage, compile_source,
 };
+use netlang_core::measurement::MEASUREMENT_SCHEMA_VERSION;
 use netlang_core::sim_result::{
     ASSERTION_SCHEMA_VERSION, AssertionReport, AssertionResult, AssertionStatus, AssertionSummary,
     format_quantity,
@@ -104,6 +105,7 @@ struct JsonOutput {
 struct DomainVersions {
     compile: &'static str,
     simulation: Option<&'static str>,
+    measurement: Option<&'static str>,
     assertion: Option<&'static str>,
 }
 
@@ -837,6 +839,7 @@ fn build_json_output(
         domain_versions: DomainVersions {
             compile: COMPILE_SCHEMA_VERSION,
             simulation: simulation.map(|_| SIMULATION_SCHEMA_VERSION),
+            measurement: simulation.map(|_| MEASUREMENT_SCHEMA_VERSION),
             assertion: assertions.as_ref().map(|_| ASSERTION_SCHEMA_VERSION),
         },
         diagnostics,

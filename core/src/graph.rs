@@ -324,6 +324,9 @@ fn format_analysis(analysis: &Analysis, circuit: &CircuitIR) -> String {
 
 fn format_waveform(waveform: &Waveform) -> String {
     match waveform {
+        Waveform::Ac { amplitude } => {
+            format!("AC {}", format_spice_number(amplitude.value))
+        }
         Waveform::Sine {
             offset,
             amplitude,
@@ -333,6 +336,18 @@ fn format_waveform(waveform: &Waveform) -> String {
             format_spice_number(offset.value),
             format_spice_number(amplitude.value),
             format_spice_number(frequency.value)
+        ),
+        Waveform::SineAc {
+            offset,
+            amplitude,
+            frequency,
+            ac_amplitude,
+        } => format!(
+            "SINE({} {} {}) AC {}",
+            format_spice_number(offset.value),
+            format_spice_number(amplitude.value),
+            format_spice_number(frequency.value),
+            format_spice_number(ac_amplitude.value)
         ),
         Waveform::Pulse {
             v1,
@@ -449,6 +464,21 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
     let mut control_block = String::from("\n.control\n");
     if !circuit.analyses.is_empty() {
         control_block.push_str("set wr_singlescale\nset wr_vecnames\nset numdgt=17\n");
+        let device_currents = circuit
+            .components
+            .iter()
+            .filter_map(|component| match component.kind {
+                ComponentKind::Diode => Some(format!("@D_{}[id]", component.id)),
+                ComponentKind::BJT(_) => Some(format!("@Q_{}[ic]", component.id)),
+                ComponentKind::MOSFET(_) => Some(format!("@M_{}[id]", component.id)),
+                _ => None,
+            })
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        if !device_currents.is_empty() {
+            control_block.push_str(&format!("save all {}\n", device_currents.join(" ")));
+        }
     }
     for (index, analysis) in circuit.analyses.iter().enumerate() {
         has_sim = true;
@@ -488,11 +518,32 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
         }
 
         for assert in &circuit.assertions {
-            let safe_signal = assert
-                .signal
-                .replace("(", "_")
-                .replace(")", "")
-                .to_lowercase();
+            let arguments = assert.signal.split(',').collect::<Vec<_>>();
+            if arguments.len() != 1
+                || !(arguments[0].starts_with("V(") || arguments[0].starts_with("I("))
+            {
+                continue;
+            }
+            let signal = arguments[0];
+            let target = &signal[2..signal.len() - 1];
+            let component = circuit
+                .components
+                .iter()
+                .find(|component| component.id.eq_ignore_ascii_case(target));
+            if signal.starts_with("V(") && component.is_some() {
+                continue;
+            }
+            if signal.starts_with("I(")
+                && !component.is_some_and(|component| {
+                    matches!(
+                        component.kind,
+                        ComponentKind::VoltageSource | ComponentKind::Inductor
+                    )
+                })
+            {
+                continue;
+            }
+            let safe_signal = signal.replace("(", "_").replace(")", "").to_lowercase();
             let safe_name = format!("{}_{}", assert.metric.to_lowercase(), safe_signal);
             let metric = match assert.metric.to_uppercase().as_str() {
                 "MAX" => "MAX",
@@ -507,7 +558,7 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
             // For now, if metric is MAX/MIN/RMS we assume we need to use it.
             // If it's op, ngspice .meas op expects `FIND v(node) AT=0` or similar,
             // but for simplicity we'll just output the metric.
-            let mut sp_signal = assert.signal.clone();
+            let mut sp_signal = signal.to_string();
             if sp_signal.to_uppercase().starts_with("I(") {
                 let inside = &sp_signal[2..sp_signal.len() - 1];
                 let prefix = match inside.chars().next() {

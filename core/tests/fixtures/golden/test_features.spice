@@ -15,6 +15,7 @@ V_V1 my_power 0 10
 set wr_singlescale
 set wr_vecnames
 set numdgt=17
+save all @Q_Q1[ic] @Q_Q2[ic]
 tran 1e-6 0.01
 wrdata netlang-analysis-000-tran.data all
 meas tran max_v_my_signal MAX V(my_signal)

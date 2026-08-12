@@ -96,7 +96,9 @@ netlang render examples/demo_circuit.nl
 
 ## JSON sözleşmesi
 
-JSON stdout her çalıştırmada tek bir JSON objesidir; progress ve simulator logları stdout'a yazılmaz. Varsayılan agent envelope sürümü `netlang.cli.v1`'dir. Compile raporu `netlang.compile.v1`, simulation sonucu `netlang.simulation.v1`, assertion raporu `netlang.assertion.v1` kullanır; geçerli alt sözleşmeler `domain_versions` alanında görünür.
+JSON stdout her çalıştırmada tek bir JSON objesidir; progress ve simulator logları stdout'a yazılmaz. Varsayılan agent envelope sürümü `netlang.cli.v1`'dir. Compile raporu `netlang.compile.v2`, simulation sonucu `netlang.simulation.v1`, engineering measurement modeli `netlang.measurement.v1`, assertion raporu `netlang.assertion.v1` kullanır; geçerli alt sözleşmeler `domain_versions` alanında görünür.
+
+Assertion primitive'leri, derived metric formülleri, analiz gereksinimleri ve sign convention için [engineering measurement sözleşmesine](engineering_measurements.md) bakın.
 
 Varsayılan çıktı bilinçli olarak kompakttır. Yalnız `status`, diagnostics, summary, measurements, assertions ve artifact referanslarına ek olarak command/schema metadata'sı taşır. Canonical AST/IR/graph/SPICE, analysis dataset'leri, model manifest/lock ve raw log `debug` altında ancak ilgili `--include` seçilirse bulunur.
 
@@ -108,8 +110,9 @@ Başarılı `check` özeti:
   "command": "check",
   "status": "success",
   "domain_versions": {
-    "compile": "netlang.compile.v1",
+    "compile": "netlang.compile.v2",
     "simulation": null,
+    "measurement": null,
     "assertion": null
   },
   "diagnostics": [],

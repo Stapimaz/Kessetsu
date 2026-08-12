@@ -37,11 +37,11 @@ NetLang Source (.nl)
 
 ### Tek Compile Sözleşmesi
 
-Çekirdeğin canonical derleme girişi `compile_source(source, options) -> CompileReport` fonksiyonudur. Bu fonksiyon dosya yazmaz, process başlatmaz ve log basmaz; bu yan etkiler CLI gibi frontend'lere aittir. Rapor şeması `netlang.compile.v1` ile sürümlüdür ve opsiyonlara göre flattened AST, typed IR, deterministik graph özeti, SPICE, layout ve KiCad çıktıları taşıyabilir.
+Çekirdeğin canonical derleme girişi `compile_source(source, options) -> CompileReport` fonksiyonudur. Bu fonksiyon dosya yazmaz, process başlatmaz ve log basmaz; bu yan etkiler CLI gibi frontend'lere aittir. Rapor şeması `netlang.compile.v2` ile sürümlüdür ve opsiyonlara göre flattened AST, typed IR, deterministik graph özeti, SPICE, layout ve KiCad çıktıları taşıyabilir.
 
 Parse, flatten, semantic ve ERC hataları ortak `Diagnostic` modeline dönüştürülür. Error severity varsa hiçbir backend çıktısı üretilmez; warning ve info sonuçları başarılı çıktılarla birlikte taşınabilir. CLI ve WASM kendi paralel derleme akışlarını kurmamalı, yalnızca bu entrypoint'in adaptörü olmalıdır.
 
-CLI, canonical raporu `netlang.cli.v1` agent envelope'u içinde render eder; Core raporunun semantiğini değiştirmez. Varsayılan JSON yalnız kompakt durum/diagnostic/summary/measurement/assertion/artifact alanlarını taşır. AST, IR, graph, SPICE, dataset ve raw simulator log açık `--include` olmadan serialize edilmez. Compile, simulation ve assertion alt sözleşmelerinin sürümleri `domain_versions` içinde ilan edilir; bilinmeyen CLI schema isteği hiçbir compile veya dosya yazma işlemi başlamadan `NL-F002` ile reddedilir. JSON stdout tek bir obje olarak kalır. Dosya yazma frontend sorumluluğudur: mevcut output açık `--force` olmadan ezilmez ve hiçbir generated output kaynak `.nl` dosyasının üzerine yazılamaz.
+CLI, canonical raporu `netlang.cli.v1` agent envelope'u içinde render eder; Core raporunun semantiğini değiştirmez. Varsayılan JSON yalnız kompakt durum/diagnostic/summary/measurement/assertion/artifact alanlarını taşır. AST, IR, graph, SPICE, dataset ve raw simulator log açık `--include` olmadan serialize edilmez. Compile, simulation, measurement ve assertion alt sözleşmelerinin sürümleri `domain_versions` içinde ilan edilir; bilinmeyen CLI schema isteği hiçbir compile veya dosya yazma işlemi başlamadan `NL-F002` ile reddedilir. JSON stdout tek bir obje olarak kalır. Dosya yazma frontend sorumluluğudur: mevcut output açık `--force` olmadan ezilmez ve hiçbir generated output kaynak `.nl` dosyasının üzerine yazılamaz.
 
 CLI'da kaynak yolu `-` ise source stdin'den okunur. Stdin tabanlı `compile`, `simulate` ve `test` açık `--output` verilmedikçe SPICE dosyası yazmaz; netlist process içinde simulation'a aktarılır ve JSON caller gerekirse `--include spice` ile metni alır. Böylece tool çağrıları geçici kaynak dosyasına ihtiyaç duymaz ve side-effect-free stdin istekleri aynı input/seçenekler için byte-stable JSON üretir. Dosya tabanlı komutların mevcut güvenli overwrite politikası değişmez.
 
@@ -68,7 +68,9 @@ Simulator executable discovery, dağıtılan binary konumlarını ve sistem fall
   - `resistor R1 10k` → 10000 Ω
   - `capacitor C1 100uF` → 100µF
   - `source Vin 5V` → 5V DC
-  - `source Vin sine(0V, 1V, 1kHz)` → AC sinüs kaynağı
+  - `source Vin sine(0V, 1V, 1kHz)` → transient sinüs kaynağı
+  - `source Vin ac(1V)` → small-signal AC kaynağı
+  - `source Vin sine_ac(0V, 1V, 1kHz, 1V)` → transient ve AC analizlerinde ortak kaynak
   - Geriye uyumluluk: `source Vin "SINE(0 1V 1kHz)"` da kabul edilir (string olarak)
 - **Simülasyon Komutları:** Analysis komutları raw SPICE metni olarak taşınmaz; semantic aşamada typed `Analysis` varyantlarına çevrilir. Desteklenmeyen komut, arity, birim veya sweep yönü `NL-C009` ile fail-closed reddedilir.
   - `simulate op` — DC Operating Point
@@ -78,6 +80,8 @@ Simulator executable discovery, dağıtılan binary konumlarını ve sistem fall
 - **Assertion'lar (Test):**
   - `assert max(V(out)) < 3.3V`
   - `assert peak(I(D1)) < 100mA`
+  - `assert output_power(V(out),RL) > 2W`
+  - Primitive, derived metric, analysis ve sign semantiğinin canonical tanımı `docs/engineering_measurements.md` içindedir.
 
 ## 3. Circuit IR (Intermediate Representation)
 

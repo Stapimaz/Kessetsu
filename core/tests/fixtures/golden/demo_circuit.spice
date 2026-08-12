@@ -18,6 +18,7 @@ V_Vin N_Cin_p1 0 1
 set wr_singlescale
 set wr_vecnames
 set numdgt=17
+save all @Q_Q1[ic]
 op
 wrdata netlang-analysis-000-op.data all
 print all

@@ -8,7 +8,7 @@ use pest::error::LineColLocation;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const COMPILE_SCHEMA_VERSION: &str = "netlang.compile.v1";
+pub const COMPILE_SCHEMA_VERSION: &str = "netlang.compile.v2";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

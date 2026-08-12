@@ -254,8 +254,13 @@ fn parse_statement(statement_pair: pest::iterators::Pair<Rule>) -> Option<Statem
         }
         Rule::assert_stmt => {
             let mut inner_rules = inner.into_inner();
-            let metric = inner_rules.next().unwrap().as_str().to_string();
-            let signal = inner_rules.next().unwrap().as_str().to_string();
+            let metric_call = inner_rules.next().unwrap();
+            let mut call_rules = metric_call.into_inner();
+            let metric = call_rules.next().unwrap().as_str().to_string();
+            let signal = call_rules
+                .map(|argument| argument.as_str().to_string())
+                .collect::<Vec<_>>()
+                .join(",");
             let cmp_str = inner_rules.next().unwrap().as_str();
             let cmp = match cmp_str {
                 "<" => Cmp::Lt,

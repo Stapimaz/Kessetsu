@@ -4,11 +4,11 @@
 >
 > Mimari kurallar için `docs/architecture.md`, kullanıcıya açık CLI sözleşmesi için `docs/cli_reference.md` kullanılır. Bu belgeler arasında çelişki varsa geliştirme durumu açısından bu roadmap esas alınır ve çelişki aktif milestone içinde düzeltilir.
 >
-> Son kapsamlı repo denetimi: **2026-08-08**
+> Son kapsamlı repo denetimi: **2026-08-12**
 >
-> Aktif milestone: **Faz 3 — Simülasyon ve Assertion Runtime**
+> Aktif milestone: **Faz 4 — Profesyonel Şema, Web Hub ve Yayın**
 >
-> Sonraki milestone: **Faz 4 — Profesyonel Şema, Web Hub ve Yayın**
+> Önceki milestone: **Faz 3 — Simülasyon ve Assertion Runtime (tamamlandı)**
 
 ---
 
@@ -150,7 +150,7 @@ Sadece kodun bulunması tamamlanma kanıtı değildir.
 
 | Kontrol | Sonuç | Açıklama |
 |---|---|---|
-| `cargo test --all-targets` | Geçiyor | 69 test; parser/IR/compiler/graph/ERC/SPICE/CLI/runtime contract kapsamı mevcut |
+| `cargo test --all-targets` | Geçiyor | 111 test; parser/IR/compiler/graph/ERC/SPICE/CLI/runtime/measurement/benchmark kapsamı mevcut |
 | `cargo fmt -- --check` | Geçiyor | Rust kaynakları canonical `rustfmt` biçiminde |
 | `cargo clippy --all-targets -- -D warnings` | Geçiyor | Mevcut target'larda warning yok |
 | `npm run build` | Geçiyor | WASM paketini sıfırdan üretip web production build'i tamamlıyor |
@@ -160,19 +160,17 @@ Sadece kodun bulunması tamamlanma kanıtı değildir.
 ### 4.3 Kalan kritik açıklar
 
 - Dağıtılan Ngspice runtime yalnız Windows x86-64 sidecar'dır; Linux/macOS paketleme tamamlanmadı. `NETLANG_NGSPICE` açık executable override'ı mevcuttur.
-- Ngspice runner sabit `netlang_temp.spice` dosyasını kullanıyor; paralel çalıştırmaya uygun değil.
-- Faz 3 sonuç modeli yalnızca `.meas` map'i ve string error listesi içeriyor; structured OP/transient/AC verisi yok.
-- Assertion measurement eksikliği halen `NaN/Not Found` prototip davranışına dayanıyor; Faz 3'te typed ERROR sonucuna dönüşmelidir.
 - Layout/KiCad çıktısı deneyseldir; connectivity round-trip, collision ve gerçek KiCad açılabilirlik fixture'ları tamamlanmadı.
 - Web runtime için otomatik gerçek-browser smoke testi yok; WASM build + TypeScript/Vite build ve Rust all-output smoke testi mevcut.
+- Browser içinde simulation/measurement adaptörü ve grafik yüzeyi henüz native runner ile aynı ürün kabul seviyesinde değildir.
 
 ### 4.4 Faz yorumu
 
 - Faz 0: Tarihsel MVP tamamlandı.
 - Faz 1: Golden/regression ve fail-closed kabul kriterleri Faz 2.5 içinde kapatıldı.
 - Faz 2: Typed IR, determinism, semantic validation ve regression borçları Faz 2.5 içinde kapatıldı.
-- Faz 3: Temel `.meas` assertion akışı **PROTOTİP**; ayrıntılı Faz 3 kabul kriterleri tamamlanmadı.
-- Aktif çalışma: Faz 3 başlangıç audit'inde tanımlanan sırayla simulation domain modeli ve tek runner geliştirilecek.
+- Faz 3: Typed simulation, measurement, assertion, agent CLI, model registry ve gerçek ürün benchmark'larıyla tamamlandı.
+- Aktif çalışma: Faz 4 ayrıntılarını Faz 3'te doğrulanan Core sözleşmeleri üzerine yeniden denetlemek; ardından profesyonel şema, Web Hub ve yayın kapısını sırayla uygulamak.
 
 ---
 
@@ -687,16 +685,18 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 
 ### 3.7 — Engineering measurements ve ürün benchmark'ları
 
-- [ ] Node voltage, branch/device current ve instantaneous/average/RMS power için typed measurement primitive'leri tanımla.
-- [ ] `min`, `max`, absolute `peak`, `average`, `rms`, frequency/phase ve zaman penceresi semantiklerini birimlerle birlikte kesinleştir.
-- [ ] Voltage/current gain, bandwidth/cutoff, output RMS power, efficiency, THD ve component dissipation için derived measurement modeli oluştur.
-- [ ] Derived measurement'ların assertion içinde güvenle kullanılmasını sağla; eksik veya desteklenmeyen veri typed ERROR üretsin.
-- [ ] Device voltage/current/power limitlerini simulation sonucu üzerinden sınayacak assertion'ları ekle.
-- [ ] Her mühendislik metriğini formül, sign convention, analysis gereksinimi ve birimiyle dokümante et.
-- [ ] Canonical RC filtre benchmark'ı: cutoff ve AC response.
-- [ ] Canonical gain-stage benchmark'ı: bias, gain, bandwidth ve clipping davranışı.
-- [ ] Canonical çok katlı power-amplifier benchmark'ı: 8 Ω yükte hedef output power, gain, distortion ve component dissipation koşulları.
-- [ ] En az bir benchmark'ta dış AI ajanının başarısız tasarım adayını structured sonuçla revize edip hedefleri karşılayan adaya ulaşmasını E2E doğrula.
+- [x] Node voltage, branch/device current ve instantaneous/average/RMS power için typed measurement primitive'leri tanımla.
+- [x] `min`, `max`, absolute `peak`, `average`, `rms`, frequency/phase ve zaman penceresi semantiklerini birimlerle birlikte kesinleştir.
+- [x] Voltage/current gain, bandwidth/cutoff, output RMS power, efficiency, THD ve component dissipation için derived measurement modeli oluştur.
+- [x] Derived measurement'ların assertion içinde güvenle kullanılmasını sağla; eksik veya desteklenmeyen veri typed ERROR üretsin.
+- [x] Device voltage/current/power limitlerini simulation sonucu üzerinden sınayacak assertion'ları ekle.
+- [x] Her mühendislik metriğini formül, sign convention, analysis gereksinimi ve birimiyle dokümante et.
+- [x] Canonical RC filtre benchmark'ı: cutoff ve AC response.
+- [x] Canonical gain-stage benchmark'ı: bias, gain, bandwidth ve clipping davranışı.
+- [x] Canonical çok katlı power-amplifier benchmark'ı: 8 Ω yükte hedef output power, gain, distortion ve component dissipation koşulları.
+- [x] En az bir benchmark'ta dış AI ajanının başarısız tasarım adayını structured sonuçla revize edip hedefleri karşılayan adaya ulaşmasını E2E doğrula.
+
+**3.7 kapanış kanıtı (2026-08-12):** `netlang.measurement.v1`, `V(net|device)`, `I(device)` ve `P(device)` primitive'lerini; typed reduction/time-window semantiğini ve gain, bandwidth/cutoff, frequency, phase, output RMS power, efficiency, THD, clipping ve dissipation metric'lerini dataset-first değerlendirir. Eksik/uygunsuz veri message-bearing `ERROR` olur. `docs/engineering_measurements.md` formül, birim, sign convention ve analysis gereksinimlerini kaydeder. Gerçek Ngspice benchmark suite'i RC filtresinde yaklaşık 1.000 kHz cutoff; gain stage'de yaklaşık 10 gain ve 100 kHz bandwidth; dört katlı amplifikatörde 8 Ω üzerinde yaklaşık 1.95 W, 56.5 gain, %2.23 THD ile clipping/dissipation/device-stress koşullarını doğrular. Real-agent E2E testi 10 kHz'e kayan hatalı RC adayının versioned JSON `FAIL` sonucunu okuyup kondansatörü revize ederek beş assertion'ın tamamını `PASS` yapar. Compile IR genişlediği için rapor `netlang.compile.v2`'ye yükseltildi; CLI `domain_versions` içinde measurement sürümünü de ilan eder.
 
 ### Faz 3 kabul kriterleri
 
@@ -707,8 +707,10 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 - [x] CLI human/JSON ve exit-code contract testleri geçer. _(3.4–3.5 cross-platform contract suite.)_
 - [x] Dış AI ajanı human terminal metni parse etmeden versioned sözleşmeyle tasarım döngüsü kurabilir. _(3.5 stdin agent-revision E2E.)_
 - [x] User-defined ve packaged model/subcircuit çözümlemesi reproducible, provenance bilgili ve fail-closed çalışır. _(3.6 typed registry, SHA-256 manifest ve lock contract.)_
-- [ ] RC filtre, gain stage ve power-amplifier benchmark'ları tanımlı mühendislik hedeflerini gerçek Ngspice sonuçlarıyla doğrular.
-- [ ] Faz 2.5 kalite kapıları geçmeye devam eder.
+- [x] RC filtre, gain stage ve power-amplifier benchmark'ları tanımlı mühendislik hedeflerini gerçek Ngspice sonuçlarıyla doğrular. _(`engineering_benchmarks` gerçek Ngspice suite'i.)_
+- [x] Faz 2.5 kalite kapıları geçmeye devam eder. _(111 Rust testi; fmt, Clippy `-D warnings`, release, WASM, audit=0, Web lint ve production build canonical `scripts/verify.ps1` ile geçti.)_
+
+**Faz 3 kapanışı (2026-08-12):** 3.1–3.7 alt görevleri ve bütün kabul kriterleri doğrulandı. Faz 3, prototype `.meas` hattı yerine versioned simulation/measurement/assertion domain'leri, side-effect-free agent CLI, reproducible model registry ve gerçek devre benchmark'larıyla kapanmıştır. Sonraki çalışma Faz 4 audit'i ve sıralamasıdır; Faz 3'e ait açık checkbox yoktur.
 
 ### Faz 3'ten ertelenen işler
 

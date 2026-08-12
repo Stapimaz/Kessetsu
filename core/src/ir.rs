@@ -66,10 +66,19 @@ pub enum SourceValue {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Waveform {
+    Ac {
+        amplitude: Quantity,
+    },
     Sine {
         offset: Quantity,
         amplitude: Quantity,
         frequency: Quantity,
+    },
+    SineAc {
+        offset: Quantity,
+        amplitude: Quantity,
+        frequency: Quantity,
+        ac_amplitude: Quantity,
     },
     Pulse {
         v1: Quantity,
@@ -94,6 +103,10 @@ pub enum SIUnit {
     Ampere,
     Hertz,
     Second,
+    Watt,
+    Ratio,
+    Percent,
+    Degree,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -321,6 +334,9 @@ fn parse_unit_suffix(suffix: &str) -> Result<(f64, Option<SIUnit>), String> {
         "A" | "a" => Some(SIUnit::Ampere),
         "Hz" | "hz" | "HZ" => Some(SIUnit::Hertz),
         "s" | "S" => Some(SIUnit::Second),
+        "W" | "w" => Some(SIUnit::Watt),
+        "%" => Some(SIUnit::Percent),
+        "deg" | "degree" | "degrees" => Some(SIUnit::Degree),
         _ => return Err(format!("unsupported unit or trailing text '{suffix}'")),
     };
 
@@ -373,6 +389,18 @@ pub fn parse_waveform(val: &str, value_unit: SIUnit) -> Result<Option<Waveform>,
         .filter(|part| !part.is_empty())
         .collect();
 
+    if name.eq_ignore_ascii_case("ac") {
+        if parts.len() != 1 {
+            return Err(format!(
+                "AC expects exactly 1 parameter, got {}",
+                parts.len()
+            ));
+        }
+        return Ok(Some(Waveform::Ac {
+            amplitude: parse_quantity(parts[0], value_unit)?,
+        }));
+    }
+
     if name.eq_ignore_ascii_case("sine") {
         if parts.len() != 3 {
             return Err(format!(
@@ -384,6 +412,21 @@ pub fn parse_waveform(val: &str, value_unit: SIUnit) -> Result<Option<Waveform>,
             offset: parse_quantity(parts[0], value_unit)?,
             amplitude: parse_quantity(parts[1], value_unit)?,
             frequency: parse_quantity(parts[2], SIUnit::Hertz)?,
+        }));
+    }
+
+    if name.eq_ignore_ascii_case("sine_ac") {
+        if parts.len() != 4 {
+            return Err(format!(
+                "SINE_AC expects exactly 4 parameters, got {}",
+                parts.len()
+            ));
+        }
+        return Ok(Some(Waveform::SineAc {
+            offset: parse_quantity(parts[0], value_unit)?,
+            amplitude: parse_quantity(parts[1], value_unit)?,
+            frequency: parse_quantity(parts[2], SIUnit::Hertz)?,
+            ac_amplitude: parse_quantity(parts[3], value_unit)?,
         }));
     }
 
@@ -805,22 +848,19 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
                 nets.push(net.name.clone());
             }
             Statement::Assert(assert) => {
-                let signal_function = assert.signal.split_once('(').map(|(name, _)| name);
-                let signal_unit = match signal_function {
-                    Some(name) if name.eq_ignore_ascii_case("V") => SIUnit::Volt,
-                    Some(name) if name.eq_ignore_ascii_case("I") => SIUnit::Ampere,
-                    _ => {
-                        return Err(semantic_error(
-                            "NL-C006",
-                            format!(
-                                "assertion signal '{}' must be a voltage V(...) or current I(...) measurement",
-                                assert.signal
-                            ),
-                            None,
-                            Some("signal"),
-                        ));
-                    }
-                };
+                let metric = assert.metric.to_ascii_lowercase();
+                let arguments = split_assertion_arguments(&assert.signal);
+                let signal_unit = assertion_result_unit(&metric, &arguments).ok_or_else(|| {
+                    semantic_error(
+                        "NL-C006",
+                        format!(
+                            "assertion '{}' has invalid arguments '{}'; expected typed voltage/current/power or engineering metric arguments",
+                            assert.metric, assert.signal
+                        ),
+                        None,
+                        Some("signal"),
+                    )
+                })?;
                 assertions.push(Assertion {
                     metric: assert.metric.clone(),
                     signal: assert.signal.clone(),
@@ -866,4 +906,45 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
         assertions,
         model_manifest,
     })
+}
+
+fn split_assertion_arguments(arguments: &str) -> Vec<&str> {
+    arguments
+        .split(',')
+        .map(str::trim)
+        .filter(|argument| !argument.is_empty())
+        .collect()
+}
+
+fn signal_unit(signal: &str) -> Option<SIUnit> {
+    let function = signal.split_once('(')?.0;
+    if function.eq_ignore_ascii_case("V") {
+        Some(SIUnit::Volt)
+    } else if function.eq_ignore_ascii_case("I") {
+        Some(SIUnit::Ampere)
+    } else if function.eq_ignore_ascii_case("P") {
+        Some(SIUnit::Watt)
+    } else {
+        None
+    }
+}
+
+fn assertion_result_unit(metric: &str, arguments: &[&str]) -> Option<SIUnit> {
+    match metric {
+        "gain" => (arguments.len() == 2).then_some(SIUnit::Ratio),
+        "bandwidth" | "cutoff" => (arguments.len() == 2).then_some(SIUnit::Hertz),
+        "frequency" => (arguments.len() == 1).then_some(SIUnit::Hertz),
+        "phase" => matches!(arguments.len(), 2 | 3).then_some(SIUnit::Degree),
+        "output_power" | "dissipation" => matches!(arguments.len(), 1 | 2).then_some(SIUnit::Watt),
+        "efficiency" => matches!(arguments.len(), 4 | 6).then_some(SIUnit::Percent),
+        "thd" => (arguments.len() == 1).then_some(SIUnit::Percent),
+        "clipping" => (arguments.len() == 3).then_some(SIUnit::Percent),
+        _ => {
+            if matches!(arguments.len(), 1 | 3) {
+                signal_unit(arguments[0])
+            } else {
+                None
+            }
+        }
+    }
 }

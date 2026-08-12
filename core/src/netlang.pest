@@ -3,7 +3,7 @@ NEWLINE = _{ "\n" | "\r\n" | "\r" }
 COMMENT = _{ "//" ~ (!NEWLINE ~ ANY)* ~ NEWLINE? }
 
 ident = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
-comp_value = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" | (ASCII_ALPHANUMERIC | "." | "+" | "-" | "_" | "µ" | "Ω")+ }
+comp_value = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" | (ASCII_ALPHANUMERIC | "." | "+" | "-" | "_" | "µ" | "Ω" | "%")+ }
 
 // Components
 comp_type = { "resistor" | "capacitor" | "inductor" | "diode" | "mosfet" | "opamp" }
@@ -25,10 +25,11 @@ pin_ref = { ident ~ ("." ~ ident)? }
 connect = { "connect" ~ pin_ref ~ ("," ~ pin_ref)* ~ "to" ~ pin_ref }
 
 // Assertions
-metric = { "average" | "value" | "max" | "min" | "peak" | "rms" | "avg" | "settle" }
 signal = { ident ~ "(" ~ ident ~ ")" }
+metric_arg = { signal | comp_value }
+metric_call = { ident ~ "(" ~ metric_arg ~ ("," ~ metric_arg)* ~ ")" }
 cmp_op = { "<=" | ">=" | "==" | "<" | ">" }
-assert_stmt = { "assert" ~ metric ~ "(" ~ signal ~ ")" ~ cmp_op ~ comp_value }
+assert_stmt = { "assert" ~ metric_call ~ cmp_op ~ comp_value }
 
 // Misc
 use_stmt = { "use" ~ ident ~ ident }
