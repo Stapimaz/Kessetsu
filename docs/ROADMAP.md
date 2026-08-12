@@ -37,7 +37,7 @@ Elektriksel gereksinimler
     → yüksek kaliteli şema ve EDA export'ları
 ```
 
-NetLang'in AI modelini kendi içinde barındırması zorunlu değildir. Öncelikli hedef, dışarıdaki herhangi bir yetkin AI ajanının CLI veya structured API üzerinden NetLang'i güvenilir bir **tasarım oracle'ı, simülasyon motoru ve doğrulama aracı** olarak kullanabilmesidir.
+NetLang'in AI modelini kendi içinde barındırması zorunlu değildir. Öncelikli hedef, dışarıdaki herhangi bir yetkin AI ajanının CLI'ın versioned JSON sözleşmesi üzerinden NetLang'i güvenilir bir **tasarım oracle'ı, simülasyon motoru ve doğrulama aracı** olarak kullanabilmesidir. Ayrı bir Agent API servisi zorunlu değildir; ilerideki SDK/MCP adaptörleri aynı Core ve CLI sözleşmesinin ince yüzeyleri olabilir.
 
 Kapsam kademeli genişler: ilk güçlü dikey analog ve karma-sinyal/SPICE tabanlı tasarımlardır; uzun vadeli mimari yalnızca eğitim devrelerine, basit örneklere veya tek bir endüstri alanına göre sınırlandırılmaz. Desteklenmeyen fiziksel alanlar ve simulator sınırları açıkça raporlanır; doğrulanmayan bir tasarım doğrulanmış gibi sunulmaz.
 
@@ -50,14 +50,22 @@ Repository bütünleşik ürün geliştirmesi sırasında private kalır. CLI/Ag
 **Ürün sanity-check kararı (2026-08-09):**
 
 - [x] Agentic-first geliştirme hızını, fazların takvim değil kanıt kapısı olduğunu ve bütünleşik yayın stratejisini roadmap'e kaydet.
-- [x] Web Hub'ı root README'de CLI/API ile eşit önemde ana ürün yüzeyi olarak görünür kıl; mevcut prototip ile yayın hedefini açıkça ayır.
+- [x] Web Hub'ı root README'de CLI ile eşit önemde ana ürün yüzeyi olarak görünür kıl; mevcut prototip ile yayın hedefini açıkça ayır.
+
+**Yayın öncesi reality-check kararı (2026-08-12):**
+
+- [x] Agent API'yi ayrı ürün gibi konumlandırma; CLI human/JSON modlarını aynı domain sonucunun iki renderer'ı olarak tanımla.
+- [x] Varsayılan JSON'un agent döngüsü için kompakt, derin AST/IR/graph/SPICE/raw-log alanlarının opt-in olması gerektiğini Faz 3 sözleşmesine ekle.
+- [x] Gerçek devre tasarımı için zorunlu model/subcircuit taşınabilirliğini ve temel component kapsamını ilk public yayın öncesine al.
+- [x] Gain, bandwidth, output power, efficiency, distortion ve component dissipation gibi ürünün değerini oluşturan ölçümleri Faz 3'e al.
+- [x] İlk public yayın kapısına canonical ürün benchmark'ları, cross-platform CLI paketleri, language reference ve destek matrisi ekle.
 
 ### Üç ana ürün yüzeyi
 
 | Yüzey | Hedef kullanıcı | Temel çıktı |
 |---|---|---|
 | NetLang Core | Tüm sistem | Parser, AST, typed IR, graph, ERC, simulation, ölçüm ve layout |
-| NetLang CLI/API | AI ajanları, otomasyon ve geliştiriciler | Tasarla-ölç-doğrula döngüsü için structured araç yüzeyi |
+| NetLang CLI (human + JSON) | AI ajanları, otomasyon ve geliştiriciler | Tasarla-ölç-doğrula döngüsü için insan-okunur ve structured araç yüzeyi |
 | NetLang Web Hub | Kurulumsuz ürün deneyimi isteyen herkes | Kod/tasarım → doğrulama → şema → simülasyon → export → paylaşım |
 
 ### Birinci sınıf ürün çıktıları
@@ -68,7 +76,7 @@ Repository bütünleşik ürün geliştirmesi sırasında private kalır. CLI/Ag
 - Okunabilir ve bağlantısal olarak doğrulanmış şema
 - PNG, SVG ve ileride PDF gibi görsel export'lar
 - LTspice, KiCad schematic ve ileride diğer EDA formatları için düzenlenebilir export'lar
-- CLI/API ve Web arasında aynı Core semantiği
+- CLI ve Web arasında aynı Core semantiği
 
 ### Mevcut teknik yığın
 
@@ -634,23 +642,48 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 }
 ```
 
-### 3.4 — Simulation CLI/API sözleşmesi
+### 3.4 — Simulation CLI sözleşmesi
 
 - [ ] `netlang simulate` structured analysis sonucu döndürür.
 - [ ] `netlang test` structured assertion sonucu döndürür.
 - [ ] Human ve JSON modları aynı domain sonucunu render eder.
+- [ ] Varsayılan JSON envelope'u yalnız status, diagnostics, summary, measurements, assertions ve artifact referanslarını taşıyan kompakt agent çıktısı olsun.
+- [ ] AST, IR, graph, SPICE netlist, dataset ve raw simulator log gibi hacimli debug alanlarını açık `--include` seçimiyle opt-in yap.
+- [ ] Compile, simulation ve assertion şemalarını açıkça sürümle; bilinmeyen schema sürümü fail-closed olsun.
 - [x] Simulation failure exit 3, assertion failure exit 4 verir. _(Faz 2.5 cross-platform fake-process contract testleri.)_
 - [x] JSON stdout parse edilebilir ve logsuzdur. _(Success/failure/assertion CLI integration testleri.)_
 - [ ] Simulation fixture'ları CI'da güvenilir çalışır.
 
-### 3.5 — Agent integration contract
+### 3.5 — Agent-ready CLI contract
 
-- [ ] stdin/stdout üzerinden çalışan machine-readable agent modu tanımla.
-- [ ] `check`, `compile`, `simulate` ve `test` işlemlerini versioned tool sözleşmesiyle sun.
-- [ ] Agent sonucunu human output parse etmeye gerek bırakmayacak şekilde typed ve structured tut.
+- [ ] Ayrı daemon veya Agent API servisi kurmadan `check`, `compile`, `simulate` ve `test` komutlarını versioned JSON sözleşmesiyle sun.
+- [ ] Dosyasız tool kullanımı için NetLang source'u stdin'den alma seçeneği ekle.
+- [ ] Agent sonucunu human terminal metni parse etmeye gerek bırakmayacak şekilde typed, kompakt ve structured tut.
 - [ ] Aynı request için idempotent ve deterministik sonuç üret.
-- [ ] Diagnostic, measurement ve assertion sonuçlarından structured suggested action alanı üret.
 - [ ] Dış bir AI ajanının compile → simulate → measure → revise döngüsünü fixture tabanlı uçtan uca testle doğrula.
+
+### 3.6 — Simulation model ve subcircuit temeli
+
+- [ ] Güvenli, typed user-defined SPICE `.model` ve `.subckt` declaration/include sözleşmesi tasarla.
+- [ ] Subcircuit pin sırası ile NetLang component pinlerini ortak katalog üzerinden doğrula.
+- [ ] En az bir doğrulanmış op-amp, PMOS ve power-transistor yolu sun; dilde tanımlı hiçbir temel component türü bütünüyle kullanılamaz kalmasın.
+- [ ] Model kind, polarity, required pin, simulator capability ve isim çakışmalarını compile aşamasında fail-closed doğrula.
+- [ ] Model kaynağı, lisansı, sürümü ve content hash'ini taşıyan provenance manifest'i tanımla.
+- [ ] `netlang.lock` ile model/subcircuit çözümlemesini reproducible yap.
+- [ ] User model/subcircuit içeriğinin typed IR sınırını atlayarak kontrolsüz SPICE directive enjekte edememesini test et.
+
+### 3.7 — Engineering measurements ve ürün benchmark'ları
+
+- [ ] Node voltage, branch/device current ve instantaneous/average/RMS power için typed measurement primitive'leri tanımla.
+- [ ] `min`, `max`, absolute `peak`, `average`, `rms`, frequency/phase ve zaman penceresi semantiklerini birimlerle birlikte kesinleştir.
+- [ ] Voltage/current gain, bandwidth/cutoff, output RMS power, efficiency, THD ve component dissipation için derived measurement modeli oluştur.
+- [ ] Derived measurement'ların assertion içinde güvenle kullanılmasını sağla; eksik veya desteklenmeyen veri typed ERROR üretsin.
+- [ ] Device voltage/current/power limitlerini simulation sonucu üzerinden sınayacak assertion'ları ekle.
+- [ ] Her mühendislik metriğini formül, sign convention, analysis gereksinimi ve birimiyle dokümante et.
+- [ ] Canonical RC filtre benchmark'ı: cutoff ve AC response.
+- [ ] Canonical gain-stage benchmark'ı: bias, gain, bandwidth ve clipping davranışı.
+- [ ] Canonical çok katlı power-amplifier benchmark'ı: 8 Ω yükte hedef output power, gain, distortion ve component dissipation koşulları.
+- [ ] En az bir benchmark'ta dış AI ajanının başarısız tasarım adayını structured sonuçla revize edip hedefleri karşılayan adaya ulaşmasını E2E doğrula.
 
 ### Faz 3 kabul kriterleri
 
@@ -660,6 +693,8 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 - [ ] Paralel iki simulation dosya çakışması yaşamaz.
 - [ ] CLI human/JSON ve exit-code contract testleri geçer.
 - [ ] Dış AI ajanı human terminal metni parse etmeden versioned sözleşmeyle tasarım döngüsü kurabilir.
+- [ ] User-defined ve packaged model/subcircuit çözümlemesi reproducible, provenance bilgili ve fail-closed çalışır.
+- [ ] RC filtre, gain stage ve power-amplifier benchmark'ları tanımlı mühendislik hedeflerini gerçek Ngspice sonuçlarıyla doğrular.
 - [ ] Faz 2.5 kalite kapıları geçmeye devam eder.
 
 ### Faz 3'ten ertelenen işler
@@ -672,9 +707,17 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 
 ## 7. Faz 4 — Profesyonel Şema, Web Hub ve Yayın
 
-Faz 4 ayrıntıları Faz 3 kapanışında yeniden denetlenecektir. Mevcut yön:
+Faz 4 ayrıntıları Faz 3 kapanışında yeniden denetlenecektir. Aşağıdaki kapsam ilk public ürünün bütünleşik yayın kapısıdır.
 
-### 4.1 — Layout doğrulanabilirliği ve export
+### 4.1 — Component/model ürün ekosistemi
+
+- [ ] Native CLI ve browser build'lerinde aynı model paketinin byte-for-byte aynı netlist'e ulaşmasını test et.
+- [ ] Temel analog/karma-sinyal referans devreleri için yeterli ve lisansı doğrulanmış başlangıç model paketi oluştur.
+- [ ] Web Hub'da model paketini seçme, provenance/lisans bilgisini görme ve güvenli kullanıcı model dosyası yükleme akışı sun.
+- [ ] CLI'da model çözümleme, cache ve lockfile davranışını platformlar arasında aynı tut.
+- [ ] Paketli modelleri gerçek Ngspice fixture'ları ve beklenen operating-region sonuçlarıyla doğrula.
+
+### 4.2 — Layout doğrulanabilirliği ve export
 
 - [ ] Layout wire/pin veri modelini açık bağlantı semantiğiyle güçlendir.
 - [ ] Geometry crossing ile electrical junction ayrımını temsil et.
@@ -685,40 +728,43 @@ Faz 4 ayrıntıları Faz 3 kapanışında yeniden denetlenecektir. Mevcut yön:
 - [ ] LTspice schematic export adaptörü ve açılabilirlik fixture'ları.
 - [ ] Schematic visual golden/collision regression corpus'u.
 
-### 4.2 — Web simulation runtime
+### 4.3 — Web simulation runtime
 
 - [ ] Ngspice WASM feasibility ve lisans/performans kararı.
 - [ ] Web Worker içinde simulation.
 - [ ] Cancellation ve progress callback.
 - [ ] Ana thread'i bloklamayan runtime.
 
-### 4.3 — Monaco NetLang desteği
+### 4.4 — Monaco NetLang desteği
 
 - [ ] Syntax highlighting.
 - [ ] Autocomplete.
 - [ ] Inline diagnostic ve source span.
 - [ ] Hover component bilgisi.
 
-### 4.4 — Simulation grafik paneli
+### 4.5 — Simulation grafik paneli
 
 - [ ] Transient plot.
 - [ ] AC/Bode plot.
 - [ ] DC sweep plot.
 - [ ] Assertion threshold overlay.
 
-### 4.5 — Paylaşım
+### 4.6 — Paylaşım
 
 - [ ] Client-side compressed circuit URL.
 - [ ] URL'den güvenli yükleme ve compile.
 - [ ] Format/schema version migration.
 
-### 4.6 — Zero-friction ürün bütünlüğü ve yayın kapısı
+### 4.7 — Zero-friction ürün bütünlüğü ve yayın kapısı
 
 - [ ] CodePen sadeliğinde tek çalışma alanında editor, diagnostic, şema, simulation ve export akışını birleştir.
 - [ ] İlk açılışta çalışan canonical örnekler ve devre seçici sun.
 - [ ] SPICE, SVG, PNG, KiCad ve LTspice çıktıları için açık indirme akışı ekle.
 - [ ] CLI ve Web Hub'ın aynı source için aynı compile/diagnostic/SPICE semantiğini browser E2E testiyle doğrula.
 - [ ] Web Hub'ın ana thread'i bloklamadan compile/simulate edebildiğini test et.
+- [ ] Windows x86-64, Linux x86-64 ve desteklenen macOS mimarileri için doğrulanmış CLI release artifact'leri ve simulator paketleme/keşif yolunu üret.
+- [ ] NetLang language reference, simulation/assertion reference, supported-domain matrix, tutorial, örnek cookbook ve troubleshooting dokümanlarını tamamla.
+- [ ] Desteklenmeyen component, analysis ve fiziksel varsayımları kullanıcıya ve AI ajanına açıkça göster.
 - [ ] Public production deployment ve release doğrulamasını tamamla.
 - [ ] README'ye canlı Web Hub bağlantısı, ürün ekran görüntüleri ve yayınlanan kurulum paketlerini ekle.
 
@@ -728,6 +774,10 @@ Faz 4 ayrıntıları Faz 3 kapanışında yeniden denetlenecektir. Mevcut yön:
 - [ ] Web ve CLI aynı Core semantiğini ve versioned sonuç sözleşmelerini kullanır.
 - [ ] Şema connectivity kontrolünden geçer; SVG/PNG ile indirilebilir ve KiCad/LTspice fixture'ları hedef uygulamalarda açılır.
 - [ ] OP, transient, AC ve DC sweep sonuçları Web'de interaktif olarak görüntülenir.
+- [ ] User-defined ve packaged modeller native/Web yüzeylerinde reproducible ve provenance bilgili çalışır.
+- [ ] RC filtre, gain-stage ve power-amplifier ürün benchmark'ları CLI ve Web Hub'da aynı mühendislik sonuçlarını verir.
+- [ ] Desteklenen platformlarda CLI kurulumu ve ilk simülasyon temiz makine release smoke testinden geçer.
+- [ ] Yeni kullanıcı yalnız public dokümanlarla bir devreyi tanımlayıp ölçebilir, assertion ekleyebilir ve hedef formatlarda export edebilir.
 - [ ] Paylaşılabilir URL devreyi schema kaybı olmadan round-trip eder.
 - [ ] Canonical kalite kapısı, browser E2E matrisi ve release artifact doğrulamaları geçer.
 - [ ] Bütün kabul kriterleri tamamlandıktan sonra repository ve Web Hub public yayınlanır.
@@ -737,14 +787,13 @@ Faz 4 ayrıntıları Faz 3 kapanışında yeniden denetlenecektir. Mevcut yön:
 ## 8. Faz 5+ — Uzun Vadeli Vizyon
 
 - Component Knowledge Base ve datasheet kuralları
-- Üretici SPICE model registry'si ve provenance
-- `netlang.lock` ile reproducible model builds
+- Geniş üretici SPICE model registry'si ve otomatik güncelleme/provenance akışı
 - Requirements/constraint schema ve agent-driven design loop araçları
 - Parametric sweep, optimization ve design-space exploration
-- Output power, gain, bandwidth, efficiency, dissipation, distortion ve stability ölçümleri
-- Simulation-based voltage/current/thermal kontroller
+- Stability analizi ve ileri RF/noise/Monte Carlo ölçümleri
+- Datasheet tabanlı voltage/current/thermal kontroller
 - Ölçülebilir Verification Report; gerekirse sonrasında calibrated confidence
-- Subcircuit/component library
+- Geniş reusable subcircuit/component library
 - VS Code extension
 - PCB export, footprint mapping ve BOM
 - Diğer EDA schematic/netlist export adapter'ları
