@@ -1,10 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Editor from '@monaco-editor/react';
 import { Play, Code2, CircuitBoard, Terminal as TerminalIcon, Download } from 'lucide-react';
-import init, { compile_netlang } from 'netlang-core';
+import init, { compile_netlang, compile_schema_version } from 'netlang-core';
 import defaultCircuit from '../../examples/demo_circuit.nl?raw';
-
-const COMPILE_SCHEMA_VERSION = 'netlang.compile.v1';
+import './monaco';
 
 interface CompileDiagnostic {
   code: string;
@@ -75,7 +74,8 @@ function App() {
     
     try {
       const result = compile_netlang(code) as CompileReport;
-      if (result.schema_version !== COMPILE_SCHEMA_VERSION) {
+      const supportedSchema = compile_schema_version();
+      if (result.schema_version !== supportedSchema) {
         throw new Error(`Unsupported compile report schema: ${result.schema_version}`);
       }
 
@@ -383,7 +383,7 @@ function App() {
           <span>ERC Terminal (Self-Healing Log)</span>
         </div>
         <div className="terminal-content">
-          {success && <div className="success-msg">ERC Başarılı: Şema güncellendi, 0 Hata. (Rust & WASM Engine)</div>}
+          {success && <div className="success-msg" data-testid="compile-success">ERC Başarılı: Şema güncellendi, 0 Hata. (Rust & WASM Engine)</div>}
           {errors.map((e, idx) => (
             <div key={idx} className={e.type === 'error' ? 'error-msg' : ''}>
               [{e.type ? e.type.toUpperCase() : 'ERROR'}] {e.message}

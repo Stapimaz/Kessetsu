@@ -759,21 +759,21 @@ Mevcut Web/layout kodu tamamen boş değildir ve kanıt görmeden silinmeyecekti
 
 ### 4.0 — Ürün sözleşmesi, characterization ve teknik kararlar
 
-- [ ] Mevcut Web Hub için gerçek browser smoke testi kur; WASM init + canonical source compile akışının schema drift'ini yakaladığını göster.
-- [ ] Web'in hardcoded compile schema'sını Core tarafından ilan edilen güncel sözleşmeyle eşitle; bilinmeyen sürümü fail-closed tut.
-- [ ] Mevcut şema çıktısını şu corpus üzerinde fixture/screenshot ve connectivity baseline ile karakterize et:
+- [x] Mevcut Web Hub için gerçek browser smoke testi kur; WASM init + canonical source compile akışının schema drift'ini yakaladığını göster. _Kanıt: `webapp/tests/e2e/browser-smoke.spec.ts`; gerçek Chromium'da WASM init, canonical compile, Monaco, SPICE ve şema kontrolü._
+- [x] Web'in hardcoded compile schema'sını Core tarafından ilan edilen güncel sözleşmeyle eşitle; bilinmeyen sürümü fail-closed tut. _Kanıt: WASM `compile_schema_version()` export'u; Web bilinmeyen raporu reddetmeye devam eder._
+- [x] Mevcut şema çıktısını şu corpus üzerinde fixture/screenshot ve connectivity baseline ile karakterize et. _Kanıt: `layout_characterization` altı fixture'da component ve bağlı-net coverage'ını denetler; browser smoke gerçek renderer görünürlüğünü kontrol eder:_
   - minimal source/resistor,
   - RC filtre,
   - Wheatstone bridge,
   - op-amp feedback gain stage,
   - yüksek fan-out,
   - çok katlı power amplifier.
-- [ ] Web shell, SVG renderer, Schematic IR ve layout algoritması için ayrı reuse/refactor/rewrite karar kaydı oluştur.
-- [ ] İlk public sürümün supported-domain matrix'ini dondur: desteklenen component, model, analysis, measurement ve bilinçli fiziksel sınırlar.
-- [ ] İlk dikey ürün kabul senaryosunu RC filtre; ana vizyon/eval senaryosunu 8 Ω power amplifier olarak kesinleştir.
-- [ ] Browser simulation için Ngspice WASM/Web Worker ile service-backed adaptörü lisans, artifact boyutu, startup, runtime, cancellation, model desteği, offline/privacy ve deployment açısından ölç; kararı ADR olarak kaydet.
-- [ ] Schematic IR ile render/export katmanlarının sahiplik ve sürüm sınırını architecture dokümanına işle.
-- [ ] Faz 4 sırasının mevcut audit bulgularına göre uygulanabilirliğini tekrar kontrol et; kanıtsız büyük yeniden yazıma başlama.
+- [x] Web shell, SVG renderer, Schematic IR ve layout algoritması için ayrı reuse/refactor/rewrite karar kaydı oluştur. _Kanıt: `docs/decisions/0001-phase-4-schematic-and-web-architecture.md`._
+- [x] İlk public sürümün supported-domain matrix'ini dondur: desteklenen component, model, analysis, measurement ve bilinçli fiziksel sınırlar. _Kanıt: `docs/supported_domain.md`._
+- [x] İlk dikey ürün kabul senaryosunu RC filtre; ana vizyon/eval senaryosunu 8 Ω power amplifier olarak kesinleştir. _ADR 0001 ve supported-domain matrix içinde kaydedildi._
+- [x] Browser simulation için Ngspice WASM/Web Worker ile service-backed adaptörü lisans, artifact boyutu, startup, runtime, cancellation, model desteği, offline/privacy ve deployment açısından ölç; kararı ADR olarak kaydet. _Kanıt: ADR 0002; exact `eecircuit-engine` 1.7.0 paketi 40,693,211 byte unpacked / 20.4 MB ESM olarak ölçüldü ve Worker yolu seçildi._
+- [x] Schematic IR ile render/export katmanlarının sahiplik ve sürüm sınırını architecture dokümanına işle. _Circuit IR → Schematic IR → exporter sahipliği ve Web sınırı `docs/architecture.md` bölüm 7'de._
+- [x] Faz 4 sırasının mevcut audit bulgularına göre uygulanabilirliğini tekrar kontrol et; kanıtsız büyük yeniden yazıma başlama. _Karar: compile/browser entegrasyonunu önce characterization ile düzelt; ardından canonical Schematic IR, worker runtime ve dikey Web sırasını koru._
 
 **4.0 kabul kriteri:** Mevcut davranış testle görünürdür; browser simulation ve schematic architecture kararları yazılıdır; hangi katmanın neden korunacağı veya değiştirileceği belirsiz değildir.
 

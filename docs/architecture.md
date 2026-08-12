@@ -29,7 +29,7 @@ NetLang Source (.nl)
   Canonical Graph → ERC
     │
     ├──► SPICE Netlist
-    ├──► Layout → KiCad Schematic
+    ├──► Schematic IR → Render / EDA Export
     └──► CompileReport (CLI/WASM/API)
 ```
 
@@ -221,7 +221,22 @@ Ngspice analysis verileri stdout tablo metninden çıkarılmaz. Generated SPICE 
 
 **Önemli not:** ERC sonuçları, tespit edilen riskleri raporlar. Bu sonuçlar fiziksel doğrulama veya mühendis incelemesinin yerine geçmez. Özellikle thermal davranış, PCB parasitikleri, ESD ve üretici toleransları gibi konular ERC kapsamı dışındadır.
 
-## 7. Şema (Layout) Motoru (`layout.rs`)
+## 7. Şema Sahipliği ve Layout Motoru
+
+Circuit IR elektriksel semantiğin, versioned Schematic IR ise çizim semantiğinin tek gerçek kaynağıdır. Schematic IR, Circuit IR ve canonical graph'tan üretilir; component instance, canonical pin anchor, orientation, wire endpoint/segment, junction, bağlantısız crossing, net label, bounds ve kalite/connectivity raporunu explicit taşır. Aynı Circuit IR için collection/declaration sırasından bağımsız ve byte-stable serialize edilmelidir.
+
+Render/export sahipliği şu sınırı izler:
+
+```text
+Circuit IR + Canonical Graph
+        → netlang.schematic.v1
+        → SVG / PNG / PDF / Schematic JSON / KiCad / LTspice exporters
+        → CLI artifact writer veya Web download UI
+```
+
+Renderer/exporter'lar AST'ye veya legacy layout shape'ine dönmez; component pinlerini, bağlantıları veya symbol geometrisini yeniden tanımlamaz. Ortak symbol/pin kataloğu `core/src/component.rs` içindedir. Web yalnız Schematic IR/SVG'yi gösterir ve zoom/pan/selection gibi interaction ekler. Dosya yazma, overwrite ve download yan etkileri Core'un saf exporter sonucunun dışındadır.
+
+Legacy `layout.rs` için başlangıç davranışı aşağıdaki gibidir; Faz 4 migration'ı sırasında characterization baseline olarak korunur:
 
 Şematiği çizerken parçaları x/y koordinatlarına yerleştirmek için **chain-based vertical layout** yaklaşımı kullanılır. DFS, layout pipeline'ında traversal ve başlangıç sıralaması için kullanılan heuristic'lerden biridir.
 

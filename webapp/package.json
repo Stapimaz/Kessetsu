@@ -8,17 +8,21 @@
     "build:wasm": "wasm-pack build ../core --target web --out-dir pkg --release",
     "build:web": "tsc -b && vite build",
     "build": "npm run build:wasm && npm run build:web",
+    "test:e2e": "playwright test",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
+    "eecircuit-engine": "1.7.0",
     "lucide-react": "^1.28.0",
+    "monaco-editor": "^0.56.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "vite-plugin-wasm": "^3.6.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
