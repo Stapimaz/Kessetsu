@@ -1,0 +1,13 @@
+{
+  "schema_version": "netlang.web-runtime.v1",
+  "simulator": {
+    "adapter": "eecircuit-engine",
+    "version": "1.7.0",
+    "npm_integrity": "sha512-ZDpr/w/H81uCH3n2vjf0vohxOQqQ4NCsvaXkoYwcH+LCxIGKpBdvAIvGN5IdozW6AFJ8tojquKvDya3337yjSQ==",
+    "esm_sha256": "c7c31d324253891852b6746b51622dd963bce2e3c3dbda2ab0b230dabb73b809",
+    "esm_bytes": 20424332,
+    "engine": "ngspice-45.2+",
+    "execution": "dedicated-web-worker",
+    "update_policy": "exact-version-and-hash-review"
+  }
+}

@@ -35,6 +35,13 @@ Wokwi'nin `ngspice-wasm` build recipe'si teknik feasibility kanıtıdır fakat r
 4. Raw log debug opt-in'dir; büyük dataset iki kez UI state'e kopyalanmaz.
 5. Runtime/model license notice public artifact ile dağıtılır.
 
+## Artifact güncelleme ve cache politikası
+
+- Runtime bağımlılığı floating range değil exact `eecircuit-engine@1.7.0` olarak kilitlidir. Güncelleme yalnız package integrity, ESM SHA-256, browser parity ve lisans inventory'si birlikte gözden geçirilerek yapılır.
+- `runtime-manifest.json` package integrity yanında dağıtılan 20,424,332 byte ESM kaynağının SHA-256 değerini taşır. Hash değişimi sürüm değişmeden gerçekleşirse supply-chain drift kabul edilir ve build durdurulur.
+- Production'da content-hash taşıyan JS/WASM/Worker asset'leri `public,max-age=31536000,immutable`; HTML, runtime manifest ve notice dosyaları `no-cache` ile sunulur. Yeni runtime eski hashed asset'i yerinde değiştirmez.
+- Vite release build'i EEcircuit MIT metni ile tam Ngspice licensing inventory'sini `dist/licenses/` altına kopyalar.
+
 ## Kaynaklar
 
 - [Ngspice FAQ ve shared-library/lisans bilgisi](https://ngspice.sourceforge.io/faq.html)
@@ -42,4 +49,3 @@ Wokwi'nin `ngspice-wasm` build recipe'si teknik feasibility kanıtıdır fakat r
 - [EEcircuit browser uygulaması](https://github.com/eelab-dev/EEcircuit)
 - [`eecircuit-engine` kaynak reposu](https://github.com/eelab-dev/EEcircuit-engine)
 - [Wokwi Ngspice WASM build recipe](https://github.com/wokwi/ngspice-wasm)
-

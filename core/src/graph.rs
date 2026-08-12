@@ -270,7 +270,7 @@ pub fn format_spice_number(value: f64) -> String {
     format!("{mantissa}e{exponent}")
 }
 
-fn format_analysis(analysis: &Analysis, circuit: &CircuitIR) -> String {
+pub fn format_analysis(analysis: &Analysis, circuit: &CircuitIR) -> String {
     match analysis {
         Analysis::OperatingPoint => "op".to_string(),
         Analysis::Transient { step, stop } => format!(
@@ -320,6 +320,37 @@ fn format_analysis(analysis: &Analysis, circuit: &CircuitIR) -> String {
             )
         }
     }
+}
+
+pub fn generate_browser_analysis_netlist(
+    circuit: &CircuitIR,
+    graph: &NetlistGraph,
+    analysis: &Analysis,
+) -> String {
+    let generated = generate_spice(circuit, graph);
+    let mut netlist = generated
+        .split_once("\n.control\n")
+        .map_or(generated.as_str(), |(base, _)| base)
+        .trim_end()
+        .to_string();
+    let device_currents = circuit
+        .components
+        .iter()
+        .filter_map(|component| match component.kind {
+            ComponentKind::Diode => Some(format!("@D_{}[id]", component.id)),
+            ComponentKind::BJT(_) => Some(format!("@Q_{}[ic]", component.id)),
+            ComponentKind::MOSFET(_) => Some(format!("@M_{}[id]", component.id)),
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
+    if !device_currents.is_empty() {
+        netlist.push_str("\n.save all ");
+        netlist.push_str(&device_currents.into_iter().collect::<Vec<_>>().join(" "));
+    }
+    netlist.push_str("\n.");
+    netlist.push_str(&format_analysis(analysis, circuit));
+    netlist.push_str("\n.end\n");
+    netlist
 }
 
 fn format_waveform(waveform: &Waveform) -> String {

@@ -185,6 +185,42 @@ body {
   opacity: 0.45;
 }
 
+.run-btn {
+  border-color: #16a34a;
+  color: #dcfce7;
+  background: #166534;
+}
+
+.simulation-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 38px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border-color);
+  color: #cbd5e1;
+  background: #111827;
+  font-size: 12px;
+}
+
+.assertion-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.assertion {
+  border-radius: 999px;
+  padding: 3px 7px;
+  background: #334155;
+}
+
+.assertion-pass { color: #bbf7d0; background: #14532d; }
+.assertion-fail,
+.assertion-error { color: #fecaca; background: #7f1d1d; }
+.assertion-skipped { color: #fde68a; background: #78350f; }
+
 .compile-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(56, 189, 248, 0.4);

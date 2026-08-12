@@ -56,7 +56,9 @@ try {
     }
     Invoke-NativeStep 'Web production dependency audit' { & $npmCommand audit --omit=dev }
     Invoke-NativeStep 'Web lint' { & $npmCommand run lint }
+    Invoke-NativeStep 'Web unit tests' { & $npmCommand run test:unit }
     Invoke-NativeStep 'Web production build' { & $npmCommand run build:web }
+    Invoke-NativeStep 'Web runtime integrity and notices' { & $npmCommand run 'verify:runtime' }
     Invoke-NativeStep 'Web browser E2E' { & $npmCommand run test:e2e }
 }
 finally {

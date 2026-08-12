@@ -798,15 +798,15 @@ Mevcut Web/layout kodu tamamen boş değildir ve kanıt görmeden silinmeyecekti
 
 ### 4.2 — Browser simulation runtime ve ortak adaptör
 
-- [ ] 4.0 ADR'ında seçilen browser runtime yolunu `SimulationRunner` domain sınırını koruyarak uygula.
-- [ ] Simulator işini Web Worker veya eşdeğer izole runtime'da çalıştır; ana thread üzerinde blocking process/parsing yapma.
-- [ ] OP, transient, AC ve DC sweep dataset'lerini native `netlang.simulation.v1` semantiğine dönüştür.
-- [ ] `netlang.measurement.v1` ve `netlang.assertion.v1` sonuçlarını browser'da Core ile aynı şekilde üret.
-- [ ] Timeout, cancellation, progress, worker crash/restart ve stale-result suppression davranışlarını tanımla.
-- [ ] Raw log ve büyük dataset'leri varsayılan UI state/JSON akışına gereksiz kopyalamadan opt-in debug olarak tut.
-- [ ] Native/browser simulator sürümü ve sayısal tolerans farklarını structured provenance içinde görünür yap.
-- [ ] RC fixture'ında native ve browser compile/SPICE/dataset/measurement/assertion parity testini geçir.
-- [ ] Runtime ve model artifact'leri için lisans notice, integrity/hash ve cache/update politikasını uygula.
+- [x] 4.0 ADR'ında seçilen browser runtime yolunu `SimulationRunner` domain sınırını koruyarak uygula. _Kanıt: WASM `prepare_browser_simulation`/`evaluate_browser_simulation` köprüleri ve UI'dan bağımsız `BrowserSimulationRunner`._
+- [x] Simulator işini Web Worker veya eşdeğer izole runtime'da çalıştır; ana thread üzerinde blocking process/parsing yapma. _Kanıt: dynamic-import kullanan dedicated module Worker `simulation.worker.ts`; gerçek Chromium testi._
+- [x] OP, transient, AC ve DC sweep dataset'lerini native `netlang.simulation.v1` semantiğine dönüştür. _Kanıt: dört analizi birlikte çalıştıran `browser_analysis_matrix.nl` ve E2E dataset-kind matrisi._
+- [x] `netlang.measurement.v1` ve `netlang.assertion.v1` sonuçlarını browser'da Core ile aynı şekilde üret. _Kanıt: simulator adapter yalnız typed dataset üretir; WASM Core aynı `evaluate_assertions` fonksiyonunu çağırır._
+- [x] Timeout, cancellation, progress, worker crash/restart ve stale-result suppression davranışlarını tanımla. _Kanıt: `browserRunner.test.ts` dört lifecycle testi; cancellation sonrası gerçek Worker restart E2E testi._
+- [x] Raw log ve büyük dataset'leri varsayılan UI state/JSON akışına gereksiz kopyalamadan opt-in debug olarak tut. _Worker request `includeRawLog=false` varsayılanıdır; Core değerlendirmesine tek typed sonuç aktarılır._
+- [x] Native/browser simulator sürümü ve sayısal tolerans farklarını structured provenance içinde görünür yap. _`simulator.executable/version`, runtime manifest ve parity toleransı._
+- [x] RC fixture'ında native ve browser compile/SPICE/dataset/measurement/assertion parity testini geçir. _Kanıt: `simulation-parity.spec.ts`, gerçek native CLI ve Chromium sonuçlarını assertion bazında karşılaştırır; beş karar PASS._
+- [x] Runtime ve model artifact'leri için lisans notice, integrity/hash ve cache/update politikasını uygula. _Kanıt: exact lock, `runtime-manifest.json`, full license bundle, `verify-runtime.mjs` ve ADR 0002 cache/update politikası._
 
 **4.2 kabul kriteri:** RC filtre hesap veya kurulum olmadan browser'da simüle edilir; UI responsive kalır; native/browser farkı gizlenmez ve tanımlı tolerans içinde aynı mühendislik kararını verir.
 

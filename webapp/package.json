@@ -7,6 +7,8 @@
     "dev": "vite",
     "build:wasm": "wasm-pack build ../core --target web --out-dir pkg --release",
     "build:web": "tsc -b && vite build",
+    "verify:runtime": "node scripts/verify-runtime.mjs",
+    "test:unit": "vitest run",
     "build": "npm run build:wasm && npm run build:web",
     "test:e2e": "playwright test",
     "lint": "oxlint",
@@ -31,7 +33,8 @@
     "oxlint": "^1.75.0",
     "rollup": "^4.62.4",
     "typescript": "~6.0.2",
-    "vite": "^8.2.0"
+    "vite": "^8.2.0",
+    "vitest": "^4.1.10"
   },
   "overrides": {
     "dompurify": "3.4.13"

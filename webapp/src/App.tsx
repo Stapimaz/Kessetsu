@@ -1,9 +1,16 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Editor from '@monaco-editor/react';
 import { CircuitBoard, Code2, Download, Play, Terminal as TerminalIcon } from 'lucide-react';
-import init, { compile_netlang, compile_schema_version } from 'netlang-core';
+import init, {
+  compile_netlang,
+  compile_schema_version,
+  evaluate_browser_simulation,
+  prepare_browser_simulation,
+} from 'netlang-core';
 import defaultCircuit from '../../examples/demo_circuit.nl?raw';
 import './monaco';
+import { BrowserSimulationRunner, SimulationCancelledError } from './simulation/browserRunner';
+import type { BrowserEvaluation, BrowserSimulationPlan } from './simulation/types';
 
 interface CompileDiagnostic {
   code: string;
@@ -65,6 +72,10 @@ function App() {
   const [schematicSvg, setSchematicSvg] = useState('');
   const [kicadSch, setKicadSch] = useState('');
   const [spiceNetlist, setSpiceNetlist] = useState('');
+  const [simulationState, setSimulationState] = useState<'idle' | 'running' | 'succeeded' | 'failed' | 'cancelled'>('idle');
+  const [simulationMessage, setSimulationMessage] = useState('Hazır');
+  const [evaluation, setEvaluation] = useState<BrowserEvaluation | null>(null);
+  const runnerRef = useRef<BrowserSimulationRunner | null>(null);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
@@ -73,6 +84,12 @@ function App() {
     init()
       .then(() => setIsWasmLoaded(true))
       .catch((error: unknown) => setWasmError(errorMessage(error)));
+  }, []);
+
+  useEffect(() => {
+    const runner = new BrowserSimulationRunner();
+    runnerRef.current = runner;
+    return () => runner.dispose();
   }, []);
 
   const clearArtifacts = useCallback(() => {
@@ -120,6 +137,39 @@ function App() {
 
   useEffect(() => compileCode(), [compileCode]);
 
+  const runSimulation = useCallback(async () => {
+    if (!isWasmLoaded || !success || !runnerRef.current) return;
+    setEvaluation(null);
+    setSimulationState('running');
+    setSimulationMessage('Simulation hazırlanıyor');
+    try {
+      const plan = prepare_browser_simulation(code) as BrowserSimulationPlan;
+      if (plan.analyses.length === 0) throw new Error('Devrede çalıştırılacak simulate komutu yok');
+      const simulation = await runnerRef.current.run(plan, {
+        timeoutMs: 90_000,
+        onProgress: (progress) => setSimulationMessage(progress.message),
+      });
+      const result = evaluate_browser_simulation(code, simulation) as BrowserEvaluation;
+      setEvaluation(result);
+      setSimulationState('succeeded');
+      setSimulationMessage(`${result.simulation.datasets.length} analiz tamamlandı`);
+    } catch (error: unknown) {
+      if (error instanceof SimulationCancelledError) {
+        setSimulationState('cancelled');
+        setSimulationMessage('Simulation iptal edildi');
+        return;
+      }
+      setSimulationState('failed');
+      setSimulationMessage(errorMessage(error));
+    }
+  }, [code, isWasmLoaded, success]);
+
+  const cancelSimulation = useCallback(() => {
+    runnerRef.current?.cancel();
+    setSimulationState('cancelled');
+    setSimulationMessage('Simulation iptal edildi');
+  }, []);
+
   return (
     <main className="app-container">
       <section className="panel left-panel" aria-label="NetLang source editor">
@@ -150,6 +200,13 @@ function App() {
             <span>Canonical Schematic</span>
           </div>
           <div className="artifact-actions">
+            {simulationState === 'running' ? (
+              <button className="artifact-btn" onClick={cancelSimulation}>İptal</button>
+            ) : (
+              <button className="artifact-btn run-btn" onClick={() => void runSimulation()} disabled={!success}>
+                <Play size={14} aria-hidden="true" /> Simüle Et
+              </button>
+            )}
             <button
               className="artifact-btn"
               disabled={!schematicSvg}
@@ -199,6 +256,31 @@ function App() {
             <div className="empty-state">Şema hesaplanıyor…</div>
           )}
         </div>
+
+        <section className="simulation-summary" data-testid="simulation-summary" data-state={simulationState}>
+          <strong>Browser Simulation</strong>
+          <span>{simulationMessage}</span>
+          {evaluation && (
+            <>
+              <span>{evaluation.simulation.simulator.version}</span>
+              <div className="assertion-list">
+                {evaluation.assertions.assertions.map((assertion) => (
+                  <span key={assertion.code} className={`assertion assertion-${assertion.status.toLowerCase()}`} title={assertion.message}>
+                    <span hidden data-assertion-code={assertion.code} data-actual={assertion.actual ?? ''} />
+                    {assertion.status.toUpperCase()} · {assertion.metric}({assertion.signal})
+                    {assertion.actual == null ? '' : ` = ${assertion.actual.toPrecision(5)}`}
+                    {assertion.message ? ` — ${assertion.message}` : ''}
+                  </span>
+                ))}
+              </div>
+              <div className="dataset-kinds" aria-label="Analysis datasets">
+                {evaluation.simulation.datasets.map((dataset) => (
+                  <span key={dataset.index} data-testid="dataset-kind">{dataset.data.kind}</span>
+                ))}
+              </div>
+            </>
+          )}
+        </section>
 
         <header className="panel-header subpanel-header">
           <Code2 size={18} color="#f59e0b" />
