@@ -5,7 +5,8 @@ NetLang CLI, `.nl` kaynaklarını ortak Rust derleme hattından geçirir; ERC, S
 ## Kullanım
 
 ```bash
-netlang [--format human|json] <COMMAND> [OPTIONS] <FILE>
+netlang [--format human|json] [--schema-version netlang.cli.v1] \
+  [--include ast,ir,graph,spice,datasets,raw-log] <COMMAND> [OPTIONS] <FILE>
 ```
 
 `--format` gerçek bir global seçenektir; alt komuttan önce veya sonra yazılabilir:
@@ -14,6 +15,8 @@ netlang [--format human|json] <COMMAND> [OPTIONS] <FILE>
 netlang --format json check examples/demo_circuit.nl
 netlang check examples/demo_circuit.nl --format json
 ```
+
+`--schema-version` ve `--include` da global seçeneklerdir. `--include` virgülle ayrılarak veya tekrarlanarak kullanılabilir. Bilinmeyen schema sürümü `NL-F002` ve exit `2` ile, kaynak okunmadan ve output oluşturulmadan reddedilir.
 
 ## Komutlar
 
@@ -44,7 +47,7 @@ netlang compile examples/demo_circuit.nl --force
 
 ### `simulate`
 
-Derler, aynı output politikasına göre SPICE dosyasını yazar ve ortak simulation runner üzerinden Ngspice'ı batch modunda çalıştırır. Runner executable sürümünü doğrular, her çalışma için benzersiz temporary directory kullanır ve varsayılan 30 saniyelik timeout uygular. Simulator process status veya fatal/error çıktısı başarısızsa exit `3` döner; JSON modunda simulator logları stdout'a karışmaz.
+Derler, aynı output politikasına göre SPICE dosyasını yazar ve ortak simulation runner üzerinden Ngspice'ı batch modunda çalıştırır. Runner executable sürümünü doğrular, her çalışma için benzersiz temporary directory kullanır ve varsayılan 30 saniyelik timeout uygular. Simulator process status veya fatal/error çıktısı başarısızsa exit `3` döner. Human ve JSON renderer aynı typed `SimulationResult` nesnesini kullanır; raw simulator log yalnız açık `--include raw-log` ile gösterilir.
 
 Dil seviyesinde `op`, `tran`, `ac` ve bağımsız voltage/current source için `dc` sweep desteklenir. Analysis argümanları ve fiziksel birimleri semantic aşamada doğrulanır; desteklenmeyen veya hatalı analysis `NL-C009` verir ve simulator başlatılmaz.
 
@@ -78,25 +81,45 @@ netlang render examples/demo_circuit.nl
 
 ## JSON sözleşmesi
 
-JSON stdout her çalıştırmada tek bir JSON objesidir; progress ve simulator logları stdout'a yazılmaz. Compile raporu şema sürümü `netlang.compile.v1`, assertion raporu şema sürümü `netlang.assertion.v1` kullanır. CLI, canonical `CompileReport` alanlarına `status`, `spice_file` ve gerektiğinde `assertions` alanını ekler.
+JSON stdout her çalıştırmada tek bir JSON objesidir; progress ve simulator logları stdout'a yazılmaz. Varsayılan agent envelope sürümü `netlang.cli.v1`'dir. Compile raporu `netlang.compile.v1`, simulation sonucu `netlang.simulation.v1`, assertion raporu `netlang.assertion.v1` kullanır; geçerli alt sözleşmeler `domain_versions` alanında görünür.
+
+Varsayılan çıktı bilinçli olarak kompakttır. Yalnız `status`, diagnostics, summary, measurements, assertions ve artifact referanslarına ek olarak command/schema metadata'sı taşır. Canonical AST/IR/graph/SPICE, analysis dataset'leri ve raw log `debug` altında ancak ilgili `--include` seçilirse bulunur.
 
 Başarılı `check` özeti:
 
 ```json
 {
+  "schema_version": "netlang.cli.v1",
+  "command": "check",
   "status": "success",
-  "schema_version": "netlang.compile.v1",
-  "ast": {},
-  "ir": {},
+  "domain_versions": {
+    "compile": "netlang.compile.v1",
+    "simulation": null,
+    "assertion": null
+  },
   "diagnostics": [],
-  "graph": {},
-  "spice_netlist": null,
-  "layout": null,
-  "kicad_sch": null,
-  "spice_file": null,
-  "assertions": null
+  "summary": {
+    "errors": 0,
+    "warnings": 0,
+    "info": 0,
+    "analyses": 0,
+    "measurements": 0,
+    "assertions": null
+  },
+  "measurements": {},
+  "assertions": null,
+  "artifacts": []
 }
 ```
+
+Debug alanlarını isteme örneği:
+
+```bash
+netlang compile circuit.nl --format json --include ast,ir,graph,spice
+netlang simulate circuit.nl --format json --include datasets,raw-log --force
+```
+
+İlk komutta `debug.ast`, `debug.ir`, `debug.graph` ve `debug.spice_netlist`; ikincide `debug.datasets` ve `debug.raw_log` oluşur. Seçilmeyen hacimli alanlar `null` yazılmak yerine tamamen dışarıda bırakılır.
 
 `test` sonucundaki assertion alanı ayrı sürümlü ve özetlidir:
 
@@ -133,14 +156,11 @@ Diagnostic alanları bütün aşamalarda ortaktır:
   "stage": "erc",
   "message": "Floating Pin: R1.p1 is not connected to anything.",
   "component": "R1",
-  "pin": "p1",
-  "field": null,
-  "line": null,
-  "column": null
+  "pin": "p1"
 }
 ```
 
-Compile error varsa SPICE/layout/KiCad backend alanları `null` olur. Başarılı `compile` JSON'u `spice_netlist` içeriğini ve yazılan yolun `spice_file` değerini birlikte taşır. I/O veya runtime hatalarında `status` hiçbir zaman `success` değildir.
+Başarılı `compile`, yazılan SPICE dosyasını `artifacts` içinde `spice_netlist` olarak bildirir. Netlist metni yalnız `--include spice` ile döner. I/O veya runtime hatalarında `status` hiçbir zaman `success` değildir.
 
 ## Exit kodları
 

@@ -6,6 +6,8 @@ use serde_json::Value;
 use std::fs;
 use std::path::Path;
 
+const CLI_SCHEMA_VERSION: &str = "netlang.cli.v1";
+
 fn path_argument(path: &std::path::Path) -> String {
     path.to_string_lossy().into_owned()
 }
@@ -26,8 +28,10 @@ fn check_supports_human_and_machine_readable_success() {
     assert!(json.stderr.is_empty());
     let value: Value = serde_json::from_slice(&json.stdout).expect("stdout must be one JSON value");
     assert_eq!(value["status"], "success");
-    assert_eq!(value["schema_version"], COMPILE_SCHEMA_VERSION);
+    assert_eq!(value["schema_version"], CLI_SCHEMA_VERSION);
+    assert_eq!(value["domain_versions"]["compile"], COMPILE_SCHEMA_VERSION);
     assert_eq!(value["diagnostics"], serde_json::json!([]));
+    assert!(value.get("debug").is_none());
 }
 
 #[test]
@@ -123,7 +127,8 @@ fn json_parse_errors_do_not_mix_logs_into_stdout() {
     let value: Value =
         serde_json::from_slice(&output.stdout).expect("stdout must contain only valid JSON");
     assert_eq!(value["status"], "error");
-    assert_eq!(value["schema_version"], COMPILE_SCHEMA_VERSION);
+    assert_eq!(value["schema_version"], CLI_SCHEMA_VERSION);
+    assert_eq!(value["domain_versions"]["compile"], COMPILE_SCHEMA_VERSION);
     assert_eq!(value["diagnostics"][0]["code"], "NL-P001");
     assert_eq!(value["diagnostics"][0]["stage"], "parse");
 }
@@ -168,13 +173,20 @@ fn invalid_analysis_fails_before_simulator_launch() {
 }
 
 #[test]
-fn compile_json_matches_the_canonical_library_report() {
+fn compile_debug_json_matches_the_canonical_library_report() {
     let workspace = TestWorkspace::new("canonical-report");
     let source_text = read_fixture("valid/minimal.nl");
     let source = workspace.write("circuit.nl", &source_text);
     let source_arg = path_argument(&source);
 
-    let output = workspace.run_cli(&["compile", &source_arg, "--format", "json"]);
+    let output = workspace.run_cli(&[
+        "compile",
+        &source_arg,
+        "--format",
+        "json",
+        "--include",
+        "ast,ir,graph,spice",
+    ]);
     assert_eq!(output.status.code(), Some(0));
     assert!(output.stderr.is_empty());
     let cli_json: Value =
@@ -192,16 +204,57 @@ fn compile_json_matches_the_canonical_library_report() {
     let library_json =
         serde_json::to_value(library_report).expect("library report should serialize");
 
-    for field in [
-        "schema_version",
-        "ast",
-        "ir",
-        "diagnostics",
-        "graph",
-        "spice_netlist",
-    ] {
-        assert_eq!(cli_json[field], library_json[field], "field {field}");
+    assert_eq!(cli_json["schema_version"], CLI_SCHEMA_VERSION);
+    assert_eq!(
+        cli_json["domain_versions"]["compile"],
+        library_json["schema_version"]
+    );
+    for field in ["ast", "ir", "graph", "spice_netlist"] {
+        assert_eq!(
+            cli_json["debug"][field], library_json[field],
+            "field {field}"
+        );
     }
+}
+
+#[test]
+fn default_json_is_compact_and_verbose_fields_are_explicitly_opt_in() {
+    let workspace = TestWorkspace::new("compact-json");
+    let source = workspace.write("circuit.nl", &read_fixture("valid/minimal.nl"));
+    let source_arg = path_argument(&source);
+
+    let output = workspace.run_cli(&["compile", &source_arg, "--format", "json"]);
+    assert_eq!(output.status.code(), Some(0));
+    let value: Value = serde_json::from_slice(&output.stdout).expect("compact output should parse");
+    assert!(value.get("debug").is_none());
+    assert!(value.get("ast").is_none());
+    assert!(value.get("ir").is_none());
+    assert!(value.get("graph").is_none());
+    assert!(value.get("spice_netlist").is_none());
+    assert_eq!(value["summary"]["errors"], 0);
+    assert_eq!(value["artifacts"][0]["kind"], "spice_netlist");
+}
+
+#[test]
+fn unknown_cli_schema_fails_closed_before_creating_output() {
+    let workspace = TestWorkspace::new("unknown-schema");
+    let source = workspace.write("circuit.nl", &read_fixture("valid/minimal.nl"));
+    let source_arg = path_argument(&source);
+
+    let output = workspace.run_cli(&[
+        "compile",
+        &source_arg,
+        "--format",
+        "json",
+        "--schema-version",
+        "netlang.cli.v999",
+    ]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stderr.is_empty());
+    assert!(!source.with_extension("spice").exists());
+    let value: Value = serde_json::from_slice(&output.stdout).expect("schema error should parse");
+    assert_eq!(value["schema_version"], CLI_SCHEMA_VERSION);
+    assert_eq!(value["diagnostics"][0]["code"], "NL-F002");
 }
 
 #[test]
@@ -274,6 +327,46 @@ fn simulator_process_status_and_json_status_cannot_disagree() {
     let success_json: Value =
         serde_json::from_slice(&success.stdout).expect("success stdout should be JSON only");
     assert_eq!(success_json["status"], "success");
+    assert_eq!(
+        success_json["domain_versions"]["simulation"],
+        "netlang.simulation.v1"
+    );
+    assert_eq!(success_json["summary"]["analyses"], 1);
+    assert!(success_json.get("debug").is_none());
+
+    let verbose = workspace.run_cli_with_env(
+        &[
+            "simulate",
+            &source_arg,
+            "--format",
+            "json",
+            "--force",
+            "--include",
+            "datasets,raw-log",
+        ],
+        "NETLANG_NGSPICE",
+        &success_simulator,
+    );
+    assert_eq!(verbose.status.code(), Some(0));
+    let verbose_json: Value =
+        serde_json::from_slice(&verbose.stdout).expect("verbose result should be JSON");
+    assert_eq!(verbose_json["debug"]["datasets"][0]["index"], 0);
+    assert!(
+        verbose_json["debug"]["raw_log"]["stdout"]
+            .as_str()
+            .is_some_and(|log| log.contains("No. of Data Rows"))
+    );
+
+    let human = workspace.run_cli_with_env(
+        &["simulate", &source_arg, "--force"],
+        "NETLANG_NGSPICE",
+        &success_simulator,
+    );
+    assert_eq!(human.status.code(), Some(0));
+    assert!(human.stderr.is_empty());
+    let human_stdout = String::from_utf8_lossy(&human.stdout);
+    assert!(human_stdout.contains("1 analysis dataset(s), 0 measurement(s)"));
+    assert!(human_stdout.contains("[SUCCESS] Simulation completed."));
 
     let failing_simulator =
         workspace.write_fake_simulator("failing-simulator", "", "Fatal error: singular matrix", 9);

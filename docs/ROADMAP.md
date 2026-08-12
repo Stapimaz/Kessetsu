@@ -626,12 +626,13 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 
 ```json
 {
-  "schema_version": "1",
-  "tests": [
+  "schema_version": "netlang.assertion.v1",
+  "assertions": [
     {
       "code": "NL-T001",
       "status": "PASS",
-      "metric": "max(V(out))",
+      "metric": "max",
+      "signal": "V(out)",
       "actual": 3.21,
       "threshold": 3.3,
       "unit": "V"
@@ -650,15 +651,17 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 
 ### 3.4 — Simulation CLI sözleşmesi
 
-- [ ] `netlang simulate` structured analysis sonucu döndürür.
-- [ ] `netlang test` structured assertion sonucu döndürür.
-- [ ] Human ve JSON modları aynı domain sonucunu render eder.
-- [ ] Varsayılan JSON envelope'u yalnız status, diagnostics, summary, measurements, assertions ve artifact referanslarını taşıyan kompakt agent çıktısı olsun.
-- [ ] AST, IR, graph, SPICE netlist, dataset ve raw simulator log gibi hacimli debug alanlarını açık `--include` seçimiyle opt-in yap.
-- [ ] Compile, simulation ve assertion şemalarını açıkça sürümle; bilinmeyen schema sürümü fail-closed olsun.
+- [x] `netlang simulate` structured analysis sonucu döndürür.
+- [x] `netlang test` structured assertion sonucu döndürür.
+- [x] Human ve JSON modları aynı domain sonucunu render eder.
+- [x] Varsayılan JSON envelope'u yalnız status, diagnostics, summary, measurements, assertions ve artifact referanslarını taşıyan kompakt agent çıktısı olsun.
+- [x] AST, IR, graph, SPICE netlist, dataset ve raw simulator log gibi hacimli debug alanlarını açık `--include` seçimiyle opt-in yap.
+- [x] Compile, simulation ve assertion şemalarını açıkça sürümle; bilinmeyen schema sürümü fail-closed olsun.
 - [x] Simulation failure exit 3, assertion failure exit 4 verir. _(Faz 2.5 cross-platform fake-process contract testleri.)_
 - [x] JSON stdout parse edilebilir ve logsuzdur. _(Success/failure/assertion CLI integration testleri.)_
-- [ ] Simulation fixture'ları CI'da güvenilir çalışır.
+- [x] Simulation fixture'ları CI'da güvenilir çalışır. _(3.2 real-Ngspice fixture'ları canonical suite ve Linux CI içinde; 3.4 CLI contract fake runner ile platformlar arası korunuyor.)_
+
+**3.4 kanıtı:** `netlang.cli.v1` compact envelope `check`, `compile`, `simulate` ve `test` için ortak status/diagnostic/summary/measurement/assertion/artifact modelini kullanır. `netlang.compile.v1`, `netlang.simulation.v1` ve `netlang.assertion.v1` sürümleri `domain_versions` ile ilan edilir. AST/IR/graph/SPICE/dataset/raw-log yalnız `--include` ile `debug` altına girer. `--schema-version` bilinmeyen sürümü output oluşturmadan `NL-F002` ile fail-closed reddeder. Human ve JSON simulation render'ları aynı dataset/measurement sayısını contract testinde doğrular; JSON stdout raw logla kirlenmez.
 
 ### 3.5 — Agent-ready CLI contract
 
@@ -853,6 +856,6 @@ Her geliştirme oturumunda:
 
 ### Aktif sıradaki ilk iş
 
-**3.4 — Simulation CLI sözleşmesi.**
+**3.5 — Agent-ready CLI contract.**
 
-3.3 assertion runtime sürümlü rapor, deterministic kimlik/status, tolerance, unit-aware çıktı ve typed error davranışıyla kapandı. Sıradaki paket varsayılan JSON'u kompakt agent envelope'una dönüştürecek; hacimli compile/simulation alanlarını `--include` ile opt-in yapacak ve schema negotiation'ı fail-closed tanımlayacak.
+3.4 ortak compact JSON envelope, structured simulation/assertion sonucu, debug opt-in ve fail-closed schema negotiation ile kapandı. Sıradaki paket stdin kaynağını güvenli output politikasıyla ekleyecek; aynı isteğin byte-stable sonucunu ve compile → simulate → measure → revise agent döngüsünü E2E fixture ile kanıtlayacak.

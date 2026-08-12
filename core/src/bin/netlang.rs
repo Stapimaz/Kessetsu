@@ -4,15 +4,21 @@ use netlang_core::compiler::{
     DiagnosticStage, compile_source,
 };
 use netlang_core::sim_result::{
-    AssertionReport, AssertionResult, AssertionStatus, format_quantity,
+    ASSERTION_SCHEMA_VERSION, AssertionReport, AssertionResult, AssertionStatus, AssertionSummary,
+    format_quantity,
 };
 use netlang_core::simulation::{
-    CancellationToken, NgspiceRunner, SimulationRequest, SimulationResult, SimulationRunner,
+    CancellationToken, NgspiceRunner, SIMULATION_SCHEMA_VERSION, SimulationRequest,
+    SimulationResult, SimulationRunner,
 };
 use serde::Serialize;
+use serde_json::Value;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process;
+
+const CLI_SCHEMA_VERSION: &str = "netlang.cli.v1";
 
 #[derive(Parser)]
 #[command(name = "netlang", about = "NetLang Circuit Compiler and Simulator")]
@@ -23,6 +29,14 @@ struct Cli {
     /// Output format (human or json)
     #[arg(long, value_enum, default_value_t = Format::Human, global = true)]
     format: Format,
+
+    /// JSON contract version requested by the caller
+    #[arg(long, default_value = CLI_SCHEMA_VERSION, global = true)]
+    schema_version: String,
+
+    /// Opt in to verbose JSON fields (comma-separated or repeated)
+    #[arg(long, value_enum, value_delimiter = ',', global = true)]
+    include: Vec<Include>,
 }
 
 #[derive(Subcommand)]
@@ -35,7 +49,7 @@ enum Commands {
     Simulate(OutputCommand),
     /// Parse, ERC, generate a netlist, simulate, and evaluate assertions
     Test(OutputCommand),
-    /// Reserved for the Phase 3 SVG schematic renderer
+    /// Reserved for the Phase 4 SVG schematic renderer
     Render { file: PathBuf },
 }
 
@@ -58,13 +72,73 @@ enum Format {
     Json,
 }
 
+#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq, PartialOrd, Ord)]
+#[value(rename_all = "kebab-case")]
+enum Include {
+    Ast,
+    Ir,
+    Graph,
+    Spice,
+    Datasets,
+    RawLog,
+}
+
 #[derive(Serialize)]
 struct JsonOutput {
+    schema_version: &'static str,
+    command: &'static str,
     status: String,
-    #[serde(flatten)]
-    report: CompileReport,
-    spice_file: Option<String>,
+    domain_versions: DomainVersions,
+    diagnostics: Vec<JsonDiagnostic>,
+    summary: JsonSummary,
+    measurements: BTreeMap<String, f64>,
     assertions: Option<AssertionReport>,
+    artifacts: Vec<JsonArtifact>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    debug: Option<BTreeMap<String, Value>>,
+}
+
+#[derive(Serialize)]
+struct DomainVersions {
+    compile: &'static str,
+    simulation: Option<&'static str>,
+    assertion: Option<&'static str>,
+}
+
+#[derive(Serialize)]
+struct JsonDiagnostic {
+    code: String,
+    severity: String,
+    stage: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    kind: Option<String>,
+    message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    component: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pin: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    field: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    line: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    column: Option<usize>,
+}
+
+#[derive(Serialize)]
+struct JsonSummary {
+    errors: usize,
+    warnings: usize,
+    info: usize,
+    analyses: usize,
+    measurements: usize,
+    assertions: Option<AssertionSummary>,
+}
+
+#[derive(Clone, Serialize)]
+struct JsonArtifact {
+    kind: String,
+    path: String,
 }
 
 fn main() {
@@ -73,6 +147,30 @@ fn main() {
 }
 
 fn run(cli: Cli) -> i32 {
+    let command = command_name(&cli.command);
+    let includes = cli.include.iter().copied().collect::<BTreeSet<_>>();
+    if cli.schema_version != CLI_SCHEMA_VERSION {
+        let diagnostic = diagnostic(
+            "NL-F002",
+            DiagnosticStage::Cli,
+            format!(
+                "Unsupported CLI schema '{}'; expected '{}'.",
+                cli.schema_version, CLI_SCHEMA_VERSION
+            ),
+        );
+        emit(
+            &cli.format,
+            command,
+            &includes,
+            "error",
+            CompileReport::failure(diagnostic),
+            None,
+            None,
+            None,
+        );
+        return 2;
+    }
+
     if let Commands::Render { file } = &cli.command {
         let diagnostic = diagnostic(
             "NL-F001",
@@ -84,8 +182,11 @@ fn run(cli: Cli) -> i32 {
         );
         emit(
             &cli.format,
+            command,
+            &includes,
             "error",
             CompileReport::failure(diagnostic),
+            None,
             None,
             None,
         );
@@ -103,8 +204,11 @@ fn run(cli: Cli) -> i32 {
             );
             emit(
                 &cli.format,
+                command,
+                &includes,
                 "error",
                 CompileReport::failure(diagnostic),
+                None,
                 None,
                 None,
             );
@@ -114,7 +218,7 @@ fn run(cli: Cli) -> i32 {
 
     let needs_spice = !matches!(cli.command, Commands::Check { .. });
     let options = CompileOptions {
-        include_ast: cli.format == Format::Json,
+        include_ast: includes.contains(&Include::Ast),
         generate_spice: needs_spice,
         generate_layout: false,
         generate_kicad: false,
@@ -123,7 +227,16 @@ fn run(cli: Cli) -> i32 {
 
     if report.has_errors() {
         let exit_code = compile_failure_exit_code(&report);
-        emit(&cli.format, "error", report, None, None);
+        emit(
+            &cli.format,
+            command,
+            &includes,
+            "error",
+            report,
+            None,
+            None,
+            None,
+        );
         return exit_code;
     }
 
@@ -132,7 +245,16 @@ fn run(cli: Cli) -> i32 {
             emit_human_diagnostics(&report);
             println!("[SUCCESS] Circuit parsed and ERC checks passed.");
         } else {
-            emit(&cli.format, "success", report, None, None);
+            emit(
+                &cli.format,
+                command,
+                &includes,
+                "success",
+                report,
+                None,
+                None,
+                None,
+            );
         }
         return 0;
     }
@@ -152,7 +274,16 @@ fn run(cli: Cli) -> i32 {
     if let Err(diagnostic) = write_spice(source_path, &spice_path, &spice, output_command.force) {
         report.diagnostics.push(*diagnostic);
         report.spice_netlist = None;
-        emit(&cli.format, "error", report, None, None);
+        emit(
+            &cli.format,
+            command,
+            &includes,
+            "error",
+            report,
+            None,
+            None,
+            None,
+        );
         return 2;
     }
 
@@ -165,16 +296,35 @@ fn run(cli: Cli) -> i32 {
                 spice_path.display()
             );
         } else {
-            emit(&cli.format, "success", report, spice_file, None);
+            emit(
+                &cli.format,
+                command,
+                &includes,
+                "success",
+                report,
+                spice_file,
+                None,
+                None,
+            );
         }
         return 0;
     }
 
     if matches!(cli.command, Commands::Simulate(_)) {
-        return run_simulate(&cli.format, report, spice_file, &spice);
+        return run_simulate(&cli.format, command, &includes, report, spice_file, &spice);
     }
 
-    run_assertions(&cli.format, report, spice_file, &spice)
+    run_assertions(&cli.format, command, &includes, report, spice_file, &spice)
+}
+
+fn command_name(command: &Commands) -> &'static str {
+    match command {
+        Commands::Check { .. } => "check",
+        Commands::Compile(_) => "compile",
+        Commands::Simulate(_) => "simulate",
+        Commands::Test(_) => "test",
+        Commands::Render { .. } => "render",
+    }
 }
 
 fn command_path(command: &Commands) -> &Path {
@@ -244,6 +394,8 @@ fn paths_refer_to_same_file(left: &Path, right: &Path) -> bool {
 
 fn run_simulate(
     format: &Format,
+    command: &'static str,
+    includes: &BTreeSet<Include>,
     mut report: CompileReport,
     spice_file: Option<String>,
     spice: &str,
@@ -260,13 +412,22 @@ fn run_simulate(
                 DiagnosticStage::Simulation,
                 error.to_string(),
             ));
-            emit(format, "simulation_error", report, spice_file, None);
+            emit(
+                format,
+                command,
+                includes,
+                "simulation_error",
+                report,
+                spice_file,
+                None,
+                None,
+            );
             return 3;
         }
     };
 
     if *format == Format::Human {
-        print_simulator_logs(&simulation);
+        print_simulation_result(&simulation, includes.contains(&Include::RawLog));
     }
 
     if !simulation.succeeded() {
@@ -278,14 +439,54 @@ fn run_simulate(
         report
             .diagnostics
             .push(diagnostic("NL-S002", DiagnosticStage::Simulation, details));
-        emit(format, "simulation_error", report, spice_file, None);
+        emit(
+            format,
+            command,
+            includes,
+            "simulation_error",
+            report,
+            spice_file,
+            Some(simulation),
+            None,
+        );
         return 3;
     }
 
     if *format == Format::Json {
-        emit(format, "success", report, spice_file, None);
+        emit(
+            format,
+            command,
+            includes,
+            "success",
+            report,
+            spice_file,
+            Some(simulation),
+            None,
+        );
+    } else {
+        println!("[SUCCESS] Simulation completed.");
     }
     0
+}
+
+fn print_simulation_result(simulation: &SimulationResult, include_raw_log: bool) {
+    for diagnostic in &simulation.diagnostics {
+        eprintln!(
+            "[{:?} Simulation] {}: {}",
+            diagnostic.severity, diagnostic.code, diagnostic.message
+        );
+    }
+    println!(
+        "[INFO] {} analysis dataset(s), {} measurement(s).",
+        simulation.datasets.len(),
+        simulation.measurements.len()
+    );
+    for (name, value) in &simulation.measurements {
+        println!("[MEASURE] {name} = {value}");
+    }
+    if include_raw_log {
+        print_simulator_logs(simulation);
+    }
 }
 
 fn print_simulator_logs(simulation: &SimulationResult) {
@@ -313,6 +514,8 @@ fn run_simulation(
 
 fn run_assertions(
     format: &Format,
+    command: &'static str,
+    includes: &BTreeSet<Include>,
     mut report: CompileReport,
     spice_file: Option<String>,
     spice: &str,
@@ -329,10 +532,23 @@ fn run_assertions(
                 DiagnosticStage::Simulation,
                 error.to_string(),
             ));
-            emit(format, "simulation_error", report, spice_file, None);
+            emit(
+                format,
+                command,
+                includes,
+                "simulation_error",
+                report,
+                spice_file,
+                None,
+                None,
+            );
             return 3;
         }
     };
+
+    if *format == Format::Human {
+        print_simulation_result(&simulation, includes.contains(&Include::RawLog));
+    }
 
     if !simulation.succeeded() {
         let details = if simulation.errors.is_empty() {
@@ -343,7 +559,16 @@ fn run_assertions(
         report
             .diagnostics
             .push(diagnostic("NL-S002", DiagnosticStage::Simulation, details));
-        emit(format, "simulation_error", report, spice_file, None);
+        emit(
+            format,
+            command,
+            includes,
+            "simulation_error",
+            report,
+            spice_file,
+            Some(simulation),
+            None,
+        );
         return 3;
     }
 
@@ -353,15 +578,24 @@ fn run_assertions(
         .expect("successful compile report must preserve typed IR");
     let assertion_report = netlang_core::sim_result::evaluate_assertions(circuit, &simulation);
     let all_passed = assertion_report.all_passed();
-    for result in &assertion_report.assertions {
-        if *format == Format::Human {
+    if *format == Format::Human {
+        for result in &assertion_report.assertions {
             print_assertion_result(result);
         }
     }
 
     let status = if all_passed { "success" } else { "test_failed" };
     if *format == Format::Json {
-        emit(format, status, report, spice_file, Some(assertion_report));
+        emit(
+            format,
+            command,
+            includes,
+            status,
+            report,
+            spice_file,
+            Some(simulation),
+            Some(assertion_report),
+        );
     } else if all_passed {
         println!("\n[SUCCESS] All assertions passed.");
     } else {
@@ -424,28 +658,178 @@ fn diagnostic(code: &str, stage: DiagnosticStage, message: impl Into<String>) ->
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn emit(
     format: &Format,
+    command: &'static str,
+    includes: &BTreeSet<Include>,
     status: &str,
     report: CompileReport,
     spice_file: Option<String>,
+    simulation: Option<SimulationResult>,
     assertions: Option<AssertionReport>,
 ) {
     if *format == Format::Json {
-        let output = JsonOutput {
-            status: status.to_string(),
-            report,
+        let output = build_json_output(
+            command,
+            includes,
+            status,
+            &report,
             spice_file,
+            simulation.as_ref(),
             assertions,
-        };
+        );
         match serde_json::to_string_pretty(&output) {
             Ok(json) => println!("{json}"),
-            Err(error) => eprintln!(
-                "[ERROR] Could not serialize {COMPILE_SCHEMA_VERSION} JSON output: {error}"
-            ),
+            Err(error) => {
+                eprintln!("[ERROR] Could not serialize {CLI_SCHEMA_VERSION} JSON output: {error}")
+            }
         }
     } else {
         emit_human_diagnostics(&report);
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_json_output(
+    command: &'static str,
+    includes: &BTreeSet<Include>,
+    status: &str,
+    report: &CompileReport,
+    spice_file: Option<String>,
+    simulation: Option<&SimulationResult>,
+    assertions: Option<AssertionReport>,
+) -> JsonOutput {
+    let mut diagnostics = report
+        .diagnostics
+        .iter()
+        .map(JsonDiagnostic::from_compile)
+        .collect::<Vec<_>>();
+    if let Some(simulation) = simulation {
+        diagnostics.extend(
+            simulation
+                .diagnostics
+                .iter()
+                .map(JsonDiagnostic::from_simulation),
+        );
+    }
+
+    let errors = diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.severity == "error")
+        .count();
+    let warnings = diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.severity == "warning")
+        .count();
+    let info = diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.severity == "info")
+        .count();
+    let measurements = simulation
+        .map(|simulation| simulation.measurements.clone())
+        .unwrap_or_default();
+    let assertion_summary = assertions.as_ref().map(|report| report.summary);
+    let summary = JsonSummary {
+        errors,
+        warnings,
+        info,
+        analyses: simulation.map_or(0, |simulation| simulation.analyses.len()),
+        measurements: measurements.len(),
+        assertions: assertion_summary,
+    };
+
+    let mut artifacts = spice_file
+        .into_iter()
+        .map(|path| JsonArtifact {
+            kind: "spice_netlist".to_string(),
+            path,
+        })
+        .collect::<Vec<_>>();
+    if let Some(simulation) = simulation {
+        artifacts.extend(simulation.artifacts.iter().map(|artifact| JsonArtifact {
+            kind: artifact.kind.clone(),
+            path: artifact.path.clone(),
+        }));
+    }
+
+    JsonOutput {
+        schema_version: CLI_SCHEMA_VERSION,
+        command,
+        status: status.to_string(),
+        domain_versions: DomainVersions {
+            compile: COMPILE_SCHEMA_VERSION,
+            simulation: simulation.map(|_| SIMULATION_SCHEMA_VERSION),
+            assertion: assertions.as_ref().map(|_| ASSERTION_SCHEMA_VERSION),
+        },
+        diagnostics,
+        summary,
+        measurements,
+        assertions,
+        artifacts,
+        debug: build_debug(includes, report, simulation),
+    }
+}
+
+fn build_debug(
+    includes: &BTreeSet<Include>,
+    report: &CompileReport,
+    simulation: Option<&SimulationResult>,
+) -> Option<BTreeMap<String, Value>> {
+    let mut debug = BTreeMap::new();
+    for include in includes {
+        let (name, value) = match include {
+            Include::Ast => ("ast", to_json_value(&report.ast)),
+            Include::Ir => ("ir", to_json_value(&report.ir)),
+            Include::Graph => ("graph", to_json_value(&report.graph)),
+            Include::Spice => ("spice_netlist", to_json_value(&report.spice_netlist)),
+            Include::Datasets => (
+                "datasets",
+                to_json_value(&simulation.map(|simulation| &simulation.datasets)),
+            ),
+            Include::RawLog => (
+                "raw_log",
+                to_json_value(&simulation.map(|simulation| &simulation.raw_log)),
+            ),
+        };
+        debug.insert(name.to_string(), value);
+    }
+    (!debug.is_empty()).then_some(debug)
+}
+
+fn to_json_value(value: &impl Serialize) -> Value {
+    serde_json::to_value(value).unwrap_or(Value::Null)
+}
+
+impl JsonDiagnostic {
+    fn from_compile(diagnostic: &Diagnostic) -> Self {
+        Self {
+            code: diagnostic.code.clone(),
+            severity: format!("{:?}", diagnostic.severity).to_ascii_lowercase(),
+            stage: format!("{:?}", diagnostic.stage).to_ascii_lowercase(),
+            kind: None,
+            message: diagnostic.message.clone(),
+            component: diagnostic.component.clone(),
+            pin: diagnostic.pin.clone(),
+            field: diagnostic.field.clone(),
+            line: diagnostic.line,
+            column: diagnostic.column,
+        }
+    }
+
+    fn from_simulation(diagnostic: &netlang_core::simulation::SimulatorDiagnostic) -> Self {
+        Self {
+            code: diagnostic.code.clone(),
+            severity: format!("{:?}", diagnostic.severity).to_ascii_lowercase(),
+            stage: "simulation".to_string(),
+            kind: Some(format!("{:?}", diagnostic.kind).to_ascii_lowercase()),
+            message: diagnostic.message.clone(),
+            component: None,
+            pin: None,
+            field: None,
+            line: None,
+            column: None,
+        }
     }
 }
 
