@@ -665,11 +665,13 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 
 ### 3.5 — Agent-ready CLI contract
 
-- [ ] Ayrı daemon veya Agent API servisi kurmadan `check`, `compile`, `simulate` ve `test` komutlarını versioned JSON sözleşmesiyle sun.
-- [ ] Dosyasız tool kullanımı için NetLang source'u stdin'den alma seçeneği ekle.
-- [ ] Agent sonucunu human terminal metni parse etmeye gerek bırakmayacak şekilde typed, kompakt ve structured tut.
-- [ ] Aynı request için idempotent ve deterministik sonuç üret.
-- [ ] Dış bir AI ajanının compile → simulate → measure → revise döngüsünü fixture tabanlı uçtan uca testle doğrula.
+- [x] Ayrı daemon veya Agent API servisi kurmadan `check`, `compile`, `simulate` ve `test` komutlarını versioned JSON sözleşmesiyle sun.
+- [x] Dosyasız tool kullanımı için NetLang source'u stdin'den alma seçeneği ekle.
+- [x] Agent sonucunu human terminal metni parse etmeye gerek bırakmayacak şekilde typed, kompakt ve structured tut.
+- [x] Aynı request için idempotent ve deterministik sonuç üret.
+- [x] Dış bir AI ajanının compile → simulate → measure → revise döngüsünü fixture tabanlı uçtan uca testle doğrula.
+
+**3.5 kanıtı:** `FILE` konumundaki `-`, source'u stdin'den alır; açık `--output` yoksa compile/simulate/test netlist'i yalnız bellekte kullanır. Dört komut da `netlang.cli.v1` envelope'u döndürür. Contract testi side-effect-free check/compile/simulate/test isteklerini ikişer kez çalıştırıp stdout'un byte-for-byte aynı olduğunu doğrular. E2E agent fixture'ı 10 Ω adayını compile eder, structured simulation measurement'ında 200 mA okur, `NL-T001=FAIL` sonucunu işler, source'u 100 Ω'a revize eder ve 20 mA ile `PASS` sonucuna ulaşır; hiçbir adım human terminal metni parse etmez.
 
 ### 3.6 — Simulation model ve subcircuit temeli
 
@@ -700,8 +702,8 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 - [x] Simulation result'ları typed ve serialize edilebilirdir. _(`netlang.simulation.v1` + serde contract testleri.)_
 - [x] Assertion sonuçları PASS/FAIL/ERROR ayrımını doğru yapar. _(3.3 typed status ve regression suite.)_
 - [x] Paralel iki simulation dosya çakışması yaşamaz. _(3.1 unique run-directory integration testi.)_
-- [ ] CLI human/JSON ve exit-code contract testleri geçer.
-- [ ] Dış AI ajanı human terminal metni parse etmeden versioned sözleşmeyle tasarım döngüsü kurabilir.
+- [x] CLI human/JSON ve exit-code contract testleri geçer. _(3.4–3.5 cross-platform contract suite.)_
+- [x] Dış AI ajanı human terminal metni parse etmeden versioned sözleşmeyle tasarım döngüsü kurabilir. _(3.5 stdin agent-revision E2E.)_
 - [ ] User-defined ve packaged model/subcircuit çözümlemesi reproducible, provenance bilgili ve fail-closed çalışır.
 - [ ] RC filtre, gain stage ve power-amplifier benchmark'ları tanımlı mühendislik hedeflerini gerçek Ngspice sonuçlarıyla doğrular.
 - [ ] Faz 2.5 kalite kapıları geçmeye devam eder.
@@ -856,6 +858,6 @@ Her geliştirme oturumunda:
 
 ### Aktif sıradaki ilk iş
 
-**3.5 — Agent-ready CLI contract.**
+**3.6 — Simulation model ve subcircuit temeli.**
 
-3.4 ortak compact JSON envelope, structured simulation/assertion sonucu, debug opt-in ve fail-closed schema negotiation ile kapandı. Sıradaki paket stdin kaynağını güvenli output politikasıyla ekleyecek; aynı isteğin byte-stable sonucunu ve compile → simulate → measure → revise agent döngüsünü E2E fixture ile kanıtlayacak.
+3.5 dosyasız stdin tool kullanımı, byte-stable retry sözleşmesi ve structured compile → simulate → measure → revise E2E agent döngüsüyle kapandı. Sıradaki paket raw directive enjeksiyonuna izin vermeyen typed model/subcircuit tanımını, ortak katalog pin doğrulamasını, provenance manifest'ini ve reproducible `netlang.lock` çözümlemesini kuracak.

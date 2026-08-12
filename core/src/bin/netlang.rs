@@ -15,6 +15,7 @@ use serde::Serialize;
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::process;
 
@@ -194,13 +195,18 @@ fn run(cli: Cli) -> i32 {
     }
 
     let source_path = command_path(&cli.command);
-    let source = match fs::read_to_string(source_path) {
+    let source_is_stdin = source_path == Path::new("-");
+    let source = match read_source(source_path) {
         Ok(source) => source,
         Err(error) => {
             let diagnostic = diagnostic(
                 "NL-I001",
                 DiagnosticStage::Io,
-                format!("Could not read file '{}': {error}", source_path.display()),
+                if source_is_stdin {
+                    format!("Could not read NetLang source from stdin: {error}")
+                } else {
+                    format!("Could not read file '{}': {error}", source_path.display())
+                },
             );
             emit(
                 &cli.format,
@@ -264,14 +270,16 @@ fn run(cli: Cli) -> i32 {
     let spice_path = output_command
         .output
         .clone()
-        .unwrap_or_else(|| source_path.with_extension("spice"));
+        .or_else(|| (!source_is_stdin).then(|| source_path.with_extension("spice")));
     let spice = report
         .spice_netlist
         .as_deref()
         .expect("successful SPICE-enabled compile must contain a netlist")
         .to_string();
 
-    if let Err(diagnostic) = write_spice(source_path, &spice_path, &spice, output_command.force) {
+    if let Some(spice_path) = &spice_path
+        && let Err(diagnostic) = write_spice(source_path, spice_path, &spice, output_command.force)
+    {
         report.diagnostics.push(*diagnostic);
         report.spice_netlist = None;
         emit(
@@ -287,14 +295,21 @@ fn run(cli: Cli) -> i32 {
         return 2;
     }
 
-    let spice_file = Some(spice_path.to_string_lossy().into_owned());
+    let spice_file = spice_path
+        .as_ref()
+        .map(|path| path.to_string_lossy().into_owned());
     if matches!(cli.command, Commands::Compile(_)) {
         if cli.format == Format::Human {
             emit_human_diagnostics(&report);
-            println!(
-                "[SUCCESS] SPICE netlist generated: {}",
-                spice_path.display()
-            );
+            if let Some(spice_path) = &spice_path {
+                println!(
+                    "[SUCCESS] SPICE netlist generated: {}",
+                    spice_path.display()
+                );
+            } else {
+                print!("{spice}");
+                println!("[SUCCESS] SPICE netlist generated in memory.");
+            }
         } else {
             emit(
                 &cli.format,
@@ -324,6 +339,16 @@ fn command_name(command: &Commands) -> &'static str {
         Commands::Simulate(_) => "simulate",
         Commands::Test(_) => "test",
         Commands::Render { .. } => "render",
+    }
+}
+
+fn read_source(source_path: &Path) -> io::Result<String> {
+    if source_path == Path::new("-") {
+        let mut source = String::new();
+        io::stdin().read_to_string(&mut source)?;
+        Ok(source)
+    } else {
+        fs::read_to_string(source_path)
     }
 }
 

@@ -43,6 +43,8 @@ Parse, flatten, semantic ve ERC hataları ortak `Diagnostic` modeline dönüşt�
 
 CLI, canonical raporu `netlang.cli.v1` agent envelope'u içinde render eder; Core raporunun semantiğini değiştirmez. Varsayılan JSON yalnız kompakt durum/diagnostic/summary/measurement/assertion/artifact alanlarını taşır. AST, IR, graph, SPICE, dataset ve raw simulator log açık `--include` olmadan serialize edilmez. Compile, simulation ve assertion alt sözleşmelerinin sürümleri `domain_versions` içinde ilan edilir; bilinmeyen CLI schema isteği hiçbir compile veya dosya yazma işlemi başlamadan `NL-F002` ile reddedilir. JSON stdout tek bir obje olarak kalır. Dosya yazma frontend sorumluluğudur: mevcut output açık `--force` olmadan ezilmez ve hiçbir generated output kaynak `.nl` dosyasının üzerine yazılamaz.
 
+CLI'da kaynak yolu `-` ise source stdin'den okunur. Stdin tabanlı `compile`, `simulate` ve `test` açık `--output` verilmedikçe SPICE dosyası yazmaz; netlist process içinde simulation'a aktarılır ve JSON caller gerekirse `--include spice` ile metni alır. Böylece tool çağrıları geçici kaynak dosyasına ihtiyaç duymaz ve side-effect-free stdin istekleri aynı input/seçenekler için byte-stable JSON üretir. Dosya tabanlı komutların mevcut güvenli overwrite politikası değişmez.
+
 Simulator executable discovery, dağıtılan binary konumlarını ve sistem fallback'ini dener; otomasyon/packaging ortamları açık bir executable yolu için `NETLANG_NGSPICE` kullanabilir. Bu override derleme hattını değiştirmez ve başlatma/process hataları CLI'da exit `3` olarak kalır.
 
 ## 2. Dilin Sözdizimi (Syntax) ve Kurallar

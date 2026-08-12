@@ -1,8 +1,9 @@
 #![allow(dead_code)]
 
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_WORKSPACE_ID: AtomicU64 = AtomicU64::new(0);
@@ -83,6 +84,50 @@ impl TestWorkspace {
             .unwrap_or_else(|error| panic!("could not run NetLang CLI: {error}"))
     }
 
+    pub fn run_cli_with_stdin(&self, arguments: &[&str], input: &str) -> Output {
+        self.run_cli_with_stdin_internal(arguments, input, None)
+    }
+
+    pub fn run_cli_with_stdin_and_env(
+        &self,
+        arguments: &[&str],
+        input: &str,
+        key: &str,
+        value: &Path,
+    ) -> Output {
+        self.run_cli_with_stdin_internal(arguments, input, Some((key, value)))
+    }
+
+    fn run_cli_with_stdin_internal(
+        &self,
+        arguments: &[&str],
+        input: &str,
+        environment: Option<(&str, &Path)>,
+    ) -> Output {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_netlang"));
+        command
+            .args(arguments)
+            .current_dir(&self.root)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        if let Some((key, value)) = environment {
+            command.env(key, value);
+        }
+        let mut child = command
+            .spawn()
+            .unwrap_or_else(|error| panic!("could not run NetLang CLI: {error}"));
+        child
+            .stdin
+            .take()
+            .expect("piped CLI stdin should be available")
+            .write_all(input.as_bytes())
+            .expect("CLI stdin should be writable");
+        child
+            .wait_with_output()
+            .expect("CLI process output should be readable")
+    }
+
     pub fn write_fake_simulator(
         &self,
         name: &str,
@@ -151,6 +196,34 @@ impl TestWorkspace {
             format!(
                 "#!/bin/sh\nif [ \"$1\" = \"-v\" ]; then\n  printf '%s\\n' 'ngspice-test-1'\n  exit 0\nfi\nsleep {seconds}\nprintf '%s\\n' 'completed'\n"
             ),
+        );
+
+        let path = self.write(file_name, &contents);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = fs::metadata(&path)
+                .expect("fake simulator metadata should be readable")
+                .permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(&path, permissions).expect("fake simulator should be executable");
+        }
+        path
+    }
+
+    pub fn write_agent_loop_simulator(&self, name: &str) -> PathBuf {
+        #[cfg(windows)]
+        let (file_name, contents) = (
+            format!("{name}.cmd"),
+            "@echo off\r\nif \"%~1\"==\"-v\" (\r\n  echo ngspice-agent-loop-1\r\n  exit /b 0\r\n)\r\nset current=-0.2\r\nset magnitude=0.2\r\nfindstr /c:\" 100\" circuit.spice > nul\r\nif not errorlevel 1 (\r\n  set current=-0.02\r\n  set magnitude=0.02\r\n)\r\n>netlang-analysis-000-op.data echo scale v_v1#branch\r\n>>netlang-analysis-000-op.data echo 0 %current%\r\necho peak_pos_i_v1 = %current%\r\necho peak_neg_i_v1 = %current%\r\necho observed_current = %magnitude%\r\necho No. of Data Rows : 1\r\nexit /b 0\r\n"
+                .to_string(),
+        );
+
+        #[cfg(not(windows))]
+        let (file_name, contents) = (
+            format!("{name}.sh"),
+            "#!/bin/sh\nif [ \"$1\" = \"-v\" ]; then\n  printf '%s\\n' 'ngspice-agent-loop-1'\n  exit 0\nfi\ncurrent=-0.2\nmagnitude=0.2\nif grep -Eq '^R_R1 .* 100$' circuit.spice; then\n  current=-0.02\n  magnitude=0.02\nfi\nprintf '%s\\n' 'scale v_v1#branch' \"0 $current\" > netlang-analysis-000-op.data\nprintf '%s\\n' \"peak_pos_i_v1 = $current\" \"peak_neg_i_v1 = $current\" \"observed_current = $magnitude\" 'No. of Data Rows : 1'\nexit 0\n"
+                .to_string(),
         );
 
         let path = self.write(file_name, &contents);

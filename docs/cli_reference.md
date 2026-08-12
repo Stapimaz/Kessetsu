@@ -18,6 +18,21 @@ netlang check examples/demo_circuit.nl --format json
 
 `--schema-version` ve `--include` da global seçeneklerdir. `--include` virgülle ayrılarak veya tekrarlanarak kullanılabilir. Bilinmeyen schema sürümü `NL-F002` ve exit `2` ile, kaynak okunmadan ve output oluşturulmadan reddedilir.
 
+## Stdin ve dosyasız agent kullanımı
+
+Dosya yolu yerine `-` verildiğinde NetLang source stdin'den okunur:
+
+```bash
+netlang check - --format json < circuit.nl
+netlang compile - --format json --include spice < circuit.nl
+netlang simulate - --format json < circuit.nl
+netlang test - --format json < circuit.nl
+```
+
+Stdin ile `compile`, `simulate` ve `test`, açık `--output` yoksa çalışma dizinine SPICE dosyası yazmaz. `compile` JSON çağrısında generated netlist gerekiyorsa `--include spice` kullanılır. Human `compile -` netlist'i stdout'a basar. Kalıcı artifact istenirse normal güvenli overwrite sözleşmesiyle `--output result.spice` verilebilir.
+
+Side-effect-free stdin + JSON kullanımı agent retry'ları için idempotenttir: aynı source, seçenekler ve deterministic simulator sonucu byte-for-byte aynı envelope'u üretir. Dosya çıktısı isteyen caller, mevcut artifact'i bilinçli biçimde yenilemek için `--force` kullanmalıdır.
+
 ## Komutlar
 
 ### `check`
@@ -171,3 +186,15 @@ Başarılı `compile`, yazılan SPICE dosyasını `artifacts` içinde `spice_net
 - `4`: Bir veya daha fazla assertion başarısız.
 
 Human ve JSON formatları aynı kod yolunu ve exit semantiğini kullanır.
+
+## Agent döngüsü
+
+Ayrı daemon veya özel bir Agent API gerekmez. Bir ajan şu döngüyü yalnız JSON alanlarını okuyarak kurabilir:
+
+1. `check - --format json` ile syntax/semantic/ERC diagnostic'lerini alır.
+2. `compile - --format json --include spice` ile canonical netlist'i gerektiğinde inspect eder.
+3. `simulate - --format json` ile typed measurement ve analysis summary'yi okur.
+4. `test - --format json` içindeki `assertions[].status`, `actual`, `threshold` ve summary alanlarından hedef farkını çıkarır.
+5. Source'u revize edip aynı stdin çağrısını tekrarlar.
+
+Repository contract suite'i bu akışı başarısız 10 Ω adayından ölçülen 200 mA sonucunu okuyup direnci 100 Ω'a revize eden ve 20 mA ile assertion'ı geçen platformlar arası fixture ile doğrular; test human terminal metni parse etmez.
