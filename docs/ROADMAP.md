@@ -4,7 +4,7 @@
 >
 > Mimari kurallar için `docs/architecture.md`, kullanıcıya açık CLI sözleşmesi için `docs/cli_reference.md` kullanılır. Bu belgeler arasında çelişki varsa geliştirme durumu açısından bu roadmap esas alınır ve çelişki aktif milestone içinde düzeltilir.
 >
-> Son kapsamlı repo denetimi: **2026-08-12**
+> Son kapsamlı repo denetimi: **2026-08-13**
 >
 > Aktif milestone: **Faz 4 — Profesyonel Şema, Web Hub ve Yayın**
 >
@@ -59,6 +59,12 @@ Repository bütünleşik ürün geliştirmesi sırasında private kalır. CLI/Ag
 - [x] Gerçek devre tasarımı için zorunlu model/subcircuit taşınabilirliğini ve temel component kapsamını ilk public yayın öncesine al.
 - [x] Gain, bandwidth, output power, efficiency, distortion ve component dissipation gibi ürünün değerini oluşturan ölçümleri Faz 3'e al.
 - [x] İlk public yayın kapısına canonical ürün benchmark'ları, cross-platform CLI paketleri, language reference ve destek matrisi ekle.
+
+**Faz 4 ürün sırası kararı (2026-08-13):**
+
+- [x] Faz 4'ü birbirinden kopuk subsystem teslimleri yerine RC ile başlayan ve power-amplifier'a genişleyen dikey ürün dilimleri olarak planla.
+- [x] Mevcut Web/layout kodunu kanıtsız silme veya koruma; browser ve schematic characterization sonrasında katman bazında reuse/refactor/rewrite kararı ver.
+- [x] Web Hub içine gömülü doğal-dil AI tasarım/chat arayüzünü ilk public yayın için kritik yol dışında tutup provider-independent Faz 5+ fikri olarak kaydet.
 
 ### Üç ana ürün yüzeyi
 
@@ -696,7 +702,7 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 - [x] Canonical çok katlı power-amplifier benchmark'ı: 8 Ω yükte hedef output power, gain, distortion ve component dissipation koşulları.
 - [x] En az bir benchmark'ta dış AI ajanının başarısız tasarım adayını structured sonuçla revize edip hedefleri karşılayan adaya ulaşmasını E2E doğrula.
 
-**3.7 kapanış kanıtı (2026-08-12):** `netlang.measurement.v1`, `V(net|device)`, `I(device)` ve `P(device)` primitive'lerini; typed reduction/time-window semantiğini ve gain, bandwidth/cutoff, frequency, phase, output RMS power, efficiency, THD, clipping ve dissipation metric'lerini dataset-first değerlendirir. Eksik/uygunsuz veri message-bearing `ERROR` olur. `docs/engineering_measurements.md` formül, birim, sign convention ve analysis gereksinimlerini kaydeder. Gerçek Ngspice benchmark suite'i RC filtresinde yaklaşık 1.000 kHz cutoff; gain stage'de yaklaşık 10 gain ve 100 kHz bandwidth; dört katlı amplifikatörde 8 Ω üzerinde yaklaşık 1.95 W, 56.5 gain, %2.23 THD ile clipping/dissipation/device-stress koşullarını doğrular. Real-agent E2E testi 10 kHz'e kayan hatalı RC adayının versioned JSON `FAIL` sonucunu okuyup kondansatörü revize ederek beş assertion'ın tamamını `PASS` yapar. Compile IR genişlediği için rapor `netlang.compile.v2`'ye yükseltildi; CLI `domain_versions` içinde measurement sürümünü de ilan eder.
+**3.7 kapanış kanıtı (2026-08-12):** `netlang.measurement.v1`, `V(net|device)`, `I(device)` ve `P(device)` primitive'lerini; typed reduction/time-window semantiğini ve gain, bandwidth/cutoff, frequency, phase, output RMS power, efficiency, THD, clipping ve dissipation metric'lerini dataset-first değerlendirir. Eksik/uygunsuz veri message-bearing `ERROR` olur. `docs/engineering_measurements.md` formül, birim, sign convention ve analysis gereksinimlerini kaydeder. Gerçek Ngspice benchmark suite'i RC filtresinde yaklaşık 1 kHz cutoff; gain stage'de yaklaşık 10 gain ve 100 kHz bandwidth; dört katlı amplifikatörde 8 Ω üzerinde yaklaşık 1.95 W, 56.5 gain, %2.23 THD ile clipping/dissipation/device-stress koşullarını doğrular. Real-agent E2E testi 10 kHz'e kayan hatalı RC adayının versioned JSON `FAIL` sonucunu okuyup kondansatörü revize ederek beş assertion'ın tamamını `PASS` yapar. Compile IR genişlediği için rapor `netlang.compile.v2`'ye yükseltildi; CLI `domain_versions` içinde measurement sürümünü de ilan eder.
 
 ### Faz 3 kabul kriterleri
 
@@ -722,85 +728,193 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 
 ## 7. Faz 4 — Profesyonel Şema, Web Hub ve Yayın
 
-Faz 4 ayrıntıları Faz 3 kapanışında yeniden denetlenecektir. Aşağıdaki kapsam ilk public ürünün bütünleşik yayın kapısıdır.
+### Hedef
 
-### 4.1 — Component/model ürün ekosistemi
+Faz 3'te doğrulanan Core/CLI motorunu, hesap veya yerel kurulum gerektirmeyen zero-friction Web Hub ve güvenilir EDA/görsel çıktılarla bütünleşik ilk public ürüne dönüştürmek.
 
-- [ ] Native CLI ve browser build'lerinde aynı model paketinin byte-for-byte aynı netlist'e ulaşmasını test et.
-- [ ] Temel analog/karma-sinyal referans devreleri için yeterli ve lisansı doğrulanmış başlangıç model paketi oluştur.
-- [ ] Web Hub'da model paketini seçme, provenance/lisans bilgisini görme ve güvenli kullanıcı model dosyası yükleme akışı sun.
-- [ ] CLI'da model çözümleme, cache ve lockfile davranışını platformlar arasında aynı tut.
-- [ ] Paketli modelleri gerçek Ngspice fixture'ları ve beklenen operating-region sonuçlarıyla doğrula.
+Faz 4 subsystem'leri birbirinden kopuk biçimde sonuna kadar geliştirmez. Önce küçük fakat gerçek bir devreyi editor → compile/ERC → şema → simulation → grafik/assertion → export zincirinden geçiren dikey dilim kurulur; aynı ürün yolu daha sonra gain-stage ve power-amplifier benchmark'larına genişletilir.
 
-### 4.2 — Layout doğrulanabilirliği ve export
+### Faz 4 kapsam sınırı
 
-- [ ] Layout wire/pin veri modelini açık bağlantı semantiğiyle güçlendir.
-- [ ] Geometry crossing ile electrical junction ayrımını temsil et.
-- [ ] Layout round-trip connectivity kontrolü.
-- [ ] Native/server-side SVG ve PNG export.
-- [ ] `netlang render circuit.nl -o circuit.svg|png`.
-- [ ] KiCad export doğrulama fixture'ları.
-- [ ] LTspice schematic export adaptörü ve açılabilirlik fixture'ları.
-- [ ] Schematic visual golden/collision regression corpus'u.
+**Bu fazda zorunlu:** doğrulanabilir profesyonel şema, browser simulation, interaktif sonuçlar, canonical benchmark parity'si, SVG/PNG/KiCad/LTspice export, paylaşım, cross-platform CLI paketleri, public dokümantasyon ve production yayın.
 
-### 4.3 — Web simulation runtime
+**Bu fazda ertelendi:** Web Hub içine gömülü doğal-dil AI tasarım/chat arayüzü, yönetilen AI sağlayıcısı veya kullanıcı API-key akışı, hesaplar/cloud project storage, ekip özellikleri, otomatik optimization/design-space exploration ve geniş üretici model registry'si. Web AI daha sonra aynı provider-independent Core/CLI tool sözleşmelerinin ince consumer'ı olarak eklenebilir; Faz 4 UI'sı devre semantiğini kendi içinde yeniden uygulayarak bu yolu kapatmamalıdır.
 
-- [ ] Ngspice WASM feasibility ve lisans/performans kararı.
-- [ ] Web Worker içinde simulation.
-- [ ] Cancellation ve progress callback.
-- [ ] Ana thread'i bloklamayan runtime.
+### Faz 4 başlangıç audit'i — 2026-08-13
 
-### 4.4 — Monaco NetLang desteği
+Mevcut Web/layout kodu tamamen boş değildir ve kanıt görmeden silinmeyecektir:
 
-- [ ] Syntax highlighting.
-- [ ] Autocomplete.
-- [ ] Inline diagnostic ve source span.
-- [ ] Hover component bilgisi.
+1. `webapp/src/App.tsx`, Monaco editor, WASM compile/ERC, deneysel SVG şema, SPICE görünümü ve KiCad/SPICE indirme akışı sunar.
+2. Web tek büyük React component'i içinde UI state, symbol çizimleri ve download davranışını birlikte taşır; sürdürülebilir ürün mimarisi değildir fakat çalışan davranışlar characterization kaynağıdır.
+3. Web `netlang.compile.v1` beklerken Core `netlang.compile.v2` üretir. Production TypeScript/Vite build'i gerçek browser/WASM çağrısını çalıştırmadığı için bu schema drift'ini yakalamamıştır.
+4. `LayoutResult`, component koordinatları ve `net_id + polyline points` taşır. Açık pin endpoint'i, junction, geometry crossing, net label ve connectivity proof yoktur.
+5. Chain-based layout basit rail/chain devrelerinde başlangıç değeri sağlar; feedback loop, bridge, yüksek fan-out, çoklu source ve karmaşık analog topolojilerde kalite garantisi yoktur.
+6. React renderer'daki symbol geometrisi Core component kataloğuyla typed/sürümlü bir symbol sözleşmesi paylaşmaz.
+7. Browser simulation ve grafik sonucu yoktur; Web şu anda yalnız compile-time WASM playground'udur.
 
-### 4.5 — Simulation grafik paneli
+**Yeniden yazım kararı:** Web shell, renderer, Schematic IR ve layout algoritması tek paket olarak “koru” veya “sil” kararı almaz. 4.0 characterization sonrasında her katman için ayrı `koru`, `refactor et` veya `değiştir` kararı ve gerekçesi kaydedilir. Canonical Core sözleşmeleri, fixture'lar ve doğrulanmış kullanıcı davranışları her durumda korunur.
 
-- [ ] Transient plot.
-- [ ] AC/Bode plot.
-- [ ] DC sweep plot.
-- [ ] Assertion threshold overlay.
+---
 
-### 4.6 — Paylaşım
+### 4.0 — Ürün sözleşmesi, characterization ve teknik kararlar
 
-- [ ] Client-side compressed circuit URL.
-- [ ] URL'den güvenli yükleme ve compile.
-- [ ] Format/schema version migration.
+- [ ] Mevcut Web Hub için gerçek browser smoke testi kur; WASM init + canonical source compile akışının schema drift'ini yakaladığını göster.
+- [ ] Web'in hardcoded compile schema'sını Core tarafından ilan edilen güncel sözleşmeyle eşitle; bilinmeyen sürümü fail-closed tut.
+- [ ] Mevcut şema çıktısını şu corpus üzerinde fixture/screenshot ve connectivity baseline ile karakterize et:
+  - minimal source/resistor,
+  - RC filtre,
+  - Wheatstone bridge,
+  - op-amp feedback gain stage,
+  - yüksek fan-out,
+  - çok katlı power amplifier.
+- [ ] Web shell, SVG renderer, Schematic IR ve layout algoritması için ayrı reuse/refactor/rewrite karar kaydı oluştur.
+- [ ] İlk public sürümün supported-domain matrix'ini dondur: desteklenen component, model, analysis, measurement ve bilinçli fiziksel sınırlar.
+- [ ] İlk dikey ürün kabul senaryosunu RC filtre; ana vizyon/eval senaryosunu 8 Ω power amplifier olarak kesinleştir.
+- [ ] Browser simulation için Ngspice WASM/Web Worker ile service-backed adaptörü lisans, artifact boyutu, startup, runtime, cancellation, model desteği, offline/privacy ve deployment açısından ölç; kararı ADR olarak kaydet.
+- [ ] Schematic IR ile render/export katmanlarının sahiplik ve sürüm sınırını architecture dokümanına işle.
+- [ ] Faz 4 sırasının mevcut audit bulgularına göre uygulanabilirliğini tekrar kontrol et; kanıtsız büyük yeniden yazıma başlama.
 
-### 4.7 — Zero-friction ürün bütünlüğü ve yayın kapısı
+**4.0 kabul kriteri:** Mevcut davranış testle görünürdür; browser simulation ve schematic architecture kararları yazılıdır; hangi katmanın neden korunacağı veya değiştirileceği belirsiz değildir.
 
-- [ ] CodePen sadeliğinde tek çalışma alanında editor, diagnostic, şema, simulation ve export akışını birleştir.
-- [ ] İlk açılışta çalışan canonical örnekler ve devre seçici sun.
-- [ ] SPICE, SVG, PNG, KiCad ve LTspice çıktıları için açık indirme akışı ekle.
-- [ ] CLI ve Web Hub'ın aynı source için aynı compile/diagnostic/SPICE semantiğini browser E2E testiyle doğrula.
-- [ ] Web Hub'ın ana thread'i bloklamadan compile/simulate edebildiğini test et.
-- [ ] Windows x86-64, Linux x86-64 ve desteklenen macOS mimarileri için doğrulanmış CLI release artifact'leri ve simulator paketleme/keşif yolunu üret.
-- [ ] NetLang language reference, simulation/assertion reference, supported-domain matrix, tutorial, örnek cookbook ve troubleshooting dokümanlarını tamamla.
-- [ ] Desteklenmeyen component, analysis ve fiziksel varsayımları kullanıcıya ve AI ajanına açıkça göster.
-- [ ] Public production deployment ve release doğrulamasını tamamla.
-- [ ] README'ye canlı Web Hub bağlantısı, ürün ekran görüntüleri ve yayınlanan kurulum paketlerini ekle.
+---
+
+### 4.1 — Canonical ve doğrulanabilir Schematic IR
+
+- [ ] Versioned, serialize edilebilir ve collection-order'dan bağımsız `netlang.schematic.v1` sözleşmesini tanımla.
+- [ ] Component instance, symbol kind/variant, value/model label, orientation ve canonical pin anchor'larını açık tiplerle taşı.
+- [ ] Wire segment, pin endpoint, named net, junction ve bağlanmayan geometry crossing kavramlarını ayrı temsil et.
+- [ ] GND, supply ve net-label kullanımını uzun rail/karmaşık kablo kalabalığını azaltan semantik öğeler yap.
+- [ ] Layout sonucundan canonical `NetlistGraph` connectivity'sini yeniden kurup net/pin eşdeğerliğini fail-closed doğrula.
+- [ ] Aynı Circuit IR'nin tekrarlar ve declaration/connection sırası değişimlerinde byte-stable Schematic IR ürettiğini test et.
+- [ ] Symbol tanımlarını Core component kataloğuyla tek kaynaktan eşle; Web'in ayrı ve drift edebilen pin geometrisi tanımlamasını engelle.
+- [ ] Mevcut chain heuristic'ini baseline olarak tutup feedback/bridge/fan-out/power-amplifier corpus'unda iyileştir veya daha uygun algoritmayla değiştir.
+- [ ] Wire–symbol, label–symbol, symbol–symbol collision ve gereksiz crossing/bend ölçütleri için otomatik kalite raporu oluştur.
+- [ ] Connectivity golden ve visual golden corpus'unu Windows/Linux'ta deterministik hale getir.
+
+**4.1 kabul kriteri:** Şema yalnız güzel görünen bir polyline koleksiyonu değildir; canonical circuit ile bağlantısal eşdeğerliği otomatik kanıtlanır ve karmaşık benchmark corpus'unda tanımlı okunabilirlik kapılarını geçer.
+
+---
+
+### 4.2 — Browser simulation runtime ve ortak adaptör
+
+- [ ] 4.0 ADR'ında seçilen browser runtime yolunu `SimulationRunner` domain sınırını koruyarak uygula.
+- [ ] Simulator işini Web Worker veya eşdeğer izole runtime'da çalıştır; ana thread üzerinde blocking process/parsing yapma.
+- [ ] OP, transient, AC ve DC sweep dataset'lerini native `netlang.simulation.v1` semantiğine dönüştür.
+- [ ] `netlang.measurement.v1` ve `netlang.assertion.v1` sonuçlarını browser'da Core ile aynı şekilde üret.
+- [ ] Timeout, cancellation, progress, worker crash/restart ve stale-result suppression davranışlarını tanımla.
+- [ ] Raw log ve büyük dataset'leri varsayılan UI state/JSON akışına gereksiz kopyalamadan opt-in debug olarak tut.
+- [ ] Native/browser simulator sürümü ve sayısal tolerans farklarını structured provenance içinde görünür yap.
+- [ ] RC fixture'ında native ve browser compile/SPICE/dataset/measurement/assertion parity testini geçir.
+- [ ] Runtime ve model artifact'leri için lisans notice, integrity/hash ve cache/update politikasını uygula.
+
+**4.2 kabul kriteri:** RC filtre hesap veya kurulum olmadan browser'da simüle edilir; UI responsive kalır; native/browser farkı gizlenmez ve tanımlı tolerans içinde aynı mühendislik kararını verir.
+
+---
+
+### 4.3 — İlk zero-friction dikey Web Hub dilimi
+
+- [ ] Mevcut Web shell'i 4.0 kararına göre modülerleştir veya değiştir; editor, diagnostics, schematic, results ve export ayrı sorumluluklar taşısın.
+- [ ] İlk açılışta çalışan RC filtre örneği ve tek belirgin `Run` akışı sun.
+- [ ] CodePen sadeliğinde editor + diagnostics + şema + sonuç panelini responsive tek çalışma alanında birleştir.
+- [ ] Monaco NetLang syntax highlighting, autocomplete ve hover component/model bilgisini ekle.
+- [ ] Parser/semantic/ERC diagnostic source span'lerini editörde inline göster; panel ile source konumu arasında navigasyon sağla.
+- [ ] Debounced live compile ile bilinçli simulation çalıştırmasını ayır; pahalı simulation her keystroke'ta tetiklenmesin.
+- [ ] OP değer görünümü, transient plot, AC magnitude/phase (Bode) ve DC sweep plot bileşenlerini ortak typed dataset modelinden üret.
+- [ ] Signal seçimi, engineering unit/prefix, cursor değeri, zoom/pan ve okunabilir empty/error/loading/cancelled state'lerini ekle.
+- [ ] Assertion PASS/FAIL/ERROR/SKIPPED sonuçlarını ve threshold overlay'lerini ilgili grafik/sinyalle ilişkilendir.
+- [ ] Klavye erişilebilirliği, temel mobil/tablet davranışı ve koyu/açık tema kontrastını doğrula.
+- [ ] Browser E2E testinde kaynak düzenleme → diagnostic → düzeltme → simulation → assertion → şema güncelleme döngüsünü geçir.
+
+**4.3 kabul kriteri:** Yeni kullanıcı RC filtrenin kodunu değiştirip cutoff sonucunu ve şemasını aynı çalışma alanında görebilir; hiçbir adım terminal, hesap veya yerel kurulum istemez.
+
+---
+
+### 4.4 — Gerçek devre parity'si, model ürünü ve ölçüm sertleştirmesi
+
+- [ ] Gain-stage ve dört katlı power-amplifier fixture'larını Web örnek seçicisine ekle.
+- [ ] RC, gain-stage ve power-amplifier için CLI/Web compile, canonical SPICE, model manifest/lock, measurement ve assertion parity matrisi oluştur.
+- [ ] Native ve browser build'lerinde aynı builtin/package modelin byte-for-byte aynı canonical directive/netlist'e ulaştığını test et.
+- [ ] İlk yayın benchmark'larının ihtiyaç duyduğu lisansı doğrulanmış başlangıç model paketini tamamla; geniş üretici registry'sini Faz 5+'ta tut.
+- [ ] Web'de model seçimi, provenance/lisans/sürüm/simulator bilgisini görüntüleme ve yalnız typed declaration/package import akışı sun.
+- [ ] User model içeriğinin Web'de de raw SPICE/control sınırını atlayamadığını security corpus'uyla test et.
+- [ ] Derived output power, efficiency ve dissipation metric'lerine açık steady-state zaman penceresi desteği ekle.
+- [ ] THD'yi explicit fundamental, ölçüm penceresi ve spectral leakage/window politikasıyla ürün seviyesinde kesinleştir.
+- [ ] Low-pass dışı cevaplar için cutoff/bandwidth semantiğini açık metric veya fail-closed sınırla tanımla.
+- [ ] `Vce/Vbe/Vds/Vgs` gibi açık terminal-pair stress ölçümünü typed primitive olarak tasarla ve benchmark'la doğrula.
+- [ ] Power-amplifier Web sonucunda 8 Ω output power, gain, THD, clipping, device stress ve dissipation koşullarını göster.
+
+**4.4 kabul kriteri:** Üç canonical benchmark native ve browser'da aynı PASS/FAIL mühendislik kararını verir; model ve ölçüm varsayımları kullanıcıdan gizlenmez.
+
+---
+
+### 4.5 — Profesyonel render ve EDA export
+
+- [ ] Web SVG, native SVG/PNG, KiCad ve LTspice exporter'larını yalnız canonical Schematic IR üzerinden çalıştır.
+- [ ] Aynı sembol/geometri/font ölçüm sözleşmesini browser ve native render'da paylaş.
+- [ ] SVG export'ta semantic text, deterministic viewBox ve theme-independent okunabilir stil üret.
+- [ ] PNG export için açık çözünürlük/scale/background seçenekleri ve görsel parity testi ekle.
+- [ ] `netlang render circuit.nl -o circuit.svg|png` komutunu güvenli overwrite ve structured diagnostic sözleşmesiyle uygula.
+- [ ] KiCad schematic export'ta symbol, pin, wire, junction, label ve model/value alanlarını connectivity fixture'larıyla doğrula.
+- [ ] LTspice schematic export adaptörü ve aynı bağlantı fixture'larını oluştur.
+- [ ] KiCad/LTspice dosyalarının desteklenen hedef uygulama sürümlerinde gerçekten açıldığını release smoke testine ekle.
+- [ ] SPICE, SVG, PNG, KiCad ve LTspice indirmelerini Web Hub'da tek ve anlaşılır export alanında sun.
+- [ ] Unsupported exporter özelliğini sessiz veri kaybı yerine structured fail-closed diagnostic yap.
+
+**4.5 kabul kriteri:** İndirilen şema görsel olarak okunabilir, canonical graph ile bağlantısal olarak eşdeğer ve hedef EDA uygulamasında düzenlenebilir biçimde açılır.
+
+---
+
+### 4.6 — Paylaşım, ürün anlatısı ve bağımsız agent kanıtı
+
+- [ ] Versioned ve boyut-limitli client-side compressed circuit URL formatı tanımla.
+- [ ] URL'den güvenli decode → migrate → compile akışını malformed/decompression-bomb fixture'larıyla fail-closed doğrula.
+- [ ] Paylaşılan URL'nin source ve gerekli package/version bilgisini schema kaybı olmadan round-trip ettiğini test et.
+- [ ] İlk açılış örnek seçicisini RC, gain-stage ve power-amplifier açıklamalarıyla tamamla.
+- [ ] NetLang language reference, simulation/assertion/measurement reference, supported-domain matrix, tutorial, cookbook ve troubleshooting dokümanlarını tamamla.
+- [ ] “Neden NetLang?” anlatısını ham SPICE, geleneksel simulator ve code-based circuit araçlarından ölçülebilir farklarla açıkla; rakip iddialarını yayın öncesinde güncel kaynaklarla doğrula.
+- [ ] Dış bir LLM'nin doğal dilde 8 Ω power-amplifier gereksiniminden başlayıp CLI structured feedback ile devreyi revize etmesini versioned, tekrar çalıştırılabilir agent eval olarak kaydet.
+- [ ] Agent eval'de model/sürüm, prompt, tool çağrıları, iterasyonlar, son source ve assertion raporunu provenance ile sakla; nondeterministik canlı LLM çağrısını canonical CI kapısı yapma.
+- [ ] Aynı son source'u Web Hub paylaşım URL'sinde açıp şema, grafik, assertion ve export akışını ürün demosu olarak doğrula.
+- [ ] Web içinde AI chat/tasarım arayüzü olmamasını eksiklik gibi gizleme; ilk yayında AI yüzeyinin CLI/tool contract, insan yüzeyinin Web Hub olduğunu açık anlat.
+
+**4.6 kabul kriteri:** İnsan ürünü ve agent ürünü aynı Core üzerinde birleşir; doğal-dil agent demosu gerçek simülasyonla kanıtlıdır fakat Web Hub herhangi bir AI sağlayıcısına bağımlı değildir.
+
+---
+
+### 4.7 — Cross-platform paketleme ve public yayın kapısı
+
+- [ ] Windows x86-64, Linux x86-64 ve seçilen macOS mimarileri için CLI release artifact matrisi tanımla.
+- [ ] Her artifact için simulator paketleme/keşif, executable provenance, lisans notice, checksum ve version probe yolunu tamamla.
+- [ ] Temiz Windows/Linux/macOS ortamında kurulum → ilk compile → ilk gerçek simulation → assertion smoke testini otomatikleştir.
+- [ ] Web Hub production deployment, cache headers, WASM/worker MIME, CSP, error telemetry sınırı ve rollback prosedürünü doğrula.
+- [ ] Canonical Rust/WASM/Web kapısına gerçek-browser E2E, schematic visual/connectivity, benchmark parity ve release artifact testlerini ekle.
+- [ ] Güvenlik, dependency/license ve generated-artifact audit'lerini release kapısı yap.
+- [ ] README'ye canlı Web Hub bağlantısı, doğrulanmış kurulum yolları, ürün ekran görüntüleri ve destek sınırlarını ekle.
+- [ ] Public release tag/changelog/migration notu üret ve repository/Web Hub public görünürlüğünü yalnız tüm kabul kriterlerinden sonra aç.
 
 ### Faz 4 ve ilk public yayın kabul kriterleri
 
-- [ ] Kullanıcı hesap veya yerel kurulum olmadan Web Hub'ı açıp canonical bir devreyi compile, simulate ve inspect edebilir.
-- [ ] Web ve CLI aynı Core semantiğini ve versioned sonuç sözleşmelerini kullanır.
-- [ ] Şema connectivity kontrolünden geçer; SVG/PNG ile indirilebilir ve KiCad/LTspice fixture'ları hedef uygulamalarda açılır.
-- [ ] OP, transient, AC ve DC sweep sonuçları Web'de interaktif olarak görüntülenir.
-- [ ] User-defined ve packaged modeller native/Web yüzeylerinde reproducible ve provenance bilgili çalışır.
-- [ ] RC filtre, gain-stage ve power-amplifier ürün benchmark'ları CLI ve Web Hub'da aynı mühendislik sonuçlarını verir.
+- [ ] Kullanıcı hesap veya yerel kurulum olmadan Web Hub'ı açıp canonical bir devreyi compile, simulate, measure, inspect ve export edebilir.
+- [ ] Web ve CLI aynı Core semantiğini ve versioned compile/schematic/simulation/measurement/assertion sözleşmelerini kullanır.
+- [ ] Şema canonical graph connectivity kontrolünden geçer; karmaşık power-amplifier topolojisinde tanımlı readability/collision kapılarını sağlar.
+- [ ] SVG/PNG indirilebilir; KiCad/LTspice fixture'ları hedef uygulamalarda bağlantı kaybı olmadan açılır.
+- [ ] OP, transient, AC ve DC sweep sonuçları Web'de interaktif olarak görüntülenir; assertions ilgili signal/threshold ile ilişkilidir.
+- [ ] User-defined ve packaged modeller native/Web yüzeylerinde reproducible, provenance bilgili ve injection-safe çalışır.
+- [ ] RC filtre, gain-stage ve power-amplifier benchmark'ları CLI ve Web Hub'da aynı mühendislik kararlarını verir.
+- [ ] Dış AI agent doğal dil gereksiniminden başlayarak human terminal metni parse etmeden gerçek power-amplifier hedeflerine ulaşabildiğini versioned eval ile gösterir.
+- [ ] Paylaşılabilir URL devreyi ve gerekli version/package bilgisini schema kaybı olmadan round-trip eder.
 - [ ] Desteklenen platformlarda CLI kurulumu ve ilk simülasyon temiz makine release smoke testinden geçer.
 - [ ] Yeni kullanıcı yalnız public dokümanlarla bir devreyi tanımlayıp ölçebilir, assertion ekleyebilir ve hedef formatlarda export edebilir.
-- [ ] Paylaşılabilir URL devreyi schema kaybı olmadan round-trip eder.
-- [ ] Canonical kalite kapısı, browser E2E matrisi ve release artifact doğrulamaları geçer.
+- [ ] Canonical kalite kapısı, browser E2E, schematic connectivity/visual corpus, benchmark parity ve release artifact doğrulamaları geçer.
 - [ ] Bütün kabul kriterleri tamamlandıktan sonra repository ve Web Hub public yayınlanır.
 
 ---
 
 ## 8. Faz 5+ — Uzun Vadeli Vizyon
 
+- Web Hub içinde provider-independent doğal-dil AI tasarım/chat arayüzü
+- Bring-your-own-provider/API-key ve gerekirse yönetilen AI servis seçeneği
+- Hesaplar, cloud project storage, ekip ve paylaşım yetkileri
 - Component Knowledge Base ve datasheet kuralları
 - Geniş üretici SPICE model registry'si ve otomatik güncelleme/provenance akışı
 - Requirements/constraint schema ve agent-driven design loop araçları
@@ -862,6 +976,6 @@ Her geliştirme oturumunda:
 
 ### Aktif sıradaki ilk iş
 
-**3.7 — Engineering measurements ve ürün benchmark'ları.**
+**4.0 — Ürün sözleşmesi, characterization ve teknik kararlar.**
 
-3.6 typed ve injection-safe model/subcircuit declaration'ları, ortak katalog pin kontrolü, doğrulanmış generic op-amp/PMOS/power-NPN yolları, SHA-256 provenance manifest'i ve `netlang.lock` artifact'iyle kapandı. Sıradaki paket raw waveform'ları mühendislik anlamına dönüştüren measurement/derived-metric katmanını kuracak; RC, gain-stage ve çok katlı power-amplifier benchmark'larını gerçek Ngspice ve agent-revision E2E ile kapatacak.
+İlk uygulama dilimi mevcut Web/WASM runtime'ını gerçek browser smoke testiyle görünür kılacak, `netlang.compile.v1`/`v2` drift'ini fail-closed düzeltecek ve minimal/RC/bridge/gain-stage/fan-out/power-amplifier corpus'unda mevcut schematic davranışını karakterize edecektir. Bu kanıttan sonra Web shell, renderer, Schematic IR ve layout algoritması için ayrı reuse/refactor/rewrite kararı verilecek; ardından browser simulation ADR'ı kapatılacaktır.
