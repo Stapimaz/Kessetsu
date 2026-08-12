@@ -68,6 +68,41 @@ pub struct SimulateStmt {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NamedValue {
+    pub name: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelDeclKind {
+    Diode,
+    BJT,
+    MOSFET,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ModelDecl {
+    pub kind: ModelDeclKind,
+    pub name: String,
+    pub polarity: Option<String>,
+    pub parameters: Vec<NamedValue>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SubcircuitDecl {
+    pub kind: String,
+    pub name: String,
+    pub pins: Vec<String>,
+    pub parameters: Vec<NamedValue>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ModelInclude {
+    pub package: String,
+    pub version: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Statement {
     Decl(ComponentDecl),
     Connect(Connection),
@@ -87,6 +122,9 @@ pub struct ModuleDef {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Program {
     pub modules: Vec<ModuleDef>,
+    pub model_includes: Vec<ModelInclude>,
+    pub models: Vec<ModelDecl>,
+    pub subcircuits: Vec<SubcircuitDecl>,
     pub statements: Vec<Statement>,
 }
 
@@ -177,6 +215,9 @@ impl Program {
 
         Ok(Program {
             modules: Vec::new(),
+            model_includes: self.model_includes.clone(),
+            models: self.models.clone(),
+            subcircuits: self.subcircuits.clone(),
             statements: flat_statements,
         })
     }

@@ -243,6 +243,7 @@ fn builtin_model_defaults_are_explicit_in_typed_ir() {
         ("transistor Q1 pnp\n", "2N3906"),
         ("mosfet M1\n", "IRF540"),
         ("diode D1\n", "1N4148"),
+        ("opamp U1\n", "NLANG_OPAMP_V1"),
     ] {
         let program = parse_program(source).expect("component should parse");
         let circuit = ast_to_ir(&program).expect("builtin default should resolve");
@@ -265,7 +266,6 @@ fn unsupported_and_incompatible_models_fail_closed_with_codes() {
         ("transistor Q1 pnp 2N3904\n", "NL-C004"),
         ("diode D1 2N3904\n", "NL-C004"),
         ("mosfet M1 1N4148\n", "NL-C004"),
-        ("opamp U1\n", "NL-C005"),
     ] {
         let program = parse_program(source).expect("component syntax should parse");
         let diagnostic = ast_to_ir(&program).expect_err("invalid model reached typed IR");

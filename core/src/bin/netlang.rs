@@ -81,6 +81,7 @@ enum Include {
     Graph,
     Spice,
     Datasets,
+    Models,
     RawLog,
 }
 
@@ -295,6 +296,38 @@ fn run(cli: Cli) -> i32 {
         return 2;
     }
 
+    let model_lock_path =
+        if let (Some(spice_path), Some(model_lock)) = (&spice_path, report.model_lock.as_deref()) {
+            let lock_path = spice_path
+                .parent()
+                .unwrap_or_else(|| Path::new("."))
+                .join("netlang.lock");
+            if let Err(error) = fs::write(&lock_path, model_lock) {
+                report.diagnostics.push(diagnostic(
+                    "NL-I005",
+                    DiagnosticStage::Io,
+                    format!(
+                        "Could not write model lockfile '{}': {error}",
+                        lock_path.display()
+                    ),
+                ));
+                emit(
+                    &cli.format,
+                    command,
+                    &includes,
+                    "error",
+                    report,
+                    None,
+                    None,
+                    None,
+                );
+                return 2;
+            }
+            Some(lock_path)
+        } else {
+            None
+        };
+
     let spice_file = spice_path
         .as_ref()
         .map(|path| path.to_string_lossy().into_owned());
@@ -306,6 +339,9 @@ fn run(cli: Cli) -> i32 {
                     "[SUCCESS] SPICE netlist generated: {}",
                     spice_path.display()
                 );
+                if let Some(lock_path) = &model_lock_path {
+                    println!("[SUCCESS] Model lock generated: {}", lock_path.display());
+                }
             } else {
                 print!("{spice}");
                 println!("[SUCCESS] SPICE netlist generated in memory.");
@@ -764,6 +800,16 @@ fn build_json_output(
         assertions: assertion_summary,
     };
 
+    let model_lock_file = spice_file.as_ref().and_then(|path| {
+        report.model_lock.as_ref().map(|_| {
+            Path::new(path)
+                .parent()
+                .unwrap_or_else(|| Path::new("."))
+                .join("netlang.lock")
+                .to_string_lossy()
+                .into_owned()
+        })
+    });
     let mut artifacts = spice_file
         .into_iter()
         .map(|path| JsonArtifact {
@@ -771,6 +817,12 @@ fn build_json_output(
             path,
         })
         .collect::<Vec<_>>();
+    if let Some(path) = model_lock_file {
+        artifacts.push(JsonArtifact {
+            kind: "model_lock".to_string(),
+            path,
+        });
+    }
     if let Some(simulation) = simulation {
         artifacts.extend(simulation.artifacts.iter().map(|artifact| JsonArtifact {
             kind: artifact.kind.clone(),
@@ -811,6 +863,13 @@ fn build_debug(
             Include::Datasets => (
                 "datasets",
                 to_json_value(&simulation.map(|simulation| &simulation.datasets)),
+            ),
+            Include::Models => (
+                "models",
+                to_json_value(&serde_json::json!({
+                    "manifest": report.ir.as_ref().map(|ir| &ir.model_manifest),
+                    "lock": report.model_lock,
+                })),
             ),
             Include::RawLog => (
                 "raw_log",

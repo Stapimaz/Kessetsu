@@ -99,6 +99,7 @@ pub struct CompileReport {
     pub spice_netlist: Option<String>,
     pub layout: Option<LayoutResult>,
     pub kicad_sch: Option<String>,
+    pub model_lock: Option<String>,
 }
 
 impl CompileReport {
@@ -112,6 +113,7 @@ impl CompileReport {
             spice_netlist: None,
             layout: None,
             kicad_sch: None,
+            model_lock: None,
         }
     }
 
@@ -258,6 +260,9 @@ pub fn compile_source(source: &str, options: CompileOptions) -> CompileReport {
             return report;
         }
     };
+    if !circuit.model_manifest.models.is_empty() || !circuit.model_manifest.packages.is_empty() {
+        report.model_lock = Some(crate::models::lockfile_json(&circuit.model_manifest));
+    }
 
     let graph = NetlistGraph::build(&circuit);
     report.diagnostics = check_rules(&circuit, &graph)

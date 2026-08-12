@@ -227,30 +227,6 @@ impl NetlistGraph {
     }
 }
 
-fn get_standard_model(name: &str) -> Option<&'static str> {
-    match name.to_uppercase().as_str() {
-        "2N3904" => Some(
-            ".model 2N3904 NPN (Is=6.734f Xti=3 Eg=1.11 Vaf=74.03 Bf=416.4 Ne=1.259 Ise=6.734f Ikf=66.78m Xtb=1.5 Br=.7371 Nc=2 Isc=0 Ikr=0 Rc=1 Cjc=3.638p Mjc=.3085 Vjc=.75 Fc=.5 Cje=4.493p Mje=.2593 Vje=.75 Tr=239.5n Tf=301.2p Itf=.4 Vtf=4 Xtf=2 Rb=10)",
-        ),
-        "2N3906" => Some(
-            ".model 2N3906 PNP (Is=1.41f Xti=3 Eg=1.11 Vaf=18.7 Bf=227.3 Ne=1.5 Ise=0 Ikf=80m Xtb=1.5 Br=4.977 Nc=2 Isc=0 Ikr=0 Rc=2.5 Cjc=9.728p Mjc=.5776 Vjc=.75 Fc=.5 Cje=8.063p Mje=.3677 Vje=.75 Tr=33.42n Tf=179.3p Itf=.4 Vtf=4 Xtf=6 Rb=10)",
-        ),
-        "2N2222" => Some(
-            ".model 2N2222 NPN (Is=14.34f Xti=3 Eg=1.11 Vaf=74.03 Bf=255.9 Ne=1.307 Ise=14.34f Ikf=.2847 Xtb=1.5 Br=6.092 Nc=2 Isc=0 Ikr=0 Rc=1 Cjc=7.306p Mjc=.3416 Vjc=.75 Fc=.5 Cje=22.01p Mje=.377 Vje=.75 Tr=46.91n Tf=411.1p Itf=.6 Vtf=1.7 Xtf=3 Rb=10)",
-        ),
-        "1N4148" => Some(
-            ".model 1N4148 D (Is=2.52n Rs=.568 N=1.752 Cjo=4p M=.4 tt=20n Iave=200m Vpk=75 mfg=OnSemi type=silicon)",
-        ),
-        "1N4007" => Some(
-            ".model 1N4007 D (Is=7.02767n Rs=0.0341512 N=1.80803 Cjo=10p M=0.3333 VJ=0.75 Iave=1 Vpk=1000 mfg=Motorola type=silicon)",
-        ),
-        "IRF540" => Some(
-            ".model IRF540 VDMOS (Rg=3 Vto=4.0 Rd=45m Rs=12m Rb=10m Kp=18 Cgdmax=2n Cgdmin=1.3n Cgs=1.7n Cjo=1n Is=2p mfg=IR)",
-        ),
-        _ => None,
-    }
-}
-
 fn format_spice_value(comp: &IRComponent) -> String {
     if let Some(m) = &comp.model {
         return m.name.clone();
@@ -452,15 +428,19 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
             }
             ComponentKind::ModulePort => {}
         }
-        if let Some(model_str) = get_standard_model(&value_str) {
-            used_models.insert(model_str);
+        if let Some(model) = &comp.model {
+            let directive = match &model.definition {
+                ModelDefinition::Device { directive }
+                | ModelDefinition::Subcircuit { directive, .. } => directive,
+            };
+            used_models.insert(directive.clone());
         }
     }
 
     if !used_models.is_empty() {
         spice.push_str("\n* Standard Models\n");
         for model in used_models {
-            spice.push_str(model);
+            spice.push_str(&model);
             spice.push('\n');
         }
     }

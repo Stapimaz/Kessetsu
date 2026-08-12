@@ -6,7 +6,7 @@ NetLang CLI, `.nl` kaynaklarını ortak Rust derleme hattından geçirir; ERC, S
 
 ```bash
 netlang [--format human|json] [--schema-version netlang.cli.v1] \
-  [--include ast,ir,graph,spice,datasets,raw-log] <COMMAND> [OPTIONS] <FILE>
+  [--include ast,ir,graph,spice,datasets,models,raw-log] <COMMAND> [OPTIONS] <FILE>
 ```
 
 `--format` gerçek bir global seçenektir; alt komuttan önce veya sonra yazılabilir:
@@ -98,7 +98,7 @@ netlang render examples/demo_circuit.nl
 
 JSON stdout her çalıştırmada tek bir JSON objesidir; progress ve simulator logları stdout'a yazılmaz. Varsayılan agent envelope sürümü `netlang.cli.v1`'dir. Compile raporu `netlang.compile.v1`, simulation sonucu `netlang.simulation.v1`, assertion raporu `netlang.assertion.v1` kullanır; geçerli alt sözleşmeler `domain_versions` alanında görünür.
 
-Varsayılan çıktı bilinçli olarak kompakttır. Yalnız `status`, diagnostics, summary, measurements, assertions ve artifact referanslarına ek olarak command/schema metadata'sı taşır. Canonical AST/IR/graph/SPICE, analysis dataset'leri ve raw log `debug` altında ancak ilgili `--include` seçilirse bulunur.
+Varsayılan çıktı bilinçli olarak kompakttır. Yalnız `status`, diagnostics, summary, measurements, assertions ve artifact referanslarına ek olarak command/schema metadata'sı taşır. Canonical AST/IR/graph/SPICE, analysis dataset'leri, model manifest/lock ve raw log `debug` altında ancak ilgili `--include` seçilirse bulunur.
 
 Başarılı `check` özeti:
 
@@ -132,9 +132,10 @@ Debug alanlarını isteme örneği:
 ```bash
 netlang compile circuit.nl --format json --include ast,ir,graph,spice
 netlang simulate circuit.nl --format json --include datasets,raw-log --force
+netlang compile circuit.nl --format json --include models --force
 ```
 
-İlk komutta `debug.ast`, `debug.ir`, `debug.graph` ve `debug.spice_netlist`; ikincide `debug.datasets` ve `debug.raw_log` oluşur. Seçilmeyen hacimli alanlar `null` yazılmak yerine tamamen dışarıda bırakılır.
+İlk komutta `debug.ast`, `debug.ir`, `debug.graph` ve `debug.spice_netlist`; ikincide `debug.datasets` ve `debug.raw_log`; üçüncüde `debug.models.manifest` ve `debug.models.lock` oluşur. Seçilmeyen hacimli alanlar `null` yazılmak yerine tamamen dışarıda bırakılır.
 
 `test` sonucundaki assertion alanı ayrı sürümlü ve özetlidir:
 
@@ -175,7 +176,27 @@ Diagnostic alanları bütün aşamalarda ortaktır:
 }
 ```
 
-Başarılı `compile`, yazılan SPICE dosyasını `artifacts` içinde `spice_netlist` olarak bildirir. Netlist metni yalnız `--include spice` ile döner. I/O veya runtime hatalarında `status` hiçbir zaman `success` değildir.
+Başarılı `compile`, yazılan SPICE dosyasını `artifacts` içinde `spice_netlist` olarak bildirir. Kullanılan bir model/subcircuit varsa aynı dizindeki deterministic `netlang.lock` ayrıca `model_lock` artifact'i olur. Netlist metni yalnız `--include spice`, model provenance ve lock içeriği yalnız `--include models` ile döner. I/O veya runtime hatalarında `status` hiçbir zaman `success` değildir.
+
+## Model ve subcircuit kullanımı
+
+User-defined device model ve op-amp subcircuit'leri raw SPICE değil typed declaration'dır:
+
+```netlang
+model diode SafeD version=1.0.0 license=MIT Is=2e-9 Rs=0.5
+model bjt SafeN npn version=1.0.0 license=MIT Is=1e-12 Bf=100
+model mosfet SafeP pmos version=1.0.0 license=MIT Vto=-2 Kp=4
+subcircuit opamp SafeOp (in_p,in_n,vcc,vee,out) version=1.0.0 license=MIT gain=100k bandwidth=2MHz
+```
+
+Exact packaged model seçimi:
+
+```netlang
+model_include netlang_analog 1.0.0
+opamp U1 NLANG_PACKAGE_OPAMP
+```
+
+`version` ve `license` user declaration'larında zorunlu, `source` opsiyoneldir. İzinli parametreler kind'e göre sınırlıdır; bilinmeyen parametre, yanlış polarity/kind, hatalı pin sırası, duplicate ad veya raw directive payload compile aşamasında structured `NL-C010..013` diagnostic'i üretir. Builtin generic doğrulama yolları `NLANG_OPAMP_V1`, `NLANG_PMOS_V1` ve `NLANG_POWER_NPN_V1`'dir.
 
 ## Exit kodları
 

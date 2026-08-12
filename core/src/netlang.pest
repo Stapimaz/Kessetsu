@@ -34,10 +34,20 @@ assert_stmt = { "assert" ~ metric ~ "(" ~ signal ~ ")" ~ cmp_op ~ comp_value }
 use_stmt = { "use" ~ ident ~ ident }
 sim_cmd = { "simulate" ~ ident ~ comp_value* }
 
+// Typed model/subcircuit declarations. Values are parsed and validated by semantic analysis;
+// they are never copied into SPICE as raw directives.
+named_value = { ident ~ "=" ~ comp_value }
+model_kind = { "diode" | "bjt" | "mosfet" }
+model_polarity = { ^"npn" | ^"pnp" | ^"nmos" | ^"pmos" }
+model_decl = { "model" ~ model_kind ~ ident ~ model_polarity? ~ named_value+ }
+subcircuit_kind = { "opamp" }
+subcircuit_decl = { "subcircuit" ~ subcircuit_kind ~ ident ~ "(" ~ pin_list ~ ")" ~ named_value+ }
+model_include = { "model_include" ~ ident ~ comp_value }
+
 statement = { (decl | net_stmt | use_stmt | connect | assert_stmt | sim_cmd) }
 
 pin_list = { ident ~ ("," ~ ident)* }
 module_decl = { "module" ~ ident ~ "(" ~ pin_list? ~ ")" ~ "{" ~ NEWLINE* ~ (statement ~ NEWLINE+)* ~ "}" }
 
-top_level = { module_decl | statement }
+top_level = { model_include | model_decl | subcircuit_decl | module_decl | statement }
 program = { SOI ~ NEWLINE* ~ (top_level ~ NEWLINE+)* ~ top_level? ~ NEWLINE* ~ EOI }

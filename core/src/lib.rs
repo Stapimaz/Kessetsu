@@ -10,6 +10,7 @@ pub mod graph;
 pub mod ir;
 pub mod kicad;
 pub mod layout;
+pub mod models;
 pub mod parser;
 pub mod sim_result;
 pub mod simulation;

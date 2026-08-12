@@ -14,11 +14,14 @@ Proje belirli bir eğitim senaryosu veya devre sınıfıyla sınırlı değildir
 - Sürümlü `netlang.compile.v1` compile raporu
 - Deterministik net isimlendirme ve `NL-P/C/E/I/S/F` diagnostic alanları
 - SPICE üretimi ve Windows ngspice-46 sidecar runtime
+- Typed OP/transient/AC/DC simulation sonucu ve PASS/FAIL/ERROR/SKIPPED assertion runtime
+- Compact `netlang.cli.v1` JSON, stdin agent döngüsü ve debug `--include` seçimi
+- Typed user/package model-subcircuit çözümleme, provenance manifest'i ve `netlang.lock`
 - Human/JSON CLI; güvenli output/overwrite ve exit-code sözleşmesi
 - WASM tabanlı React playground
 - Deneysel automatic layout ve KiCad schematic export
 
-Simülasyon sonuç modeli, assertion runtime ve profesyonel şema kalitesi halen Faz 3 ve sonraki fazların kapsamındadır. Güncel görev ve sınırlar için [roadmap](docs/ROADMAP.md), mimari kurallar için [architecture](docs/architecture.md) esas alınır.
+Engineering measurement/benchmark katmanı ve profesyonel şema kalitesi halen Faz 3'ün son paketi ve sonraki fazın kapsamındadır. Güncel görev ve sınırlar için [roadmap](docs/ROADMAP.md), mimari kurallar için [architecture](docs/architecture.md) esas alınır.
 
 ## Web Hub
 

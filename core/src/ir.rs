@@ -9,6 +9,7 @@ pub struct CircuitIR {
     pub nets: Vec<String>,            // User-named nets
     pub analyses: Vec<Analysis>,
     pub assertions: Vec<Assertion>,
+    pub model_manifest: ModelManifest,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -51,6 +52,7 @@ pub enum ComponentParams {
     BJTParams { polarity: BJTPolarity },
     MOSFETParams { polarity: FETPolarity },
     DiodeParams,
+    OpAmpParams,
     VoltageSource { value: SourceValue },
     CurrentSource { value: SourceValue },
     ModulePort { module_name: String },
@@ -105,12 +107,59 @@ pub struct ModelRef {
     pub name: String,
     pub kind: ComponentKind,
     pub source: ModelSource,
+    pub definition: ModelDefinition,
+    pub provenance: ModelProvenance,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ModelSource {
     Builtin,
     UserDefined,
+    Package,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "format", rename_all = "snake_case")]
+pub enum ModelDefinition {
+    Device {
+        directive: String,
+    },
+    Subcircuit {
+        directive: String,
+        pins: Vec<String>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ModelProvenance {
+    pub source: String,
+    pub license: String,
+    pub version: String,
+    pub content_hash: String,
+    pub simulator: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct ModelManifest {
+    pub schema_version: String,
+    pub packages: Vec<ResolvedModelPackage>,
+    pub models: Vec<ModelManifestEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ResolvedModelPackage {
+    pub name: String,
+    pub version: String,
+    pub license: String,
+    pub content_hash: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ModelManifestEntry {
+    pub name: String,
+    pub kind: ComponentKind,
+    pub source: ModelSource,
+    pub provenance: ModelProvenance,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -360,29 +409,7 @@ pub fn parse_waveform(val: &str, value_unit: SIUnit) -> Result<Option<Waveform>,
 }
 
 pub fn resolve_model(name: &str) -> Option<ModelRef> {
-    match name.to_uppercase().as_str() {
-        "2N3904" | "2N2222" => Some(ModelRef {
-            name: name.to_string(),
-            kind: ComponentKind::BJT(BJTPolarity::NPN),
-            source: ModelSource::Builtin,
-        }),
-        "2N3906" => Some(ModelRef {
-            name: name.to_string(),
-            kind: ComponentKind::BJT(BJTPolarity::PNP),
-            source: ModelSource::Builtin,
-        }),
-        "1N4148" | "1N4007" => Some(ModelRef {
-            name: name.to_string(),
-            kind: ComponentKind::Diode,
-            source: ModelSource::Builtin,
-        }),
-        "IRF540" => Some(ModelRef {
-            name: name.to_string(),
-            kind: ComponentKind::MOSFET(FETPolarity::NMOS),
-            source: ModelSource::Builtin,
-        }),
-        _ => None,
-    }
+    crate::models::builtin_model(name)
 }
 
 fn parse_analysis(
@@ -508,6 +535,7 @@ fn parse_analysis(
 }
 
 pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
+    let model_library = crate::models::resolve_program_models(program)?;
     let mut components = Vec::new();
     let mut connections = Vec::new();
     let mut nets = Vec::new();
@@ -635,7 +663,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
                         } else {
                             val_str
                         };
-                        let resolved = resolve_model(requested_model).ok_or_else(|| {
+                        let resolved = model_library.resolve(requested_model).ok_or_else(|| {
                             semantic_error(
                                 "NL-C003",
                                 format!(
@@ -679,7 +707,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
                         } else {
                             val_str
                         };
-                        let resolved = resolve_model(requested_model).ok_or_else(|| {
+                        let resolved = model_library.resolve(requested_model).ok_or_else(|| {
                             semantic_error(
                                 "NL-C003",
                                 format!(
@@ -711,7 +739,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
                         } else {
                             val_str
                         };
-                        let resolved = resolve_model(requested_model).ok_or_else(|| {
+                        let resolved = model_library.resolve(requested_model).ok_or_else(|| {
                             semantic_error(
                                 "NL-C003",
                                 format!(
@@ -733,22 +761,33 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
                         (ComponentKind::Diode, ComponentParams::DiodeParams)
                     }
                     ComponentType::OpAmp => {
-                        return Err(semantic_error(
-                            if val_str.is_empty() {
-                                "NL-C005"
-                            } else {
-                                "NL-C003"
-                            },
-                            if val_str.is_empty() {
-                                "op-amp requires a supported model; no builtin op-amp model is available yet".to_string()
-                            } else {
-                                format!(
-                                    "unsupported op-amp model '{val_str}'; user-defined models are not yet declared by the language"
-                                )
-                            },
-                            Some(&decl.name),
-                            Some("model"),
-                        ));
+                        let requested_model = if val_str.is_empty() {
+                            "NLANG_OPAMP_V1"
+                        } else {
+                            val_str
+                        };
+                        let resolved = model_library.resolve(requested_model).ok_or_else(|| {
+                            semantic_error(
+                                "NL-C003",
+                                format!("unsupported op-amp model '{requested_model}'"),
+                                Some(&decl.name),
+                                Some("model"),
+                            )
+                        })?;
+                        if resolved.kind != ComponentKind::OpAmp {
+                            return Err(semantic_error(
+                                "NL-C004",
+                                format!("model '{requested_model}' is not an op-amp subcircuit"),
+                                Some(&decl.name),
+                                Some("model"),
+                            ));
+                        }
+                        crate::models::validate_component_model_pins(
+                            &ComponentKind::OpAmp,
+                            &resolved,
+                        )?;
+                        model = Some(resolved);
+                        (ComponentKind::OpAmp, ComponentParams::OpAmpParams)
                     } // _ is not needed since all ComponentTypes are covered
                 };
 
@@ -818,11 +857,13 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
         .map(|analysis| parse_analysis(analysis, &components))
         .collect::<Result<Vec<_>, _>>()?;
 
+    let model_manifest = model_library.manifest(&components);
     Ok(CircuitIR {
         components,
         connections,
         nets,
         analyses,
         assertions,
+        model_manifest,
     })
 }

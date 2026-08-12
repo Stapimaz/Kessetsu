@@ -675,13 +675,15 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 
 ### 3.6 — Simulation model ve subcircuit temeli
 
-- [ ] Güvenli, typed user-defined SPICE `.model` ve `.subckt` declaration/include sözleşmesi tasarla.
-- [ ] Subcircuit pin sırası ile NetLang component pinlerini ortak katalog üzerinden doğrula.
-- [ ] En az bir doğrulanmış op-amp, PMOS ve power-transistor yolu sun; dilde tanımlı hiçbir temel component türü bütünüyle kullanılamaz kalmasın.
-- [ ] Model kind, polarity, required pin, simulator capability ve isim çakışmalarını compile aşamasında fail-closed doğrula.
-- [ ] Model kaynağı, lisansı, sürümü ve content hash'ini taşıyan provenance manifest'i tanımla.
-- [ ] `netlang.lock` ile model/subcircuit çözümlemesini reproducible yap.
-- [ ] User model/subcircuit içeriğinin typed IR sınırını atlayarak kontrolsüz SPICE directive enjekte edememesini test et.
+- [x] Güvenli, typed user-defined SPICE `.model` ve `.subckt` declaration/include sözleşmesi tasarla.
+- [x] Subcircuit pin sırası ile NetLang component pinlerini ortak katalog üzerinden doğrula.
+- [x] En az bir doğrulanmış op-amp, PMOS ve power-transistor yolu sun; dilde tanımlı hiçbir temel component türü bütünüyle kullanılamaz kalmasın.
+- [x] Model kind, polarity, required pin, simulator capability ve isim çakışmalarını compile aşamasında fail-closed doğrula.
+- [x] Model kaynağı, lisansı, sürümü ve content hash'ini taşıyan provenance manifest'i tanımla.
+- [x] `netlang.lock` ile model/subcircuit çözümlemesini reproducible yap.
+- [x] User model/subcircuit içeriğinin typed IR sınırını atlayarak kontrolsüz SPICE directive enjekte edememesini test et.
+
+**3.6 kanıtı:** Typed `model diode|bjt|mosfet` ve fixed-template `subcircuit opamp` declaration'ları yalnız whitelist edilmiş numeric parametrelerden canonical directive üretir; raw SPICE source'a alınmaz. Ortak component kataloğu op-amp pin sırasını doğrular. `NL-C010..013` parameter/metadata, package, pin/capability ve case-insensitive name conflict alanlarını fail-closed ayırır. `NLANG_OPAMP_V1`, `NLANG_PMOS_V1` ve `NLANG_POWER_NPN_V1` aynı gerçek Ngspice OP fixture'ında başarıyla çalışır. `netlang.models.v1` source/license/version/simulator/SHA-256 provenance taşır; exact `netlang_analog@1.0.0` çözümlemesi deterministic `netlang.lock.v1` üretir ve CLI bunu artifact olarak yazar. Çok satırlı `.control`/`.include` payload'ları dahil injection corpus'u error sonrası backend üretmediğini doğrular.
 
 ### 3.7 — Engineering measurements ve ürün benchmark'ları
 
@@ -704,7 +706,7 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 - [x] Paralel iki simulation dosya çakışması yaşamaz. _(3.1 unique run-directory integration testi.)_
 - [x] CLI human/JSON ve exit-code contract testleri geçer. _(3.4–3.5 cross-platform contract suite.)_
 - [x] Dış AI ajanı human terminal metni parse etmeden versioned sözleşmeyle tasarım döngüsü kurabilir. _(3.5 stdin agent-revision E2E.)_
-- [ ] User-defined ve packaged model/subcircuit çözümlemesi reproducible, provenance bilgili ve fail-closed çalışır.
+- [x] User-defined ve packaged model/subcircuit çözümlemesi reproducible, provenance bilgili ve fail-closed çalışır. _(3.6 typed registry, SHA-256 manifest ve lock contract.)_
 - [ ] RC filtre, gain stage ve power-amplifier benchmark'ları tanımlı mühendislik hedeflerini gerçek Ngspice sonuçlarıyla doğrular.
 - [ ] Faz 2.5 kalite kapıları geçmeye devam eder.
 
@@ -858,6 +860,6 @@ Her geliştirme oturumunda:
 
 ### Aktif sıradaki ilk iş
 
-**3.6 — Simulation model ve subcircuit temeli.**
+**3.7 — Engineering measurements ve ürün benchmark'ları.**
 
-3.5 dosyasız stdin tool kullanımı, byte-stable retry sözleşmesi ve structured compile → simulate → measure → revise E2E agent döngüsüyle kapandı. Sıradaki paket raw directive enjeksiyonuna izin vermeyen typed model/subcircuit tanımını, ortak katalog pin doğrulamasını, provenance manifest'ini ve reproducible `netlang.lock` çözümlemesini kuracak.
+3.6 typed ve injection-safe model/subcircuit declaration'ları, ortak katalog pin kontrolü, doğrulanmış generic op-amp/PMOS/power-NPN yolları, SHA-256 provenance manifest'i ve `netlang.lock` artifact'iyle kapandı. Sıradaki paket raw waveform'ları mühendislik anlamına dönüştüren measurement/derived-metric katmanını kuracak; RC, gain-stage ve çok katlı power-amplifier benchmark'larını gerçek Ngspice ve agent-revision E2E ile kapatacak.

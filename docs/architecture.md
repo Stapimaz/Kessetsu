@@ -122,11 +122,35 @@ Ngspice entegrasyonu Windows'ta repository/release sidecar ile, otomasyon ve di�
 | 2N3904 | BJT NPN | Builtin |
 | 2N3906 | BJT PNP | Builtin |
 | 2N2222 | BJT NPN | Builtin |
+| NLANG_POWER_NPN_V1 | Generic power BJT NPN | Verified builtin |
 | 1N4148 | Diode | Builtin |
 | 1N4007 | Diode | Builtin |
 | IRF540 | MOSFET NMOS | Builtin |
+| NLANG_PMOS_V1 | Generic MOSFET PMOS | Verified builtin |
+| NLANG_OPAMP_V1 | Generic op-amp subcircuit | Verified builtin |
 
-User-defined model declaration/include syntax'ı henüz tanımlı değildir. Bu nedenle bilinmeyen model adları IR'ye raw string olarak geçirilmez; `NL-C003` semantic diagnostic ile reddedilir. BJT/MOSFET/diode için yukarıdaki builtin modeller ve güvenli default'lar kullanılır. Op-amp syntax'ı parser ve component modelinde tanımlıdır ancak doğrulanmış bir builtin subcircuit henüz bulunmadığı için modelsiz op-amp `NL-C005` ile fail-closed davranır; boş `X_` SPICE satırı üretilmez.
+Builtin default'lar BJT için `2N3904`/`2N3906`, MOSFET için `IRF540`, diode için `1N4148`, op-amp için `NLANG_OPAMP_V1`'dir. Böylece dilde tanımlı temel component türlerinden hiçbiri bütünüyle kullanılamaz durumda değildir. `NLANG_*` modelleri NetLang'in kendi generic ve lisansı açık doğrulama modelleridir; belirli bir üretici parçasının datasheet eşleniği oldukları iddia edilmez.
+
+### Typed user model ve subcircuit sınırı
+
+NetLang raw `.include`, `.model`, `.subckt` veya control directive kabul etmez. Kullanıcı yalnız typed declaration verir; parameter whitelist, numeric parse, model kind/polarity ve metadata semantic aşamada doğrulandıktan sonra directive Core tarafından canonical biçimde üretilir:
+
+```netlang
+model diode SafeD version=1.0.0 license=MIT Is=2e-9 Rs=0.5
+model mosfet SafeP pmos version=1.0.0 license=MIT Vto=-2 Kp=4
+subcircuit opamp SafeOp (in_p,in_n,vcc,vee,out) version=1.0.0 license=MIT gain=100k bandwidth=2MHz
+```
+
+- Device model kind'leri `diode`, `bjt` ve `mosfet`; güvenli subcircuit template'i şu aşamada `opamp` ile sınırlıdır.
+- BJT `npn|pnp`, MOSFET `nmos|pmos` polarity ister. Component/model kind veya polarity uyuşmazlığı `NL-C004` olur.
+- User model/subcircuit `version` ve `license` metadata'sı taşır; `source` opsiyoneldir. İzinli elektriksel parametreler kind'e göre sabit whitelist'ten gelir. Bilinmeyen/duplicate/non-finite parameter `NL-C010` olur.
+- Op-amp pin sırası ortak component kataloğundaki `in_p,in_n,vcc,vee,out` sırasıyla byte-for-byte uyuşur; aksi durum `NL-C012`'dir. Backend kendi ayrı pin listesine güvenmez.
+- Builtin, package, user model ve subcircuit adları case-insensitive tek namespace içindedir; çakışma `NL-C013` ile reddedilir.
+- Simulator capability şu sözleşmede `ngspice-35+` olarak provenance'a yazılır. Desteklenmeyen paket/sürüm `NL-C011` ile fail-closed olur.
+
+Exact package kullanımı `model_include netlang_analog 1.0.0` biçimindedir. Floating version/range yoktur. Kullanılan model ve paketler `netlang.models.v1` manifest'inde source, license, version, simulator capability ve `sha256:` content hash ile taşınır. Dosya tabanlı compile/simulate/test model kullanıyorsa SPICE artifact'iyle aynı dizine deterministic `netlang.lock` (`netlang.lock.v1`) yazılır ve CLI bunu `model_lock` artifact'i olarak bildirir. Stdin-only çağrı filesystem'e yazmaz; manifest ve lock içeriği `--include models` ile alınabilir.
+
+Quoted parameter içine `.control`, `.include`, shell veya satır sonu saklama girişimleri typed numeric/metadata doğrulamasından geçemez; error varken SPICE backend çalışmaz. Bu injection sınırı regression testleriyle korunur.
 
 ## 6. ERC (Electrical Rules Check) Motoru (`erc.rs`)
 

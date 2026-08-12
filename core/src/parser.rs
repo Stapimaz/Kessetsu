@@ -7,6 +7,9 @@ pub struct NetlangParser;
 
 pub fn parse_program(input: &str) -> Result<Program, pest::error::Error<Rule>> {
     let mut modules = Vec::new();
+    let mut model_includes = Vec::new();
+    let mut models = Vec::new();
+    let mut subcircuits = Vec::new();
     let mut main_statements = Vec::new();
 
     let pairs = NetlangParser::parse(Rule::program, input)?;
@@ -52,6 +55,17 @@ pub fn parse_program(input: &str) -> Result<Program, pest::error::Error<Rule>> {
                                     main_statements.push(stmt);
                                 }
                             }
+                            Rule::model_include => {
+                                let mut fields = inner.into_inner();
+                                model_includes.push(ModelInclude {
+                                    package: fields.next().unwrap().as_str().to_string(),
+                                    version: unquote(fields.next().unwrap().as_str()),
+                                });
+                            }
+                            Rule::model_decl => models.push(parse_model_decl(inner)),
+                            Rule::subcircuit_decl => {
+                                subcircuits.push(parse_subcircuit_decl(inner));
+                            }
                             _ => {}
                         }
                     }
@@ -64,8 +78,72 @@ pub fn parse_program(input: &str) -> Result<Program, pest::error::Error<Rule>> {
 
     Ok(Program {
         modules,
+        model_includes,
+        models,
+        subcircuits,
         statements: main_statements,
     })
+}
+
+fn unquote(value: &str) -> String {
+    value
+        .strip_prefix('"')
+        .and_then(|value| value.strip_suffix('"'))
+        .unwrap_or(value)
+        .to_string()
+}
+
+fn parse_named_value(pair: pest::iterators::Pair<Rule>) -> NamedValue {
+    let mut fields = pair.into_inner();
+    NamedValue {
+        name: fields.next().unwrap().as_str().to_string(),
+        value: unquote(fields.next().unwrap().as_str()),
+    }
+}
+
+fn parse_model_decl(pair: pest::iterators::Pair<Rule>) -> ModelDecl {
+    let mut fields = pair.into_inner();
+    let kind = match fields.next().unwrap().as_str() {
+        "diode" => ModelDeclKind::Diode,
+        "bjt" => ModelDeclKind::BJT,
+        "mosfet" => ModelDeclKind::MOSFET,
+        _ => unreachable!(),
+    };
+    let name = fields.next().unwrap().as_str().to_string();
+    let mut polarity = None;
+    let mut parameters = Vec::new();
+    for field in fields {
+        match field.as_rule() {
+            Rule::model_polarity => polarity = Some(field.as_str().to_string()),
+            Rule::named_value => parameters.push(parse_named_value(field)),
+            _ => unreachable!(),
+        }
+    }
+    ModelDecl {
+        kind,
+        name,
+        polarity,
+        parameters,
+    }
+}
+
+fn parse_subcircuit_decl(pair: pest::iterators::Pair<Rule>) -> SubcircuitDecl {
+    let mut fields = pair.into_inner();
+    let kind = fields.next().unwrap().as_str().to_string();
+    let name = fields.next().unwrap().as_str().to_string();
+    let pins = fields
+        .next()
+        .unwrap()
+        .into_inner()
+        .map(|pin| pin.as_str().to_string())
+        .collect();
+    let parameters = fields.map(parse_named_value).collect();
+    SubcircuitDecl {
+        kind,
+        name,
+        pins,
+        parameters,
+    }
 }
 
 fn parse_statement(statement_pair: pest::iterators::Pair<Rule>) -> Option<Statement> {
