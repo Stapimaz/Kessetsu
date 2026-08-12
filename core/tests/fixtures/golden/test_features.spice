@@ -18,7 +18,8 @@ set numdgt=17
 tran 1e-6 0.01
 wrdata netlang-analysis-000-tran.data all
 meas tran max_v_my_signal MAX V(my_signal)
-meas tran peak_i_v1 MAX I(V_V1)
+meas tran peak_pos_i_v1 MAX I(V_V1)
+meas tran peak_neg_i_v1 MIN I(V_V1)
 print all
 quit
 .endc

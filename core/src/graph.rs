@@ -508,14 +508,18 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
         }
 
         for assert in &circuit.assertions {
-            let raw_name = format!("{}_{}", assert.metric, assert.signal);
-            let safe_name = raw_name.replace("(", "_").replace(")", "").to_lowercase();
+            let safe_signal = assert
+                .signal
+                .replace("(", "_")
+                .replace(")", "")
+                .to_lowercase();
+            let safe_name = format!("{}_{}", assert.metric.to_lowercase(), safe_signal);
             let metric = match assert.metric.to_uppercase().as_str() {
                 "MAX" => "MAX",
                 "MIN" => "MIN",
-                "PEAK" => "MAX", // Ngspice MAX is peak positive, PP is peak-to-peak
                 "RMS" => "RMS",
-                _ => "MAX",
+                "AVERAGE" | "AVG" => "AVG",
+                _ => "",
             };
 
             // Note: `op` does not support MAX/MIN/RMS measurements over time.
@@ -542,11 +546,16 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
             }
 
             if main_analysis == "op" {
+                continue;
+            }
+            if assert.metric.eq_ignore_ascii_case("peak") {
                 control_block.push_str(&format!(
-                    "meas {} {} FIND {} AT=0\n",
-                    main_analysis, safe_name, sp_signal
+                    "meas {main_analysis} peak_pos_{safe_signal} MAX {sp_signal}\n"
                 ));
-            } else {
+                control_block.push_str(&format!(
+                    "meas {main_analysis} peak_neg_{safe_signal} MIN {sp_signal}\n"
+                ));
+            } else if !metric.is_empty() {
                 control_block.push_str(&format!(
                     "meas {} {} {} {}\n",
                     main_analysis, safe_name, metric, sp_signal

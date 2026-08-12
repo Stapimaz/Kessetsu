@@ -25,7 +25,7 @@ pin_ref = { ident ~ ("." ~ ident)? }
 connect = { "connect" ~ pin_ref ~ ("," ~ pin_ref)* ~ "to" ~ pin_ref }
 
 // Assertions
-metric = { "max" | "min" | "peak" | "rms" | "settle" }
+metric = { "average" | "value" | "max" | "min" | "peak" | "rms" | "avg" | "settle" }
 signal = { ident ~ "(" ~ ident ~ ")" }
 cmp_op = { "<=" | ">=" | "==" | "<" | ">" }
 assert_stmt = { "assert" ~ metric ~ "(" ~ signal ~ ")" ~ cmp_op ~ comp_value }

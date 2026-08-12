@@ -153,7 +153,7 @@ User-defined model declaration/include syntax'ı henüz tanımlı değildir. Bu 
 | NL-S005 | Error | Fatal veya aborted simulator çıktısı |
 | NL-S006 | Error | Measurement veya analysis dataset parse başarısızlığı |
 
-Faz 3'te convergence, ölçüm ve assertion durumları daha ayrıntılı ayrı diagnostic/result kodlarına bölünecektir.
+Assertion sonuçları simulation diagnostic'lerinden ayrı, sürümlü `netlang.assertion.v1` raporunda taşınır. Kaynak sırasındaki her assertion deterministik `NL-T001`, `NL-T002`, ... kimliği alır ve `PASS`, `FAIL`, `ERROR` veya `SKIPPED` durumlarından biriyle sonuçlanır. Eksik ya da desteklenmeyen ölçüm `NaN` üretmez; açıklamalı `ERROR` olur. Simulation başarıyla tamamlanmadıysa assertion sonucu uydurulmaz ve `SKIPPED` olarak raporlanır.
 
 ### Simulation domain ve runner sınırı
 
@@ -162,6 +162,15 @@ Native simulator process ayrıntıları Core'un ortak simulation sözleşmesine 
 Native runner her çalıştırma için benzersiz bir temporary directory oluşturur. Başarılı çalışmanın artifact'ları temizlenir; hata artifact'ları yalnız açık `retain_on_failure` politikasıyla korunur. Runner executable discovery ve version probe uygular, timeout'ta process'i sonlandırır ve paylaşılabilir cancellation token kabul eder. CLI `simulate` ve `test` aynı runner üzerinden çalışır.
 
 Ngspice analysis verileri stdout tablo metninden çıkarılmaz. Generated SPICE her typed analysis sonrasında deterministic isimli `wrdata` çıktısı üretir. OP sonucu sorted scalar map'e, transient/DC sonucu ortak axis ve real signal serilerine, AC sonucu frequency axis ile real/imaginary signal serilerine parse edilir. Parser exponent, decimal-comma ve LF/CRLF farklarını normalize eder; malformed, duplicate veya non-finite veri `NL-S006` ile fail-closed olur.
+
+### Assertion ve ölçüm semantiği
+
+- `value`, serinin son örneğini; `min` ve `max`, signed minimum/maksimumu; `average` (`avg`) aritmetik ortalamayı; `rms`, kareler ortalamasının karekökünü verir.
+- `peak` absolute peak'tir: `max(abs(x))`. Pozitif maksimum anlamına gelmez. Generated `.meas` fallback'inde pozitif maksimum ve negatif minimum ayrı ölçülüp mutlak değerce büyüğü seçilir.
+- OP tek skaler örnektir. OP üzerinde `value`, `min`, `max` ve `average` aynı signed değeri; `peak` ve `rms` değerin mutlak büyüklüğünü verir.
+- Equality ve inclusive sınırlar (`==`, `<=`, `>=`) varsayılan `abs=1e-9`, `rel=1e-6` toleransını kullanır. Strict `<` ve `>` toleransla gevşetilmez.
+- Akım yönü Ngspice branch-current kuralını korur: pozitif akım component'in canonical pozitif/reference pinine giren akımdır. Voltage source için bu `plus`, inductor için `p1` pinidir. Bu nedenle yükü besleyen bir voltage source'un OP akımı çoğu devrede negatif görünür. Assertion motoru işareti yalnız `peak`/`rms` gibi açıkça magnitude tanımlı metric'lerde kaldırır.
+- AC dataset'i kompleks olduğu için ham `min`/`max`/`peak`/`average`/`rms` reduction şu aşamada fail-closed `ERROR` verir; frequency-domain magnitude/phase metric'leri mühendislik ölçümleri katmanında tanımlanır.
 
 ### Çıktı Formatı
 - **İnsan modu (varsayılan):** Stage/code/message içeren stderr diagnostic'leri; assertion PASS/FAIL satırlarında terminal rengi

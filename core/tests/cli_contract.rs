@@ -321,8 +321,14 @@ fn failed_assertion_has_structured_result_and_exit_code_four() {
     let value: Value =
         serde_json::from_slice(&output.stdout).expect("assertion stdout should be JSON only");
     assert_eq!(value["status"], "test_failed");
-    assert_eq!(value["tests"][0]["pass"], false);
-    assert_eq!(value["tests"][0]["actual"], 0.2);
+    assert_eq!(
+        value["assertions"]["schema_version"],
+        "netlang.assertion.v1"
+    );
+    assert_eq!(value["assertions"]["assertions"][0]["code"], "NL-T001");
+    assert_eq!(value["assertions"]["assertions"][0]["status"], "FAIL");
+    assert_eq!(value["assertions"]["assertions"][0]["actual"], 0.2);
+    assert_eq!(value["assertions"]["summary"]["failed"], 1);
 }
 
 #[test]

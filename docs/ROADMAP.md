@@ -612,15 +612,15 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 
 ### 3.3 — Assertion runtime
 
-- [ ] Her assertion'a deterministik `NL-Txxx` kodu ata.
-- [ ] Sonuç durumlarını tanımla: PASS, FAIL, ERROR, SKIPPED.
-- [ ] Missing measurement'ı NaN yerine açıklamalı ERROR yap.
-- [ ] Absolute ve relative tolerance politikası tanımla.
-- [ ] `peak` semantiğini absolute peak olarak kesinleştir.
-- [ ] OP analizinde desteklenen assertion metric'lerini tanımla.
-- [ ] Current direction/sign convention'ı belgele ve test et.
-- [ ] Unit-aware human output üret.
-- [ ] JSON sonuçlarına summary ekle.
+- [x] Her assertion'a deterministik `NL-Txxx` kodu ata.
+- [x] Sonuç durumlarını tanımla: PASS, FAIL, ERROR, SKIPPED.
+- [x] Missing measurement'ı NaN yerine açıklamalı ERROR yap.
+- [x] Absolute ve relative tolerance politikası tanımla.
+- [x] `peak` semantiğini absolute peak olarak kesinleştir.
+- [x] OP analizinde desteklenen assertion metric'lerini tanımla.
+- [x] Current direction/sign convention'ı belgele ve test et.
+- [x] Unit-aware human output üret.
+- [x] JSON sonuçlarına summary ekle.
 
 Örnek hedef JSON:
 
@@ -645,6 +645,8 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
   }
 }
 ```
+
+**3.3 kanıtı:** Assertion motoru `netlang.assertion.v1` raporu, deterministik `NL-Txxx` kimlikleri ve dört ayrı durum üretir. Dataset-first metric çözümleme OP/transient/DC verisini typed olarak işler; eksik/uygunsuz veri `ERROR`, başarısız simulation `SKIPPED` olur. Absolute peak, OP ve current-sign semantiği ile absolute/relative tolerance regression testleriyle korunur. CLI human renderer engineering prefix + birim kullanır; JSON aynı domain raporunu summary ile serialize eder. Bundled Ngspice üzerinde gerçek `test_features.nl` smoke testi iki assertion'ı typed `PASS` sonucu ile tamamladı.
 
 ### 3.4 — Simulation CLI sözleşmesi
 
@@ -693,7 +695,7 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 
 - [x] OP, transient ve AC için en az birer gerçek Ngspice integration fixture'ı geçer. _(3.2 real Ngspice fixture matrisi.)_
 - [x] Simulation result'ları typed ve serialize edilebilirdir. _(`netlang.simulation.v1` + serde contract testleri.)_
-- [ ] Assertion sonuçları PASS/FAIL/ERROR ayrımını doğru yapar.
+- [x] Assertion sonuçları PASS/FAIL/ERROR ayrımını doğru yapar. _(3.3 typed status ve regression suite.)_
 - [x] Paralel iki simulation dosya çakışması yaşamaz. _(3.1 unique run-directory integration testi.)_
 - [ ] CLI human/JSON ve exit-code contract testleri geçer.
 - [ ] Dış AI ajanı human terminal metni parse etmeden versioned sözleşmeyle tasarım döngüsü kurabilir.
@@ -851,6 +853,6 @@ Her geliştirme oturumunda:
 
 ### Aktif sıradaki ilk iş
 
-**3.3 — Assertion runtime.**
+**3.4 — Simulation CLI sözleşmesi.**
 
-3.2 measurement parser, typed OP/transient/AC/DC dataset'leri ve gerçek Ngspice fixture'larıyla kapandı. Sıradaki paket assertion kimliği/status/tolerance modelini kuracak; missing measurement `NaN` yerine typed ERROR olacak ve human/JSON renderer aynı assertion sonucunu kullanacak.
+3.3 assertion runtime sürümlü rapor, deterministic kimlik/status, tolerance, unit-aware çıktı ve typed error davranışıyla kapandı. Sıradaki paket varsayılan JSON'u kompakt agent envelope'una dönüştürecek; hacimli compile/simulation alanlarını `--include` ile opt-in yapacak ve schema negotiation'ı fail-closed tanımlayacak.

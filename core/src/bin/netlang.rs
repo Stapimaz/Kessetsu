@@ -3,6 +3,9 @@ use netlang_core::compiler::{
     COMPILE_SCHEMA_VERSION, CompileOptions, CompileReport, Diagnostic, DiagnosticSeverity,
     DiagnosticStage, compile_source,
 };
+use netlang_core::sim_result::{
+    AssertionReport, AssertionResult, AssertionStatus, format_quantity,
+};
 use netlang_core::simulation::{
     CancellationToken, NgspiceRunner, SimulationRequest, SimulationResult, SimulationRunner,
 };
@@ -56,21 +59,12 @@ enum Format {
 }
 
 #[derive(Serialize)]
-struct JsonTestResult {
-    metric: String,
-    signal: String,
-    pass: bool,
-    actual: Option<f64>,
-    threshold: f64,
-}
-
-#[derive(Serialize)]
 struct JsonOutput {
     status: String,
     #[serde(flatten)]
     report: CompileReport,
     spice_file: Option<String>,
-    tests: Option<Vec<JsonTestResult>>,
+    assertions: Option<AssertionReport>,
 }
 
 fn main() {
@@ -357,28 +351,17 @@ fn run_assertions(
         .ir
         .as_ref()
         .expect("successful compile report must preserve typed IR");
-    let results = netlang_core::sim_result::evaluate_assertions(circuit, &simulation);
-    let mut all_passed = true;
-    let mut json_results = Vec::new();
-
-    for result in results {
-        all_passed &= result.pass;
-        json_results.push(JsonTestResult {
-            metric: result.assertion.metric.clone(),
-            signal: result.assertion.signal.clone(),
-            pass: result.pass,
-            actual: result.actual.is_finite().then_some(result.actual),
-            threshold: result.assertion.threshold.value,
-        });
-
+    let assertion_report = netlang_core::sim_result::evaluate_assertions(circuit, &simulation);
+    let all_passed = assertion_report.all_passed();
+    for result in &assertion_report.assertions {
         if *format == Format::Human {
-            print_assertion_result(&result);
+            print_assertion_result(result);
         }
     }
 
     let status = if all_passed { "success" } else { "test_failed" };
     if *format == Format::Json {
-        emit(format, status, report, spice_file, Some(json_results));
+        emit(format, status, report, spice_file, Some(assertion_report));
     } else if all_passed {
         println!("\n[SUCCESS] All assertions passed.");
     } else {
@@ -388,33 +371,30 @@ fn run_assertions(
     if all_passed { 0 } else { 4 }
 }
 
-fn print_assertion_result(result: &netlang_core::sim_result::TestResult) {
-    let status = if result.pass {
-        "\x1b[32m[PASS]\x1b[0m"
-    } else {
-        "\x1b[31m[FAIL]\x1b[0m"
+fn print_assertion_result(result: &AssertionResult) {
+    let status = match result.status {
+        AssertionStatus::Pass => "\x1b[32m[PASS]\x1b[0m",
+        AssertionStatus::Fail => "\x1b[31m[FAIL]\x1b[0m",
+        AssertionStatus::Error => "\x1b[31m[ERROR]\x1b[0m",
+        AssertionStatus::Skipped => "\x1b[33m[SKIPPED]\x1b[0m",
     };
-    let comparator = match result.assertion.cmp {
-        netlang_core::ast::Cmp::Lt => "<",
-        netlang_core::ast::Cmp::Gt => ">",
-        netlang_core::ast::Cmp::Le => "<=",
-        netlang_core::ast::Cmp::Ge => ">=",
-        netlang_core::ast::Cmp::Eq => "==",
-    };
-    let actual = if result.actual.is_finite() {
-        format!("{:.6}", result.actual)
-    } else {
-        "Not Found".to_string()
-    };
+    let actual = result
+        .actual
+        .map(|actual| format_quantity(actual, result.unit))
+        .unwrap_or_else(|| "not available".to_string());
     println!(
-        "{} {}({}) {} {} (actual: {})",
+        "{} {} {}({}) {} {} (actual: {})",
         status,
-        result.assertion.metric,
-        result.assertion.signal,
-        comparator,
-        result.assertion.threshold.value,
+        result.code,
+        result.metric,
+        result.signal,
+        result.comparator,
+        format_quantity(result.threshold, result.unit),
         actual
     );
+    if let Some(message) = &result.message {
+        println!("       {message}");
+    }
 }
 
 fn compile_failure_exit_code(report: &CompileReport) -> i32 {
@@ -449,14 +429,14 @@ fn emit(
     status: &str,
     report: CompileReport,
     spice_file: Option<String>,
-    tests: Option<Vec<JsonTestResult>>,
+    assertions: Option<AssertionReport>,
 ) {
     if *format == Format::Json {
         let output = JsonOutput {
             status: status.to_string(),
             report,
             spice_file,
-            tests,
+            assertions,
         };
         match serde_json::to_string_pretty(&output) {
             Ok(json) => println!("{json}"),

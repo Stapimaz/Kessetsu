@@ -60,7 +60,11 @@ Derleme ve simülasyondan sonra kaynak içindeki assertion'ları değerlendirir.
 netlang test examples/test_features.nl --force
 ```
 
-Assertion runtime Faz 3'te genişletilmektedir; mevcut metric ve ölçüm sınırlamaları için `docs/ROADMAP.md` içindeki Faz 3.3 görevleri esas alınır.
+Her assertion kaynak sırasına göre deterministik bir `NL-Txxx` kodu alır. Durumlar `PASS`, `FAIL`, `ERROR` ve `SKIPPED` olarak ayrılır: eşik sağlanmıyorsa `FAIL`, ölçüm bulunamıyor veya metric desteklenmiyorsa `ERROR`, simülasyon tamamlanmadıysa `SKIPPED` üretilir. Bu durumların herhangi biri varsa komut exit `4` döner.
+
+Desteklenen temel metric'ler `value`, `min`, `max`, `peak`, `average`/`avg` ve `rms`'tir. `peak`, signed maksimum değil `max(abs(x))` anlamına gelir. OP analizinde `value`, `min`, `max` ve `average` signed skaler değeri; `peak` ve `rms` mutlak büyüklüğü verir. Equality ve inclusive comparator'lar küçük numeric sapmalar için tanımlı absolute/relative tolerans uygular; strict `<`/`>` sınırları gevşetilmez.
+
+Akım işareti component'in canonical pozitif/reference pinine giren yönü pozitif kabul eder. Voltage source için bu `plus` pinidir; dolayısıyla güç veren bir kaynağın ölçülen akımı çoğu zaman negatiftir. Human çıktı engineering prefix ve fiziksel birimi birlikte gösterir; JSON aynı typed assertion raporunu ve sayısal summary'yi taşır.
 
 Ngspice executable discovery gerektiğinde `NETLANG_NGSPICE` environment variable ile açık bir executable yoluna yönlendirilebilir. Yol başlatılamazsa simülasyon exit `3` ile fail-closed olur.
 
@@ -74,7 +78,7 @@ netlang render examples/demo_circuit.nl
 
 ## JSON sözleşmesi
 
-JSON stdout her çalıştırmada tek bir JSON objesidir; progress ve simulator logları stdout'a yazılmaz. Şema sürümü `netlang.compile.v1`'dir. CLI, canonical `CompileReport` alanlarına `status`, `spice_file` ve gerektiğinde `tests` alanlarını ekler.
+JSON stdout her çalıştırmada tek bir JSON objesidir; progress ve simulator logları stdout'a yazılmaz. Compile raporu şema sürümü `netlang.compile.v1`, assertion raporu şema sürümü `netlang.assertion.v1` kullanır. CLI, canonical `CompileReport` alanlarına `status`, `spice_file` ve gerektiğinde `assertions` alanını ekler.
 
 Başarılı `check` özeti:
 
@@ -90,7 +94,33 @@ Başarılı `check` özeti:
   "layout": null,
   "kicad_sch": null,
   "spice_file": null,
-  "tests": null
+  "assertions": null
+}
+```
+
+`test` sonucundaki assertion alanı ayrı sürümlü ve özetlidir:
+
+```json
+{
+  "schema_version": "netlang.assertion.v1",
+  "assertions": [
+    {
+      "code": "NL-T001",
+      "status": "PASS",
+      "metric": "peak",
+      "signal": "I(V1)",
+      "actual": 0.005,
+      "threshold": 0.1,
+      "unit": "A"
+    }
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0
+  }
 }
 ```
 
