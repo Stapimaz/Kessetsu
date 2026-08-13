@@ -53,14 +53,15 @@ fn simulation(analysis: Analysis, data: Dataset) -> SimulationResult {
 fn voltage_current_power_and_derived_transient_metrics_are_typed() {
     let assertions = "assert gain(V(out),V(in)) > 3.99\n\
 assert frequency(V(out)) == 1kHz\n\
-assert output_power(V(out),RL) == 1W\n\
-assert efficiency(V(out),RL,V(VDD),I(VS)) == 50%\n\
-assert thd(V(out)) < 0.001%\n\
+assert output_power(V(out),RL,1ms,2ms) == 1W\n\
+assert efficiency(V(out),RL,V(VDD),I(VS),0ms,2ms) == 50%\n\
+assert thd(V(out),1kHz,0ms,2ms,hann) < 0.01%\n\
 assert average(P(RL)) == 1W\n\
 assert peak(P(RL)) == 2W\n\
-assert dissipation(RL) == 1W\n\
+assert dissipation(RL,0ms,2ms) == 1W\n\
 assert rms(V(out),1ms,2ms) > 2.80V\n\
-assert average(I(Q1)) == 100mA\n";
+assert average(I(Q1)) == 100mA\n\
+assert peak(V(Q1.c,Q1.e)) == 0V\n";
     let circuit = circuit(assertions);
     let sample_count = 192;
     let axis = (0..sample_count)
@@ -80,6 +81,7 @@ assert average(I(Q1)) == 100mA\n";
             ("out".to_string(), output),
             ("in".to_string(), input),
             ("vdd".to_string(), vec![10.0; sample_count]),
+            ("qout".to_string(), vec![0.0; sample_count]),
             ("v_vs#branch".to_string(), vec![-0.2; sample_count]),
             ("@q_q1[ic]".to_string(), vec![0.1; sample_count]),
         ]),
@@ -154,6 +156,49 @@ fn ac_gain_bandwidth_and_phase_use_complex_frequency_data() {
     assert!(report.all_passed(), "assertions: {:?}", report.assertions);
     assert!((report.assertions[1].actual.unwrap() - 1_000.0).abs() < 1.0);
     assert_eq!(report.assertions[3].unit, SIUnit::Degree);
+}
+
+#[test]
+fn bandwidth_fails_closed_for_non_low_pass_response() {
+    let circuit = circuit("assert bandwidth(V(out),V(in)) > 1kHz\n");
+    let data = Dataset::Ac(ComplexSeriesDataset {
+        frequency_hz: vec![10.0, 100.0, 1_000.0, 10_000.0],
+        signals: BTreeMap::from([
+            (
+                "out".to_string(),
+                ComplexSeries {
+                    real: vec![0.1, 1.0, 0.7, 0.1],
+                    imaginary: vec![0.0; 4],
+                },
+            ),
+            (
+                "in".to_string(),
+                ComplexSeries {
+                    real: vec![1.0; 4],
+                    imaginary: vec![0.0; 4],
+                },
+            ),
+        ]),
+    });
+    let report = evaluate_assertions(
+        &circuit,
+        &simulation(
+            Analysis::Ac {
+                scale: netlang_core::ir::AcScale::Decade,
+                points: 10,
+                start: netlang_core::ir::parse_quantity("10Hz", SIUnit::Hertz).unwrap(),
+                stop: netlang_core::ir::parse_quantity("10kHz", SIUnit::Hertz).unwrap(),
+            },
+            data,
+        ),
+    );
+    assert_eq!(report.assertions[0].status, AssertionStatus::Error);
+    assert!(
+        report.assertions[0]
+            .message
+            .as_deref()
+            .is_some_and(|message| message.contains("low-pass"))
+    );
 }
 
 #[test]

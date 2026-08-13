@@ -43,7 +43,7 @@ function App() {
           onCancel={cancel}
         />
       </div>
-      <ArtifactBar svg={state.schematicSvg} kicad={state.kicadSch} spice={state.spiceNetlist} />
+      <ArtifactBar svg={state.schematicSvg} kicad={state.kicadSch} spice={state.spiceNetlist} models={state.modelManifest} />
     </main>
   );
 }

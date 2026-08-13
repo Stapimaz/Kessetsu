@@ -13,12 +13,7 @@ pub fn evaluate_assertion_metric(
     simulation: &SimulationResult,
 ) -> Result<f64, String> {
     let metric = assertion.metric.to_ascii_lowercase();
-    let arguments = assertion
-        .signal
-        .split(',')
-        .map(str::trim)
-        .filter(|argument| !argument.is_empty())
-        .collect::<Vec<_>>();
+    let arguments = split_arguments(&assertion.signal);
     match metric.as_str() {
         "value" | "min" | "max" | "peak" | "average" | "avg" | "rms" => {
             evaluate_reduction(&metric, &arguments, circuit, simulation)
@@ -179,6 +174,13 @@ fn evaluate_bandwidth(arguments: &[&str], simulation: &SimulationResult) -> Resu
     if reference <= 0.0 {
         return Err("bandwidth reference gain must be positive".to_string());
     }
+    let maximum = gains.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    if maximum > reference * 1.01 {
+        return Err(
+            "bandwidth/cutoff currently supports low-pass responses whose first AC point is the passband reference"
+                .to_string(),
+        );
+    }
     let threshold = reference / 2.0_f64.sqrt();
     for index in 1..gains.len() {
         if gains[index] <= threshold && gains[index - 1] > threshold {
@@ -272,7 +274,9 @@ fn evaluate_output_power(
     circuit: &CircuitIR,
     simulation: &SimulationResult,
 ) -> Result<f64, String> {
-    require_count("output_power", arguments, 2)?;
+    if !matches!(arguments.len(), 2 | 4) {
+        return Err("output_power expects output,load or output,load,start,stop".to_string());
+    }
     let resistance = resistor_value(circuit, arguments[1])?;
     for dataset in simulation
         .datasets
@@ -280,6 +284,7 @@ fn evaluate_output_power(
         .filter(|dataset| matches!(dataset.data, Dataset::Transient(_)))
     {
         if let Some(signal) = resolve_signal(&dataset.data, arguments[0], circuit)? {
+            let signal = maybe_window_signal(signal, arguments.get(2..4))?;
             let voltage_rms = signal_rms(&signal)?;
             return Ok(voltage_rms * voltage_rms / resistance);
         }
@@ -292,13 +297,32 @@ fn evaluate_efficiency(
     circuit: &CircuitIR,
     simulation: &SimulationResult,
 ) -> Result<f64, String> {
-    if !matches!(arguments.len(), 4 | 6) {
+    if !matches!(arguments.len(), 4 | 6 | 8) {
         return Err(
-            "efficiency expects output,load,supply_voltage,supply_current and optionally a second supply pair"
+            "efficiency expects output,load,supply_voltage,supply_current, optional second supply pair, and optional start,stop window"
                 .to_string(),
         );
     }
-    let output_power = evaluate_output_power(&arguments[..2], circuit, simulation)?;
+    let has_window = arguments.len() >= 6
+        && parse_quantity(arguments[arguments.len() - 2], SIUnit::Second).is_ok()
+        && parse_quantity(arguments[arguments.len() - 1], SIUnit::Second).is_ok();
+    let supply_end = if has_window {
+        arguments.len() - 2
+    } else {
+        arguments.len()
+    };
+    if !matches!(supply_end, 4 | 6) {
+        return Err(
+            "efficiency requires one or two complete supply voltage/current pairs".to_string(),
+        );
+    }
+    let window = has_window.then(|| &arguments[arguments.len() - 2..]);
+    let output_arguments = if let Some(window) = window {
+        vec![arguments[0], arguments[1], window[0], window[1]]
+    } else {
+        vec![arguments[0], arguments[1]]
+    };
+    let output_power = evaluate_output_power(&output_arguments, circuit, simulation)?;
     for dataset in simulation
         .datasets
         .iter()
@@ -306,10 +330,12 @@ fn evaluate_efficiency(
     {
         let mut supply_power = 0.0;
         let mut complete = true;
-        for pair in arguments[2..].chunks_exact(2) {
+        for pair in arguments[2..supply_end].chunks_exact(2) {
             let voltage = resolve_signal(&dataset.data, pair[0], circuit)?;
             let current = resolve_signal(&dataset.data, pair[1], circuit)?;
             if let (Some(voltage), Some(current)) = (voltage, current) {
+                let voltage = maybe_window_signal(voltage, window)?;
+                let current = maybe_window_signal(current, window)?;
                 supply_power += average_product(&voltage, &current)?.abs();
             } else {
                 complete = false;
@@ -359,31 +385,43 @@ fn evaluate_thd(
     circuit: &CircuitIR,
     simulation: &SimulationResult,
 ) -> Result<f64, String> {
-    require_count("thd", arguments, 1)?;
-    let (_, values) = transient_signal(arguments[0], circuit, simulation)?;
-    if values.len() < 16 {
-        return Err("THD requires at least 16 transient samples".to_string());
+    if arguments.len() != 5 {
+        return Err("thd expects signal,fundamental,start,stop,hann".to_string());
     }
-    let mean = values.iter().sum::<f64>() / values.len() as f64;
-    let centered = values.iter().map(|value| value - mean).collect::<Vec<_>>();
-    let half = centered.len() / 2;
-    let magnitudes = (1..half)
-        .map(|bin| dft_magnitude(&centered, bin))
-        .collect::<Vec<_>>();
-    let (fundamental_offset, fundamental) = magnitudes
-        .iter()
-        .copied()
-        .enumerate()
-        .max_by(|(_, left), (_, right)| left.total_cmp(right))
-        .ok_or_else(|| "THD could not identify a fundamental".to_string())?;
+    if !arguments[4].eq_ignore_ascii_case("hann") {
+        return Err("THD window policy must be the explicit 'hann' policy".to_string());
+    }
+    let fundamental_hz = parse_quantity(arguments[1], SIUnit::Hertz)
+        .map_err(|error| format!("invalid THD fundamental: {error}"))?
+        .value;
+    if fundamental_hz <= 0.0 {
+        return Err("THD fundamental must be positive".to_string());
+    }
+    let (axis, values) = transient_signal(arguments[0], circuit, simulation)?;
+    let (axis, values) = windowed_series(&axis, &values, arguments[2], arguments[3])?;
+    if values.len() < 32 {
+        return Err(
+            "THD requires at least 32 transient samples in its measurement window".to_string(),
+        );
+    }
+    let (axis, values) = uniform_resample(&axis, &values)?;
+    let duration = axis.last().unwrap() - axis[0];
+    if duration * fundamental_hz < 2.0 {
+        return Err(
+            "THD measurement window must contain at least two fundamental periods".to_string(),
+        );
+    }
+    let sample_rate = (values.len() - 1) as f64 / duration;
+    if fundamental_hz * 5.0 >= sample_rate / 2.0 {
+        return Err("THD fifth harmonic exceeds the transient Nyquist limit".to_string());
+    }
+    let fundamental = windowed_tone_amplitude(&axis, &values, fundamental_hz);
     if fundamental <= f64::EPSILON {
         return Err("THD fundamental magnitude is zero".to_string());
     }
-    let fundamental_bin = fundamental_offset + 1;
     let harmonic_squared = (2..=5)
-        .filter_map(|harmonic| {
-            let bin = fundamental_bin * harmonic;
-            (bin < half).then(|| dft_magnitude(&centered, bin).powi(2))
+        .map(|harmonic| {
+            windowed_tone_amplitude(&axis, &values, fundamental_hz * harmonic as f64).powi(2)
         })
         .sum::<f64>();
     Ok(harmonic_squared.sqrt() / fundamental * 100.0)
@@ -394,7 +432,9 @@ fn evaluate_dissipation(
     circuit: &CircuitIR,
     simulation: &SimulationResult,
 ) -> Result<f64, String> {
-    require_count("dissipation", arguments, 1)?;
+    if !matches!(arguments.len(), 1 | 3) {
+        return Err("dissipation expects device or device,start,stop".to_string());
+    }
     let signal = format!("P({})", arguments[0]);
     for dataset in simulation
         .datasets
@@ -402,13 +442,16 @@ fn evaluate_dissipation(
         .filter(|dataset| matches!(dataset.data, Dataset::Transient(_)))
     {
         if let Some(power) = resolve_signal(&dataset.data, &signal, circuit)? {
+            let power = maybe_window_signal(power, arguments.get(1..3))?;
             return match power {
                 SignalData::Scalar(value) => Ok(value.max(0.0)),
-                SignalData::Series { values, .. } => Ok(values
-                    .iter()
-                    .map(|value| value.max(0.0))
-                    .sum::<f64>()
-                    / values.len() as f64),
+                SignalData::Series { axis, values } => time_weighted_average(
+                    &axis,
+                    &values
+                        .iter()
+                        .map(|value| value.max(0.0))
+                        .collect::<Vec<_>>(),
+                ),
             };
         }
     }
@@ -437,6 +480,9 @@ fn voltage_signal(
     target: &str,
     circuit: &CircuitIR,
 ) -> Result<Option<SignalData>, String> {
+    if let Some((positive, negative)) = target.split_once(',') {
+        return terminal_pair_voltage(dataset, positive.trim(), negative.trim(), circuit);
+    }
     if let Some(component) = circuit
         .components
         .iter()
@@ -472,6 +518,38 @@ fn voltage_signal(
             "raw voltage reductions over complex AC data are unsupported; use gain, bandwidth or phase"
                 .to_string(),
         ),
+    }
+}
+
+fn terminal_pair_voltage(
+    dataset: &Dataset,
+    positive: &str,
+    negative: &str,
+    circuit: &CircuitIR,
+) -> Result<Option<SignalData>, String> {
+    let graph = NetlistGraph::build(circuit);
+    let endpoint_net = |endpoint: &str| -> Result<String, String> {
+        let (component_name, pin) = endpoint.split_once('.').ok_or_else(|| {
+            format!("terminal-pair voltage endpoint '{endpoint}' must use component.pin")
+        })?;
+        let component = find_component(circuit, component_name)?;
+        let pin_exists = crate::component::component_definition(&component.kind)
+            .pins
+            .iter()
+            .any(|definition| definition.name.eq_ignore_ascii_case(pin));
+        if !pin_exists {
+            return Err(format!("'{}' has no pin '{}'", component.id, pin));
+        }
+        graph
+            .get_net(&component.id, pin)
+            .map(|net| graph.get_net_name(net))
+            .ok_or_else(|| format!("{}.{} is not connected", component.id, pin))
+    };
+    let positive = voltage_signal(dataset, &endpoint_net(positive)?, circuit)?;
+    let negative = voltage_signal(dataset, &endpoint_net(negative)?, circuit)?;
+    match (positive, negative) {
+        (Some(positive), Some(negative)) => Ok(Some(subtract_signal(positive, negative)?)),
+        _ => Ok(None),
     }
 }
 
@@ -748,6 +826,31 @@ fn parse_signal(signal: &str) -> Result<(&str, &str), String> {
     Ok((function, target))
 }
 
+fn split_arguments(arguments: &str) -> Vec<&str> {
+    let mut depth = 0usize;
+    let mut start = 0usize;
+    let mut result = Vec::new();
+    for (index, character) in arguments.char_indices() {
+        match character {
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                let argument = arguments[start..index].trim();
+                if !argument.is_empty() {
+                    result.push(argument);
+                }
+                start = index + 1;
+            }
+            _ => {}
+        }
+    }
+    let argument = arguments[start..].trim();
+    if !argument.is_empty() {
+        result.push(argument);
+    }
+    result
+}
+
 fn lookup_scalar(values: &std::collections::BTreeMap<String, f64>, key: &str) -> Option<f64> {
     values
         .iter()
@@ -791,6 +894,112 @@ fn windowed_values(
     Ok(selected)
 }
 
+fn windowed_series(
+    axis: &[f64],
+    values: &[f64],
+    start: &str,
+    stop: &str,
+) -> Result<(Vec<f64>, Vec<f64>), String> {
+    let start_value = parse_quantity(start, SIUnit::Second)
+        .map_err(|error| format!("invalid window start: {error}"))?
+        .value;
+    let stop_value = parse_quantity(stop, SIUnit::Second)
+        .map_err(|error| format!("invalid window stop: {error}"))?
+        .value;
+    if start_value < 0.0 || stop_value <= start_value {
+        return Err("measurement window requires 0 <= start < stop".to_string());
+    }
+    let selected = axis
+        .iter()
+        .copied()
+        .zip(values.iter().copied())
+        .filter(|(time, _)| *time >= start_value && *time <= stop_value)
+        .collect::<Vec<_>>();
+    if selected.is_empty() {
+        return Err(format!(
+            "measurement window {start_value}..{stop_value} contains no samples"
+        ));
+    }
+    Ok(selected.into_iter().unzip())
+}
+
+fn maybe_window_signal(signal: SignalData, window: Option<&[&str]>) -> Result<SignalData, String> {
+    let Some(window) = window else {
+        return Ok(signal);
+    };
+    if window.len() != 2 {
+        return Err("measurement window requires start and stop".to_string());
+    }
+    match signal {
+        SignalData::Scalar(_) => {
+            Err("measurement window requires transient series data".to_string())
+        }
+        SignalData::Series { axis, values } => {
+            let (axis, values) = windowed_series(&axis, &values, window[0], window[1])?;
+            Ok(SignalData::Series { axis, values })
+        }
+    }
+}
+
+fn uniform_resample(axis: &[f64], values: &[f64]) -> Result<(Vec<f64>, Vec<f64>), String> {
+    if axis.len() != values.len() || axis.len() < 2 {
+        return Err("THD requires aligned transient samples".to_string());
+    }
+    if axis.windows(2).any(|pair| pair[1] <= pair[0]) {
+        return Err("THD time axis must be strictly increasing".to_string());
+    }
+    let start = axis[0];
+    let stop = *axis.last().expect("nonempty axis");
+    let step = (stop - start) / (axis.len() - 1) as f64;
+    let uniform_axis = (0..axis.len())
+        .map(|index| start + step * index as f64)
+        .collect::<Vec<_>>();
+    let mut source_index = 0usize;
+    let mut uniform_values = Vec::with_capacity(values.len());
+    for target in &uniform_axis {
+        while source_index + 1 < axis.len() && axis[source_index + 1] < *target {
+            source_index += 1;
+        }
+        if source_index + 1 == axis.len() {
+            uniform_values.push(values[source_index]);
+            continue;
+        }
+        let left_time = axis[source_index];
+        let right_time = axis[source_index + 1];
+        let fraction = (*target - left_time) / (right_time - left_time);
+        uniform_values.push(
+            values[source_index] + fraction * (values[source_index + 1] - values[source_index]),
+        );
+    }
+    Ok((uniform_axis, uniform_values))
+}
+
+fn windowed_tone_amplitude(axis: &[f64], values: &[f64], frequency_hz: f64) -> f64 {
+    let count = values.len();
+    let weights = (0..count)
+        .map(|index| 0.5 - 0.5 * (std::f64::consts::TAU * index as f64 / (count - 1) as f64).cos())
+        .collect::<Vec<_>>();
+    let weight_sum = weights.iter().sum::<f64>();
+    let mean = values
+        .iter()
+        .zip(&weights)
+        .map(|(value, weight)| value * weight)
+        .sum::<f64>()
+        / weight_sum;
+    let (real, imaginary) = axis.iter().zip(values).zip(&weights).fold(
+        (0.0, 0.0),
+        |(real, imaginary), ((time, value), weight)| {
+            let phase = std::f64::consts::TAU * frequency_hz * (*time - axis[0]);
+            let centered = (value - mean) * weight;
+            (
+                real + centered * phase.cos(),
+                imaginary - centered * phase.sin(),
+            )
+        },
+    );
+    2.0 * real.hypot(imaginary) / weight_sum
+}
+
 fn reduce_scalar(metric: &str, value: f64) -> Result<f64, String> {
     match metric {
         "value" | "min" | "max" | "average" | "avg" => Ok(value),
@@ -821,25 +1030,50 @@ fn reduce_series(metric: &str, values: &[f64]) -> Result<f64, String> {
 fn signal_rms(signal: &SignalData) -> Result<f64, String> {
     match signal {
         SignalData::Scalar(value) => Ok(value.abs()),
-        SignalData::Series { values, .. } => reduce_series("rms", values),
+        SignalData::Series { axis, values } => Ok(time_weighted_average(
+            axis,
+            &values.iter().map(|value| value * value).collect::<Vec<_>>(),
+        )?
+        .sqrt()),
     }
 }
 
 fn average_product(left: &SignalData, right: &SignalData) -> Result<f64, String> {
     match (left, right) {
         (SignalData::Scalar(left), SignalData::Scalar(right)) => Ok(left * right),
-        (SignalData::Series { values: left, .. }, SignalData::Series { values: right, .. })
+        (SignalData::Series { axis, values: left }, SignalData::Series { values: right, .. })
             if left.len() == right.len() && !left.is_empty() =>
         {
-            Ok(left
-                .iter()
-                .zip(right)
-                .map(|(left, right)| left * right)
-                .sum::<f64>()
-                / left.len() as f64)
+            time_weighted_average(
+                axis,
+                &left
+                    .iter()
+                    .zip(right)
+                    .map(|(left, right)| left * right)
+                    .collect::<Vec<_>>(),
+            )
         }
         _ => Err("power signals have incompatible shapes".to_string()),
     }
+}
+
+fn time_weighted_average(axis: &[f64], values: &[f64]) -> Result<f64, String> {
+    if axis.len() != values.len() || axis.len() < 2 {
+        return Err("time-weighted measurement requires at least two aligned samples".to_string());
+    }
+    let mut integral = 0.0;
+    for index in 1..axis.len() {
+        let delta = axis[index] - axis[index - 1];
+        if delta <= 0.0 {
+            return Err("time-weighted measurement axis must be strictly increasing".to_string());
+        }
+        integral += delta * (values[index - 1] + values[index]) * 0.5;
+    }
+    nonzero_divide(
+        integral,
+        axis[axis.len() - 1] - axis[0],
+        "time-weighted measurement window has zero duration",
+    )
 }
 
 fn map_signal(signal: SignalData, operation: impl Fn(f64) -> f64) -> SignalData {
@@ -921,18 +1155,6 @@ fn derivative(axis: &[f64], values: &[f64]) -> Result<Vec<f64>, String> {
         result.push((values[right] - values[left]) / delta);
     }
     Ok(result)
-}
-
-fn dft_magnitude(values: &[f64], bin: usize) -> f64 {
-    let (real, imaginary) =
-        values
-            .iter()
-            .enumerate()
-            .fold((0.0, 0.0), |(real, imaginary), (index, value)| {
-                let angle = std::f64::consts::TAU * bin as f64 * index as f64 / values.len() as f64;
-                (real + value * angle.cos(), imaginary - value * angle.sin())
-            });
-    2.0 * real.hypot(imaginary) / values.len() as f64
 }
 
 fn require_count(name: &str, arguments: &[&str], expected: usize) -> Result<(), String> {

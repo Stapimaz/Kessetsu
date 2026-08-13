@@ -169,7 +169,7 @@ fn svg_visual_golden_hashes_are_cross_platform_stable() {
         (
             "power_amplifier",
             CORPUS[5].1,
-            "d8da2bb5cb7c95f77c4ba5949c1d79bce4ee22704b2ce55fe07cf87a4844d0e4",
+            "d5372a3ea105bad265ebb94c1ff88ce9f9ad233a606585496da75e6ad4a3bcd3",
         ),
     ] {
         let actual = svg_hash(source);

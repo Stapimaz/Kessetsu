@@ -17,8 +17,8 @@ opamp U2 NLANG_OPAMP_V1
 opamp U3 NLANG_OPAMP_V1
 resistor RF 55.6k
 resistor RG 1k
-transistor QN npn 2N3904
-transistor QP pnp 2N3906
+transistor QN npn NLANG_POWER_NPN_V1
+transistor QP pnp NLANG_POWER_PNP_V1
 resistor RL 8
 connect VP.minus to GND
 connect VP.plus to VCC
@@ -57,12 +57,13 @@ simulate ac dec 30 10Hz 10MHz
 simulate tran 5us 10ms
 assert gain(V(OUT),V(IN)) > 55
 assert gain(V(OUT),V(IN)) < 58
-assert output_power(V(OUT),RL) > 1.9W
-assert output_power(V(OUT),RL) < 2.1W
-assert thd(V(OUT)) < 3%
+assert output_power(V(OUT),RL,2ms,10ms) > 1.9W
+assert output_power(V(OUT),RL,2ms,10ms) < 2.1W
+assert efficiency(V(OUT),RL,V(VCC),I(VP),V(VEE),I(VN),2ms,10ms) > 35%
+assert thd(V(OUT),1kHz,2ms,10ms,hann) < 3%
 assert clipping(V(OUT),-10V,10V) < 0.1%
-assert dissipation(QN) < 2W
-assert dissipation(QP) < 2W
-assert peak(V(QN)) < 20V
+assert dissipation(QN,2ms,10ms) < 2W
+assert dissipation(QP,2ms,10ms) < 2W
+assert peak(V(QN.c,QN.e),2ms,10ms) < 20V
 assert peak(I(QN)) < 1A
 assert peak(P(QN)) < 5W

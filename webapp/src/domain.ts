@@ -25,6 +25,25 @@ export interface CompileReport {
   schematic_svg: string | null;
   kicad_sch: string | null;
   spice_netlist: string | null;
+  ir?: { model_manifest: ModelManifest } | null;
+}
+
+export interface ModelManifest {
+  schema_version: string;
+  models: ModelInfo[];
+  packages: Array<{ name: string; version: string }>;
+}
+
+export interface ModelInfo {
+  name: string;
+  source: string;
+  provenance: {
+    source: string;
+    license: string;
+    version: string;
+    content_hash: string;
+    simulator: string;
+  };
 }
 
 export type SimulationState = 'idle' | 'running' | 'succeeded' | 'failed' | 'cancelled';
@@ -39,6 +58,7 @@ export interface WorkspaceState {
   schematicSvg: string;
   kicadSch: string;
   spiceNetlist: string;
+  modelManifest: ModelManifest | null;
   simulationState: SimulationState;
   simulationMessage: string;
   evaluation: BrowserEvaluation | null;

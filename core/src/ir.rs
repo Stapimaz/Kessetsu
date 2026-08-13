@@ -909,11 +909,28 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
 }
 
 fn split_assertion_arguments(arguments: &str) -> Vec<&str> {
-    arguments
-        .split(',')
-        .map(str::trim)
-        .filter(|argument| !argument.is_empty())
-        .collect()
+    let mut depth = 0usize;
+    let mut start = 0usize;
+    let mut result = Vec::new();
+    for (index, character) in arguments.char_indices() {
+        match character {
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                let argument = arguments[start..index].trim();
+                if !argument.is_empty() {
+                    result.push(argument);
+                }
+                start = index + 1;
+            }
+            _ => {}
+        }
+    }
+    let argument = arguments[start..].trim();
+    if !argument.is_empty() {
+        result.push(argument);
+    }
+    result
 }
 
 fn signal_unit(signal: &str) -> Option<SIUnit> {
@@ -935,9 +952,10 @@ fn assertion_result_unit(metric: &str, arguments: &[&str]) -> Option<SIUnit> {
         "bandwidth" | "cutoff" => (arguments.len() == 2).then_some(SIUnit::Hertz),
         "frequency" => (arguments.len() == 1).then_some(SIUnit::Hertz),
         "phase" => matches!(arguments.len(), 2 | 3).then_some(SIUnit::Degree),
-        "output_power" | "dissipation" => matches!(arguments.len(), 1 | 2).then_some(SIUnit::Watt),
-        "efficiency" => matches!(arguments.len(), 4 | 6).then_some(SIUnit::Percent),
-        "thd" => (arguments.len() == 1).then_some(SIUnit::Percent),
+        "output_power" => matches!(arguments.len(), 2 | 4).then_some(SIUnit::Watt),
+        "dissipation" => matches!(arguments.len(), 1 | 3).then_some(SIUnit::Watt),
+        "efficiency" => matches!(arguments.len(), 4 | 6 | 8).then_some(SIUnit::Percent),
+        "thd" => (arguments.len() == 5).then_some(SIUnit::Percent),
         "clipping" => (arguments.len() == 3).then_some(SIUnit::Percent),
         _ => {
             if matches!(arguments.len(), 1 | 3) {

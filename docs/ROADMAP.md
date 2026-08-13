@@ -832,17 +832,17 @@ Mevcut Web/layout kodu tamamen boş değildir ve kanıt görmeden silinmeyecekti
 
 ### 4.4 — Gerçek devre parity'si, model ürünü ve ölçüm sertleştirmesi
 
-- [ ] Gain-stage ve dört katlı power-amplifier fixture'larını Web örnek seçicisine ekle.
-- [ ] RC, gain-stage ve power-amplifier için CLI/Web compile, canonical SPICE, model manifest/lock, measurement ve assertion parity matrisi oluştur.
-- [ ] Native ve browser build'lerinde aynı builtin/package modelin byte-for-byte aynı canonical directive/netlist'e ulaştığını test et.
-- [ ] İlk yayın benchmark'larının ihtiyaç duyduğu lisansı doğrulanmış başlangıç model paketini tamamla; geniş üretici registry'sini Faz 5+'ta tut.
-- [ ] Web'de model seçimi, provenance/lisans/sürüm/simulator bilgisini görüntüleme ve yalnız typed declaration/package import akışı sun.
-- [ ] User model içeriğinin Web'de de raw SPICE/control sınırını atlayamadığını security corpus'uyla test et.
-- [ ] Derived output power, efficiency ve dissipation metric'lerine açık steady-state zaman penceresi desteği ekle.
-- [ ] THD'yi explicit fundamental, ölçüm penceresi ve spectral leakage/window politikasıyla ürün seviyesinde kesinleştir.
-- [ ] Low-pass dışı cevaplar için cutoff/bandwidth semantiğini açık metric veya fail-closed sınırla tanımla.
-- [ ] `Vce/Vbe/Vds/Vgs` gibi açık terminal-pair stress ölçümünü typed primitive olarak tasarla ve benchmark'la doğrula.
-- [ ] Power-amplifier Web sonucunda 8 Ω output power, gain, THD, clipping, device stress ve dissipation koşullarını göster.
+- [x] Gain-stage ve dört katlı power-amplifier fixture'larını Web örnek seçicisine ekle. _RC, Gain Stage ve Power Amplifier aynı source-of-truth fixture'lardan yüklenir._
+- [x] RC, gain-stage ve power-amplifier için CLI/Web compile, canonical SPICE, model manifest/lock, measurement ve assertion parity matrisi oluştur. _Kanıt: `simulation-parity.spec.ts` ve `benchmark-parity.spec.ts`; üç benchmark'ın native/browser kararları PASS._
+- [x] Native ve browser build'lerinde aynı builtin/package modelin byte-for-byte aynı canonical directive/netlist'e ulaştığını test et. _Benchmark builtins ve `web-model-security.spec.ts` exact `netlang_analog@1.0.0` package'ı native artifact ile byte karşılaştırır._
+- [x] İlk yayın benchmark'larının ihtiyaç duyduğu lisansı doğrulanmış başlangıç model paketini tamamla; geniş üretici registry'sini Faz 5+'ta tut. _Apache-2.0 `netlang_analog@1.0.0`, NLANG op-amp ve simetrik `NLANG_POWER_NPN/PNP_V1`; power benchmark legacy-provenance transistor modellerinden çıkarıldı._
+- [x] Web'de model seçimi, provenance/lisans/sürüm/simulator bilgisini görüntüleme ve yalnız typed declaration/package import akışı sun. _Source editor typed seçim yüzeyidir; Models popover resolved manifest'i ve provenance alanlarını gösterir._
+- [x] User model içeriğinin Web'de de raw SPICE/control sınırını atlayamadığını security corpus'uyla test et. _`web-model-security.spec.ts` injection'ı `NL-C010` ile durdurur, SPICE/Run üretmez._
+- [x] Derived output power, efficiency ve dissipation metric'lerine açık steady-state zaman penceresi desteği ekle. _Ortak `start,stop` sözleşmesi, adaptive timestep için time-weighted RMS/average ve power benchmark 2–10 ms penceresi._
+- [x] THD'yi explicit fundamental, ölçüm penceresi ve spectral leakage/window politikasıyla ürün seviyesinde kesinleştir. _`thd(signal,fundamental,start,stop,hann)`; deterministic resampling, Hann projection, H2–H5, sample/period/Nyquist fail-closed kapıları._
+- [x] Low-pass dışı cevaplar için cutoff/bandwidth semantiğini açık metric veya fail-closed sınırla tanımla. _İlk AC noktası maksimumun %1'i içinde değilse ERROR; `bandwidth_fails_closed_for_non_low_pass_response`._
+- [x] `Vce/Vbe/Vds/Vgs` gibi açık terminal-pair stress ölçümünü typed primitive olarak tasarla ve benchmark'la doğrula. _`V(component.pin,component.pin)` shared catalog pin doğrulaması; power benchmark `V(QN.c,QN.e)`._
+- [x] Power-amplifier Web sonucunda 8 Ω output power, gain, THD, clipping, device stress ve dissipation koşullarını göster. _Ayrıca dual-supply steady-state efficiency; 12 assertion gerçek Chromium'da PASS._
 
 **4.4 kabul kriteri:** Üç canonical benchmark native ve browser'da aynı PASS/FAIL mühendislik kararını verir; model ve ölçüm varsayımları kullanıcıdan gizlenmez.
 

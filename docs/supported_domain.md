@@ -16,7 +16,7 @@ Bu belge Faz 4 için ilan edilen elektriksel kapsamı dondurur. “Destekleniyor
 
 ## Model kapsamı
 
-- Builtin: `2N3904`, `2N3906`, `2N2222`, `NLANG_POWER_NPN_V1`, `1N4148`, `1N4007`, `IRF540`, `NLANG_PMOS_V1`, `NLANG_OPAMP_V1`.
+- Builtin: `2N3904`, `2N3906`, `2N2222`, `NLANG_POWER_NPN_V1`, `NLANG_POWER_PNP_V1`, `1N4148`, `1N4007`, `IRF540`, `NLANG_PMOS_V1`, `NLANG_OPAMP_V1`.
 - User model: typed diode/BJT/MOSFET parametre whitelist'i.
 - User subcircuit: yalnız typed op-amp template'i.
 - Package import: exact ad+sürüm, content hash, lisans ve simulator capability içeren `netlang.models.v1`/`netlang.lock.v1`.
@@ -43,4 +43,3 @@ Bu belge Faz 4 için ilan edilen elektriksel kapsamı dondurur. “Destekleniyor
 ## Bilinçli fiziksel sınırlar
 
 NetLang'in ilk sürümü schematic-level SPICE mühendislik aracıdır; PCB layout/DRC, transmission-line/EM field çözümü, RF S-parameter workflow'u, digital HDL, thermal/aging/reliability, package/PCB parasitic extraction, EMC/ESD, manufacturing tolerance/Monte Carlo ve datasheet limit database'i sağlamaz. Simülasyon sonucu gerçek laboratuvar ölçümü veya mühendis incelemesinin yerine geçmez. Desteklenen analog/mixed-signal SPICE kapsamı ileride typed domain sözleşmeleriyle genişleyebilir; bugünkü mimari eğitim devreleriyle sınırlı değildir.
-

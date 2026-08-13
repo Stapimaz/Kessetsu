@@ -17,6 +17,7 @@ Device-limit checks use the same primitives, for example:
 
 ```netlang
 assert peak(V(Q1)) < 40V
+assert peak(V(Q1.c,Q1.e),2ms,10ms) < 40V
 assert peak(I(Q1)) < 1A
 assert peak(P(Q1)) < 5W
 assert dissipation(Q1) < 2W
@@ -44,11 +45,15 @@ The contract requires `0 <= start < stop` and at least one sample inside the win
 | `bandwidth(out,in)` / `cutoff(out,in)` | Log-frequency interpolation of the first `-3 dB` crossing relative to the first AC gain point | AC, at least two points and a crossing | Hz |
 | `frequency(signal)` | Reciprocal of the mean period between rising mean crossings | Transient, at least two crossings | Hz |
 | `phase(out,in[,frequency])` | Wrapped complex phase difference in `(-180, 180]`; optional frequency selects the nearest AC point | AC | degree |
-| `output_power(V(out),load)` | `Vrms²/Rload` | Transient voltage and resistor load | W |
-| `efficiency(V(out),load,V(supply),I(source)[,...])` | `100 × Pout / Σ|average(Vsupply × Isource)|`; accepts one or two supply pairs | Transient | % |
-| `thd(signal)` | `100 × sqrt(Σ H₂..H₅²)/H₁`; the largest non-DC DFT bin is the fundamental | Transient, at least 16 samples | % |
+| `output_power(V(out),load[,start,stop])` | `Vrms²/Rload`; optional bounds isolate steady state | Transient voltage and resistor load | W |
+| `efficiency(V(out),load,V(supply),I(source)[,...][,start,stop])` | `100 × Pout / Σ|average(Vsupply × Isource)|`; accepts one or two supply pairs and an optional shared steady-state window | Transient | % |
+| `thd(signal,fundamental,start,stop,hann)` | Explicit-frequency Hann-windowed projection after deterministic linear resampling; `100 × sqrt(Σ H₂..H₅²)/H₁` | Transient data, at least 32 samples and two fundamental periods | % |
 | `clipping(signal,lower,upper)` | Percentage of samples within `0.1%` of either explicit rail | Transient | % |
-| `dissipation(device)` | Mean of `max(P(device), 0)` | Transient device voltage/current | W |
+| `dissipation(device[,start,stop])` | Mean of `max(P(device), 0)`; optional bounds isolate steady state | Transient device voltage/current | W |
+
+`V(component.pin,component.pin)` is the explicit terminal-pair primitive for stress checks. It validates both component pins against the shared catalog and preserves the written polarity; for example `V(Q1.c,Q1.e)` is VCE and `V(M1.g,M1.s)` is VGS. The shorthand `V(Q1)` remains the device's canonical main terminal pair for compatibility.
+
+`bandwidth`/`cutoff` is intentionally low-pass-only in `netlang.measurement.v1`: the first AC point must be within 1% of the maximum response and a later downward −3 dB crossing must exist. Band-pass, high-pass or multi-peak responses fail closed instead of returning a misleading “cutoff”; explicit lower/upper crossing metrics are reserved for a later schema revision.
 
 Frequency sweeps should use `ac(amplitude)` sources. A source used by both transient and AC analyses uses `sine_ac(offset, amplitude, frequency, ac_amplitude)`.
 

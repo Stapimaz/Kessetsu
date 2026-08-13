@@ -127,6 +127,7 @@ Ngspice entegrasyonu Windows'ta repository/release sidecar ile, otomasyon ve diÄ
 | 2N3906 | BJT PNP | Builtin |
 | 2N2222 | BJT NPN | Builtin |
 | NLANG_POWER_NPN_V1 | Generic power BJT NPN | Verified builtin |
+| NLANG_POWER_PNP_V1 | Generic power BJT PNP | Verified builtin |
 | 1N4148 | Diode | Builtin |
 | 1N4007 | Diode | Builtin |
 | IRF540 | MOSFET NMOS | Builtin |

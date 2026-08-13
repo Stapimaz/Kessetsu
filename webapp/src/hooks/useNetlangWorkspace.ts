@@ -34,6 +34,7 @@ const initialState: WorkspaceState = {
   schematicSvg: '',
   kicadSch: '',
   spiceNetlist: '',
+  modelManifest: null,
   simulationState: 'idle',
   simulationMessage: 'Run ile simülasyonu başlatın',
   evaluation: null,
@@ -73,6 +74,7 @@ export function useNetlangWorkspace() {
         schematicSvg: !hasErrors ? result.schematic_svg ?? '' : '',
         spiceNetlist: !hasErrors ? result.spice_netlist ?? '' : '',
         kicadSch: !hasErrors ? result.kicad_sch ?? '' : '',
+        modelManifest: !hasErrors ? result.ir?.model_manifest ?? null : null,
       }));
     } catch (error: unknown) {
       setState((current) => ({
@@ -83,6 +85,7 @@ export function useNetlangWorkspace() {
         schematicSvg: '',
         spiceNetlist: '',
         kicadSch: '',
+        modelManifest: null,
       }));
     }
   }, [state.code, state.wasmLoaded]);

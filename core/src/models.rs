@@ -495,6 +495,11 @@ fn builtin_models() -> Vec<ModelRef> {
             ComponentKind::BJT(BJTPolarity::NPN),
             ".model NLANG_POWER_NPN_V1 NPN (Is=1e-12 Bf=80 Vaf=60 Cje=300p Cjc=150p Tf=1u Tr=5u)",
         ),
+        verified_device_model(
+            "NLANG_POWER_PNP_V1",
+            ComponentKind::BJT(BJTPolarity::PNP),
+            ".model NLANG_POWER_PNP_V1 PNP (Is=1e-12 Bf=80 Vaf=60 Cje=300p Cjc=150p Tf=1u Tr=5u)",
+        ),
         device_model(
             "1N4148",
             ComponentKind::Diode,

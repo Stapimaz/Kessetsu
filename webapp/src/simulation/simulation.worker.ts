@@ -21,7 +21,8 @@ function canonicalSignalName(name: string): string {
   const voltage = /^v\((.+)\)$/.exec(lower);
   if (voltage) return voltage[1];
   const current = /^i\((.+)\)$/.exec(lower);
-  return current ? `${current[1]}#branch` : lower;
+  if (current) return current[1].startsWith('@') ? current[1] : `${current[1]}#branch`;
+  return lower;
 }
 
 function finiteNumbers(values: number[], label: string): number[] {

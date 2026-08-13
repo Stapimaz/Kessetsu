@@ -106,9 +106,18 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 
 .artifact-bar { gap: 7px; padding: 6px 14px; border-top: 1px solid var(--border); background: var(--panel-raised); }
 .artifact-bar button { padding: 4px 8px; font-size: 11px; }
-.spice-details { position: relative; margin-left: auto; font-size: 11px; }
+.model-details, .spice-details { position: relative; font-size: 11px; }
+.model-details { margin-left: auto; }
+.spice-details { margin-left: 6px; }
+.model-details summary,
 .spice-details summary { cursor: pointer; color: var(--muted); }
+.model-popover,
 .spice-details pre { position: absolute; z-index: 10; right: 0; bottom: 24px; width: min(680px, 80vw); max-height: 360px; overflow: auto; margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; color: #fbbf24; background: #0b1019; font: 11px ui-monospace, monospace; }
+.model-popover { width: min(440px, 80vw); color: var(--text); }
+.model-popover p { margin-top: 0; color: var(--muted); }
+.model-popover article { display: grid; gap: 2px; padding: 7px 0; border-top: 1px solid var(--border); }
+.model-popover article span { color: var(--accent); }
+.model-popover article small { color: var(--muted); }
 .global-error { padding: 8px; color: #fecdd3; background: #7f1d1d; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
