@@ -1,0 +1,140 @@
+# Schematic Quality Remediation Plan
+
+- Status: Active — Phase 4 release blocker
+- Opened: 2026-08-13
+- Scope: Core-owned schematic analysis, placement, routing, rendering and every CLI/Web/export projection that consumes `netlang.schematic.v1`
+
+## Why this work was reopened
+
+The existing schematic pipeline proves electrical connectivity, deterministic output and a small set of geometry invariants. It does **not** yet prove professional drafting quality.
+
+The current six-circuit test corpus passes because `QualityReport` checks symbol–symbol, wire–symbol and label–symbol collisions plus a permissive crossing limit. SVG hashes prove that the same drawing is produced again; they do not prove that the drawing is good. Browser E2E checks that the Core SVG is visible and reports `data-quality="pass"`; it does not inspect signal-flow clarity or page composition.
+
+The current label policy also hides a central weakness: every non-signal net, and every explicitly named signal net with at least three pins, is represented by a separate label at every pin instead of an explicit local wire. This can reduce measured crossings and wire length while producing disconnected-looking islands.
+
+Therefore the earlier Phase 4 visual-readability acceptance is reopened. Public release remains blocked until this plan is complete and the final benchmark sheets are explicitly reviewed.
+
+## Reproducible baseline audit
+
+The three Web Hub examples were rendered through the same Core/CLI path used by SVG/PNG/PDF export:
+
+- `rc_filter.nl`: electrically understandable, but the source-to-resistor wire makes an unnecessarily large rectangular detour; the drawing is much wider than its information content; raw floating-point component values are not presentation quality.
+- `gain_stage.nl`: the feedback loop is visually fragmented into repeated `OUT`/`FB` labels; supply sources, feedback resistors and load form distant islands; op-amp supply/model text overlaps; page utilization and alignment are poor.
+- `power_amplifier.nl`: the four functional stages do not read as one left-to-right chain; buffer, gain, driver and output connections are mostly labels rather than visible wires; the third op-amp drops to another row without a clear reason; dual supplies dominate separate corners; output transistors and load do not form a recognizable class-B output stage.
+
+These are not cosmetic nits. A schematic is an engineering explanation of a circuit. Correct connectivity hidden behind labels is not sufficient.
+
+## Product-level quality contract
+
+Schematic quality will have three independent layers. None substitutes for another.
+
+### 1. Electrical hard gates
+
+- Every connected Circuit IR pin is represented exactly once by a wire, junction or intentional global label.
+- No net is invented, merged or split.
+- Ground, supply and signal semantics remain typed.
+- Output is deterministic across repeated compiles and declaration order.
+- Every renderer/exporter consumes Core-owned Circuit IR/Schematic IR; Web does not implement layout semantics.
+
+### 2. Geometric hard gates
+
+- No symbol–symbol, wire–symbol, text–symbol, text–wire or text–text collision.
+- No clipped symbol, label, value or model field.
+- No accidental dangling visible wire, ambiguous T-junction or junction-less same-net branch.
+- Local signal nets cannot pass by replacing every connection with labels.
+- Bounds and scale must keep all content legible at the Web panel's reference viewport and in exported SVG/PNG/PDF.
+
+### 3. Readability score and review gate
+
+The structured quality report will measure at least:
+
+- primary signal-path left-to-right monotonicity and stage-order inversions;
+- explicit-wire coverage for local signal and feedback nets;
+- label count and label-to-connected-pin ratio by net class;
+- crossings, bends, total Manhattan wire length and avoidable detours;
+- component alignment, stage cohesion and unexplained row changes;
+- occupied-content ratio, whitespace imbalance and page aspect ratio;
+- power/ground convention consistency;
+- feedback-loop visibility;
+- reference/value/model legibility and overlap margins.
+
+Hard failures stop artifact generation. Soft metrics produce a deterministic score and per-issue diagnostics, but a numeric score alone cannot certify aesthetics. Golden hashes are regression locks only after a sheet is accepted; changing a hash is never evidence of improvement by itself.
+
+## Target layout strategy
+
+### A. Semantic graph analysis
+
+1. Extend the shared component catalog with explicit pin/flow roles where the current `is_signal` boolean is insufficient: signal input, signal output/control, passive-through, power and reference.
+2. Classify nets as primary signal, feedback, local interconnect, bias/control, supply, ground or high-fan-out global.
+3. Discover likely source-to-output paths from typed topology, not component names such as `VIN` or `OUT` alone.
+4. Separate feedback edges before layering, retain them as explicit constraints, and restore them through dedicated outer routing channels.
+5. Group components into functional stages from graph adjacency and flow roles. Stage detection is a layout hint only and must never alter Circuit IR semantics.
+
+### B. Constraint-based placement
+
+1. Place the primary signal path from left to right.
+2. Keep components of one stage close and align equivalent branches.
+3. Put positive supply connections above, negative supply/ground below, and keep DC source symbols outside the main signal lane.
+4. Choose orientation from typed entry/exit pins and neighboring placement cost.
+5. Use deterministic layer ordering and bounded local improvement to minimize inversions, crossings, wire length and empty area.
+6. Treat feedback paths, bridges and differential/symmetric branches as explicit constraints rather than BFS accidents.
+
+The current breadth-first rank plus fixed “four items per column” placement is a baseline to replace, not an architecture to preserve.
+
+### C. Routing and label policy
+
+1. Prefer explicit orthogonal wires for the primary path, short local nets and feedback loops.
+2. Reserve labels for true global rails, intentionally repeated named buses and cases where a wire would materially reduce readability.
+3. Never label both ends of an ordinary two-point local connection.
+4. Use junction-aware Steiner-style trunks for multi-pin local nets instead of sending every branch to a hub beyond the rightmost component.
+5. Route feedback through stable outer channels and power/reference connections vertically.
+6. Penalize crossings, bends, parallel near-overlaps, long detours and routes passing through text clearance boxes.
+7. Place labels only after routing, with measured font bounds and deterministic alternative anchors.
+
+### D. Rendering polish
+
+1. Apply engineering-value formatting (`159 nF`, `55.6 kΩ`, `8 Ω`) instead of raw floating-point strings.
+2. Define reference, value and optional model tiers; long model names must not collide with supply symbols or dominate the sheet.
+3. Tune grid, stroke, font and symbol scale using the same Core SVG projection for Web, SVG, PNG and PDF.
+4. Fit the canvas to useful content with controlled margins and a sane aspect ratio; do not stretch sparse layouts to fill arbitrary space.
+
+## Iterative development and visual verification loop
+
+Each layout iteration will follow the same observable loop:
+
+1. Generate Schematic JSON, SVG and PNG for the canonical corpus through the CLI/Core path.
+2. Produce fixed-viewport Web screenshots for the same sources; do not use a separate test renderer.
+3. Emit a machine-readable quality report and fail hard invariants automatically.
+4. Inspect the actual PNG/screenshots at readable resolution and record a short per-circuit scorecard: signal flow, grouping, wiring, labels, power convention, typography and composition.
+5. Change one bounded part of analysis/placement/routing/rendering, regenerate the entire corpus, and compare metrics plus images against the previous accepted candidate.
+6. Add a regression fixture for every newly discovered topology failure before accepting the algorithm change.
+7. Update visual goldens only after the scorecard improves without electrical/geometric regression.
+
+The review corpus will include the existing minimal, RC, Wheatstone, op-amp gain, high-fan-out and power-amplifier circuits, plus targeted fixtures for feedback, bridge symmetry, dual rails, differential branches, local multi-drop nets, long labels and mixed-orientation passives.
+
+The agent can perform the generate → inspect → critique → revise cycle locally. CI will enforce deterministic electrical/geometric metrics and approved image baselines; it cannot replace the final engineering-readability review.
+
+## Implementation order
+
+- [ ] SQ-1 — Add the reproducible capture/scorecard harness and save the current six-circuit baseline without accepting it as a golden quality target.
+- [ ] SQ-2 — Expand `QualityReport` with text collisions, explicit-wire coverage, flow/stage, label-use, compactness and routing metrics; make label-based metric gaming impossible.
+- [ ] SQ-3 — Add typed pin-flow/net-role analysis to the shared component catalog and prove it on passive, op-amp, transistor, bridge and dual-supply fixtures.
+- [ ] SQ-4 — Replace fixed-row BFS placement with deterministic constrained stage placement; first make RC and gain-stage sheets conventionally readable.
+- [ ] SQ-5 — Implement local trunk/branch routing, explicit feedback paths and the restricted semantic-label policy.
+- [ ] SQ-6 — Tune symbols, engineering values, text hierarchy, margins and viewport fitting.
+- [ ] SQ-7 — Iterate on the power-amplifier sheet until buffer → gain/error → driver → class-B output → load is visually traceable without reading the source code.
+- [ ] SQ-8 — Verify SVG/PNG/PDF and Web parity, then verify KiCad/LTspice receive the accepted placement/connectivity without exporter-specific layout forks.
+- [ ] SQ-9 — Lock accepted corpus metrics/hashes/screenshots and run canonical local/remote verification.
+- [ ] SQ-10 — Obtain explicit owner review of the three Web examples before restoring the Phase 4 visual-quality acceptance checkboxes or publishing.
+
+## Exit criteria
+
+This remediation is complete only when:
+
+- all electrical and geometric hard gates pass;
+- RC, gain-stage and power-amplifier scorecards have no open major issue;
+- the main path and feedback path of the power amplifier are visually traceable at the default Web zoom;
+- the same accepted drawing is available from CLI and Web in every supported visual format;
+- KiCad/LTspice connectivity remains verified and no exporter invents a separate layout engine;
+- the owner has reviewed the local Web Hub and explicitly accepted the three example schematics.
+

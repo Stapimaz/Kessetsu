@@ -792,7 +792,24 @@ Mevcut Web/layout kodu tamamen boş değildir ve kanıt görmeden silinmeyecekti
 - [x] Wire–symbol, label–symbol, symbol–symbol collision ve gereksiz crossing/bend ölçütleri için otomatik kalite raporu oluştur. _`QualityReport`; altı-devre corpus kapısı._
 - [x] Connectivity golden ve visual golden corpus'unu Windows/Linux'ta deterministik hale getir. _SVG SHA-256 golden testi platform-bağımsızdır; Playwright altı devreyi gerçek Chromium'da render eder ve isteğe bağlı screenshot üretir._
 
-**4.1 kabul kriteri:** Şema yalnız güzel görünen bir polyline koleksiyonu değildir; canonical circuit ile bağlantısal eşdeğerliği otomatik kanıtlanır ve karmaşık benchmark corpus'unda tanımlı okunabilirlik kapılarını geçer.
+**4.1 durum düzeltmesi (2026-08-13):** Canonical connectivity, typed Schematic IR ve determinism kanıtlandı; fakat mevcut `QualityReport` profesyonel okunabilirliği kanıtlamıyor. Yalnız collision/crossing sınırlarını ölçüyor, SVG hash'i ise estetik kalite değil tekrar üretilebilirlik kanıtı. RC/gain/power örneklerinin gerçek PNG incelemesinde parçalı net-label adacıkları, zayıf signal-flow/stage yerleşimi, aşırı boşluk ve text/supply kompozisyon sorunları görüldü. Bu nedenle 4.1'in görsel kabulü yeniden açıldı ve aşağıdaki 4.1R public-release blocker yapıldı.
+
+### 4.1R — Profesyonel şema okunabilirliği düzeltmesi (release blocker)
+
+Detaylı teknik plan, baseline bulguları, ölçülebilir kalite sözleşmesi ve iteratif görsel doğrulama döngüsü: [`docs/schematic_quality_plan.md`](schematic_quality_plan.md).
+
+- [ ] SQ-1 — Aynı Core/CLI render yolundan corpus PNG/SVG/Web screenshot ve per-circuit scorecard üreten tekrar edilebilir baseline harness'ı kur.
+- [ ] SQ-2 — Quality report'u text collision, explicit-wire coverage, signal-flow/stage order, label oranı, compactness/whitespace, detour ve alignment ölçütleriyle genişlet.
+- [ ] SQ-3 — Shared component catalog'a typed pin-flow/net-role metadata'sı ekle; placement kararlarını component adlarından değil Circuit IR topolojisinden üret.
+- [ ] SQ-4 — Sabit dört-satırlı BFS yerleşimini deterministic constraint/stage placement ile değiştir; RC ve gain-stage'i konvansiyonel okunabilir düzene getir.
+- [ ] SQ-5 — Local signal/feedback netlerinde explicit orthogonal wire, multi-pin local netlerde trunk/branch ve yalnız gerçek global netlerde label politikasını uygula.
+- [ ] SQ-6 — Engineering-value formatı, reference/value/model text hiyerarşisi, clearance, grid/margin ve viewport fitting'i profesyonel render seviyesine getir.
+- [ ] SQ-7 — Power amplifier'da buffer → gain/error → driver → class-B output → load akışını varsayılan zoom'da görsel olarak izlenebilir hale getir; her iterasyonda corpus'u render edip gerçek görüntüleri incele.
+- [ ] SQ-8 — Kabul edilen yerleşimin Web ile SVG/PNG/PDF ve KiCad/LTspice projection'larında parity/connectivity'sini doğrula; exporter-specific layout fork oluşturma.
+- [ ] SQ-9 — Kabul edilen scorecard/metric/hash/screenshot baseline'larını kilitle ve canonical local/remote kalite kapılarını çalıştır.
+- [ ] SQ-10 — Üç Web örneği için local Web Hub üzerinde proje sahibi görsel onayı al; bu onaydan önce 4.1/4.5/Faz 4 görsel kabulünü veya public release'i kapatma.
+
+**4.1R kabul kriteri:** Elektriksel/geometrik hard gate'ler geçer; RC, gain-stage ve power-amplifier scorecard'larında major kusur kalmaz; power-amplifier ana sinyal ve feedback yolu source okumadan izlenebilir; aynı kabul edilmiş çizim CLI ve Web'in ortak Core motorundan çıkar; proje sahibi local Web Hub'da üç örneği açıkça onaylar.
 
 ---
 
@@ -869,7 +886,7 @@ Mevcut Web/layout kodu tamamen boş değildir ve kanıt görmeden silinmeyecekti
 - [x] Desteklenen her Core/CLI export'unu Web Hub'da aynı capability/loss bilgisiyle tek ve anlaşılır export alanında sun. _Yedi Core-advertised format, capability details ve per-artifact status._
 - [x] Unsupported exporter özelliğini sessiz veri kaybı yerine structured fail-closed diagnostic yap. _`NL-X003/NL-X013` unverified connectivity ve unsupported symbol tests._
 
-**4.5 kabul kriteri:** Her ilan edilen format Core ve CLI'dan üretilebilir; Web aynı motorun ince arayüzüdür. Görsel çıktılar okunabilir, makine çıktıları sürümlü/deterministik, düzenlenebilir EDA çıktıları canonical graph ile bağlantısal olarak eşdeğer ve hedef uygulamada doğrulanmış biçimde açılır. Lossy dönüşüm sessiz yapılmaz.
+**4.5 durum:** Format üretimi, ortak Core sahipliği, determinism ve EDA connectivity/açılabilirlik kanıtlandı. “Görsel çıktılar okunabilir” bölümü 4.1R tamamlanıp local kullanıcı onayı alınana kadar açık kabul kriteridir. Lossy dönüşüm sessiz yapılmaz.
 
 ---
 
@@ -909,7 +926,7 @@ Mevcut Web/layout kodu tamamen boş değildir ve kanıt görmeden silinmeyecekti
 
 - [x] Kullanıcı hesap veya yerel kurulum olmadan Web Hub'ı açıp canonical bir devreyi compile, simulate, measure, inspect ve export edebilir. _Gerçek Chromium canonical RC ve power-amplifier product-path E2E._
 - [x] Web ve CLI aynı Core semantiğini ve versioned compile/schematic/simulation/measurement/assertion sözleşmelerini kullanır. _Rust/WASM thin adapters, browser/native parity corpus._
-- [x] Şema canonical graph connectivity kontrolünden geçer; karmaşık power-amplifier topolojisinde tanımlı readability/collision kapılarını sağlar. _Altı-devre quality/hash corpus ve gerçek-browser render._
+- [ ] Şema canonical graph connectivity kontrolünden geçer; karmaşık power-amplifier topolojisinde profesyonel readability/collision/flow/label/compactness kapılarını sağlar. _Connectivity kısmı geçiyor; 2026-08-13 görsel audit'i mevcut quality/hash corpus'unun okunabilirliği kanıtlamadığını gösterdi. 4.1R ve owner review bekleniyor._
 - [x] SVG/PNG/PDF ve Schematic IR JSON indirilebilir; KiCad/LTspice ile ilan edilen diğer EDA fixture'ları hedef uygulamalarda bağlantı kaybı olmadan açılır. _KiCad 10/LTspice 24 üç benchmark round-trip; 0 connectivity error, yalnız ilan edilen embedded-library warnings._
 - [x] Web'de sunulan her export aynı source için CLI'dan da alınabilir ve aynı exporter schema/capability sözleşmesine bağlıdır. _Yedi format download E2E; makine/EDA exact bytes, PDF stable structure/canonical visual source._
 - [x] OP, transient, AC ve DC sweep sonuçları Web'de interaktif olarak görüntülenir; assertions ilgili signal/threshold ile ilişkilidir. _Worker cancellation/restart, plots/tabs/cursor/threshold tests._
@@ -919,7 +936,7 @@ Mevcut Web/layout kodu tamamen boş değildir ve kanıt görmeden silinmeyecekti
 - [x] Paylaşılabilir URL devreyi ve gerekli version/package bilgisini schema kaybı olmadan round-trip eder. _`netlang.share.v1`, security unit corpus ve browser product demo._
 - [x] Desteklenen platformlarda CLI kurulumu ve ilk simülasyon temiz makine release smoke testinden geçer. _Final aday run `31730843184`: dört target PASS; her paket manifest/checksum üretip temiz dizinde gerçek Ngspice ile power-amplifier 12/12 doğruladı._
 - [x] Yeni kullanıcı yalnız public dokümanlarla bir devreyi tanımlayıp ölçebilir, assertion ekleyebilir ve hedef formatlarda export edebilir. _Language/simulation/measurement/tutorial/cookbook/troubleshooting/export/support referans seti._
-- [x] Canonical kalite kapısı, browser E2E, schematic connectivity/visual corpus, benchmark parity ve release artifact doğrulamaları geçer. _Yerel canonical full/iterasyon kapıları PASS; final Ubuntu full CI `31730827872` ve aynı commit dört-OS artifact matrisi `31730843184` PASS._
+- [ ] Canonical kalite kapısı, browser E2E, schematic connectivity/visual corpus, benchmark parity ve release artifact doğrulamaları geçer. _Mevcut yerel/remote kapılar teknik olarak PASS; ancak schematic visual gate yetersiz tanımlandığı için 4.1R metrikleri ve kabul edilmiş görsel baseline eklenmeden bu üst kabul yeniden kapatılamaz._
 - [ ] Bütün kabul kriterleri tamamlandıktan sonra repository ve Web Hub public yayınlanır.
 
 ---
