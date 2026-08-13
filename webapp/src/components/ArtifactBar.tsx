@@ -85,6 +85,18 @@ export function ArtifactBar({ spice, models, enabled, capabilities, message, onE
         <summary>Generated SPICE Netlist</summary>
         <pre>{spice || 'Geçerli devre bekleniyor…'}</pre>
       </details>
+      <details className="legal-details">
+        <summary>Legal</summary>
+        <div className="legal-popover">
+          <strong>NetLang © 2026 Stapimaz</strong>
+          <span>AGPL-3.0-only free software, provided without warranty.</span>
+          <span>
+            <a href="https://github.com/Stapimaz/NetLang" target="_blank" rel="noreferrer">Corresponding Source</a>
+            {' · '}
+            <a href={`${import.meta.env.BASE_URL}LICENSE.txt`} target="_blank" rel="noreferrer">Full license</a>
+          </span>
+        </div>
+      </details>
     </aside>
   );
 }

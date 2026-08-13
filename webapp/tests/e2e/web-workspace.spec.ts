@@ -32,6 +32,16 @@ test('supports edit, inline diagnostic navigation, fix, simulation, assertion an
   }
 });
 
+test('offers corresponding source and license from the interactive Web Hub', async ({ page }) => {
+  await page.goto('/');
+  const sourceLink = page.getByRole('link', { name: /source code and AGPL license/i });
+  await expect(sourceLink).toHaveAttribute('href', 'https://github.com/Stapimaz/NetLang');
+  await expect(sourceLink).toContainText('AGPLv3');
+  await page.getByText('Legal', { exact: true }).click();
+  await expect(page.getByText('AGPL-3.0-only free software, provided without warranty.')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Full license' })).toHaveAttribute('href', '/LICENSE.txt');
+});
+
 test('exposes keyboard controls and a usable mobile workspace', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');

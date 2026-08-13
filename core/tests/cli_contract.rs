@@ -13,6 +13,17 @@ fn path_argument(path: &std::path::Path) -> String {
 }
 
 #[test]
+fn help_exposes_project_license_source_and_warranty_notice() {
+    let workspace = TestWorkspace::new("help-license");
+    let output = workspace.run_cli(&["--help"]);
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("AGPL-3.0-only"));
+    assert!(stdout.contains("No warranty"));
+    assert!(stdout.contains("https://github.com/Stapimaz/NetLang"));
+}
+
+#[test]
 fn check_supports_human_and_machine_readable_success() {
     let workspace = TestWorkspace::new("check-success");
     let source = workspace.write("valid.nl", &read_fixture("valid/minimal.nl"));

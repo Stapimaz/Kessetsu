@@ -3,6 +3,10 @@ name = "netlang-core"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.97.1"
+description = "Deterministic circuit DSL, simulation, schematic and EDA export core"
+license = "AGPL-3.0-only"
+repository = "https://github.com/Stapimaz/NetLang"
+homepage = "https://stapimaz.github.io/NetLang/"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

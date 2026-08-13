@@ -22,6 +22,7 @@ First public-release candidate.
 - Windows x86-64 bundle with Ngspice 46 sidecar.
 - Linux x86-64, macOS x86-64 and macOS arm64 CLI bundles with verified system-Ngspice discovery.
 - Per-artifact SHA-256, release manifest and clean-machine simulation smoke workflow.
+- AGPL-3.0-only public license with a separately negotiated commercial-license path; license/source notices are bundled in CLI and Web distributions.
 
 ### Migration
 

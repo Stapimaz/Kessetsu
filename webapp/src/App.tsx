@@ -20,6 +20,15 @@ function App() {
         <div><span className="wordmark">NETLANG</span><span className="tagline">Circuit engineering, executable.</span></div>
         <div className="product-actions">
           <span className="share-status" role="status">{state.shareMessage}</span>
+          <a
+            className="license-link"
+            href="https://github.com/Stapimaz/NetLang"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="NetLang source code and AGPL license; provided without warranty"
+          >
+            Source · AGPLv3
+          </a>
           <button className="share-button" onClick={() => void share()} disabled={!state.compileSucceeded} aria-label="Share circuit">
             <Share2 size={15} /> Share
           </button>

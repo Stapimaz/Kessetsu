@@ -26,6 +26,9 @@ if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -F
 New-Item -ItemType Directory -Path $stage -Force | Out-Null
 Copy-Item -LiteralPath $binary -Destination (Join-Path $stage $binaryName)
 Copy-Item -LiteralPath (Join-Path $repoRoot "README.md") -Destination (Join-Path $stage "README.md")
+Copy-Item -LiteralPath (Join-Path $repoRoot "LICENSE") -Destination (Join-Path $stage "LICENSE")
+Copy-Item -LiteralPath (Join-Path $repoRoot "NOTICE") -Destination (Join-Path $stage "NOTICE")
+Copy-Item -LiteralPath (Join-Path $repoRoot "COMMERCIAL_LICENSE.md") -Destination (Join-Path $stage "COMMERCIAL_LICENSE.md")
 Copy-Item -LiteralPath (Join-Path $repoRoot "docs/supported_domain.md") -Destination (Join-Path $stage "SUPPORTED_DOMAIN.md")
 $noticeDirectory = Join-Path $stage "THIRD_PARTY_NOTICES"
 New-Item -ItemType Directory -Path $noticeDirectory | Out-Null

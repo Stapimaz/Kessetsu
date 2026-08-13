@@ -136,3 +136,9 @@ npm.cmd run build
 - Embedded runtime'ın provenance/lisans notları [Ngspice runtime README](core/tools/ngspice/README.md) içinde tutulur.
 - İlk yayın analog/mixed-signal schematic-level kapsamındadır; PCB layout/DRC, RF/EM, thermal/reliability, Monte Carlo ve laboratuvar doğrulaması sağlamaz.
 - Güvenlik bildirimleri [SECURITY.md](SECURITY.md), release/rollback ve telemetry sınırı [release contract](docs/release.md) içinde tanımlıdır.
+
+## Lisans
+
+NetLang kaynak kodu [GNU Affero General Public License v3.0 only](LICENSE) (`AGPL-3.0-only`) altında açık kaynak olarak sunulur. AGPL yükümlülükleri olmadan kapalı kaynak servis veya ürün kullanımı için telif hakkı sahibinden ayrı bir [ticari lisans](COMMERCIAL_LICENSE.md) alınabilir.
+
+NetLang ile oluşturduğunuz devre kaynakları ve export çıktıları yalnızca NetLang kullanıldığı için AGPL kapsamına girmez. Üçüncü taraf bileşenler kendi lisanslarını korur; dağıtım notice'ları release paketleri ve Web build'i içindedir. Katkı politikası için [CONTRIBUTING.md](CONTRIBUTING.md) dosyasına bakın.

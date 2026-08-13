@@ -38,6 +38,8 @@ button:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 
 .product-header { padding: 0 18px; justify-content: space-between; border-bottom: 1px solid var(--border); background: rgba(17, 23, 34, .92); }
 .product-actions { display: flex; align-items: center; gap: 8px; }
 .share-status { color: var(--muted); font-size: 11px; max-width: 360px; text-align: right; }
+.license-link { color: var(--muted); font-size: 11px; text-decoration: none; white-space: nowrap; }
+.license-link:hover { color: var(--accent); text-decoration: underline; }
 .share-button { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel-raised); cursor: pointer; }
 .share-button:disabled { cursor: not-allowed; opacity: .45; }
 .wordmark { font-weight: 850; letter-spacing: .16em; color: var(--accent); }
@@ -113,16 +115,21 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .export-buttons { display: flex; gap: 5px; }
 .export-status { max-width: 320px; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .export-error { color: #fca5a5; }
-.model-details, .spice-details, .export-details { position: relative; font-size: 11px; }
+.model-details, .spice-details, .export-details, .legal-details { position: relative; font-size: 11px; }
 .model-details { margin-left: auto; }
 .spice-details { margin-left: 6px; }
 .model-details summary,
 .spice-details summary,
-.export-details summary { cursor: pointer; color: var(--muted); }
+.export-details summary,
+.legal-details summary { cursor: pointer; color: var(--muted); }
 .model-popover,
 .export-popover,
+.legal-popover,
 .spice-details pre { position: absolute; z-index: 10; right: 0; bottom: 24px; width: min(680px, 80vw); max-height: 360px; overflow: auto; margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; color: #fbbf24; background: #0b1019; font: 11px ui-monospace, monospace; }
 .model-popover, .export-popover { width: min(440px, 80vw); color: var(--text); }
+.legal-popover { width: min(380px, 80vw); display: grid; gap: 6px; color: var(--text); }
+.legal-popover span { color: var(--muted); }
+.legal-popover a { color: var(--accent); }
 .model-popover p { margin-top: 0; color: var(--muted); }
 .model-popover article, .export-popover article { display: grid; gap: 2px; padding: 7px 0; border-top: 1px solid var(--border); }
 .model-popover article span, .export-popover article span { color: var(--accent); }
@@ -138,6 +145,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   .editor-panel { min-height: 600px; }
   .bode-grid { grid-template-columns: 1fr; }
   .tagline { display: none; }
+  .license-link { display: none; }
   .artifact-bar { position: sticky; bottom: 0; overflow-x: auto; }
   .spice-details { display: none; }
 }

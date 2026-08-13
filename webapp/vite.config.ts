@@ -17,6 +17,18 @@ export default defineConfig({
         const licenseDir = resolve(import.meta.dirname, 'dist/licenses')
         mkdirSync(licenseDir, { recursive: true })
         copyFileSync(
+          resolve(import.meta.dirname, '../LICENSE'),
+          resolve(import.meta.dirname, 'dist/LICENSE.txt'),
+        )
+        copyFileSync(
+          resolve(import.meta.dirname, '../NOTICE'),
+          resolve(import.meta.dirname, 'dist/NOTICE.txt'),
+        )
+        copyFileSync(
+          resolve(import.meta.dirname, '../COMMERCIAL_LICENSE.md'),
+          resolve(import.meta.dirname, 'dist/COMMERCIAL_LICENSE.md'),
+        )
+        copyFileSync(
           resolve(import.meta.dirname, 'node_modules/eecircuit-engine/LICENSE'),
           resolve(licenseDir, 'eecircuit-engine-MIT.txt'),
         )

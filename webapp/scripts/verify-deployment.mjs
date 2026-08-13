@@ -15,6 +15,9 @@ for (const directive of ["default-src 'self'", "script-src 'self' 'wasm-unsafe-e
   if (!html.includes(directive)) throw new Error(`Production CSP is missing: ${directive}`);
 }
 for (const required of [
+  'LICENSE.txt',
+  'NOTICE.txt',
+  'COMMERCIAL_LICENSE.md',
   'licenses/eecircuit-engine-MIT.txt',
   'licenses/ngspice-COPYING.txt',
   'licenses/RobotoMono-OFL.txt',

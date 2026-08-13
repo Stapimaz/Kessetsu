@@ -6,6 +6,17 @@ $npmCommand = if ($env:OS -eq "Windows_NT") { "npm.cmd" } else { "npm" }
 
 $metadata = (& cargo metadata --manifest-path (Join-Path $corePath "Cargo.toml") --format-version 1 --locked | Out-String) | ConvertFrom-Json
 if ($LASTEXITCODE -ne 0) { throw "cargo metadata failed" }
+$projectPackage = $metadata.packages | Where-Object { $_.name -eq "netlang-core" } | Select-Object -First 1
+if (-not $projectPackage -or $projectPackage.license -ne "AGPL-3.0-only") { throw "NetLang package license must be AGPL-3.0-only" }
+foreach ($projectNotice in @("LICENSE", "NOTICE", "COMMERCIAL_LICENSE.md")) {
+    if (-not (Test-Path -LiteralPath (Join-Path $repoRoot $projectNotice) -PathType Leaf)) {
+        throw "Project license artifact is missing: $projectNotice"
+    }
+}
+$rootLicenseHash = (Get-FileHash -LiteralPath (Join-Path $repoRoot "LICENSE") -Algorithm SHA256).Hash
+$coreLicenseHash = (Get-FileHash -LiteralPath (Join-Path $corePath "LICENSE") -Algorithm SHA256).Hash
+if ($rootLicenseHash -ne $coreLicenseHash) { throw "core/LICENSE must exactly match the canonical root LICENSE" }
+Write-Host "Project license audit PASS: AGPL-3.0-only plus explicit commercial-license notice."
 $rustDependencies = @($metadata.packages | Where-Object { $_.name -ne "netlang-core" })
 $missingRustLicenses = @($rustDependencies | Where-Object { -not $_.license })
 $copyleftRustLicenses = @($rustDependencies | Where-Object { $_.license -match "(^|[^A-Z])(AGPL|GPL|SSPL)(-|\b)" })

@@ -30,7 +30,8 @@ const CLI_SCHEMA_VERSION: &str = "netlang.cli.v1";
 #[command(
     name = "netlang",
     version,
-    about = "NetLang Circuit Compiler and Simulator"
+    about = "NetLang Circuit Compiler and Simulator",
+    after_help = "License: AGPL-3.0-only. Copyright (C) 2026 Stapimaz. No warranty. Source and terms: https://github.com/Stapimaz/NetLang"
 )]
 struct Cli {
     #[command(subcommand)]
