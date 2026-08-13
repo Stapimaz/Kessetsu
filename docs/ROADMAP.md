@@ -894,28 +894,28 @@ Mevcut Web/layout kodu tamamen boş değildir ve kanıt görmeden silinmeyecekti
 
 - [x] Windows x86-64, Linux x86-64 ve seçilen macOS mimarileri için CLI release artifact matrisi tanımla. _Windows x86-64, Ubuntu x86-64, macOS Intel ve Apple Silicon; resmi GitHub runner mimarileri 2026-08-13 doğrulandı._
 - [x] Her artifact için simulator paketleme/keşif, executable provenance, lisans notice, checksum ve version probe yolunu tamamla. _Windows Ngspice 46 sidecar; Unix trusted PATH/override; `netlang.release.v1`, executable/archive SHA-256, Rust/font/Ngspice notices._
-- [ ] Temiz Windows/Linux/macOS ortamında kurulum → ilk compile → ilk gerçek simulation → assertion smoke testini otomatikleştir.
-- [ ] Web Hub production deployment, cache headers, WASM/worker MIME, CSP, error telemetry sınırı ve rollback prosedürünü doğrula.
+- [ ] Temiz Windows/Linux/macOS ortamında kurulum → ilk compile → ilk gerçek simulation → assertion smoke testini otomatikleştir. _Dört temiz-runner matrisi ve clean-temp smoke script'i hazır; Windows 12/12 PASS. GitHub run `31658057557` repository'deki bütün önceki Actions run'ları gibi job oluşturmadan `startup_failure`; Linux/macOS kanıtı bu dış kapı açılmadan tamam sayılmayacak._
+- [ ] Web Hub production deployment, cache headers, WASM/worker MIME, CSP, error telemetry sınırı ve rollback prosedürünü doğrula. _Pages workflow, `/NetLang/` content-hash asset audit, CSP, WASM/Worker dosyaları, sıfır-telemetry sınırı ve tag/ref rollback hazır; gerçek Pages deployment private-repo Actions kapısı nedeniyle henüz çalışmadı._
 - [x] Canonical Rust/WASM/Web kapısına gerçek-browser E2E, schematic visual/connectivity, benchmark parity ve release artifact testlerini ekle. _`verify.ps1` full browser suite'e ek olarak host archive clean smoke, agent replay, deployment audit ve Windows EDA smoke çalıştırır._
-- [ ] Güvenlik, dependency/license ve generated-artifact audit'lerini release kapısı yap. _npm 0 vulnerability, 127 Rust + 81 npm license metadata ve generated-artifact audit yerelde PASS; RustSec clean-runner sonucu bekleniyor._
+- [x] Güvenlik, dependency/license ve generated-artifact audit'lerini release kapısı yap. _npm 0 vulnerability; RustSec 0 vulnerability; 127 Rust + 81 npm license metadata ve generated-artifact audit PASS. İki transitive unmaintained bilgi notu bounded-input gerekçesiyle `docs/security_audit.md` içinde görünür, ignore edilmez._
 - [x] README'ye canlı Web Hub bağlantısı, doğrulanmış kurulum yolları, ürün ekran görüntüleri ve destek sınırlarını ekle. _Pages/release linkleri, iki gerçek Playwright görüntüsü, dört platform kurulumu ve açık physical/security sınırlar._
-- [ ] Public release tag/changelog/migration notu üret ve repository/Web Hub public görünürlüğünü yalnız tüm kabul kriterlerinden sonra aç.
+- [ ] Public release tag/changelog/migration notu üret ve repository/Web Hub public görünürlüğünü yalnız tüm kabul kriterlerinden sonra aç. _`CHANGELOG.md` ve v0.1.0 migration/release workflow hazır; tag/public görünürlük cross-platform/Pages kanıtı ve proje lisansı sahibi kararı öncesinde bilinçli olarak açılmadı._
 
 ### Faz 4 ve ilk public yayın kabul kriterleri
 
-- [ ] Kullanıcı hesap veya yerel kurulum olmadan Web Hub'ı açıp canonical bir devreyi compile, simulate, measure, inspect ve export edebilir.
-- [ ] Web ve CLI aynı Core semantiğini ve versioned compile/schematic/simulation/measurement/assertion sözleşmelerini kullanır.
-- [ ] Şema canonical graph connectivity kontrolünden geçer; karmaşık power-amplifier topolojisinde tanımlı readability/collision kapılarını sağlar.
-- [ ] SVG/PNG/PDF ve Schematic IR JSON indirilebilir; KiCad/LTspice ile ilan edilen diğer EDA fixture'ları hedef uygulamalarda bağlantı kaybı olmadan açılır.
-- [ ] Web'de sunulan her export aynı source için CLI'dan da alınabilir ve aynı exporter schema/capability sözleşmesine bağlıdır.
-- [ ] OP, transient, AC ve DC sweep sonuçları Web'de interaktif olarak görüntülenir; assertions ilgili signal/threshold ile ilişkilidir.
-- [ ] User-defined ve packaged modeller native/Web yüzeylerinde reproducible, provenance bilgili ve injection-safe çalışır.
-- [ ] RC filtre, gain-stage ve power-amplifier benchmark'ları CLI ve Web Hub'da aynı mühendislik kararlarını verir.
-- [ ] Dış AI agent doğal dil gereksiniminden başlayarak human terminal metni parse etmeden gerçek power-amplifier hedeflerine ulaşabildiğini versioned eval ile gösterir.
-- [ ] Paylaşılabilir URL devreyi ve gerekli version/package bilgisini schema kaybı olmadan round-trip eder.
+- [x] Kullanıcı hesap veya yerel kurulum olmadan Web Hub'ı açıp canonical bir devreyi compile, simulate, measure, inspect ve export edebilir. _Gerçek Chromium canonical RC ve power-amplifier product-path E2E._
+- [x] Web ve CLI aynı Core semantiğini ve versioned compile/schematic/simulation/measurement/assertion sözleşmelerini kullanır. _Rust/WASM thin adapters, browser/native parity corpus._
+- [x] Şema canonical graph connectivity kontrolünden geçer; karmaşık power-amplifier topolojisinde tanımlı readability/collision kapılarını sağlar. _Altı-devre quality/hash corpus ve gerçek-browser render._
+- [x] SVG/PNG/PDF ve Schematic IR JSON indirilebilir; KiCad/LTspice ile ilan edilen diğer EDA fixture'ları hedef uygulamalarda bağlantı kaybı olmadan açılır. _KiCad 10/LTspice 24 üç benchmark round-trip; 0 connectivity error, yalnız ilan edilen embedded-library warnings._
+- [x] Web'de sunulan her export aynı source için CLI'dan da alınabilir ve aynı exporter schema/capability sözleşmesine bağlıdır. _Yedi format download E2E; makine/EDA exact bytes, PDF stable structure/canonical visual source._
+- [x] OP, transient, AC ve DC sweep sonuçları Web'de interaktif olarak görüntülenir; assertions ilgili signal/threshold ile ilişkilidir. _Worker cancellation/restart, plots/tabs/cursor/threshold tests._
+- [x] User-defined ve packaged modeller native/Web yüzeylerinde reproducible, provenance bilgili ve injection-safe çalışır. _Exact package/netlist parity ve Web injection corpus._
+- [x] RC filtre, gain-stage ve power-amplifier benchmark'ları CLI ve Web Hub'da aynı mühendislik kararlarını verir. _Benchmark parity; power amplifier 12/12._
+- [x] Dış AI agent doğal dil gereksiniminden başlayarak human terminal metni parse etmeden gerçek power-amplifier hedeflerine ulaşabildiğini versioned eval ile gösterir. _`netlang.agent-eval.v1` ve deterministic replay PASS._
+- [x] Paylaşılabilir URL devreyi ve gerekli version/package bilgisini schema kaybı olmadan round-trip eder. _`netlang.share.v1`, security unit corpus ve browser product demo._
 - [ ] Desteklenen platformlarda CLI kurulumu ve ilk simülasyon temiz makine release smoke testinden geçer.
-- [ ] Yeni kullanıcı yalnız public dokümanlarla bir devreyi tanımlayıp ölçebilir, assertion ekleyebilir ve hedef formatlarda export edebilir.
-- [ ] Canonical kalite kapısı, browser E2E, schematic connectivity/visual corpus, benchmark parity ve release artifact doğrulamaları geçer.
+- [x] Yeni kullanıcı yalnız public dokümanlarla bir devreyi tanımlayıp ölçebilir, assertion ekleyebilir ve hedef formatlarda export edebilir. _Language/simulation/measurement/tutorial/cookbook/troubleshooting/export/support referans seti._
+- [ ] Canonical kalite kapısı, browser E2E, schematic connectivity/visual corpus, benchmark parity ve release artifact doğrulamaları geçer. _Yerel canonical tam kapı 2026-08-13 PASS (Rust/WASM, 10 browser E2E, archive, agent, KiCad/LTspice); dört-OS artifact matrisi kanıtı bekleniyor._
 - [ ] Bütün kabul kriterleri tamamlandıktan sonra repository ve Web Hub public yayınlanır.
 
 ---

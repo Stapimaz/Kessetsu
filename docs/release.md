@@ -22,7 +22,7 @@ Rollback is a normal workflow dispatch: choose a previously verified tag/commit 
 ## Release gates
 
 1. Canonical `scripts/verify.ps1` passes without changing tracked files.
-2. RustSec, npm production vulnerability, Rust/npm license metadata and generated-artifact audits pass.
+2. RustSec, npm production vulnerability, Rust/npm license metadata and generated-artifact audits pass; informational risk acceptances are recorded in [security audit](security_audit.md).
 3. Four clean-runner CLI packages pass real simulation smoke tests.
 4. KiCad/LTspice round-trip evidence and browser/native benchmark parity pass.
 5. Web production build, CSP, runtime integrity, browser E2E and Pages deployment pass.

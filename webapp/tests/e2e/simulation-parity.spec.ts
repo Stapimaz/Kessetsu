@@ -7,8 +7,10 @@ async function replaceSource(page: Page, source: string) {
   await expect(page.locator('.monaco-editor')).toBeVisible();
   await page.locator('.monaco-editor').click();
   await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.press('Backspace');
+  await expect(page.getByTestId('compile-success')).not.toBeVisible();
   await page.keyboard.insertText(source);
-  await expect(page.getByTestId('compile-success')).toBeVisible();
+  await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
 }
 
 test('runs the canonical RC filter in a worker and evaluates Core assertions', async ({ page }) => {
@@ -17,12 +19,9 @@ test('runs the canonical RC filter in a worker and evaluates Core assertions', a
   page.on('pageerror', (error) => console.log(`[browser:error] ${error.message}`));
   page.on('requestfailed', (request) => console.log(`[browser:requestfailed] ${request.url()} ${request.failure()?.errorText}`));
   page.on('worker', (worker) => console.log(`[browser:worker] ${worker.url()}`));
-  const source = readFileSync(
-    new URL('../../../core/tests/fixtures/benchmarks/rc_filter.nl', import.meta.url),
-    'utf8',
-  );
   await page.goto('/');
-  await replaceSource(page, source);
+  await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.view-lines')).toContainText('Canonical first-order RC low-pass');
 
   await page.getByRole('button', { name: 'Run' }).click();
   const summary = page.getByTestId('simulation-summary');

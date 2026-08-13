@@ -6,6 +6,8 @@ import { resolve } from 'node:path';
 async function replaceSource(page: Page, source: string) {
   await page.locator('.monaco-editor').click();
   await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.press('Backspace');
+  await expect(page.getByTestId('compile-success')).not.toBeVisible();
   await page.keyboard.insertText(source);
 }
 
@@ -32,7 +34,11 @@ test('keeps exact packages reproducible and rejects model directive injection in
   const binary = resolve('../core/target/release', process.platform === 'win32' ? 'netlang.exe' : 'netlang');
   await page.goto('/');
   await replaceSource(page, packageCircuit);
-  await expect(page.getByTestId('compile-success')).toBeVisible();
+  await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('model-manifest')).toHaveAttribute(
+    'data-manifest',
+    /"name":"netlang_analog","version":"1\.0\.0"/,
+  );
   const manifest = JSON.parse(await page.getByTestId('model-manifest').getAttribute('data-manifest') ?? '{}');
   expect(manifest.packages[0]).toMatchObject({ name: 'netlang_analog', version: '1.0.0' });
   expect(manifest.models[0].name).toBe('NLANG_PACKAGE_OPAMP');

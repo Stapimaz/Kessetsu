@@ -66,6 +66,7 @@ finally {
 }
 
 Invoke-NativeStep 'Release dependency/license/artifact audit' { & (Join-Path $repoRoot 'scripts/audit-release.ps1') }
+Invoke-NativeStep 'RustSec vulnerability audit' { & (Join-Path $repoRoot 'scripts/audit-rust.ps1') }
 Invoke-NativeStep 'Replayable external-agent evaluation' { & (Join-Path $repoRoot 'scripts/replay-agent-eval.ps1') }
 
 $architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
