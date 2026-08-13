@@ -17,6 +17,7 @@ Bu belge Faz 4 için ilan edilen elektriksel kapsamı dondurur. “Destekleniyor
 ## Model kapsamı
 
 - Builtin: `2N3904`, `2N3906`, `2N2222`, `NLANG_POWER_NPN_V1`, `NLANG_POWER_PNP_V1`, `1N4148`, `1N4007`, `IRF540`, `NLANG_PMOS_V1`, `NLANG_OPAMP_V1`.
+- Verified generic PMOS: `NLANG_PMOS_V1@1.0.1`; portable Ngspice `MOS1` DC modeli, üretici/datasheet veya parasitic model iddiası yok.
 - User model: typed diode/BJT/MOSFET parametre whitelist'i.
 - User subcircuit: yalnız typed op-amp template'i.
 - Package import: exact ad+sürüm, content hash, lisans ve simulator capability içeren `netlang.models.v1`/`netlang.lock.v1`.

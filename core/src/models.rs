@@ -494,11 +494,13 @@ fn builtin_models() -> Vec<ModelRef> {
             "NLANG_POWER_NPN_V1",
             ComponentKind::BJT(BJTPolarity::NPN),
             ".model NLANG_POWER_NPN_V1 NPN (Is=1e-12 Bf=80 Vaf=60 Cje=300p Cjc=150p Tf=1u Tr=5u)",
+            "1.0.0",
         ),
         verified_device_model(
             "NLANG_POWER_PNP_V1",
             ComponentKind::BJT(BJTPolarity::PNP),
             ".model NLANG_POWER_PNP_V1 PNP (Is=1e-12 Bf=80 Vaf=60 Cje=300p Cjc=150p Tf=1u Tr=5u)",
+            "1.0.0",
         ),
         device_model(
             "1N4148",
@@ -518,7 +520,8 @@ fn builtin_models() -> Vec<ModelRef> {
         verified_device_model(
             "NLANG_PMOS_V1",
             ComponentKind::MOSFET(FETPolarity::PMOS),
-            ".model NLANG_PMOS_V1 PMOS (Vto=-4 Kp=8 Lambda=0.02 Rd=0.2 Rs=0.05 Cgd=1n Cgs=1.5n)",
+            ".model NLANG_PMOS_V1 PMOS (Level=1 Vto=-4 Kp=8 Lambda=0.02 Rd=0.2 Rs=0.05)",
+            "1.0.1",
         ),
         subcircuit_model(
             "NLANG_OPAMP_V1",
@@ -546,7 +549,12 @@ fn device_model(name: &str, kind: ComponentKind, directive: &str) -> ModelRef {
     )
 }
 
-fn verified_device_model(name: &str, kind: ComponentKind, directive: &str) -> ModelRef {
+fn verified_device_model(
+    name: &str,
+    kind: ComponentKind,
+    directive: &str,
+    version: &str,
+) -> ModelRef {
     model_ref(
         name,
         kind,
@@ -556,7 +564,7 @@ fn verified_device_model(name: &str, kind: ComponentKind, directive: &str) -> Mo
         },
         "NetLang verified generic model".to_string(),
         "Apache-2.0".to_string(),
-        "1.0.0".to_string(),
+        version.to_string(),
     )
 }
 

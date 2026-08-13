@@ -134,7 +134,7 @@ Ngspice entegrasyonu Windows'ta repository/release sidecar ile, otomasyon ve di�
 | NLANG_PMOS_V1 | Generic MOSFET PMOS | Verified builtin |
 | NLANG_OPAMP_V1 | Generic op-amp subcircuit | Verified builtin |
 
-Builtin default'lar BJT için `2N3904`/`2N3906`, MOSFET için `IRF540`, diode için `1N4148`, op-amp için `NLANG_OPAMP_V1`'dir. Böylece dilde tanımlı temel component türlerinden hiçbiri bütünüyle kullanılamaz durumda değildir. `NLANG_*` modelleri NetLang'in kendi generic ve lisansı açık doğrulama modelleridir; belirli bir üretici parçasının datasheet eşleniği oldukları iddia edilmez.
+Builtin default'lar BJT için `2N3904`/`2N3906`, MOSFET için `IRF540`, diode için `1N4148`, op-amp için `NLANG_OPAMP_V1`'dir. Böylece dilde tanımlı temel component türlerinden hiçbiri bütünüyle kullanılamaz durumda değildir. `NLANG_*` modelleri NetLang'in kendi generic ve lisansı açık doğrulama modelleridir; belirli bir üretici parçasının datasheet eşleniği oldukları iddia edilmez. `NLANG_PMOS_V1` provenance sürümü `1.0.1`'dir ve Ngspice `MOS1` için portable model parametreleri kullanır.
 
 ### Typed user model ve subcircuit sınırı
 

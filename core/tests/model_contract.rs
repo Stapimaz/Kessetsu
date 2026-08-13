@@ -165,13 +165,27 @@ connect U1.in_p to GND\nconnect U1.in_n to OOUT\nconnect U1.vcc to VDD\nconnect 
         report.diagnostics
     );
     let circuit = report.ir.expect("IR should exist");
-    let request = SimulationRequest::new(
-        report.spice_netlist.expect("SPICE should exist"),
-        circuit.analyses,
-    );
+    let pmos = circuit
+        .model_manifest
+        .models
+        .iter()
+        .find(|model| model.name == "NLANG_PMOS_V1")
+        .expect("verified PMOS should be present in the model manifest");
+    assert_eq!(pmos.provenance.version, "1.0.1");
+    let netlist = report.spice_netlist.expect("SPICE should exist");
+    assert!(netlist.contains(".model NLANG_PMOS_V1 PMOS (Level=1"));
+    assert!(!netlist.contains(" Cgd=") && !netlist.contains(" Cgs="));
+    let request = SimulationRequest::new(netlist, circuit.analyses);
     let result = NgspiceRunner::discover()
         .run(&request, &CancellationToken::new())
         .expect("Ngspice should launch");
-    assert!(result.succeeded(), "simulation errors: {:?}", result.errors);
+    assert!(
+        result.succeeded(),
+        "simulator: {:?}; errors: {:?}; stdout: {}; stderr: {}",
+        result.simulator,
+        result.errors,
+        result.raw_log.stdout,
+        result.raw_log.stderr
+    );
     assert_eq!(result.datasets.len(), 1);
 }
