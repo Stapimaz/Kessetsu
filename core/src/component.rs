@@ -1,4 +1,4 @@
-use crate::ir::ComponentKind;
+use crate::ir::{BJTPolarity, ComponentKind};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -25,12 +25,24 @@ pub enum CatalogSymbol {
     ModulePort,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PinFlow {
+    Passive,
+    Input,
+    Output,
+    Power,
+    Reference,
+    Conduction,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PinDefinition {
     pub name: &'static str,
     pub x: i32,
     pub y: i32,
     pub is_signal: bool,
+    pub flow: PinFlow,
     pub side: PinSide,
 }
 
@@ -50,6 +62,7 @@ const TWO_PIN: &[PinDefinition] = &[
         x: 0,
         y: 0,
         is_signal: false,
+        flow: PinFlow::Passive,
         side: PinSide::Left,
     },
     PinDefinition {
@@ -57,6 +70,7 @@ const TWO_PIN: &[PinDefinition] = &[
         x: 2,
         y: 0,
         is_signal: false,
+        flow: PinFlow::Passive,
         side: PinSide::Right,
     },
 ];
@@ -67,6 +81,7 @@ const SOURCE_PINS: &[PinDefinition] = &[
         x: 0,
         y: 0,
         is_signal: false,
+        flow: PinFlow::Output,
         side: PinSide::Left,
     },
     PinDefinition {
@@ -74,16 +89,18 @@ const SOURCE_PINS: &[PinDefinition] = &[
         x: 2,
         y: 0,
         is_signal: false,
+        flow: PinFlow::Reference,
         side: PinSide::Right,
     },
 ];
 
-const BJT_PINS: &[PinDefinition] = &[
+const BJT_NPN_PINS: &[PinDefinition] = &[
     PinDefinition {
         name: "c",
         x: 2,
         y: 0,
         is_signal: false,
+        flow: PinFlow::Conduction,
         side: PinSide::Top,
     },
     PinDefinition {
@@ -91,6 +108,7 @@ const BJT_PINS: &[PinDefinition] = &[
         x: 0,
         y: 1,
         is_signal: true,
+        flow: PinFlow::Input,
         side: PinSide::Left,
     },
     PinDefinition {
@@ -98,7 +116,35 @@ const BJT_PINS: &[PinDefinition] = &[
         x: 2,
         y: 2,
         is_signal: false,
+        flow: PinFlow::Conduction,
         side: PinSide::Bottom,
+    },
+];
+
+const BJT_PNP_PINS: &[PinDefinition] = &[
+    PinDefinition {
+        name: "c",
+        x: 2,
+        y: 2,
+        is_signal: false,
+        flow: PinFlow::Conduction,
+        side: PinSide::Bottom,
+    },
+    PinDefinition {
+        name: "b",
+        x: 0,
+        y: 1,
+        is_signal: true,
+        flow: PinFlow::Input,
+        side: PinSide::Left,
+    },
+    PinDefinition {
+        name: "e",
+        x: 2,
+        y: 0,
+        is_signal: false,
+        flow: PinFlow::Conduction,
+        side: PinSide::Top,
     },
 ];
 
@@ -108,6 +154,7 @@ const MOSFET_PINS: &[PinDefinition] = &[
         x: 2,
         y: 0,
         is_signal: false,
+        flow: PinFlow::Conduction,
         side: PinSide::Top,
     },
     PinDefinition {
@@ -115,6 +162,7 @@ const MOSFET_PINS: &[PinDefinition] = &[
         x: 0,
         y: 1,
         is_signal: true,
+        flow: PinFlow::Input,
         side: PinSide::Left,
     },
     PinDefinition {
@@ -122,6 +170,7 @@ const MOSFET_PINS: &[PinDefinition] = &[
         x: 2,
         y: 2,
         is_signal: false,
+        flow: PinFlow::Conduction,
         side: PinSide::Bottom,
     },
 ];
@@ -130,15 +179,17 @@ const OPAMP_PINS: &[PinDefinition] = &[
     PinDefinition {
         name: "in_p",
         x: 0,
-        y: 2,
+        y: 0,
         is_signal: true,
+        flow: PinFlow::Input,
         side: PinSide::Left,
     },
     PinDefinition {
         name: "in_n",
         x: 0,
-        y: 0,
+        y: 2,
         is_signal: true,
+        flow: PinFlow::Input,
         side: PinSide::Left,
     },
     PinDefinition {
@@ -146,6 +197,7 @@ const OPAMP_PINS: &[PinDefinition] = &[
         x: 1,
         y: -1,
         is_signal: false,
+        flow: PinFlow::Power,
         side: PinSide::Top,
     },
     PinDefinition {
@@ -153,6 +205,7 @@ const OPAMP_PINS: &[PinDefinition] = &[
         x: 1,
         y: 3,
         is_signal: false,
+        flow: PinFlow::Power,
         side: PinSide::Bottom,
     },
     PinDefinition {
@@ -160,6 +213,7 @@ const OPAMP_PINS: &[PinDefinition] = &[
         x: 3,
         y: 1,
         is_signal: false,
+        flow: PinFlow::Output,
         side: PinSide::Right,
     },
 ];
@@ -178,7 +232,12 @@ pub fn component_definition(kind: &ComponentKind) -> ComponentDefinition {
             definition(CatalogSymbol::Inductor, "Inductor", "L", 2, 1, TWO_PIN)
         }
         ComponentKind::Diode => definition(CatalogSymbol::Diode, "Diode", "D", 2, 1, TWO_PIN),
-        ComponentKind::BJT(_) => definition(CatalogSymbol::Bjt, "Transistor", "Q", 3, 3, BJT_PINS),
+        ComponentKind::BJT(BJTPolarity::NPN) => {
+            definition(CatalogSymbol::Bjt, "Transistor", "Q", 3, 3, BJT_NPN_PINS)
+        }
+        ComponentKind::BJT(BJTPolarity::PNP) => {
+            definition(CatalogSymbol::Bjt, "Transistor", "Q", 3, 3, BJT_PNP_PINS)
+        }
         ComponentKind::MOSFET(_) => {
             definition(CatalogSymbol::Mosfet, "Mosfet", "M", 3, 3, MOSFET_PINS)
         }

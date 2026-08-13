@@ -1,5 +1,6 @@
 use netlang_core::compiler::{CompileOptions, compile_source};
-use netlang_core::component::component_definition;
+use netlang_core::component::{PinFlow, component_definition};
+use netlang_core::ir::{BJTPolarity, ComponentKind, FETPolarity};
 use netlang_core::schematic::{SCHEMATIC_SCHEMA_VERSION, generate_schematic};
 use netlang_core::{parse_program, schematic_svg};
 use sha2::{Digest, Sha256};
@@ -23,6 +24,34 @@ const CORPUS: &[(&str, &str)] = &[
     (
         "power_amplifier",
         include_str!("fixtures/benchmarks/power_amplifier.nl"),
+    ),
+    (
+        "inverting_amplifier",
+        include_str!("fixtures/schematic/inverting_amplifier.nl"),
+    ),
+    (
+        "differential_pair",
+        include_str!("fixtures/schematic/differential_pair.nl"),
+    ),
+    (
+        "mosfet_common_source",
+        include_str!("fixtures/schematic/mosfet_common_source.nl"),
+    ),
+    (
+        "rlc_ladder",
+        include_str!("fixtures/schematic/rlc_ladder.nl"),
+    ),
+    (
+        "diode_clamp",
+        include_str!("fixtures/schematic/diode_clamp.nl"),
+    ),
+    (
+        "bjt_common_emitter",
+        include_str!("fixtures/schematic/bjt_common_emitter.nl"),
+    ),
+    (
+        "summing_amplifier",
+        include_str!("fixtures/schematic/summing_amplifier.nl"),
     ),
 ];
 
@@ -139,37 +168,142 @@ fn direct_generator_accepts_only_typed_ir() {
 }
 
 #[test]
+fn shared_catalog_exposes_semantic_pin_flow_for_layout() {
+    for (kind, pin, expected) in [
+        (ComponentKind::Resistor, "p1", PinFlow::Passive),
+        (ComponentKind::VoltageSource, "plus", PinFlow::Output),
+        (ComponentKind::OpAmp, "in_n", PinFlow::Input),
+        (ComponentKind::OpAmp, "out", PinFlow::Output),
+        (ComponentKind::OpAmp, "vcc", PinFlow::Power),
+        (ComponentKind::BJT(BJTPolarity::NPN), "b", PinFlow::Input),
+        (
+            ComponentKind::MOSFET(FETPolarity::NMOS),
+            "d",
+            PinFlow::Conduction,
+        ),
+    ] {
+        let actual = component_definition(&kind)
+            .pins
+            .iter()
+            .find(|candidate| candidate.name == pin)
+            .map(|candidate| candidate.flow);
+        assert_eq!(actual, Some(expected), "{kind:?}.{pin}");
+    }
+}
+
+#[test]
+fn local_signal_nets_remain_explicitly_wired() {
+    for (name, source) in CORPUS {
+        let schematic = schematic(source);
+        assert_eq!(
+            schematic.quality.local_signal_label_pins, 0,
+            "{name} hid local signal pins behind labels"
+        );
+        assert_eq!(
+            schematic.quality.explicit_wire_coverage_per_mille, 1_000,
+            "{name} did not explicitly wire every local signal pin"
+        );
+    }
+}
+
+#[test]
+fn topology_patterns_preserve_conventional_stage_geometry() {
+    let power = schematic(CORPUS[5].1);
+    let center_x = |id: &str| {
+        let component = power
+            .components
+            .iter()
+            .find(|component| component.id == id)
+            .unwrap();
+        component.bounds.min.x + component.bounds.max.x
+    };
+    assert!(center_x("VIN") < center_x("U1"));
+    assert!(center_x("U1") < center_x("U2"));
+    assert!(center_x("U2") < center_x("U3"));
+    assert!(center_x("U3") < center_x("QN"));
+    assert!(center_x("QN") < center_x("RL"));
+
+    let pair = schematic(CORPUS[7].1);
+    let q1 = pair
+        .components
+        .iter()
+        .find(|component| component.id == "Q1")
+        .unwrap();
+    let q2 = pair
+        .components
+        .iter()
+        .find(|component| component.id == "Q2")
+        .unwrap();
+    assert!(!q1.mirrored_x);
+    assert!(q2.mirrored_x);
+    assert_eq!(q1.bounds.min.y, q2.bounds.min.y);
+
+    let bridge = schematic(CORPUS[2].1);
+    assert_eq!(bridge.crossings.len(), 0);
+    let rx = bridge
+        .components
+        .iter()
+        .find(|component| component.id == "Rx")
+        .unwrap();
+    assert!(matches!(
+        rx.orientation,
+        netlang_core::schematic::Orientation::Right | netlang_core::schematic::Orientation::Left
+    ));
+
+    for source in [CORPUS[8].1, CORPUS[11].1] {
+        let stage = schematic(source);
+        let active = stage
+            .components
+            .iter()
+            .find(|component| component.id == "M1" || component.id == "Q1")
+            .unwrap();
+        let upper = stage
+            .components
+            .iter()
+            .find(|component| component.id == "RD" || component.id == "RC")
+            .unwrap();
+        let lower = stage
+            .components
+            .iter()
+            .find(|component| component.id == "RS" || component.id == "RE")
+            .unwrap();
+        assert!(upper.bounds.max.y < active.bounds.min.y);
+        assert!(active.bounds.max.y < lower.bounds.min.y);
+    }
+}
+
+#[test]
 fn svg_visual_golden_hashes_are_cross_platform_stable() {
     for (name, source, expected) in [
         (
             "minimal",
             CORPUS[0].1,
-            "3081dae1a656d769e408d5539d6c0dec2f8241bb481608014d0ad7a36971b5ad",
+            "2cf3af4a213b992e72084f99a1c25b661b8e2fd18e09112163b09488bb9bd540",
         ),
         (
             "rc_filter",
             CORPUS[1].1,
-            "be353f5dab954d8017c24cf552c66245ea139cba633cf0abe5972afcb6468f09",
+            "23d420d0eda05a49ae0c83d23929f7bb97e4cf48dfd86e2bebb6b61f21f61248",
         ),
         (
             "wheatstone",
             CORPUS[2].1,
-            "fdf8dd93125d1a6b4ed03fce921174fb00128f789178b37983c9613f3e651c9f",
+            "ffd084a8c4fd225b487346003fe15979e6eaf41f894e1e6fffd16aacbcd644e9",
         ),
         (
             "gain_stage",
             CORPUS[3].1,
-            "3f4a2cb4ef55bae5ff2494ae844f8fcb938c80ee384ce2b05c0d15aa44ef3453",
+            "3c4bf738e4814ded4530ec14de919dc442ff2eec620632a327f2cd7a0ae476f7",
         ),
         (
             "high_fanout",
             CORPUS[4].1,
-            "3e81edf1385dd52292d240009ec34681d9dfe4319c84a26372988b620ad258db",
+            "382b8c0cc57adeb5ab7036991fe192614c04e3cdffb178b66e833620981874b0",
         ),
         (
             "power_amplifier",
             CORPUS[5].1,
-            "d3ae0d27c877c64b84c2c95a376dd9f8c33d1f95bac34e3d6ebf29546dc7f0ec",
+            "f61e25c66fd433406153de5db23368f364af6bdc54296b4fbe1552f7d14b468c",
         ),
     ] {
         let actual = svg_hash(source);

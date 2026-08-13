@@ -798,16 +798,18 @@ Mevcut Web/layout kodu tamamen boş değildir ve kanıt görmeden silinmeyecekti
 
 Detaylı teknik plan, baseline bulguları, ölçülebilir kalite sözleşmesi ve iteratif görsel doğrulama döngüsü: [`docs/schematic_quality_plan.md`](schematic_quality_plan.md).
 
-- [ ] SQ-1 — Aynı Core/CLI render yolundan corpus PNG/SVG/Web screenshot ve per-circuit scorecard üreten tekrar edilebilir baseline harness'ı kur.
-- [ ] SQ-2 — Quality report'u text collision, explicit-wire coverage, signal-flow/stage order, label oranı, compactness/whitespace, detour ve alignment ölçütleriyle genişlet.
-- [ ] SQ-3 — Shared component catalog'a typed pin-flow/net-role metadata'sı ekle; placement kararlarını component adlarından değil Circuit IR topolojisinden üret.
-- [ ] SQ-4 — Sabit dört-satırlı BFS yerleşimini deterministic constraint/stage placement ile değiştir; RC ve gain-stage'i konvansiyonel okunabilir düzene getir.
-- [ ] SQ-5 — Local signal/feedback netlerinde explicit orthogonal wire, multi-pin local netlerde trunk/branch ve yalnız gerçek global netlerde label politikasını uygula.
-- [ ] SQ-6 — Engineering-value formatı, reference/value/model text hiyerarşisi, clearance, grid/margin ve viewport fitting'i profesyonel render seviyesine getir.
-- [ ] SQ-7 — Power amplifier'da buffer → gain/error → driver → class-B output → load akışını varsayılan zoom'da görsel olarak izlenebilir hale getir; her iterasyonda corpus'u render edip gerçek görüntüleri incele.
+- [x] SQ-1 — Aynı Core/CLI render yolundan corpus PNG/SVG/Web screenshot ve per-circuit scorecard üreten tekrar edilebilir baseline harness'ı kur. _`scripts/capture-schematic-corpus.ps1`; on üç devre/topoloji ailesi, reddedilmiş baseline ve iki unseen generalization probe._
+- [ ] SQ-2 — Quality report'u text collision, explicit-wire coverage, signal-flow/stage order, label oranı, compactness/whitespace, detour ve alignment ölçütleriyle genişlet. _Kısmi: label→symbol, explicit-wire coverage, local/global label, flow inversion, wire/bend ve composition metrikleri aktif; component text→wire/text clearance ile normalized detour/alignment henüz açık._
+- [x] SQ-3 — Shared component catalog'a typed pin-flow/net-role metadata'sı ekle; placement kararlarını component adlarından değil Circuit IR topolojisinden üret. _`PinFlow` ve on üç devrelik topology/catalog regression kanıtı._
+- [x] SQ-4 — Sabit dört-satırlı BFS yerleşimini deterministic constraint/stage placement ile değiştir; RC ve gain-stage'i konvansiyonel okunabilir düzene getir. _Typed flow rank/lane ve topology-derived bridge, differential, clamp, transistor-stage constraints._
+- [x] SQ-5 — Local signal/feedback netlerinde explicit orthogonal wire, multi-pin local netlerde trunk/branch ve yalnız gerçek global netlerde label politikasını uygula. _Corpus local-signal explicit-wire coverage 1000/1000; supply/ground/gerçek high-fan-out dışındaki label adaları kaldırıldı._
+- [x] SQ-6 — Engineering-value formatı, reference/value/model text hiyerarşisi, clearance, grid/margin ve viewport fitting'i ders kitabı/application-note seviyesine getir; Web viewer'a export arka planından bağımsız, açılıp kapatılabilir koyu dotted-grid çalışma alanı ekle. _Core PNG ve gerçek Chromium Web capture'larında incelendi; grid toggle E2E ile doğrulandı._
+- [x] SQ-7 — Power amplifier'da buffer → gain/error → driver → class-B output → load akışını varsayılan zoom'da görsel olarak izlenebilir hale getir; her iterasyonda corpus'u render edip gerçek görüntüleri incele. _Üç gerçek görsel tur sonunda dört kat ve feedback yolları açıkça izlenebilir; candidate kanıtı `docs/evals/schematic-quality-candidate-2026-08-13.md`._
 - [ ] SQ-8 — Kabul edilen yerleşimin Web ile SVG/PNG/PDF ve KiCad/LTspice projection'larında parity/connectivity'sini doğrula; exporter-specific layout fork oluşturma.
 - [ ] SQ-9 — Kabul edilen scorecard/metric/hash/screenshot baseline'larını kilitle ve canonical local/remote kalite kapılarını çalıştır.
 - [ ] SQ-10 — Üç Web örneği için local Web Hub üzerinde proje sahibi görsel onayı al; bu onaydan önce 4.1/4.5/Faz 4 görsel kabulünü veya public release'i kapatma.
+
+**Şema remediation candidate doğrulaması (2026-08-13):** On üç devrelik Core PNG/SVG/Schematic JSON corpus'u ve aynı devrelerin fixed-viewport Chromium Web capture'ları üretildi; typed topology regression'ları ve güncel SVG hash'leri kilitlendi. Canonical yerel `scripts/verify.ps1` Rust/WASM/Web/11 E2E/audit/package/KiCad-LTspice smoke zincirinin tamamında PASS. Bu kanıt SQ-8/SQ-9/SQ-10'u otomatik kapatmaz; ayrıntı ve açık metrikler `docs/evals/schematic-quality-candidate-2026-08-13.md` içinde.
 
 **4.1R kabul kriteri:** Elektriksel/geometrik hard gate'ler geçer; RC, gain-stage ve power-amplifier scorecard'larında major kusur kalmaz; power-amplifier ana sinyal ve feedback yolu source okumadan izlenebilir; aynı kabul edilmiş çizim CLI ve Web'in ortak Core motorundan çıkar; proje sahibi local Web Hub'da üç örneği açıkça onaylar.
 

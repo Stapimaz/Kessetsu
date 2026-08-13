@@ -26,6 +26,16 @@ These are not cosmetic nits. A schematic is an engineering explanation of a circ
 
 ## Product-level quality contract
 
+### Visual target
+
+The target is not a generic node-link diagram and not merely an electrically valid auto-layout. It is the visual language of a carefully drafted engineering schematic: the kind of circuit diagram expected in an analog electronics textbook, application note or design review.
+
+- The reader should recognize functional stages and conventional current/signal flow before reading net names.
+- Main signal paths should be visually continuous; labels may simplify true global, repeated or distant connections but must not turn the circuit into disconnected islands.
+- Symmetric and differential structures should look symmetric; feedback should visibly return to the correct stage; power should follow conventional top/bottom placement.
+- References, values and optional model details should form a quiet information hierarchy rather than compete with the circuit itself.
+- The Web viewer may use a dark neutral engineering-canvas background with a subtle dotted grid. This viewer chrome is user-configurable and independent from the exported schematic sheet: SVG/PNG/PDF retain explicit white/transparent technical-output options.
+
 Schematic quality will have three independent layers. None substitutes for another.
 
 ### 1. Electrical hard gates
@@ -97,6 +107,7 @@ The current breadth-first rank plus fixed “four items per column” placement 
 2. Define reference, value and optional model tiers; long model names must not collide with supply symbols or dominate the sheet.
 3. Tune grid, stroke, font and symbol scale using the same Core SVG projection for Web, SVG, PNG and PDF.
 4. Fit the canvas to useful content with controlled margins and a sane aspect ratio; do not stretch sparse layouts to fill arbitrary space.
+5. Give the Web viewer a dark-gray, subtle dotted-grid canvas with grid visibility control; do not bake that viewer grid into canonical Schematic IR or default engineering exports.
 
 ## Iterative development and visual verification loop
 
@@ -116,16 +127,18 @@ The agent can perform the generate → inspect → critique → revise cycle loc
 
 ## Implementation order
 
-- [ ] SQ-1 — Add the reproducible capture/scorecard harness and save the current six-circuit baseline without accepting it as a golden quality target.
-- [ ] SQ-2 — Expand `QualityReport` with text collisions, explicit-wire coverage, flow/stage, label-use, compactness and routing metrics; make label-based metric gaming impossible.
-- [ ] SQ-3 — Add typed pin-flow/net-role analysis to the shared component catalog and prove it on passive, op-amp, transistor, bridge and dual-supply fixtures.
-- [ ] SQ-4 — Replace fixed-row BFS placement with deterministic constrained stage placement; first make RC and gain-stage sheets conventionally readable.
-- [ ] SQ-5 — Implement local trunk/branch routing, explicit feedback paths and the restricted semantic-label policy.
-- [ ] SQ-6 — Tune symbols, engineering values, text hierarchy, margins and viewport fitting.
-- [ ] SQ-7 — Iterate on the power-amplifier sheet until buffer → gain/error → driver → class-B output → load is visually traceable without reading the source code.
+- [x] SQ-1 — Add the reproducible capture/scorecard harness and save the current six-circuit baseline without accepting it as a golden quality target. _Implemented as `scripts/capture-schematic-corpus.ps1`; the corpus now contains thirteen circuits, including two unseen generalization probes, and the rejected baseline is recorded in `docs/evals/schematic-quality-baseline-2026-08-13.md`._
+- [ ] SQ-2 — Expand `QualityReport` with text collisions, explicit-wire coverage, flow/stage, label-use, compactness and routing metrics; make label-based metric gaming impossible. _Partially implemented: label→symbol collision, explicit local-wire coverage, global/local label counts, flow inversions, wire length/bends and composition metrics are live hard/diagnostic gates. Component text→wire/text clearance and normalized detour/alignment metrics remain before closure._
+- [x] SQ-3 — Add typed pin-flow/net-role analysis to the shared component catalog and prove it on passive, op-amp, transistor, bridge and dual-supply fixtures. _`PinFlow` is catalog-owned; thirteen-circuit regression plus direct catalog assertions cover passive, source, op-amp, BJT, MOSFET, bridge, clamp and dual-rail cases._
+- [x] SQ-4 — Replace fixed-row BFS placement with deterministic constrained stage placement; first make RC and gain-stage sheets conventionally readable. _Typed source→sink ranks, placement lanes and topology-derived bridge/differential/single-transistor constraints replace the old undirected fixed-row behavior._
+- [x] SQ-5 — Implement local trunk/branch routing, explicit feedback paths and the restricted semantic-label policy. _Every local signal pin in the thirteen-circuit corpus has 1000/1000 explicit-wire coverage; labels are restricted to supplies, ground and true high-fan-out global nets._
+- [x] SQ-6 — Tune symbols, engineering values, text hierarchy, margins and viewport fitting; add an optional dark dotted-grid Web canvas without coupling it to exported sheet backgrounds. _Engineering SI values, quieter model text, corrected active symbols, compact composition and a default-on toggleable Web-only dotted grid are implemented and inspected in fixed-viewport Chromium captures._
+- [x] SQ-7 — Iterate on the power-amplifier sheet until buffer → gain/error → driver → class-B output → load is visually traceable without reading the source code. _The accepted candidate renders all four stages left-to-right with explicit local/feedback wiring and a conventional complementary output pair; actual PNG and Web captures were inspected in three visual iterations._
 - [ ] SQ-8 — Verify SVG/PNG/PDF and Web parity, then verify KiCad/LTspice receive the accepted placement/connectivity without exporter-specific layout forks.
 - [ ] SQ-9 — Lock accepted corpus metrics/hashes/screenshots and run canonical local/remote verification.
 - [ ] SQ-10 — Obtain explicit owner review of the three Web examples before restoring the Phase 4 visual-quality acceptance checkboxes or publishing.
+
+Current post-remediation candidate evidence and remaining caveats: `docs/evals/schematic-quality-candidate-2026-08-13.md`. SQ-8–SQ-10 and the unfinished SQ-2 text/detour metrics remain release blockers; these checkboxes deliberately do not imply Phase 4 visual acceptance yet.
 
 ## Exit criteria
 
@@ -137,4 +150,3 @@ This remediation is complete only when:
 - the same accepted drawing is available from CLI and Web in every supported visual format;
 - KiCad/LTspice connectivity remains verified and no exporter invents a separate layout engine;
 - the owner has reviewed the local Web Hub and explicitly accepted the three example schematics.
-

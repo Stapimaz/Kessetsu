@@ -18,6 +18,7 @@
 /webapp/test-results/
 /webapp/playwright-report/
 /release-artifacts/
+/.artifacts/
 
 # Local editor and OS files
 .DS_Store

@@ -1,4 +1,4 @@
-import { CircuitBoard, Maximize2, Minus, Plus } from 'lucide-react';
+import { CircuitBoard, Grid3X3, Maximize2, Minus, Plus } from 'lucide-react';
 import { useState } from 'react';
 import type { SchematicSummary } from '../domain';
 
@@ -11,6 +11,7 @@ export function SchematicPanel({ schematic, svg }: Props) {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+  const [gridVisible, setGridVisible] = useState(true);
   const reset = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
 
   return (
@@ -20,14 +21,19 @@ export function SchematicPanel({ schematic, svg }: Props) {
         <span className={`quality-badge ${schematic?.quality.passed ? 'quality-pass' : ''}`}>
           {schematic?.connectivity.verified ? 'Connectivity verified' : 'Waiting'}
         </span>
-        <div className="icon-actions" aria-label="Şema görünümü">
-          <button aria-label="Uzaklaştır" onClick={() => setZoom((current) => Math.max(0.2, current - 0.2))}><Minus size={14} /></button>
-          <button aria-label="Sığdır" onClick={reset}><Maximize2 size={14} /></button>
-          <button aria-label="Yakınlaştır" onClick={() => setZoom((current) => Math.min(4, current + 0.2))}><Plus size={14} /></button>
+        <div className="icon-actions" aria-label="Schematic view">
+          <button
+            aria-label="Toggle schematic grid"
+            aria-pressed={gridVisible}
+            onClick={() => setGridVisible((current) => !current)}
+          ><Grid3X3 size={14} /></button>
+          <button aria-label="Zoom out" onClick={() => setZoom((current) => Math.max(0.2, current - 0.2))}><Minus size={14} /></button>
+          <button aria-label="Fit view" onClick={reset}><Maximize2 size={14} /></button>
+          <button aria-label="Zoom in" onClick={() => setZoom((current) => Math.min(4, current + 0.2))}><Plus size={14} /></button>
         </div>
       </header>
       <div
-        className={`schematic-surface${dragStart ? ' is-dragging' : ''}`}
+        className={`schematic-surface${gridVisible ? ' has-grid' : ''}${dragStart ? ' is-dragging' : ''}`}
         tabIndex={0}
         onWheel={(event) => {
           event.preventDefault();

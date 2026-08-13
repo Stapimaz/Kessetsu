@@ -1,0 +1,19 @@
+// Common-emitter BJT voltage-gain stage with emitter degeneration.
+net GND
+net VCC
+net IN
+net OUT
+net EMITTER
+source VCCS 12V
+source VIN sine(0V,20mV,1kHz)
+transistor Q1 npn NLANG_POWER_NPN_V1
+resistor RC 4.7k
+resistor RE 1k
+resistor RL 10k
+connect VCCS.minus, VIN.minus to GND
+connect VCCS.plus, RC.p1 to VCC
+connect VIN.plus, Q1.b to IN
+connect RC.p2, Q1.c, RL.p1 to OUT
+connect Q1.e, RE.p1 to EMITTER
+connect RE.p2, RL.p2 to GND
+simulate op
