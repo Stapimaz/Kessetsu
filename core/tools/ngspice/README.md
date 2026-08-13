@@ -14,9 +14,10 @@ değildir.
 
 Sürüm, `bin/ngspice_con.exe --version` çıktısıyla doğrulanır. NetLang önce
 `NETLANG_NGSPICE` ile verilen açık executable yolunu, ardından repository/release
-Windows sidecar konumlarını ve son olarak `ngspice_con.exe` sistem fallback'ini
-dener. Linux/macOS paketleme ve standart `ngspice` executable discovery henüz
-tamamlanmamıştır.
+Windows sidecar konumlarını ve son olarak platforma göre `ngspice_con.exe` veya
+`ngspice` sistem fallback'ini dener. İlk release'in Linux/macOS paketleri sistem
+paket yöneticisinden kurulan, version-probed `ngspice` kullanır; kesin matris ve
+smoke sözleşmesi [release belgesindedir](../../../docs/release.md).
 
 ## Takip edilen runtime profili
 
@@ -48,8 +49,8 @@ ayrı bir runtime profili tanımlanmalıdır.
    code-model veya OSDI dosyası hatası vermedi.
 
 Bu smoke doğrulaması desteklenen bütün Ngspice özelliklerini garanti etmez.
-Phase 3 integration fixture'ları OP, transient ve AC davranışını ayrıca
-kilitleyecektir.
+Canonical integration fixture'ları OP, transient, AC ve DC davranışını; RC,
+gain-stage ve power-amplifier benchmark'ları gerçek simülasyonla ayrıca kilitler.
 
 ## Lisans ve dağıtım kapısı
 
@@ -59,9 +60,9 @@ XSPICE gibi bileşenlere ait istisnaları birlikte içerir. Dağıtılan binary
 ana proje lisansına bakılarak dağıtım kararı verilmemelidir. Lisans dosyası ve
 attribution kayıtları binary ile birlikte korunmalıdır.
 
-Bu belge hukuki görüş değildir. Public release/paketleme öncesinde tam binary
-provenance'i, karşılık gelen kaynak erişimi ve üçüncü taraf lisans
-yükümlülükleri release checklist'inde ayrıca incelenmelidir.
+Bu belge hukuki görüş değildir. Release paketi bu dizinin tam notice envanterini,
+binary provenance'ini ve SHA-256 kayıtlarını korur; dependency/license audit'i
+release kapısında ayrıca çalışır.
 
 ## Yükseltme prosedürü
 

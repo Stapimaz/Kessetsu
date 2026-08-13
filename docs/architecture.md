@@ -260,9 +260,9 @@ Bu ekosistem üç sütun üzerinde yükselir:
 Projenin kalbi. Parser, IR, ERC, SPICE jeneratör ve layout motoru tek bir Rust crate içinde yaşar. Hem kütüphane (`lib`), hem CLI, hem WASM olarak derlenir. Deterministik davranış sağlar — aynı devre, her platformda aynı sonucu üretir.
 
 ### 2. NetLang CLI (Yapay Zeka ve Geliştiriciler İçin Motor)
-Derleme/ERC/SPICE üretimi için internet gerektirmeyen Rust CLI'dır. Repository şu anda Windows x86-64 için Ngspice sidecar taşır; diğer platformlarda paketleme tamamlanmamıştır ve açık executable override'ı gerekir.
+Derleme/ERC/SPICE üretimi için internet gerektirmeyen Rust CLI'dır. Windows x86-64 release'i Ngspice sidecar taşır; Linux x86-64 ile macOS Intel/Apple Silicon release'leri version-probed sistem Ngspice'ını keşfeder ve açık executable override'ını destekler.
 
-- **Mevcut dağıtım:** Source build + Windows sidecar. Tek-binary release, `cargo install` ve VS Code extension gelecek dağıtım hedefleridir.
+- **Mevcut dağıtım:** Dört platform artifact'i, SHA-256/release manifest'i ve clean-machine simulation smoke'u. `cargo install` ve VS Code extension sonraki dağıtım hedefleridir.
 - **Kullanım:** AI ajanları ve donanım mühendisleri devreyi derlemek, test etmek ve otomatik JSON formatında hataları ayıklamak için kullanır. Ayrıntılar [CLI Reference](cli_reference.md) içindedir.
 - **TDD Döngüsü:** Ajan, assertion'ları yazılım testleri gibi kullanarak devreyi iteratif olarak düzeltebilir (Self-Healing). Her iterasyonda structured feedback alır.
 

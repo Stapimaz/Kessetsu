@@ -52,3 +52,14 @@ jobs:
       - name: Run repository verification
         shell: pwsh
         run: ./scripts/verify.ps1
+
+      - name: Audit dependency licenses and generated artifacts
+        shell: pwsh
+        run: ./scripts/audit-release.ps1
+
+      - name: Install RustSec audit tool
+        run: cargo install cargo-audit --version 0.22.2 --locked
+
+      - name: Audit Rust security advisories
+        working-directory: core
+        run: cargo audit

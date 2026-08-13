@@ -57,8 +57,8 @@ test('downloads every advertised artifact from the shared Core contract', async 
     } else {
       expect(bytes.equals(nativeBytes), `${format} native/WASM byte parity`).toBe(true);
     }
-    await expect(page.getByRole('status')).not.toContainText('undefined');
+    await expect(page.locator('.export-status')).not.toContainText('undefined');
   }
 
-  await expect(page.getByRole('status')).toContainText('engineering assertions remain');
+  await expect(page.locator('.export-status')).toContainText('engineering assertions remain');
 });

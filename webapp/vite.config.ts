@@ -6,6 +6,7 @@ import { copyFileSync, mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 export default defineConfig({
+  base: process.env.NETLANG_BASE_PATH ?? '/',
   plugins: [
     react(),
     // @ts-ignore
@@ -22,6 +23,10 @@ export default defineConfig({
         copyFileSync(
           resolve(import.meta.dirname, '../core/tools/ngspice/docs/COPYING'),
           resolve(licenseDir, 'ngspice-COPYING.txt'),
+        )
+        copyFileSync(
+          resolve(import.meta.dirname, '../core/assets/fonts/RobotoMono-OFL.txt'),
+          resolve(licenseDir, 'RobotoMono-OFL.txt'),
         )
       },
     }

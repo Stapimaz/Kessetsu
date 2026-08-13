@@ -17,6 +17,7 @@
 /webapp/dist-ssr/
 /webapp/test-results/
 /webapp/playwright-report/
+/release-artifacts/
 
 # Local editor and OS files
 .DS_Store

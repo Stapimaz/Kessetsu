@@ -19,6 +19,7 @@ interface Props {
 export function EditorPanel({ code, diagnostics, wasmLoaded, compileSucceeded, onCodeChange, onCompile, onExample }: Props) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const modelRef = useRef<editor.ITextModel | null>(null);
+  const selectedExample = Object.entries(examples).find(([, example]) => example.source === code)?.[0] ?? 'custom';
 
   const applyMarkers = useCallback(() => {
     const model = modelRef.current;
@@ -59,7 +60,12 @@ export function EditorPanel({ code, diagnostics, wasmLoaded, compileSucceeded, o
         <div className="header-title"><Code2 size={18} /><strong>NetLang</strong></div>
         <label className="example-picker">
           <span className="sr-only">Örnek devre</span>
-          <select aria-label="Örnek devre" defaultValue="rc" onChange={(event) => onExample(event.target.value as ExampleId)}>
+          <select
+            aria-label="Örnek devre"
+            value={selectedExample}
+            onChange={(event) => event.target.value !== 'custom' && onExample(event.target.value as ExampleId)}
+          >
+            {selectedExample === 'custom' && <option value="custom">Shared / custom circuit</option>}
             {Object.entries(examples).map(([id, example]) => <option key={id} value={id}>{example.label} — {example.description}</option>)}
           </select>
         </label>

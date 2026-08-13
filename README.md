@@ -1,5 +1,7 @@
 # NetLang
 
+[Web Hub](https://stapimaz.github.io/NetLang/) · [CLI releases](https://github.com/Stapimaz/NetLang/releases) · [Tutorial](docs/tutorial.md) · [Supported domain](docs/supported_domain.md)
+
 NetLang, devreleri metinle tanımlayıp yazılım gibi derlemek, simüle etmek ve assertion'larla sınamak için geliştirilen agent-driven bir circuit engineering platformudur. CLI'ın human modu insanlara, versioned JSON modu AI ajanları ve otomasyona; zero-friction Web Hub ise tarayıcı kullanıcılarına hizmet eder. Bütün yüzeyler aynı Rust çekirdeğini kullanır; typed Circuit IR, deterministik graph/ERC, SPICE netlist, layout ve EDA çıktıları ortak semantikten üretilir.
 
 ```text
@@ -39,7 +41,11 @@ Mevcut repository build'inde Web Hub şunları yapabiliyor:
 - Yedi görsel, makine ve EDA formatını capability/loss bilgisiyle indirme
 - Source ve exact package sürümlerini sıkıştırılmış URL ile paylaşma
 
-İlk sürümde Web Hub içinde AI chat yoktur ve bu gizlenen bir eksik değildir: AI/otomasyon yüzeyi CLI'ın stdin + versioned JSON tool contract'ı, insan yüzeyi Web Hub'dır. İkisi de aynı Core'u kullanır. Provider-independent Web AI tasarım yüzeyi sonraki faz için bilinçli olarak ayrılmıştır. Public Web Hub bağlantısı release deployment tamamlandığında buraya eklenecektir.
+İlk sürümde Web Hub içinde AI chat yoktur ve bu gizlenen bir eksik değildir: AI/otomasyon yüzeyi CLI'ın stdin + versioned JSON tool contract'ı, insan yüzeyi Web Hub'dır. İkisi de aynı Core'u kullanır. Provider-independent Web AI tasarım yüzeyi sonraki faz için bilinçli olarak ayrılmıştır.
+
+![NetLang Web Hub RC workspace](docs/assets/web-hub-workspace.png)
+
+![Power amplifier simulation with 12 passing requirements](docs/assets/web-hub-power-amplifier.png)
 
 ## Kısa NetLang örneği
 
@@ -59,6 +65,8 @@ simulate op
 Aynı kaynak CLI'dan veya Web Hub'dan compile edildiğinde aynı IR, diagnostic ve SPICE sonucu üretilir.
 
 ## Hızlı başlangıç
+
+Hazır CLI paketleri [GitHub Releases](https://github.com/Stapimaz/NetLang/releases) sayfasında Windows x86-64, Linux x86-64, macOS Intel ve macOS Apple Silicon için SHA-256 dosyalarıyla yayınlanır. Windows paketi doğrulanmış Ngspice sidecar'ını içerir; Linux/macOS'ta `ngspice` sistem paketini kurun veya güvenilen full path'i `NETLANG_NGSPICE` ile verin. Her paketteki `INSTALL.txt` ve `release-manifest.json` kesin yolu/provenance'i açıklar.
 
 Gereksinimler:
 
@@ -126,3 +134,5 @@ npm.cmd run build
 - Backend'ler yalnız typed Circuit IR üzerinden çalışır.
 - Generated output fiziksel doğrulama veya mühendis incelemesinin yerine geçmez.
 - Embedded runtime'ın provenance/lisans notları [Ngspice runtime README](core/tools/ngspice/README.md) içinde tutulur.
+- İlk yayın analog/mixed-signal schematic-level kapsamındadır; PCB layout/DRC, RF/EM, thermal/reliability, Monte Carlo ve laboratuvar doğrulaması sağlamaz.
+- Güvenlik bildirimleri [SECURITY.md](SECURITY.md), release/rollback ve telemetry sınırı [release contract](docs/release.md) içinde tanımlıdır.

@@ -892,13 +892,13 @@ Mevcut Web/layout kodu tamamen boş değildir ve kanıt görmeden silinmeyecekti
 
 ### 4.7 — Cross-platform paketleme ve public yayın kapısı
 
-- [ ] Windows x86-64, Linux x86-64 ve seçilen macOS mimarileri için CLI release artifact matrisi tanımla.
-- [ ] Her artifact için simulator paketleme/keşif, executable provenance, lisans notice, checksum ve version probe yolunu tamamla.
+- [x] Windows x86-64, Linux x86-64 ve seçilen macOS mimarileri için CLI release artifact matrisi tanımla. _Windows x86-64, Ubuntu x86-64, macOS Intel ve Apple Silicon; resmi GitHub runner mimarileri 2026-08-13 doğrulandı._
+- [x] Her artifact için simulator paketleme/keşif, executable provenance, lisans notice, checksum ve version probe yolunu tamamla. _Windows Ngspice 46 sidecar; Unix trusted PATH/override; `netlang.release.v1`, executable/archive SHA-256, Rust/font/Ngspice notices._
 - [ ] Temiz Windows/Linux/macOS ortamında kurulum → ilk compile → ilk gerçek simulation → assertion smoke testini otomatikleştir.
 - [ ] Web Hub production deployment, cache headers, WASM/worker MIME, CSP, error telemetry sınırı ve rollback prosedürünü doğrula.
-- [ ] Canonical Rust/WASM/Web kapısına gerçek-browser E2E, schematic visual/connectivity, benchmark parity ve release artifact testlerini ekle.
-- [ ] Güvenlik, dependency/license ve generated-artifact audit'lerini release kapısı yap.
-- [ ] README'ye canlı Web Hub bağlantısı, doğrulanmış kurulum yolları, ürün ekran görüntüleri ve destek sınırlarını ekle.
+- [x] Canonical Rust/WASM/Web kapısına gerçek-browser E2E, schematic visual/connectivity, benchmark parity ve release artifact testlerini ekle. _`verify.ps1` full browser suite'e ek olarak host archive clean smoke, agent replay, deployment audit ve Windows EDA smoke çalıştırır._
+- [ ] Güvenlik, dependency/license ve generated-artifact audit'lerini release kapısı yap. _npm 0 vulnerability, 127 Rust + 81 npm license metadata ve generated-artifact audit yerelde PASS; RustSec clean-runner sonucu bekleniyor._
+- [x] README'ye canlı Web Hub bağlantısı, doğrulanmış kurulum yolları, ürün ekran görüntüleri ve destek sınırlarını ekle. _Pages/release linkleri, iki gerçek Playwright görüntüsü, dört platform kurulumu ve açık physical/security sınırlar._
 - [ ] Public release tag/changelog/migration notu üret ve repository/Web Hub public görünürlüğünü yalnız tüm kabul kriterlerinden sonra aç.
 
 ### Faz 4 ve ilk public yayın kabul kriterleri

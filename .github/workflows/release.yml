@@ -1,0 +1,113 @@
+name: Release matrix
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+env:
+  RUST_VERSION: 1.97.1
+  RELEASE_VERSION: 0.1.0
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+      - name: Install pinned Rust
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal
+          rustup default "$RUST_VERSION"
+      - name: Install exact Web dependencies
+        working-directory: webapp
+        run: npm ci
+      - name: Audit licenses, npm advisories and generated artifacts
+        shell: pwsh
+        run: ./scripts/audit-release.ps1
+      - name: Install RustSec audit tool
+        run: cargo install cargo-audit --version 0.22.2 --locked
+      - name: Audit Rust advisories
+        working-directory: core
+        run: cargo audit
+
+  package:
+    needs: audit
+    name: ${{ matrix.target }} clean smoke
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2022
+            target: windows-x86_64
+          - runner: ubuntu-24.04
+            target: linux-x86_64
+          - runner: macos-15-intel
+            target: macos-x86_64
+          - runner: macos-14
+            target: macos-aarch64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install pinned Rust
+        shell: pwsh
+        run: |
+          rustup toolchain install $env:RUST_VERSION --profile minimal
+          rustup default $env:RUST_VERSION
+      - name: Install Ngspice on Linux
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --yes ngspice
+      - name: Install Ngspice on macOS
+        if: runner.os == 'macOS'
+        run: brew install ngspice
+      - name: Build release CLI
+        working-directory: core
+        run: cargo build --release --locked
+      - name: Package versioned artifact
+        shell: pwsh
+        run: ./scripts/package-release.ps1 -Target '${{ matrix.target }}' -Version $env:RELEASE_VERSION
+      - name: Smoke packaged artifact in a clean directory
+        shell: pwsh
+        run: |
+          $archive = Get-ChildItem release-artifacts -File | Where-Object { $_.Name -match '\.(zip|tar\.gz)$' } | Select-Object -First 1 -ExpandProperty FullName
+          ./scripts/smoke-release.ps1 -Archive $archive
+      - name: Upload release bundle and checksum
+        uses: actions/upload-artifact@v7
+        with:
+          name: netlang-${{ matrix.target }}
+          path: |
+            release-artifacts/*.zip
+            release-artifacts/*.tar.gz
+            release-artifacts/*.sha256
+          if-no-files-found: error
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: netlang-*
+          path: release-artifacts
+          merge-multiple: true
+      - name: Verify tag matches package version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_NAME -ne "v$env:RELEASE_VERSION") { throw "Tag must equal v$env:RELEASE_VERSION" }
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" release-artifacts/* --verify-tag --title "NetLang $GITHUB_REF_NAME" --notes-file CHANGELOG.md

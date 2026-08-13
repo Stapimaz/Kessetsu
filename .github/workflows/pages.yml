@@ -1,0 +1,75 @@
+name: Web Hub production
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit, branch, or tag to deploy (use a previous tag to roll back)
+        required: false
+        default: main
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  RUST_VERSION: 1.97.1
+  WASM_PACK_VERSION: 0.13.1
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+      - name: Install pinned Rust and WASM target
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal --target wasm32-unknown-unknown
+          rustup default "$RUST_VERSION"
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --version "$WASM_PACK_VERSION" --locked
+      - name: Install exact Web dependencies
+        working-directory: webapp
+        run: npm ci
+      - name: Build production Web Hub
+        working-directory: webapp
+        env:
+          NETLANG_BASE_PATH: /NetLang/
+        run: npm run build
+      - name: Verify runtime integrity and licenses
+        working-directory: webapp
+        env:
+          NETLANG_BASE_PATH: /NetLang/
+        run: npm run verify:runtime && npm run verify:deployment
+      - name: Mark static output for GitHub Pages
+        run: touch webapp/dist/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: webapp/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy Web Hub
+        id: deployment
+        uses: actions/deploy-pages@v4
