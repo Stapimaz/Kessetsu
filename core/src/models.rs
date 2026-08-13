@@ -9,8 +9,8 @@ use crate::ir::{
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub const MODEL_MANIFEST_SCHEMA_VERSION: &str = "netlang.models.v1";
-pub const MODEL_LOCK_SCHEMA_VERSION: &str = "netlang.lock.v1";
+pub const MODEL_MANIFEST_SCHEMA_VERSION: &str = "kessetsu.models.v1";
+pub const MODEL_LOCK_SCHEMA_VERSION: &str = "kessetsu.lock.v1";
 const SIMULATOR_CAPABILITY: &str = "ngspice-35+";
 
 #[derive(Debug, Clone)]
@@ -62,7 +62,7 @@ pub fn resolve_program_models(program: &Program) -> Result<ModelLibrary, Semanti
         let package_key = include.package.to_ascii_lowercase();
         if !included_packages.insert(package_key.clone()) {
             return Err(error(
-                "NL-C013",
+                "KES-C013",
                 format!("duplicate model package include '{}'", include.package),
                 None,
                 "model_include",
@@ -109,7 +109,7 @@ pub fn validate_component_model_pins(
         .collect::<Vec<_>>();
     if pins != &expected {
         return Err(error(
-            "NL-C012",
+            "KES-C012",
             format!(
                 "subcircuit '{}' pin order {:?} does not match {:?} catalog order {:?}",
                 model.name, pins, kind, expected
@@ -146,7 +146,7 @@ fn insert_model(
     let key = model.name.to_ascii_uppercase();
     if models.contains_key(&key) {
         return Err(error(
-            "NL-C013",
+            "KES-C013",
             format!("model/subcircuit name '{}' is already defined", model.name),
             Some(&model.name),
             "name",
@@ -160,20 +160,20 @@ fn resolve_package(
     name: &str,
     version: &str,
 ) -> Result<(ResolvedModelPackage, Vec<ModelRef>), SemanticDiagnostic> {
-    if name != "netlang_analog" || version != "1.0.0" {
+    if name != "kessetsu_analog" || version != "1.0.0" {
         return Err(error(
-            "NL-C011",
+            "KES-C011",
             format!(
-                "unavailable model package '{name}@{version}'; supported package is netlang_analog@1.0.0"
+                "unavailable model package '{name}@{version}'; supported package is kessetsu_analog@1.0.0"
             ),
             None,
             "model_include",
         ));
     }
     let model = subcircuit_model(
-        "NLANG_PACKAGE_OPAMP",
+        "KESSETSU_PACKAGE_OPAMP",
         ModelSource::Package,
-        "NetLang netlang_analog package",
+        "Kessetsu kessetsu_analog package",
         "Apache-2.0",
         "1.0.0",
         500_000.0,
@@ -182,7 +182,7 @@ fn resolve_package(
     let package_content = definition_text(&model.definition);
     Ok((
         ResolvedModelPackage {
-            name: "netlang_analog".to_string(),
+            name: "kessetsu_analog".to_string(),
             version: "1.0.0".to_string(),
             license: "Apache-2.0".to_string(),
             content_hash: content_hash(package_content),
@@ -197,7 +197,7 @@ fn compile_user_model(declaration: &ModelDecl) -> Result<ModelRef, SemanticDiagn
         ModelDeclKind::Diode => {
             if declaration.polarity.is_some() {
                 return Err(error(
-                    "NL-C010",
+                    "KES-C010",
                     "diode models do not accept polarity",
                     Some(&declaration.name),
                     "polarity",
@@ -212,7 +212,7 @@ fn compile_user_model(declaration: &ModelDecl) -> Result<ModelRef, SemanticDiagn
         ModelDeclKind::BJT => {
             let polarity = declaration.polarity.as_deref().ok_or_else(|| {
                 error(
-                    "NL-C010",
+                    "KES-C010",
                     "BJT model requires npn or pnp polarity",
                     Some(&declaration.name),
                     "polarity",
@@ -232,7 +232,7 @@ fn compile_user_model(declaration: &ModelDecl) -> Result<ModelRef, SemanticDiagn
                 )
             } else {
                 return Err(error(
-                    "NL-C010",
+                    "KES-C010",
                     format!("invalid BJT polarity '{polarity}'"),
                     Some(&declaration.name),
                     "polarity",
@@ -242,7 +242,7 @@ fn compile_user_model(declaration: &ModelDecl) -> Result<ModelRef, SemanticDiagn
         ModelDeclKind::MOSFET => {
             let polarity = declaration.polarity.as_deref().ok_or_else(|| {
                 error(
-                    "NL-C010",
+                    "KES-C010",
                     "MOSFET model requires nmos or pmos polarity",
                     Some(&declaration.name),
                     "polarity",
@@ -262,7 +262,7 @@ fn compile_user_model(declaration: &ModelDecl) -> Result<ModelRef, SemanticDiagn
                 )
             } else {
                 return Err(error(
-                    "NL-C010",
+                    "KES-C010",
                     format!("invalid MOSFET polarity '{polarity}'"),
                     Some(&declaration.name),
                     "polarity",
@@ -273,7 +273,7 @@ fn compile_user_model(declaration: &ModelDecl) -> Result<ModelRef, SemanticDiagn
     let parameters = canonical_parameters(&parameters, allowed, &declaration.name)?;
     if parameters.is_empty() {
         return Err(error(
-            "NL-C010",
+            "KES-C010",
             "user model requires at least one typed electrical parameter",
             Some(&declaration.name),
             "parameters",
@@ -299,7 +299,7 @@ fn compile_user_model(declaration: &ModelDecl) -> Result<ModelRef, SemanticDiagn
 fn compile_user_subcircuit(declaration: &SubcircuitDecl) -> Result<ModelRef, SemanticDiagnostic> {
     if !declaration.kind.eq_ignore_ascii_case("opamp") {
         return Err(error(
-            "NL-C012",
+            "KES-C012",
             format!("unsupported subcircuit kind '{}'", declaration.kind),
             Some(&declaration.name),
             "kind",
@@ -312,7 +312,7 @@ fn compile_user_subcircuit(declaration: &SubcircuitDecl) -> Result<ModelRef, Sem
         .collect::<Vec<_>>();
     if declaration.pins != expected {
         return Err(error(
-            "NL-C012",
+            "KES-C012",
             format!(
                 "opamp subcircuit '{}' pins {:?} must exactly match catalog order {:?}",
                 declaration.name, declaration.pins, expected
@@ -325,7 +325,7 @@ fn compile_user_subcircuit(declaration: &SubcircuitDecl) -> Result<ModelRef, Sem
     let values = canonical_parameters(&parameters, &["gain", "bandwidth"], &declaration.name)?;
     let gain = *values.get("gain").ok_or_else(|| {
         error(
-            "NL-C012",
+            "KES-C012",
             "opamp subcircuit requires gain",
             Some(&declaration.name),
             "gain",
@@ -333,7 +333,7 @@ fn compile_user_subcircuit(declaration: &SubcircuitDecl) -> Result<ModelRef, Sem
     })?;
     let bandwidth = *values.get("bandwidth").ok_or_else(|| {
         error(
-            "NL-C012",
+            "KES-C012",
             "opamp subcircuit requires bandwidth",
             Some(&declaration.name),
             "bandwidth",
@@ -341,7 +341,7 @@ fn compile_user_subcircuit(declaration: &SubcircuitDecl) -> Result<ModelRef, Sem
     })?;
     if gain <= 0.0 || bandwidth <= 0.0 {
         return Err(error(
-            "NL-C012",
+            "KES-C012",
             "opamp gain and bandwidth must be positive",
             Some(&declaration.name),
             "parameters",
@@ -375,7 +375,7 @@ fn split_metadata(
         if matches!(key.as_str(), "version" | "license" | "source") {
             if metadata.insert(key.clone(), value.value.clone()).is_some() {
                 return Err(error(
-                    "NL-C010",
+                    "KES-C010",
                     format!("duplicate metadata field '{}'", value.name),
                     Some(model_name),
                     &value.name,
@@ -387,7 +387,7 @@ fn split_metadata(
     }
     let version = metadata.remove("version").ok_or_else(|| {
         error(
-            "NL-C010",
+            "KES-C010",
             "user model/subcircuit requires version metadata",
             Some(model_name),
             "version",
@@ -395,7 +395,7 @@ fn split_metadata(
     })?;
     let license = metadata.remove("license").ok_or_else(|| {
         error(
-            "NL-C010",
+            "KES-C010",
             "user model/subcircuit requires license metadata",
             Some(model_name),
             "license",
@@ -415,7 +415,7 @@ fn split_metadata(
                 .all(|character| character.is_ascii_alphanumeric() || ". _+-/".contains(character))
         {
             return Err(error(
-                "NL-C010",
+                "KES-C010",
                 format!("unsafe or invalid {field} metadata '{value}'"),
                 Some(model_name),
                 field,
@@ -442,7 +442,7 @@ fn canonical_parameters(
         let key = value.name.to_ascii_lowercase();
         if !allowed.contains(&key.as_str()) {
             return Err(error(
-                "NL-C010",
+                "KES-C010",
                 format!(
                     "unsupported parameter '{}' for '{}'; allowed parameters: {}",
                     value.name,
@@ -455,7 +455,7 @@ fn canonical_parameters(
         }
         let parsed = parse_si_value(&value.value).map_err(|reason| {
             error(
-                "NL-C010",
+                "KES-C010",
                 format!("invalid typed parameter '{}': {reason}", value.name),
                 Some(model_name),
                 &value.name,
@@ -463,7 +463,7 @@ fn canonical_parameters(
         })?;
         if parameters.insert(key, parsed).is_some() {
             return Err(error(
-                "NL-C010",
+                "KES-C010",
                 format!("duplicate parameter '{}'", value.name),
                 Some(model_name),
                 &value.name,
@@ -491,15 +491,15 @@ fn builtin_models() -> Vec<ModelRef> {
             ".model 2N2222 NPN (Is=14.34f Xti=3 Eg=1.11 Vaf=74.03 Bf=255.9 Ne=1.307 Ise=14.34f Ikf=.2847 Xtb=1.5 Br=6.092 Nc=2 Isc=0 Ikr=0 Rc=1 Cjc=7.306p Mjc=.3416 Vjc=.75 Fc=.5 Cje=22.01p Mje=.377 Vje=.75 Tr=46.91n Tf=411.1p Itf=.6 Vtf=1.7 Xtf=3 Rb=10)",
         ),
         verified_device_model(
-            "NLANG_POWER_NPN_V1",
+            "KESSETSU_POWER_NPN_V1",
             ComponentKind::BJT(BJTPolarity::NPN),
-            ".model NLANG_POWER_NPN_V1 NPN (Is=1e-12 Bf=80 Vaf=60 Cje=300p Cjc=150p Tf=1u Tr=5u)",
+            ".model KESSETSU_POWER_NPN_V1 NPN (Is=1e-12 Bf=80 Vaf=60 Cje=300p Cjc=150p Tf=1u Tr=5u)",
             "1.0.0",
         ),
         verified_device_model(
-            "NLANG_POWER_PNP_V1",
+            "KESSETSU_POWER_PNP_V1",
             ComponentKind::BJT(BJTPolarity::PNP),
-            ".model NLANG_POWER_PNP_V1 PNP (Is=1e-12 Bf=80 Vaf=60 Cje=300p Cjc=150p Tf=1u Tr=5u)",
+            ".model KESSETSU_POWER_PNP_V1 PNP (Is=1e-12 Bf=80 Vaf=60 Cje=300p Cjc=150p Tf=1u Tr=5u)",
             "1.0.0",
         ),
         device_model(
@@ -518,15 +518,15 @@ fn builtin_models() -> Vec<ModelRef> {
             ".model IRF540 VDMOS (Rg=3 Vto=4.0 Rd=45m Rs=12m Rb=10m Kp=18 Cgdmax=2n Cgdmin=1.3n Cgs=1.7n Cjo=1n Is=2p mfg=IR)",
         ),
         verified_device_model(
-            "NLANG_PMOS_V1",
+            "KESSETSU_PMOS_V1",
             ComponentKind::MOSFET(FETPolarity::PMOS),
-            ".model NLANG_PMOS_V1 PMOS (Level=1 Vto=-4 Kp=8 Lambda=0.02 Rd=0.2 Rs=0.05)",
+            ".model KESSETSU_PMOS_V1 PMOS (Level=1 Vto=-4 Kp=8 Lambda=0.02 Rd=0.2 Rs=0.05)",
             "1.0.1",
         ),
         subcircuit_model(
-            "NLANG_OPAMP_V1",
+            "KESSETSU_OPAMP_V1",
             ModelSource::Builtin,
-            "NetLang verified generic opamp",
+            "Kessetsu verified generic opamp",
             "Apache-2.0",
             "1.0.0",
             200_000.0,
@@ -543,7 +543,7 @@ fn device_model(name: &str, kind: ComponentKind, directive: &str) -> ModelRef {
         ModelDefinition::Device {
             directive: directive.to_string(),
         },
-        "NetLang built-in model registry".to_string(),
+        "Kessetsu built-in model registry".to_string(),
         "legacy-provenance".to_string(),
         "1.0.0".to_string(),
     )
@@ -562,7 +562,7 @@ fn verified_device_model(
         ModelDefinition::Device {
             directive: directive.to_string(),
         },
-        "NetLang verified generic model".to_string(),
+        "Kessetsu verified generic model".to_string(),
         "Apache-2.0".to_string(),
         version.to_string(),
     )

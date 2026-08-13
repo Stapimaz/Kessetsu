@@ -1,9 +1,9 @@
 # Schematic Quality Baseline — 2026-08-13
 
 - Status: Rejected baseline; diagnostic evidence only
-- Generator: Core/CLI release render and `netlang.schematic.v1` export
+- Generator: Core/CLI release render and `kessetsu.schematic.v1` export
 - Harness: `scripts/capture-schematic-corpus.ps1`
-- Corpus schema: `netlang.schematic-quality-corpus.v1`
+- Corpus schema: `kessetsu.schematic-quality-corpus.v1`
 
 ## Machine evidence
 

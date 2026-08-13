@@ -30,11 +30,11 @@ test('runs the canonical RC filter in a worker and evaluates Core assertions', a
   await expect(summary.locator('.assertion-pass')).toHaveCount(5);
   await expect(summary.locator('.assertion-fail, .assertion-error, .assertion-skipped')).toHaveCount(0);
 
-  const binary = resolve('../core/target/release', process.platform === 'win32' ? 'netlang.exe' : 'netlang');
+  const binary = resolve('../core/target/release', process.platform === 'win32' ? 'kess.exe' : 'kess');
   const nativeOutput = resolve('test-results/native-rc.spice');
   const native = JSON.parse(execFileSync(binary, [
     'test',
-    resolve('../core/tests/fixtures/benchmarks/rc_filter.nl'),
+    resolve('../core/tests/fixtures/benchmarks/rc_filter.kess'),
     '--output',
     nativeOutput,
     '--force',
@@ -51,7 +51,7 @@ test('runs the canonical RC filter in a worker and evaluates Core assertions', a
 test('normalizes OP, transient, AC and DC sweep results and restarts after cancellation', async ({ page }) => {
   test.setTimeout(120_000);
   const source = readFileSync(
-    new URL('../../../core/tests/fixtures/benchmarks/browser_analysis_matrix.nl', import.meta.url),
+    new URL('../../../core/tests/fixtures/benchmarks/browser_analysis_matrix.kess', import.meta.url),
     'utf8',
   );
   await page.goto('/');

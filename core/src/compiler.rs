@@ -9,7 +9,7 @@ use pest::error::LineColLocation;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const COMPILE_SCHEMA_VERSION: &str = "netlang.compile.v3";
+pub const COMPILE_SCHEMA_VERSION: &str = "kessetsu.compile.v3";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -143,7 +143,7 @@ fn parser_diagnostic(error: pest::error::Error<Rule>) -> Diagnostic {
         }
     };
     Diagnostic {
-        code: "NL-P001".to_string(),
+        code: "KES-P001".to_string(),
         severity: DiagnosticSeverity::Error,
         stage: DiagnosticStage::Parse,
         message: error.to_string(),
@@ -197,7 +197,7 @@ fn annotate_source_locations(source: &str, diagnostics: &mut [Diagnostic]) {
 
 fn flatten_diagnostic(message: String) -> Diagnostic {
     Diagnostic {
-        code: "NL-C008".to_string(),
+        code: "KES-C008".to_string(),
         severity: DiagnosticSeverity::Error,
         stage: DiagnosticStage::Flatten,
         message,
@@ -272,7 +272,7 @@ impl GraphSummary {
     }
 }
 
-/// Compiles NetLang source without performing filesystem or process I/O.
+/// Compiles Kessetsu source without performing filesystem or process I/O.
 ///
 /// Every stage reports failures through `CompileReport::diagnostics`. Backend
 /// outputs are generated only when no error-severity diagnostic exists.
@@ -334,7 +334,7 @@ pub fn compile_source(source: &str, options: CompileOptions) -> CompileReport {
             Ok(schematic) => schematic,
             Err(error) => {
                 report.diagnostics.push(Diagnostic {
-                    code: "NL-L001".to_string(),
+                    code: "KES-L001".to_string(),
                     severity: DiagnosticSeverity::Error,
                     stage: DiagnosticStage::Schematic,
                     message: error.to_string(),

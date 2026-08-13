@@ -4,13 +4,13 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const cases = [
-  { option: 'gain', fixture: 'gain_stage.nl', assertions: 7, models: ['NLANG_OPAMP_V1'] },
-  { option: 'power', fixture: 'power_amplifier.nl', assertions: 12, models: ['NLANG_POWER_NPN_V1', 'NLANG_POWER_PNP_V1', 'NLANG_OPAMP_V1'] },
+  { option: 'gain', fixture: 'gain_stage.kess', assertions: 7, models: ['KESSETSU_OPAMP_V1'] },
+  { option: 'power', fixture: 'power_amplifier.kess', assertions: 12, models: ['KESSETSU_POWER_NPN_V1', 'KESSETSU_POWER_PNP_V1', 'KESSETSU_OPAMP_V1'] },
 ] as const;
 
 test('keeps gain-stage and power-amplifier native/browser decisions, SPICE and models in parity', async ({ page }) => {
   test.setTimeout(240_000);
-  const binary = resolve('../core/target/release', process.platform === 'win32' ? 'netlang.exe' : 'netlang');
+  const binary = resolve('../core/target/release', process.platform === 'win32' ? 'kess.exe' : 'kess');
   await page.goto('/');
 
   for (const benchmark of cases) {

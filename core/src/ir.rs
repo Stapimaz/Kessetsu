@@ -459,7 +459,7 @@ fn parse_analysis(
     command: &crate::ast::SimulateStmt,
     components: &[IRComponent],
 ) -> Result<Analysis, SemanticDiagnostic> {
-    let invalid = |message: String| semantic_error("NL-C009", message, None, Some("analysis"));
+    let invalid = |message: String| semantic_error("KES-C009", message, None, Some("analysis"));
     let cmd = command.cmd.to_ascii_lowercase();
 
     match cmd.as_str() {
@@ -603,7 +603,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
                         ComponentParams::TwoPinPassive {
                             value: parse_quantity(val_str, SIUnit::Ohm).map_err(|error| {
                                 semantic_error(
-                                    "NL-C001",
+                                    "KES-C001",
                                     format!("invalid resistor value: {error}"),
                                     Some(&decl.name),
                                     Some("value"),
@@ -616,7 +616,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
                         ComponentParams::TwoPinPassive {
                             value: parse_quantity(val_str, SIUnit::Farad).map_err(|error| {
                                 semantic_error(
-                                    "NL-C001",
+                                    "KES-C001",
                                     format!("invalid capacitor value: {error}"),
                                     Some(&decl.name),
                                     Some("value"),
@@ -629,7 +629,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
                         ComponentParams::TwoPinPassive {
                             value: parse_quantity(val_str, SIUnit::Henry).map_err(|error| {
                                 semantic_error(
-                                    "NL-C001",
+                                    "KES-C001",
                                     format!("invalid inductor value: {error}"),
                                     Some(&decl.name),
                                     Some("value"),
@@ -642,7 +642,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
                         let value = if let Some(waveform) = parse_waveform(val_str, SIUnit::Volt)
                             .map_err(|error| {
                                 semantic_error(
-                                    "NL-C002",
+                                    "KES-C002",
                                     format!("invalid voltage-source waveform: {error}"),
                                     Some(&decl.name),
                                     Some("value"),
@@ -653,7 +653,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
                             SourceValue::Dc(parse_quantity(val_str, SIUnit::Volt).map_err(
                                 |error| {
                                     semantic_error(
-                                        "NL-C001",
+                                        "KES-C001",
                                         format!("invalid voltage-source value: {error}"),
                                         Some(&decl.name),
                                         Some("value"),
@@ -668,7 +668,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
                         let value = if let Some(waveform) = parse_waveform(val_str, SIUnit::Ampere)
                             .map_err(|error| {
                                 semantic_error(
-                                    "NL-C002",
+                                    "KES-C002",
                                     format!("invalid current-source waveform: {error}"),
                                     Some(&decl.name),
                                     Some("value"),
@@ -679,7 +679,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
                             SourceValue::Dc(parse_quantity(val_str, SIUnit::Ampere).map_err(
                                 |error| {
                                     semantic_error(
-                                        "NL-C001",
+                                        "KES-C001",
                                         format!("invalid current-source value: {error}"),
                                         Some(&decl.name),
                                         Some("value"),
@@ -708,7 +708,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
                         };
                         let resolved = model_library.resolve(requested_model).ok_or_else(|| {
                             semantic_error(
-                                "NL-C003",
+                                "KES-C003",
                                 format!(
                                     "unsupported BJT model '{requested_model}'; user-defined models are not yet declared by the language"
                                 ),
@@ -718,7 +718,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
                         })?;
                         let ComponentKind::BJT(model_polarity) = &resolved.kind else {
                             return Err(semantic_error(
-                                "NL-C004",
+                                "KES-C004",
                                 format!("model '{requested_model}' is not a BJT model"),
                                 Some(&decl.name),
                                 Some("model"),
@@ -728,7 +728,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
                             && hint != *model_polarity
                         {
                             return Err(semantic_error(
-                                "NL-C004",
+                                "KES-C004",
                                 format!(
                                     "BJT polarity {hint:?} conflicts with model '{requested_model}' ({model_polarity:?})"
                                 ),
@@ -752,7 +752,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
                         };
                         let resolved = model_library.resolve(requested_model).ok_or_else(|| {
                             semantic_error(
-                                "NL-C003",
+                                "KES-C003",
                                 format!(
                                     "unsupported MOSFET model '{requested_model}'; user-defined models are not yet declared by the language"
                                 ),
@@ -762,7 +762,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
                         })?;
                         let ComponentKind::MOSFET(polarity) = &resolved.kind else {
                             return Err(semantic_error(
-                                "NL-C004",
+                                "KES-C004",
                                 format!("model '{requested_model}' is not a MOSFET model"),
                                 Some(&decl.name),
                                 Some("model"),
@@ -784,7 +784,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
                         };
                         let resolved = model_library.resolve(requested_model).ok_or_else(|| {
                             semantic_error(
-                                "NL-C003",
+                                "KES-C003",
                                 format!(
                                     "unsupported diode model '{requested_model}'; user-defined models are not yet declared by the language"
                                 ),
@@ -794,7 +794,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
                         })?;
                         if resolved.kind != ComponentKind::Diode {
                             return Err(semantic_error(
-                                "NL-C004",
+                                "KES-C004",
                                 format!("model '{requested_model}' is not a diode model"),
                                 Some(&decl.name),
                                 Some("model"),
@@ -805,13 +805,13 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
                     }
                     ComponentType::OpAmp => {
                         let requested_model = if val_str.is_empty() {
-                            "NLANG_OPAMP_V1"
+                            "KESSETSU_OPAMP_V1"
                         } else {
                             val_str
                         };
                         let resolved = model_library.resolve(requested_model).ok_or_else(|| {
                             semantic_error(
-                                "NL-C003",
+                                "KES-C003",
                                 format!("unsupported op-amp model '{requested_model}'"),
                                 Some(&decl.name),
                                 Some("model"),
@@ -819,7 +819,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
                         })?;
                         if resolved.kind != ComponentKind::OpAmp {
                             return Err(semantic_error(
-                                "NL-C004",
+                                "KES-C004",
                                 format!("model '{requested_model}' is not an op-amp subcircuit"),
                                 Some(&decl.name),
                                 Some("model"),
@@ -852,7 +852,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
                 let arguments = split_assertion_arguments(&assert.signal);
                 let signal_unit = assertion_result_unit(&metric, &arguments).ok_or_else(|| {
                     semantic_error(
-                        "NL-C006",
+                        "KES-C006",
                         format!(
                             "assertion '{}' has invalid arguments '{}'; expected typed voltage/current/power or engineering metric arguments",
                             assert.metric, assert.signal
@@ -867,7 +867,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
                     cmp: assert.cmp.clone(),
                     threshold: parse_quantity(&assert.threshold, signal_unit).map_err(|error| {
                         semantic_error(
-                            "NL-C006",
+                            "KES-C006",
                             format!(
                                 "invalid assertion threshold for '{}': {error}",
                                 assert.signal
@@ -883,7 +883,7 @@ pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
             }
             Statement::Use(_) => {
                 return Err(semantic_error(
-                    "NL-C007",
+                    "KES-C007",
                     "use statements must be flattened before IR conversion",
                     None,
                     None,

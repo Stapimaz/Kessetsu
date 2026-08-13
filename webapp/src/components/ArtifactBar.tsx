@@ -71,7 +71,7 @@ export function ArtifactBar({ spice, models, enabled, capabilities, message, onE
       <details className="model-details" data-testid="model-manifest" data-manifest={models ? JSON.stringify(models) : ''}>
         <summary>Models ({models?.models.length ?? 0})</summary>
         <div className="model-popover">
-          <p>Models are selected only through typed NetLang declarations or exact package imports.</p>
+          <p>Models are selected only through typed Kessetsu declarations or exact package imports.</p>
           {models?.models.map((model) => (
             <article key={model.name}>
               <strong>{model.name}</strong>
@@ -88,10 +88,10 @@ export function ArtifactBar({ spice, models, enabled, capabilities, message, onE
       <details className="legal-details">
         <summary>Legal</summary>
         <div className="legal-popover">
-          <strong>NetLang © 2026 Stapimaz</strong>
+          <strong>Kessetsu © 2026 Stapimaz</strong>
           <span>AGPL-3.0-only free software, provided without warranty.</span>
           <span>
-            <a href="https://github.com/Stapimaz/NetLang" target="_blank" rel="noreferrer">Corresponding Source</a>
+            <a href="https://github.com/Stapimaz/Kessetsu" target="_blank" rel="noreferrer">Corresponding Source</a>
             {' · '}
             <a href={`${import.meta.env.BASE_URL}LICENSE.txt`} target="_blank" rel="noreferrer">Full license</a>
           </span>

@@ -5,15 +5,15 @@ import { encodeShareFragment } from '../../src/share';
 test('opens the final power-amplifier source from a versioned URL and runs the full product path', async ({ page }) => {
   test.setTimeout(120_000);
   const source = readFileSync(
-    new URL('../../../core/tests/fixtures/benchmarks/power_amplifier.nl', import.meta.url),
+    new URL('../../../core/tests/fixtures/benchmarks/power_amplifier.kess', import.meta.url),
     'utf8',
   );
-  const fragment = await encodeShareFragment(source, 'netlang.compile.v3', null);
+  const fragment = await encodeShareFragment(source, 'kessetsu.compile.v3', null);
   await page.goto(`/${fragment}`);
 
   await expect(page.getByTestId('compile-success')).toBeVisible();
   await expect(page.locator('.share-status')).toContainText('Shared circuit loaded');
-  await expect(page.getByRole('img', { name: 'NetLang schematic' })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Kessetsu schematic' })).toBeVisible();
   await expect(page.locator('.view-lines')).toContainText('Four-stage amplifier');
 
   await page.getByRole('button', { name: 'Run' }).click();
@@ -30,5 +30,5 @@ test('opens the final power-amplifier source from a versioned URL and runs the f
 
   await page.getByRole('button', { name: 'Share circuit' }).click();
   await expect(page.locator('.share-status')).toContainText(/source and package versions embedded/);
-  expect(page.url()).toContain('#netlang=1.');
+  expect(page.url()).toContain('#kessetsu=1.');
 });

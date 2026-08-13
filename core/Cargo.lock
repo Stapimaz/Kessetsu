@@ -393,6 +393,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "kessetsu-core"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "pest",
+ "pest_derive",
+ "resvg",
+ "serde",
+ "serde-wasm-bindgen",
+ "serde_json",
+ "sha2",
+ "svg2pdf",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "kurbo"
 version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -466,22 +482,6 @@ checksum = "bb85c154ba489f01b25c0d36ae69a87e4a1c73a72631fc6c0eb6dde34a73e44b"
 dependencies = [
  "num-traits",
  "pxfm",
-]
-
-[[package]]
-name = "netlang-core"
-version = "0.1.0"
-dependencies = [
- "clap",
- "pest",
- "pest_derive",
- "resvg",
- "serde",
- "serde-wasm-bindgen",
- "serde_json",
- "sha2",
- "svg2pdf",
- "wasm-bindgen",
 ]
 
 [[package]]

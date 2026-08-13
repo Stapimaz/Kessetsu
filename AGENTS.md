@@ -1,7 +1,7 @@
-# NetLang Yapay Zeka Kuralları (Agent Rules)
+# Kessetsu Yapay Zeka Kuralları (Agent Rules)
 
 Merhaba, bu projeye atanan yeni bir Yapay Zeka Ajanısın (veya eski oturumun devamısın).
-Bu proje "NetLang" adında, hem SPICE tabanlı donanım simülasyonu yapabilen hem de otomatik şematik (Layout) çizebilen özel bir dil (DSL) projesidir.
+Bu proje "Kessetsu" adında, hem SPICE tabanlı donanım simülasyonu yapabilen hem de otomatik şematik (Layout) çizebilen özel bir devre mühendisliği platformudur.
 
 ## İlk Adımlar (Zorunlu)
 
@@ -16,10 +16,10 @@ Bu proje "NetLang" adında, hem SPICE tabanlı donanım simülasyonu yapabilen h
 3. **IR Tek Gerçek Kaynak:** Tüm backend'ler (SPICE, Layout, ERC, JSON) yalnızca Circuit IR (`ir.rs`) üzerinden çalışır. AST'den doğrudan backend çıktısı üretme.
 4. **ERC, DRC Değil:** Schematic seviyesindeki kontroller **ERC** (Electrical Rules Check) olarak adlandırılır. `erc.rs` modülünü kullan.
 5. **Kalite Kapısı:** Değişiklikleri tamamlamadan önce kökten `powershell -ExecutionPolicy Bypass -File scripts/verify.ps1` çalıştır. İterasyon sırasında yalnız gerektiğinde `-SkipNpmInstall` kullan; final doğrulama canonical tam komutla yapılır.
-6. **Geriye Uyumluluk:** Yeni syntax eklerken mevcut `examples/*.nl` dosyaları kırılmamalıdır.
+6. **Geriye Uyumluluk:** Yeni syntax eklerken mevcut `examples/*.kess` dosyaları kırılmamalıdır.
 
 ## Görev Takibi
 
 Yaptığın her değişiklikten sonra `docs/ROADMAP.md`'deki ilgili checkbox'ı `[x]` olarak işaretle.
 
-Bu kurallara uyarak NetLang'in mimarisini koruyabilirsin. Başarılar!
+Bu kurallara uyarak Kessetsu'nun mimarisini koruyabilirsin. Başarılar!

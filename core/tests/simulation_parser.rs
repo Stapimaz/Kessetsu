@@ -1,9 +1,9 @@
 mod common;
 
 use common::read_fixture;
-use netlang_core::ir::{AcScale, Analysis, Quantity, SIUnit};
-use netlang_core::simulation::{Dataset, SimulatorDiagnosticKind, SimulatorDiagnosticSeverity};
-use netlang_core::simulation_parser::{classify_simulator_log, parse_measurements, parse_wrdata};
+use kessetsu_core::ir::{AcScale, Analysis, Quantity, SIUnit};
+use kessetsu_core::simulation::{Dataset, SimulatorDiagnosticKind, SimulatorDiagnosticSeverity};
+use kessetsu_core::simulation_parser::{classify_simulator_log, parse_measurements, parse_wrdata};
 
 fn seconds(value: f64) -> Quantity {
     Quantity {

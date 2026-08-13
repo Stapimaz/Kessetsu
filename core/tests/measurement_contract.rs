@@ -1,8 +1,8 @@
-use netlang_core::ir::{Analysis, CircuitIR, SIUnit, ast_to_ir};
-use netlang_core::measurement::MEASUREMENT_SCHEMA_VERSION;
-use netlang_core::parse_program;
-use netlang_core::sim_result::{AssertionStatus, evaluate_assertions, format_quantity};
-use netlang_core::simulation::{
+use kessetsu_core::ir::{Analysis, CircuitIR, SIUnit, ast_to_ir};
+use kessetsu_core::measurement::MEASUREMENT_SCHEMA_VERSION;
+use kessetsu_core::parse_program;
+use kessetsu_core::sim_result::{AssertionStatus, evaluate_assertions, format_quantity};
+use kessetsu_core::simulation::{
     AnalysisDataset, ComplexSeries, ComplexSeriesDataset, Dataset, RealSeriesDataset, SeriesAxis,
     SimulationResult, SimulationStatus, SimulatorInfo, SimulatorLog, SimulatorProcessStatus,
 };
@@ -21,7 +21,7 @@ fn circuit(assertions: &str) -> CircuitIR {
 
 fn simulation(analysis: Analysis, data: Dataset) -> SimulationResult {
     SimulationResult {
-        schema_version: "netlang.simulation.v1".to_string(),
+        schema_version: "kessetsu.simulation.v1".to_string(),
         status: SimulationStatus::Succeeded,
         analyses: vec![analysis.clone()],
         simulator: SimulatorInfo {
@@ -88,8 +88,8 @@ assert peak(V(Q1.c,Q1.e)) == 0V\n";
     });
     let mut mixed_analysis = simulation(
         Analysis::Transient {
-            step: netlang_core::ir::parse_quantity("1us", SIUnit::Second).unwrap(),
-            stop: netlang_core::ir::parse_quantity("3ms", SIUnit::Second).unwrap(),
+            step: kessetsu_core::ir::parse_quantity("1us", SIUnit::Second).unwrap(),
+            stop: kessetsu_core::ir::parse_quantity("3ms", SIUnit::Second).unwrap(),
         },
         data,
     );
@@ -117,7 +117,7 @@ assert peak(V(Q1.c,Q1.e)) == 0V\n";
     assert_eq!(report.assertions[2].unit, SIUnit::Watt);
     assert_eq!(report.assertions[3].unit, SIUnit::Percent);
     assert_eq!(report.assertions[1].unit, SIUnit::Hertz);
-    assert_eq!(MEASUREMENT_SCHEMA_VERSION, "netlang.measurement.v1");
+    assert_eq!(MEASUREMENT_SCHEMA_VERSION, "kessetsu.measurement.v1");
 }
 
 #[test]
@@ -145,10 +145,10 @@ fn ac_gain_bandwidth_and_phase_use_complex_frequency_data() {
         &circuit,
         &simulation(
             Analysis::Ac {
-                scale: netlang_core::ir::AcScale::Decade,
+                scale: kessetsu_core::ir::AcScale::Decade,
                 points: 10,
-                start: netlang_core::ir::parse_quantity("10Hz", SIUnit::Hertz).unwrap(),
-                stop: netlang_core::ir::parse_quantity("10kHz", SIUnit::Hertz).unwrap(),
+                start: kessetsu_core::ir::parse_quantity("10Hz", SIUnit::Hertz).unwrap(),
+                stop: kessetsu_core::ir::parse_quantity("10kHz", SIUnit::Hertz).unwrap(),
             },
             data,
         ),
@@ -184,10 +184,10 @@ fn bandwidth_fails_closed_for_non_low_pass_response() {
         &circuit,
         &simulation(
             Analysis::Ac {
-                scale: netlang_core::ir::AcScale::Decade,
+                scale: kessetsu_core::ir::AcScale::Decade,
                 points: 10,
-                start: netlang_core::ir::parse_quantity("10Hz", SIUnit::Hertz).unwrap(),
-                stop: netlang_core::ir::parse_quantity("10kHz", SIUnit::Hertz).unwrap(),
+                start: kessetsu_core::ir::parse_quantity("10Hz", SIUnit::Hertz).unwrap(),
+                stop: kessetsu_core::ir::parse_quantity("10kHz", SIUnit::Hertz).unwrap(),
             },
             data,
         ),

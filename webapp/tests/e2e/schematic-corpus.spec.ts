@@ -3,19 +3,19 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const corpus = [
-  ['minimal', '../../../core/tests/fixtures/valid/minimal.nl', 'V1'],
-  ['rc-filter', '../../../core/tests/fixtures/benchmarks/rc_filter.nl', 'C1'],
-  ['wheatstone', '../../../examples/wheatstone.nl', 'Rx'],
-  ['gain-stage', '../../../core/tests/fixtures/benchmarks/gain_stage.nl', 'RF'],
-  ['high-fanout', '../../../core/tests/fixtures/schematic/high_fanout.nl', 'R8'],
-  ['power-amplifier', '../../../core/tests/fixtures/benchmarks/power_amplifier.nl', 'QP'],
-  ['inverting-amplifier', '../../../core/tests/fixtures/schematic/inverting_amplifier.nl', 'RF'],
-  ['differential-pair', '../../../core/tests/fixtures/schematic/differential_pair.nl', 'Q2'],
-  ['mosfet-common-source', '../../../core/tests/fixtures/schematic/mosfet_common_source.nl', 'M1'],
-  ['rlc-ladder', '../../../core/tests/fixtures/schematic/rlc_ladder.nl', 'L1'],
-  ['diode-clamp', '../../../core/tests/fixtures/schematic/diode_clamp.nl', 'DHI'],
-  ['bjt-common-emitter', '../../../core/tests/fixtures/schematic/bjt_common_emitter.nl', 'Q1'],
-  ['summing-amplifier', '../../../core/tests/fixtures/schematic/summing_amplifier.nl', 'U1'],
+  ['minimal', '../../../core/tests/fixtures/valid/minimal.kess', 'V1'],
+  ['rc-filter', '../../../core/tests/fixtures/benchmarks/rc_filter.kess', 'C1'],
+  ['wheatstone', '../../../examples/wheatstone.kess', 'Rx'],
+  ['gain-stage', '../../../core/tests/fixtures/benchmarks/gain_stage.kess', 'RF'],
+  ['high-fanout', '../../../core/tests/fixtures/schematic/high_fanout.kess', 'R8'],
+  ['power-amplifier', '../../../core/tests/fixtures/benchmarks/power_amplifier.kess', 'QP'],
+  ['inverting-amplifier', '../../../core/tests/fixtures/schematic/inverting_amplifier.kess', 'RF'],
+  ['differential-pair', '../../../core/tests/fixtures/schematic/differential_pair.kess', 'Q2'],
+  ['mosfet-common-source', '../../../core/tests/fixtures/schematic/mosfet_common_source.kess', 'M1'],
+  ['rlc-ladder', '../../../core/tests/fixtures/schematic/rlc_ladder.kess', 'L1'],
+  ['diode-clamp', '../../../core/tests/fixtures/schematic/diode_clamp.kess', 'DHI'],
+  ['bjt-common-emitter', '../../../core/tests/fixtures/schematic/bjt_common_emitter.kess', 'Q1'],
+  ['summing-amplifier', '../../../core/tests/fixtures/schematic/summing_amplifier.kess', 'U1'],
 ] as const;
 
 test('renders the canonical schematic corpus with verified quality', async ({ page }) => {
@@ -40,9 +40,9 @@ test('renders the canonical schematic corpus with verified quality', async ({ pa
     const schematic = page.getByTestId('canonical-schematic');
     await expect(schematic).toHaveAttribute('data-quality', 'pass');
     await expect(schematic.locator(`[data-component="${component}"]`)).toBeVisible();
-    await expect(schematic.locator('svg[data-schema="netlang.schematic.v1"]')).toBeVisible();
+    await expect(schematic.locator('svg[data-schema="kessetsu.schematic.v1"]')).toBeVisible();
 
-    if (process.env.NETLANG_CAPTURE_VISUALS) {
+    if (process.env.KESSETSU_CAPTURE_VISUALS) {
       await schematic.screenshot({
         path: join('test-results', 'schematic-corpus', `${name}.png`),
         animations: 'disabled',

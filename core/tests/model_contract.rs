@@ -1,12 +1,12 @@
 mod common;
 
 use common::TestWorkspace;
-use netlang_core::compiler::{CompileOptions, compile_source};
-use netlang_core::graph::{NetlistGraph, generate_spice};
-use netlang_core::ir::{ComponentKind, FETPolarity, ModelSource, ast_to_ir};
-use netlang_core::models::{MODEL_LOCK_SCHEMA_VERSION, lockfile_json};
-use netlang_core::parse_program;
-use netlang_core::simulation::{
+use kessetsu_core::compiler::{CompileOptions, compile_source};
+use kessetsu_core::graph::{NetlistGraph, generate_spice};
+use kessetsu_core::ir::{ComponentKind, FETPolarity, ModelSource, ast_to_ir};
+use kessetsu_core::models::{MODEL_LOCK_SCHEMA_VERSION, lockfile_json};
+use kessetsu_core::parse_program;
+use kessetsu_core::simulation::{
     CancellationToken, NgspiceRunner, SimulationRequest, SimulationRunner,
 };
 
@@ -48,18 +48,18 @@ fn subcircuit_pins_kind_polarity_capability_and_names_fail_closed() {
     for (source, code) in [
         (
             "subcircuit opamp Bad (out,in_p,in_n,vcc,vee) version=1 license=MIT gain=1k bandwidth=1MHz\n",
-            "NL-C012",
+            "KES-C012",
         ),
-        ("model bjt Bad version=1 license=MIT Is=1e-12\n", "NL-C010"),
+        ("model bjt Bad version=1 license=MIT Is=1e-12\n", "KES-C010"),
         (
             "model mosfet Bad pmos version=1 license=MIT unknown=2\n",
-            "NL-C010",
+            "KES-C010",
         ),
         (
             "model diode IRF540 version=1 license=MIT Is=1e-9\n",
-            "NL-C013",
+            "KES-C013",
         ),
-        ("model_include netlang_analog 9.9.9\n", "NL-C011"),
+        ("model_include kessetsu_analog 9.9.9\n", "KES-C011"),
     ] {
         let report = compile_source(source, CompileOptions::default());
         assert_eq!(report.diagnostics[0].code, code, "source: {source}");
@@ -69,7 +69,7 @@ fn subcircuit_pins_kind_polarity_capability_and_names_fail_closed() {
     let mismatch =
         "model mosfet SafeP pmos version=1 license=MIT Vto=-2\ntransistor Q1 npn SafeP\n";
     let report = compile_source(mismatch, CompileOptions::default());
-    assert_eq!(report.diagnostics[0].code, "NL-C004");
+    assert_eq!(report.diagnostics[0].code, "KES-C004");
 }
 
 #[test]
@@ -90,7 +90,7 @@ fn raw_directive_injection_never_crosses_the_typed_ir_boundary() {
 
 #[test]
 fn package_resolution_and_lockfile_are_exact_and_reproducible() {
-    let source = "model_include netlang_analog 1.0.0\nnet GND\nnet VDD\nnet OUT\nsource VS 5V\nopamp U1 NLANG_PACKAGE_OPAMP\nresistor R1 10k\nconnect VS.minus to GND\nconnect VS.plus to VDD\nconnect U1.in_p to GND\nconnect U1.in_n to OUT\nconnect U1.vcc to VDD\nconnect U1.vee to GND\nconnect U1.out to OUT\nconnect R1.p1 to OUT\nconnect R1.p2 to GND\n";
+    let source = "model_include kessetsu_analog 1.0.0\nnet GND\nnet VDD\nnet OUT\nsource VS 5V\nopamp U1 KESSETSU_PACKAGE_OPAMP\nresistor R1 10k\nconnect VS.minus to GND\nconnect VS.plus to VDD\nconnect U1.in_p to GND\nconnect U1.in_n to OUT\nconnect U1.vcc to VDD\nconnect U1.vee to GND\nconnect U1.out to OUT\nconnect R1.p1 to OUT\nconnect R1.p2 to GND\n";
     let first = compile_source(source, CompileOptions::default());
     let second = compile_source(source, CompileOptions::default());
     assert!(!first.has_errors());
@@ -100,7 +100,7 @@ fn package_resolution_and_lockfile_are_exact_and_reproducible() {
         .expect("model use should produce a lockfile");
     let json: serde_json::Value = serde_json::from_str(&lock).expect("lock should be JSON");
     assert_eq!(json["schema_version"], MODEL_LOCK_SCHEMA_VERSION);
-    assert_eq!(json["packages"][0]["name"], "netlang_analog");
+    assert_eq!(json["packages"][0]["name"], "kessetsu_analog");
     assert_eq!(json["packages"][0]["version"], "1.0.0");
     assert!(
         json["packages"][0]["content_hash"]
@@ -113,10 +113,10 @@ fn package_resolution_and_lockfile_are_exact_and_reproducible() {
 }
 
 #[test]
-fn cli_materializes_netlang_lock_and_reports_it_as_an_artifact() {
+fn cli_materializes_kessetsu_lock_and_reports_it_as_an_artifact() {
     let source = "net GND\nnet VDD\nnet OUT\nsource VS 5V\nopamp U1\nresistor R1 10k\nconnect VS.minus to GND\nconnect VS.plus to VDD\nconnect U1.in_p to GND\nconnect U1.in_n to OUT\nconnect U1.vcc to VDD\nconnect U1.vee to GND\nconnect U1.out to OUT\nconnect R1.p1 to OUT\nconnect R1.p2 to GND\n";
     let workspace = TestWorkspace::new("model-lock");
-    let source_path = workspace.write("circuit.nl", source);
+    let source_path = workspace.write("circuit.kess", source);
     let source_arg = source_path.to_string_lossy().into_owned();
     let output = workspace.run_cli(&[
         "compile",
@@ -130,7 +130,7 @@ fn cli_materializes_netlang_lock_and_reports_it_as_an_artifact() {
     assert!(output.stderr.is_empty());
     let value: serde_json::Value =
         serde_json::from_slice(&output.stdout).expect("CLI output should be JSON");
-    assert!(workspace.path().join("netlang.lock").is_file());
+    assert!(workspace.path().join("kessetsu.lock").is_file());
     assert!(
         value["artifacts"]
             .as_array()
@@ -140,7 +140,7 @@ fn cli_materializes_netlang_lock_and_reports_it_as_an_artifact() {
     );
     assert_eq!(
         value["debug"]["models"]["manifest"]["models"][0]["name"],
-        "NLANG_OPAMP_V1"
+        "KESSETSU_OPAMP_V1"
     );
     assert!(
         value["debug"]["models"]["lock"]
@@ -152,8 +152,8 @@ fn cli_materializes_netlang_lock_and_reports_it_as_an_artifact() {
 #[test]
 fn opamp_pmos_and_power_transistor_paths_run_in_real_ngspice() {
     let source = "net GND\nnet VDD\nnet BIAS\nnet QOUT\nnet MOUT\nnet OOUT\n\
-source VS 12V\nresistor RB 10k\nresistor RQ 100\ntransistor Q1 npn NLANG_POWER_NPN_V1\n\
-mosfet M1 NLANG_PMOS_V1\nresistor RM 100\nopamp U1\nresistor RO 10k\n\
+source VS 12V\nresistor RB 10k\nresistor RQ 100\ntransistor Q1 npn KESSETSU_POWER_NPN_V1\n\
+mosfet M1 KESSETSU_PMOS_V1\nresistor RM 100\nopamp U1\nresistor RO 10k\n\
 connect VS.minus to GND\nconnect VS.plus to VDD\nconnect RB.p1 to VDD\nconnect RB.p2 to BIAS\n\
 connect Q1.b to BIAS\nconnect Q1.c to QOUT\nconnect Q1.e to GND\nconnect RQ.p1 to VDD\nconnect RQ.p2 to QOUT\n\
 connect M1.s to VDD\nconnect M1.g to GND\nconnect M1.d to MOUT\nconnect RM.p1 to MOUT\nconnect RM.p2 to GND\n\
@@ -169,11 +169,11 @@ connect U1.in_p to GND\nconnect U1.in_n to OOUT\nconnect U1.vcc to VDD\nconnect 
         .model_manifest
         .models
         .iter()
-        .find(|model| model.name == "NLANG_PMOS_V1")
+        .find(|model| model.name == "KESSETSU_PMOS_V1")
         .expect("verified PMOS should be present in the model manifest");
     assert_eq!(pmos.provenance.version, "1.0.1");
     let netlist = report.spice_netlist.expect("SPICE should exist");
-    assert!(netlist.contains(".model NLANG_PMOS_V1 PMOS (Level=1"));
+    assert!(netlist.contains(".model KESSETSU_PMOS_V1 PMOS (Level=1"));
     assert!(!netlist.contains(" Cgd=") && !netlist.contains(" Cgs="));
     let request = SimulationRequest::new(netlist, circuit.analyses);
     let result = NgspiceRunner::discover()

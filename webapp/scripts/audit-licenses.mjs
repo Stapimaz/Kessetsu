@@ -50,5 +50,5 @@ if (outputFlag >= 0) {
   const output = process.argv[outputFlag + 1];
   if (!output) throw new Error('--output requires a path');
   mkdirSync(new URL('../dist/licenses/', import.meta.url), { recursive: true });
-  writeFileSync(output, `${JSON.stringify({ schema_version: 'netlang.npm-licenses.v1', packages: Object.fromEntries([...packages].sort()) }, null, 2)}\n`);
+  writeFileSync(output, `${JSON.stringify({ schema_version: 'kessetsu.npm-licenses.v1', packages: Object.fromEntries([...packages].sort()) }, null, 2)}\n`);
 }

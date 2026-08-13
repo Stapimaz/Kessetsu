@@ -4,10 +4,10 @@ import { ArtifactBar } from './components/ArtifactBar';
 import { EditorPanel } from './components/EditorPanel';
 import { ResultsPanel } from './components/ResultsPanel';
 import { SchematicPanel } from './components/SchematicPanel';
-import { useNetlangWorkspace } from './hooks/useNetlangWorkspace';
+import { useKessetsuWorkspace } from './hooks/useKessetsuWorkspace';
 
 function App() {
-  const { state, setCode, loadExample, compile, run, cancel, createExport, share } = useNetlangWorkspace();
+  const { state, setCode, loadExample, compile, run, cancel, createExport, share } = useKessetsuWorkspace();
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   useEffect(() => {
@@ -17,15 +17,15 @@ function App() {
   return (
     <main className="app-shell">
       <header className="product-header">
-        <div><span className="wordmark">NETLANG</span><span className="tagline">Circuit engineering, executable.</span></div>
+        <div><span className="wordmark">KESSETSU</span><span className="tagline">Circuit engineering, executable.</span></div>
         <div className="product-actions">
           <span className="share-status" role="status">{state.shareMessage}</span>
           <a
             className="license-link"
-            href="https://github.com/Stapimaz/NetLang"
+            href="https://github.com/Stapimaz/Kessetsu"
             target="_blank"
             rel="noreferrer"
-            aria-label="NetLang source code and AGPL license; provided without warranty"
+            aria-label="Kessetsu source code and AGPL license; provided without warranty"
           >
             Source · AGPLv3
           </a>

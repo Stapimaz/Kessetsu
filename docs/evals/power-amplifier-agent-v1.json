@@ -1,5 +1,5 @@
 {
-  "schema_version": "netlang.agent-eval.v1",
+  "schema_version": "kessetsu.agent-eval.v1",
   "recorded_at": "2026-08-13T04:06:00+03:00",
   "scenario": "four-stage-8-ohm-power-amplifier",
   "provenance": {
@@ -10,24 +10,24 @@
     "simulator": "ngspice-45.2 bundled Windows runtime",
     "live_llm_required_for_replay": false
   },
-  "prompt": "Design a four-stage power amplifier for an 8 ohm load. Target 1.9-2.1 W RMS output from a 100 mV-peak, 1 kHz input; voltage gain 55-58; efficiency above 35%; THD below 3%; clipping below 0.1%; each output transistor below 2 W average dissipation; QN VCE below 20 V, current below 1 A and instantaneous power below 5 W. Use only NetLang's supported first-release domain and return a source that passes netlang test --format json.",
+  "prompt": "Design a four-stage power amplifier for an 8 ohm load. Target 1.9-2.1 W RMS output from a 100 mV-peak, 1 kHz input; voltage gain 55-58; efficiency above 35%; THD below 3%; clipping below 0.1%; each output transistor below 2 W average dissipation; QN VCE below 20 V, current below 1 A and instantaneous power below 5 W. Use only Kessetsu's supported first-release domain and return a source that passes kess test --format json.",
   "tool_contract": {
-    "command": "netlang test - --format json",
-    "cli_schema": "netlang.cli.v1",
-    "compile_schema": "netlang.compile.v3",
-    "simulation_schema": "netlang.simulation.v1",
-    "measurement_schema": "netlang.measurement.v1",
-    "assertion_schema": "netlang.assertion.v1"
+    "command": "kess test - --format json",
+    "cli_schema": "kessetsu.cli.v1",
+    "compile_schema": "kessetsu.compile.v3",
+    "simulation_schema": "kessetsu.simulation.v1",
+    "measurement_schema": "kessetsu.measurement.v1",
+    "assertion_schema": "kessetsu.assertion.v1"
   },
   "iterations": [
     {
       "index": 0,
       "source_derivation": "Final source with `resistor RL 8` replaced by `resistor RL 16`.",
-      "tool_call": "netlang test - --format json",
+      "tool_call": "kess test - --format json",
       "status": "test_failed",
       "assertion_summary": { "total": 12, "passed": 11, "failed": 1, "errors": 0, "skipped": 0 },
       "structured_feedback": {
-        "code": "NL-T003",
+        "code": "KES-T003",
         "metric": "output_power",
         "actual": 0.9977149137412006,
         "threshold": 1.9,
@@ -37,9 +37,9 @@
     },
     {
       "index": 1,
-      "source": "core/tests/fixtures/benchmarks/power_amplifier.nl",
+      "source": "core/tests/fixtures/benchmarks/power_amplifier.kess",
       "source_sha256": "748e4c50970a624c2e0821be41fb79527c75d2cc2b8a02f355b438c6482d1944",
-      "tool_call": "netlang test - --format json",
+      "tool_call": "kess test - --format json",
       "status": "success",
       "assertion_summary": { "total": 12, "passed": 12, "failed": 0, "errors": 0, "skipped": 0 },
       "selected_measurements": {

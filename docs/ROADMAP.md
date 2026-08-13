@@ -1,12 +1,12 @@
-# NetLang Geliştirme Yol Haritası
+# Kessetsu Geliştirme Yol Haritası
 
-> Bu doküman NetLang'in geliştirme durumu, aktif milestone'u, kabul kriterleri ve görev sırası için **tek gerçek kaynaktır (Single Source of Truth)**.
+> Bu doküman Kessetsu'nun geliştirme durumu, aktif milestone'u, kabul kriterleri ve görev sırası için **tek gerçek kaynaktır (Single Source of Truth)**.
 >
 > Mimari kurallar için `docs/architecture.md`, kullanıcıya açık CLI sözleşmesi için `docs/cli_reference.md` kullanılır. Bu belgeler arasında çelişki varsa geliştirme durumu açısından bu roadmap esas alınır ve çelişki aktif milestone içinde düzeltilir.
 >
 > Son kapsamlı repo denetimi: **2026-08-13**
 >
-> Aktif milestone: **Faz 4 — Profesyonel Şema, Web Hub ve Yayın**
+> Aktif milestone: **Kessetsu kimlik migrasyonu — Faz 4 release blocker**
 >
 > Önceki milestone: **Faz 3 — Simülasyon ve Assertion Runtime (tamamlandı)**
 
@@ -14,7 +14,7 @@
 
 ## 1. Proje Kimliği
 
-**NetLang**, elektriksel gereksinimlerden başlayarak devrelerin insanlar veya AI ajanları tarafından iteratif biçimde geliştirilmesini mümkün kılan; devreleri metinle tanımlayan, typed bir Circuit IR üzerinden deterministik SPICE netlist üreten, simülasyon ve ölçüm çalıştıran, yapılandırılmış doğrulama sonuçları veren ve profesyonel şema/EDA çıktıları oluşturmayı hedefleyen bir **agent-driven circuit engineering platformudur**.
+**Kessetsu**, elektriksel gereksinimlerden başlayarak devrelerin insanlar veya AI ajanları tarafından iteratif biçimde geliştirilmesini mümkün kılan; devreleri metinle tanımlayan, typed bir Circuit IR üzerinden deterministik SPICE netlist üreten, simülasyon ve ölçüm çalıştıran, yapılandırılmış doğrulama sonuçları veren ve profesyonel şema/EDA çıktıları oluşturmayı hedefleyen bir **agent-driven circuit engineering platformudur**.
 
 ```text
 Compile, simulate and test circuits like software.
@@ -22,7 +22,7 @@ Compile, simulate and test circuits like software.
 
 ### Ürün kuzey yıldızı
 
-NetLang'in hedefi belirli bir eğitim senaryosu, kullanıcı seviyesi veya tek bir devre sınıfıyla sınırlı değildir. Bir AI ajanı ya da insan, tasarım gereksinimlerini NetLang'in ölçülebilir constraint/assertion modeline dönüştürebilmeli; devre topolojisini ve component değerlerini iteratif olarak geliştirip her adımda güvenilir structured feedback alabilmelidir.
+Kessetsu'nun hedefi belirli bir eğitim senaryosu, kullanıcı seviyesi veya tek bir devre sınıfıyla sınırlı değildir. Bir AI ajanı ya da insan, tasarım gereksinimlerini Kessetsu'nun ölçülebilir constraint/assertion modeline dönüştürebilmeli; devre topolojisini ve component değerlerini iteratif olarak geliştirip her adımda güvenilir structured feedback alabilmelidir.
 
 Hedef döngü:
 
@@ -37,13 +37,13 @@ Elektriksel gereksinimler
     → yüksek kaliteli şema ve EDA export'ları
 ```
 
-NetLang'in AI modelini kendi içinde barındırması zorunlu değildir. Öncelikli hedef, dışarıdaki herhangi bir yetkin AI ajanının CLI'ın versioned JSON sözleşmesi üzerinden NetLang'i güvenilir bir **tasarım oracle'ı, simülasyon motoru ve doğrulama aracı** olarak kullanabilmesidir. Ayrı bir Agent API servisi zorunlu değildir; ilerideki SDK/MCP adaptörleri aynı Core ve CLI sözleşmesinin ince yüzeyleri olabilir.
+Kessetsu'nun AI modelini kendi içinde barındırması zorunlu değildir. Öncelikli hedef, dışarıdaki herhangi bir yetkin AI ajanının CLI'ın versioned JSON sözleşmesi üzerinden Kessetsu'yu güvenilir bir **tasarım oracle'ı, simülasyon motoru ve doğrulama aracı** olarak kullanabilmesidir. Ayrı bir Agent API servisi zorunlu değildir; ilerideki SDK/MCP adaptörleri aynı Core ve CLI sözleşmesinin ince yüzeyleri olabilir.
 
 Kapsam kademeli genişler: ilk güçlü dikey analog ve karma-sinyal/SPICE tabanlı tasarımlardır; uzun vadeli mimari yalnızca eğitim devrelerine, basit örneklere veya tek bir endüstri alanına göre sınırlandırılmaz. Desteklenmeyen fiziksel alanlar ve simulator sınırları açıkça raporlanır; doğrulanmayan bir tasarım doğrulanmış gibi sunulmaz.
 
 ### Geliştirme ve yayın modeli
 
-NetLang, LLM ajanlarıyla yürütülen agentic-first bir geliştirme projesidir. Fazlar klasik ekip takvimi, süre tahmini veya erken MVP yayın dilimleri değildir; teknik bağımlılıkları, doğrulama kanıtlarını ve tamamlanma sırasını takip eden kalite kapılarıdır. Geleneksel geliştirme süresi varsayımları gerekçe gösterilerek ürün vizyonu daraltılmaz.
+Kessetsu, LLM ajanlarıyla yürütülen agentic-first bir geliştirme projesidir. Fazlar klasik ekip takvimi, süre tahmini veya erken MVP yayın dilimleri değildir; teknik bağımlılıkları, doğrulama kanıtlarını ve tamamlanma sırasını takip eden kalite kapılarıdır. Geleneksel geliştirme süresi varsayımları gerekçe gösterilerek ürün vizyonu daraltılmaz.
 
 Repository bütünleşik ürün geliştirmesi sırasında private kalır. CLI/Agent yüzeyi, güvenilir simulation/assertion runtime, Web Hub, profesyonel şema ve hedef EDA export'ları ilgili kabul kriterlerini birlikte karşıladıktan sonra public yayın yapılır. Prototip davranışlar roadmap içinde dürüstçe işaretlenir; fakat sırada bekleyen dış kullanıcı veya erken yayın baskısı ürün sırasını belirlemez.
 
@@ -67,13 +67,20 @@ Repository bütünleşik ürün geliştirmesi sırasında private kalır. CLI/Ag
 - [x] Web Hub içine gömülü doğal-dil AI tasarım/chat arayüzünü ilk public yayın için kritik yol dışında tutup provider-independent Faz 5+ fikri olarak kaydet.
 - [x] Şema ve EDA export'larını Web'e özel özellik yapma; bütün desteklenen formatları canonical Schematic IR kullanan Core exporter adaptörleri ve CLI artifact sözleşmesi üzerinden sun.
 
+**Kessetsu kimlik kararı (2026-08-14):**
+
+- [x] Ürün ve repository markasını `Kessetsu`, canonical CLI komutunu `kess`, kaynak uzantısını `.kess` olarak kesinleştir.
+- [x] Yayınlanmamış repo için eski kimlik alias'ları bırakmayan temiz ve atomik migrasyon politikasını seç.
+- [x] Package, schema, diagnostic, model, environment, Web, workflow ve doküman kapsamını `docs/kessetsu_migration.md` içinde kaydet.
+- [x] `docs/kessetsu_migration.md` içerik migrasyonunu tamamla ve canonical kalite kapısını geçir. _2026-08-14 clean-cache full verification PASS; yalnız GitHub repository ve yerel kök klasörünün dış rename adımı kaldı._
+
 ### Üç ana ürün yüzeyi
 
 | Yüzey | Hedef kullanıcı | Temel çıktı |
 |---|---|---|
-| NetLang Core | Tüm sistem | Parser, AST, typed IR, graph, ERC, simulation, ölçüm ve layout |
-| NetLang CLI (human + JSON) | AI ajanları, otomasyon ve geliştiriciler | Tasarla-ölç-doğrula döngüsü için insan-okunur ve structured araç yüzeyi |
-| NetLang Web Hub | Kurulumsuz ürün deneyimi isteyen herkes | Kod/tasarım → doğrulama → şema → simülasyon → export → paylaşım |
+| Kessetsu Core | Tüm sistem | Parser, AST, typed IR, graph, ERC, simulation, ölçüm ve layout |
+| Kessetsu CLI (human + JSON) | AI ajanları, otomasyon ve geliştiriciler | Tasarla-ölç-doğrula döngüsü için insan-okunur ve structured araç yüzeyi |
+| Kessetsu Web Hub | Kurulumsuz ürün deneyimi isteyen herkes | Kod/tasarım → doğrulama → şema → simülasyon → export → paylaşım |
 
 ### Birinci sınıf ürün çıktıları
 
@@ -87,7 +94,7 @@ Repository bütünleşik ürün geliştirmesi sırasında private kalır. CLI/Ag
 
 ### Mevcut teknik yığın
 
-- Core: Rust, tek `netlang-core` crate
+- Core: Rust, tek `kessetsu-core` crate
 - Parser: `pest` PEG grammar
 - Native simulator: Windows sidecar Ngspice executable
 - Web: React, TypeScript, Vite ve WASM
@@ -147,7 +154,7 @@ Sadece kodun bulunması tamamlanma kanıtı değildir.
 - [x] User-named net syntax'ı parse ediliyor ve temel örnekte SPICE node adı olarak kullanılıyor.
 - [x] Typed DC/sine source syntax'ı temel örnekte parse ediliyor.
 - [x] Assertion syntax'ı IR'ye ve `.meas` komutlarına taşınıyor.
-- [x] ERC için `NL-E001`–`NL-E009`, parser için `NL-P001`, semantic conversion için `NL-Cxxx` diagnostic alanları mevcut.
+- [x] ERC için `KES-E001`–`KES-E009`, parser için `KES-P001`, semantic conversion için `KES-Cxxx` diagnostic alanları mevcut.
 - [x] `check`, `compile`, `simulate`, `test` ve stub `render` subcommand'leri mevcut.
 - [x] Ngspice sidecar executable repo ortamında çalışıyor.
 - [x] CLI success/simulation failure/assertion failure yolları process-boundary integration testleriyle exit 0/3/4 üretiyor.
@@ -162,11 +169,11 @@ Sadece kodun bulunması tamamlanma kanıtı değildir.
 | `cargo clippy --all-targets -- -D warnings` | Geçiyor | Mevcut target'larda warning yok |
 | `npm run build` | Geçiyor | WASM paketini sıfırdan üretip web production build'i tamamlıyor |
 | `npm run lint` | Geçiyor | React hook dependency uyarısı giderildi; warning yok |
-| Örnek CLI matrisi | Geçiyor | Dört geçerli example check+compile oluyor; intentionally-invalid `test_amp.nl`, `NL-E003`/exit 1 veriyor |
+| Örnek CLI matrisi | Geçiyor | Dört geçerli example check+compile oluyor; intentionally-invalid `test_amp.kess`, `KES-E003`/exit 1 veriyor |
 
 ### 4.3 Kalan kritik açıklar
 
-- Dağıtılan Ngspice runtime yalnız Windows x86-64 sidecar'dır; Linux/macOS paketleme tamamlanmadı. `NETLANG_NGSPICE` açık executable override'ı mevcuttur.
+- Dağıtılan Ngspice runtime yalnız Windows x86-64 sidecar'dır; Linux/macOS paketleme tamamlanmadı. `KESSETSU_NGSPICE` açık executable override'ı mevcuttur.
 - Layout/KiCad çıktısı deneyseldir; connectivity round-trip, collision ve gerçek KiCad açılabilirlik fixture'ları tamamlanmadı.
 - Web runtime için otomatik gerçek-browser smoke testi yok; WASM build + TypeScript/Vite build ve Rust all-output smoke testi mevcut.
 - Browser içinde simulation/measurement adaptörü ve grafik yüzeyi henüz native runner ile aynı ürün kabul seviyesinde değildir.
@@ -177,7 +184,7 @@ Sadece kodun bulunması tamamlanma kanıtı değildir.
 - Faz 1: Golden/regression ve fail-closed kabul kriterleri Faz 2.5 içinde kapatıldı.
 - Faz 2: Typed IR, determinism, semantic validation ve regression borçları Faz 2.5 içinde kapatıldı.
 - Faz 3: Typed simulation, measurement, assertion, agent CLI, model registry ve gerçek ürün benchmark'larıyla tamamlandı.
-- Aktif çalışma: Faz 4 ayrıntılarını Faz 3'te doğrulanan Core sözleşmeleri üzerine yeniden denetlemek; ardından profesyonel şema, Web Hub ve yayın kapısını sırayla uygulamak.
+- Aktif çalışma: Kessetsu kimlik migrasyonunu bütün public/internal sözleşmelerde tamamlayıp doğrulamak; ardından Faz 4'ün açık profesyonel şema ve yayın kapılarına dönmek.
 
 ---
 
@@ -230,7 +237,7 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 - [x] `core/target` dizinini Git tracking'den çıkar; yerel build cache'i silme.
 - [x] `core/out.txt` debug çıktısını tracking'den çıkar.
 - [x] Generated `examples/*.spice` dosyaları için açık politika belirle:
-  - `examples/` yalnızca kullanıcıya yönelik `.nl` kaynaklarını tutar.
+  - `examples/` yalnızca kullanıcıya yönelik `.kess` kaynaklarını tutar.
   - Derlenen `examples/*.spice` dosyaları generated output olarak ignore edilir.
   - Regression oracle'ları `core/tests/fixtures/golden/` altında açıkça takip edilir.
 - [x] `core/pkg` için tek ve belgelenmiş WASM build komutu oluştur: `cd webapp; npm run build:wasm`.
@@ -255,7 +262,7 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
   - [x] `.github/workflows/ci.yml` içine Rust fmt, Clippy, test ve release build kapılarını ekle.
   - [x] Aynı job'a WASM build, web lint ve web production build kapılarını ekle.
   - [x] Yerel/CI drift'ini önlemek için `scripts/verify.ps1` entrypoint'ini kullan.
-  - [x] Remote GitHub Actions run'ının başarıyla tamamlandığını doğrula. _[`db24ee3` için CI run #31282475618](https://github.com/Stapimaz/NetLang/actions/runs/31282475618), 2026-08-09 tarihinde 4m56s içinde başarıyla tamamlandı._
+  - [x] Remote GitHub Actions run'ının başarıyla tamamlandığını doğrula. _[`db24ee3` için CI run #31282475618](https://github.com/Stapimaz/Kessetsu/actions/runs/31282475618), 2026-08-09 tarihinde 4m56s içinde başarıyla tamamlandı._
 - [x] Build/test'in çalışma ağacında yeni non-ignored değişiklik üretmediğini önce/sonra Git snapshot'ıyla doğrula.
 - [x] Production dependency audit bulgularını gider ve `npm audit --omit=dev` kapısını sıfır bilinen vulnerability ile doğrula:
   - 2026-08-09 baseline: 1 high, 3 moderate, 1 low.
@@ -288,7 +295,7 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 
 #### Parser testleri
 
-- [x] Tüm `examples/*.nl` dosyalarını parser test matrisine al.
+- [x] Tüm `examples/*.kess` dosyalarını parser test matrisine al.
 - [x] Boş dosya testi.
 - [x] Yalnızca yorum testi.
 - [x] UTF-8 BOM testi; frontend normalizasyonuna kadar açıkça reject edilir.
@@ -315,8 +322,8 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 - [x] Tek voltage source için GND canonicalization testi.
 - [x] Birden fazla bağımsız source için lexicographic legacy ground fallback characterization testi.
 - [x] User-named net önceliği testi.
-- [x] Invalid/undefined component testi (`NL-E002`).
-- [x] NL-E001–NL-E004 için ayrı regression fixture'ları ve testleri.
+- [x] Invalid/undefined component testi (`KES-E002`).
+- [x] KES-E001–KES-E004 için ayrı regression fixture'ları ve testleri.
 - [x] Diagnostic sıralamasının aynı circuit için deterministik olduğu stress testi.
 
 **2.5.4'e taşınan desired-behavior testleri:** multiple-ground ambiguity, aynı nete iki kullanıcı adı conflict'i, invalid pin ve warning/non-blocking davranışı. İlgili diagnostic'ler henüz bulunmadığı için mevcut sessiz kabul davranışı sözleşmeye dönüştürülmeyecektir.
@@ -324,9 +331,9 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 #### SPICE golden testleri
 
 - [x] Minimal source/resistor circuit canonical golden netlist'i.
-- [x] `demo_circuit.nl` golden netlist.
-- [x] `wheatstone.nl` golden netlist.
-- [x] `test_features.nl` golden netlist.
+- [x] `demo_circuit.kess` golden netlist.
+- [x] `wheatstone.kess` golden netlist.
+- [x] `test_features.kess` golden netlist.
 - [x] Current source ve sine source golden netlist.
 - [x] Named net golden netlist.
 - [x] Model injection sırası golden testi.
@@ -368,16 +375,16 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 - [x] Bilinmeyen model politikasını tanımla:
   - [x] Builtin model: `resolve_model` ile typed kind + provenance.
   - [x] User-defined model: declaration/include syntax tanımlanana kadar desteklenmiyor ve sessiz kabul edilmiyor.
-  - [x] Unsupported/unknown model: `NL-C003`; model kind/polarity mismatch: `NL-C004`.
+  - [x] Unsupported/unknown model: `KES-C003`; model kind/polarity mismatch: `KES-C004`.
 - [x] Modeli olmayan BJT/MOSFET/diode/op-amp'ın geçersiz SPICE üretmesini engelle.
 - [x] Assertion signal, comparator, threshold ve unit validation ekle.
-- [x] IR conversion diagnostic'leri için `NL-Cxxx` kod alanı oluştur.
+- [x] IR conversion diagnostic'leri için `KES-Cxxx` kod alanı oluştur.
 - [x] IR tiplerine gerekli Serde desteğini ekle.
 - [x] WASM structured output'a typed IR ekle.
 
-**Typed quantity paketi kanıtı (2026-08-09):** `Quantity + SIUnit`, ayrı `VoltageSource`/`CurrentSource` parametreleri ve `SourceValue::{Dc, Waveform}` IR sözleşmesine eklendi. SINE/PULSE değer, frekans ve zaman boyutları strict doğrulanıyor; invalid/missing değerler IR'ye ulaşmıyor. `ir_characterization` içindeki 12 test dahil toplam 40 Rust testi, mevcut SPICE golden corpus'u ve kök `scripts/verify.ps1` Rust release + WASM + Web kapılarıyla birlikte geçti. Büyük/küçük harf BJT polarity parser sınırında normalize edildi; `examples/test_amp.nl` artık boş model token'ı yerine default 2N3904 modeline çözülür.
+**Typed quantity paketi kanıtı (2026-08-09):** `Quantity + SIUnit`, ayrı `VoltageSource`/`CurrentSource` parametreleri ve `SourceValue::{Dc, Waveform}` IR sözleşmesine eklendi. SINE/PULSE değer, frekans ve zaman boyutları strict doğrulanıyor; invalid/missing değerler IR'ye ulaşmıyor. `ir_characterization` içindeki 12 test dahil toplam 40 Rust testi, mevcut SPICE golden corpus'u ve kök `scripts/verify.ps1` Rust release + WASM + Web kapılarıyla birlikte geçti. Büyük/küçük harf BJT polarity parser sınırında normalize edildi; `examples/test_amp.kess` artık boş model token'ı yerine default 2N3904 modeline çözülür.
 
-**Model/diagnostic paketi kanıtı (2026-08-09):** `SemanticDiagnostic` için `NL-C001..NL-C007` alanı oluşturuldu. Builtin default model, unsupported model, model-kind/polarity mismatch, modelsiz op-amp, explicit module-port parametresi ve serializable diagnostic davranışları `ir_characterization` ile; CLI semantic exit 1 ve saf JSON diagnostic sözleşmesi `cli_contract` ile korunuyor. Bu dilimdeki legacy WASM parse/semantic alanları daha sonra 2.5.5 ortak `diagnostics` sözleşmesiyle değiştirildi. Toplam 45 Rust testi ile Rust fmt/Clippy/release, SPICE golden, WASM ve Web lint/build kapılarının tamamı `scripts/verify.ps1` üzerinden geçti.
+**Model/diagnostic paketi kanıtı (2026-08-09):** `SemanticDiagnostic` için `KES-C001..KES-C007` alanı oluşturuldu. Builtin default model, unsupported model, model-kind/polarity mismatch, modelsiz op-amp, explicit module-port parametresi ve serializable diagnostic davranışları `ir_characterization` ile; CLI semantic exit 1 ve saf JSON diagnostic sözleşmesi `cli_contract` ile korunuyor. Bu dilimdeki legacy WASM parse/semantic alanları daha sonra 2.5.5 ortak `diagnostics` sözleşmesiyle değiştirildi. Toplam 45 Rust testi ile Rust fmt/Clippy/release, SPICE golden, WASM ve Web lint/build kapılarının tamamı `scripts/verify.ps1` üzerinden geçti.
 
 **Kabul kriterleri:**
 
@@ -407,9 +414,9 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 - [x] SPICE sayı formatını canonical ve platform bağımsız yap.
 - [x] Aynı circuit'i 100 kez tekrarlı derleyen byte-for-byte determinism stress testi ekle.
 
-**Typed net/pin kataloğu kanıtı (2026-08-09):** `NetId` serde-transparent newtype olarak tanımlandı; `get_net` bağlantısız pin için `None` döndürüyor ve `9999` sentinel üretim kodundan kaldırıldı. `component.rs` pin adları, canonical SPICE sırası, layout koordinatları, source prefix'i ve signal/through metadata'sı için graph/ERC/SPICE/layout'un ortak kaynağıdır. `invalid_pin.nl` artık `NL-E005` üretir. Katalog invariant ve sentinel-yokluğu regression testleriyle toplam 47 Rust testi, golden SPICE ve tam Rust/WASM/Web kapısı geçti.
+**Typed net/pin kataloğu kanıtı (2026-08-09):** `NetId` serde-transparent newtype olarak tanımlandı; `get_net` bağlantısız pin için `None` döndürüyor ve `9999` sentinel üretim kodundan kaldırıldı. `component.rs` pin adları, canonical SPICE sırası, layout koordinatları, source prefix'i ve signal/through metadata'sı için graph/ERC/SPICE/layout'un ortak kaynağıdır. `invalid_pin.kess` artık `KES-E005` üretir. Katalog invariant ve sentinel-yokluğu regression testleriyle toplam 47 Rust testi, golden SPICE ve tam Rust/WASM/Web kapısı geçti.
 
-**Namespace/ground paketi kanıtı (2026-08-09):** Component/net collision `NL-E006`, aynı fiziksel net üzerindeki birden fazla user name `NL-E007`, bağımsız ground adayları `NL-E008`, duplicate net declaration `NL-E009` üretir. Explicit `net GND` legacy source-minus fallback'ten önce gelir; explicit referans yoksa fallback lexicographic ve deterministiktir fakat ambiguity artık sessiz değildir. ERC diagnostic'leri `(code, component, pin, message)` ile canonical sıralanır. Dört invalid fixture ve explicit/legacy ground regression testleri dahil toplam 50 Rust testi; golden SPICE, audit=0 ve tam Rust/WASM/Web kapısı geçti.
+**Namespace/ground paketi kanıtı (2026-08-09):** Component/net collision `KES-E006`, aynı fiziksel net üzerindeki birden fazla user name `KES-E007`, bağımsız ground adayları `KES-E008`, duplicate net declaration `KES-E009` üretir. Explicit `net GND` legacy source-minus fallback'ten önce gelir; explicit referans yoksa fallback lexicographic ve deterministiktir fakat ambiguity artık sessiz değildir. ERC diagnostic'leri `(code, component, pin, message)` ile canonical sıralanır. Dört invalid fixture ve explicit/legacy ground regression testleri dahil toplam 50 Rust testi; golden SPICE, audit=0 ve tam Rust/WASM/Web kapısı geçti.
 
 **Canonical SPICE number kanıtı (2026-08-09):** Passive, DC source ve SINE/PULSE/PWL waveform değerleri tek `format_spice_number` yolundan geçer. Negative zero `0`, orta aralık trimlenmiş decimal, küçük/büyük değer normalize edilmiş lowercase exponent olarak yazılır; binary float artıkları golden netlist'e sızmaz (`100uF -> 1e-4`). Formatter regression testiyle toplam 51 Rust testi ve güncellenmiş golden corpus geçti. Üretilen `demo_circuit.spice` ayrıca gömülü Ngspice 46 batch OP analizini exit 0 tamamladı; audit=0 dahil tam Rust/WASM/Web kapısı geçti.
 
@@ -457,11 +464,11 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 - [x] `simulate` JSON success sonucunun process status ve simulator errors ile uyumlu olmasını sağla.
 - [x] Output file ve overwrite politikasını tanımla.
 
-**Compile API dilimi kanıtı (2026-08-09):** `netlang.compile.v1` şema sürümüne sahip, filesystem/process I/O yapmayan `compile_source(source, options) -> CompileReport` çekirdek entrypoint'i eklendi. Parse (`NL-P001` + satır/sütun), flatten (`NL-C008`), semantic (`NL-Cxxx`) ve ERC (`NL-Exxx`) sonuçları stage/severity bilgili ortak diagnostic tipine normalize ediliyor. IR ve deterministik sıralı graph özeti raporda korunurken error-severity diagnostic backend üretimini merkezi olarak kesiyor; AST, SPICE, layout ve KiCad çıktıları typed options ile seçiliyor. Bu kütüphane sözleşmesi 9 yeni integration testiyle korunuyor. CLI ve WASM migrasyonu ayrı, sıradaki paketlerdir; bu aşamada mevcut dış sözleşmeleri değiştirilmedi.
+**Compile API dilimi kanıtı (2026-08-09):** `kessetsu.compile.v1` şema sürümüne sahip, filesystem/process I/O yapmayan `compile_source(source, options) -> CompileReport` çekirdek entrypoint'i eklendi. Parse (`KES-P001` + satır/sütun), flatten (`KES-C008`), semantic (`KES-Cxxx`) ve ERC (`KES-Exxx`) sonuçları stage/severity bilgili ortak diagnostic tipine normalize ediliyor. IR ve deterministik sıralı graph özeti raporda korunurken error-severity diagnostic backend üretimini merkezi olarak kesiyor; AST, SPICE, layout ve KiCad çıktıları typed options ile seçiliyor. Bu kütüphane sözleşmesi 9 yeni integration testiyle korunuyor. CLI ve WASM migrasyonu ayrı, sıradaki paketlerdir; bu aşamada mevcut dış sözleşmeleri değiştirilmedi.
 
-**WASM adaptör dilimi kanıtı (2026-08-09):** `compile_netlang`, kendi parse/flatten/IR/graph/ERC/backend zincirini kurmak yerine yalnızca `compile_source(..., CompileOptions::all_outputs())` raporunu JS'e serialize eden fail-closed bir adaptöre indirildi. Web tüketicisi legacy `parse_error`/`erc_errors` alanlarından sürümlü ortak `diagnostics` sözleşmesine geçirildi; schema uyuşmazlığı ve error severity eski çıktıları ekranda bırakmadan hata veriyor. Kök kalite kapısındaki WASM package ve Web TypeScript/lint/build adımları bu entegrasyonu doğrular.
+**WASM adaptör dilimi kanıtı (2026-08-09):** `compile_kessetsu`, kendi parse/flatten/IR/graph/ERC/backend zincirini kurmak yerine yalnızca `compile_source(..., CompileOptions::all_outputs())` raporunu JS'e serialize eden fail-closed bir adaptöre indirildi. Web tüketicisi legacy `parse_error`/`erc_errors` alanlarından sürümlü ortak `diagnostics` sözleşmesine geçirildi; schema uyuşmazlığı ve error severity eski çıktıları ekranda bırakmadan hata veriyor. Kök kalite kapısındaki WASM package ve Web TypeScript/lint/build adımları bu entegrasyonu doğrular.
 
-**CLI sözleşme dilimi kanıtı (2026-08-09):** `check/compile/simulate/test` artık parse/IR/graph/ERC zincirini tekrarlamıyor ve canonical `CompileReport` kullanıyor. CLI JSON'u `netlang.compile.v1` raporunu `status`, `spice_file` ve `tests` alanlarıyla genişletiyor; integration testi AST/IR/diagnostics/graph/SPICE alanlarının library raporuyla birebir aynı olduğunu doğruluyor. `--format` iki konumda da çalışıyor; parse/I-O=2, semantic/ERC=1, simulation=3 ve assertion=4 yolları tek format-bağımsız akışta tanımlı. Output varsayılanı `<source>.spice`; mevcut hedef yalnız `--force` ile eziliyor, kaynak dosya hedef olamıyor. `render` `NL-F001`/exit 2 ile fail-closed. Simulator process status ve error/fatal/aborted çıktısı başarı JSON'una dönüşmüyor; gömülü Ngspice ile JSON success smoke testi de geçti. `NETLANG_NGSPICE` override'ı üzerinden çalışan platform-bağımsız fake-process integration testleri success/simulation-error/assertion-failure JSON ve exit 0/3/4 yollarını koruyor. CLI reference'taki beş komut ailesinin davranış matrisi integration seviyesinde kapsandı; ilgili Rust suite toplam 66 teste çıktı.
+**CLI sözleşme dilimi kanıtı (2026-08-09):** `check/compile/simulate/test` artık parse/IR/graph/ERC zincirini tekrarlamıyor ve canonical `CompileReport` kullanıyor. CLI JSON'u `kessetsu.compile.v1` raporunu `status`, `spice_file` ve `tests` alanlarıyla genişletiyor; integration testi AST/IR/diagnostics/graph/SPICE alanlarının library raporuyla birebir aynı olduğunu doğruluyor. `--format` iki konumda da çalışıyor; parse/I-O=2, semantic/ERC=1, simulation=3 ve assertion=4 yolları tek format-bağımsız akışta tanımlı. Output varsayılanı `<source>.spice`; mevcut hedef yalnız `--force` ile eziliyor, kaynak dosya hedef olamıyor. `render` `KES-F001`/exit 2 ile fail-closed. Simulator process status ve error/fatal/aborted çıktısı başarı JSON'una dönüşmüyor; gömülü Ngspice ile JSON success smoke testi de geçti. `KESSETSU_NGSPICE` override'ı üzerinden çalışan platform-bağımsız fake-process integration testleri success/simulation-error/assertion-failure JSON ve exit 0/3/4 yollarını koruyor. CLI reference'taki beş komut ailesinin davranış matrisi integration seviyesinde kapsandı; ilgili Rust suite toplam 66 teste çıktı.
 
 **Kabul kriterleri:**
 
@@ -488,7 +495,7 @@ Bu milestone sırasında aşağıdaki özellikler uygulanmayacaktır:
 - [x] Kullanılmayan Vite template CSS ve asset'lerini temizle. _(`App.css`, template hero/React/Vite görselleri ve kullanılmayan public icon seti kaldırıldı.)_
 - [x] Web default circuit compile smoke testi ekle.
 
-**Web/WASM senkronizasyon dilimi kanıtı (2026-08-09):** Web editörünün hard-coded ve legacy syntax kullanan kaynağı kaldırıldı; default içerik doğrudan repository'deki golden-korumalı `examples/demo_circuit.nl` dosyasından raw import ediliyor. Aynı dosya Rust integration testinde `CompileOptions::all_outputs()` ile diagnostics olmadan SPICE + layout + KiCad üretmek zorunda. Web compile/layout/diagnostic sınırındaki `any` tipleri explicit TypeScript interface'lere çevrildi. SVG renderer ayrı `Source` ve `CurrentSource` sembolleri kullanıyor; layout ve üretim Web kodu canonical component türleriyle eşitlendi. KiCad mapping'leri `Simulation_SPICE:VDC/IDC` olarak testle sabitlendi. Toplam 68 Rust testi, WASM release package, Web lint ve production build birlikte geçti.
+**Web/WASM senkronizasyon dilimi kanıtı (2026-08-09):** Web editörünün hard-coded ve legacy syntax kullanan kaynağı kaldırıldı; default içerik doğrudan repository'deki golden-korumalı `examples/demo_circuit.kess` dosyasından raw import ediliyor. Aynı dosya Rust integration testinde `CompileOptions::all_outputs()` ile diagnostics olmadan SPICE + layout + KiCad üretmek zorunda. Web compile/layout/diagnostic sınırındaki `any` tipleri explicit TypeScript interface'lere çevrildi. SVG renderer ayrı `Source` ve `CurrentSource` sembolleri kullanıyor; layout ve üretim Web kodu canonical component türleriyle eşitlendi. KiCad mapping'leri `Simulation_SPICE:VDC/IDC` olarak testle sabitlendi. Toplam 68 Rust testi, WASM release package, Web lint ve production build birlikte geçti.
 
 **Kabul kriterleri:**
 
@@ -553,7 +560,7 @@ pwsh -NoProfile -File scripts/verify.ps1
 - [x] Determinism stress testi geçiyor.
 - [x] Doğrulama sonrası Git çalışma ağacı temiz.
 
-**Final yerel kapı kanıtı (2026-08-09):** Dependency kurulumu atlanmadan `scripts/verify.ps1` çalıştı: `npm ci` 50 paketi temiz kurdu ve audit etti; 69 Rust/CLI testi, fmt, Clippy `-D warnings`, release build, WASM release package, ikinci production audit (`0 vulnerabilities`), Web lint ve production build geçti. CLI example integration matrisi dört geçerli repository example'ını check+compile eder; intentionally-invalid `test_amp.nl` için `NL-E003`/exit 1 bekler. ERC `NL-E001..009`, parser/semantic invalid corpus ve 100x SPICE + 50x diagnostic determinism tekrarları testlerle korunur. Doğrulama scripti öncesi/sonrası worktree snapshot'ını karşılaştırarak yeni artifact oluşmadığını da denetledi; bu final doküman commit'i sonrası status ayrıca temiz doğrulanacaktır.
+**Final yerel kapı kanıtı (2026-08-09):** Dependency kurulumu atlanmadan `scripts/verify.ps1` çalıştı: `npm ci` 50 paketi temiz kurdu ve audit etti; 69 Rust/CLI testi, fmt, Clippy `-D warnings`, release build, WASM release package, ikinci production audit (`0 vulnerabilities`), Web lint ve production build geçti. CLI example integration matrisi dört geçerli repository example'ını check+compile eder; intentionally-invalid `test_amp.kess` için `KES-E003`/exit 1 bekler. ERC `KES-E001..009`, parser/semantic invalid corpus ve 100x SPICE + 50x diagnostic determinism tekrarları testlerle korunur. Doğrulama scripti öncesi/sonrası worktree snapshot'ını karşılaştırarak yeni artifact oluşmadığını da denetledi; bu final doküman commit'i sonrası status ayrıca temiz doğrulanacaktır.
 
 **Faz 2.5 kapanış kanıtı (2026-08-09):** Yerel final matrisinin tamamı ve aynı canonical `scripts/verify.ps1` akışını kullanan remote GitHub Actions run'ı geçti. Milestone kapandı; Faz 3 ön koşulu sağlandı.
 
@@ -570,7 +577,7 @@ Faz 2.5 final kabul matrisinin tamamı geçmelidir.
 - [x] Ngspice sidecar subprocess ile çağrılabiliyor. _(PROTOTİP)_
 - [x] Basit `.meas` satırları stdout'tan çıkarılabiliyor. _(PROTOTİP)_
 - [x] Basit comparator evaluation çalışıyor. _(PROTOTİP)_
-- [x] `netlang test` human/JSON temel sonuç üretiyor. _(PROTOTİP)_
+- [x] `kess test` human/JSON temel sonuç üretiyor. _(PROTOTİP)_
 
 Bu maddeler Faz 3'ün tamamlandığı anlamına gelmez; aşağıdaki structured runtime bunların yerini alacaktır.
 
@@ -579,12 +586,12 @@ Bu maddeler Faz 3'ün tamamlandığı anlamına gelmez; aşağıdaki structured 
 Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak simulation domain modeli halen prototiptir. Uygulamaya başlamadan önce geçerli code path gerçekleri:
 
 1. `simulate`, SPICE dosyasını doğrudan `Command::output()` ile çalıştırırken `test`, `sim_result::run_simulation` yolunu kullanıyor; tek runner yok.
-2. `run_simulation`, processler arasında paylaşılan sabit `netlang_temp.spice` yolunu kullanıyor; önce benzersiz run directory ve cleanup/artifact politikası gerekir.
+2. `run_simulation`, processler arasında paylaşılan sabit `kessetsu_temp.spice` yolunu kullanıyor; önce benzersiz run directory ve cleanup/artifact politikası gerekir.
 3. `SimResult`, `HashMap<String, f64> + Vec<String>` taşır; process status, raw log, warning, analysis türü ve typed dataset domain alanları yoktur.
 4. `.meas` parsing stdout satır bölme heuristic'idir; locale, exponent, duplicate measurement ve malformed output fixture'ları yoktur.
 5. Missing measurement internal olarak `NaN`, CLI JSON'da `actual: null` olur; PASS/FAIL/ERROR/SKIPPED ayrımı yoktur.
 6. Analysis komutları IR'de raw `cmd/args` string'idir; unsupported simulator komutu compile aşamasında doğrulanmaz.
-7. `NETLANG_NGSPICE` override'ı ve exit 0/3/4 contract testleri vardır; executable version/capability check ve timeout/cancellation yoktur.
+7. `KESSETSU_NGSPICE` override'ı ve exit 0/3/4 contract testleri vardır; executable version/capability check ve timeout/cancellation yoktur.
 
 **Uygulama sırası kararı:** 3.1'de önce typed `SimulationRequest/Result`, analysis enum'u ve tek runner; ardından unique temp lifecycle + timeout. 3.2 parser/fixture katmanı bu domain üzerine kurulacak. 3.3 assertion result modeli, raw `f64/NaN` davranışını kullanan son consumer olarak daha sonra taşınacak. Mevcut stdout parser genişletilerek kalıcı API yapılmamalıdır.
 
@@ -601,7 +608,7 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 - [x] Ngspice executable discovery ve version check'i güvenilir yap.
 - [x] Timeout/cancellation desteği ekle.
 
-**3.1 kapanış kanıtı (2026-08-12):** `netlang.simulation.v1` request/result sözleşmesi ve backend-neutral `SimulationRunner` sınırı eklendi. OP/transient/AC/DC sweep artık typed ve unit-aware Circuit IR analysis varyantlarıdır; malformed veya unsupported analysis, module-flatten için ayrılmış `NL-C008` ile çakışmadan `NL-C009` diagnostic'iyle simulator öncesinde fail-closed olur. Native Ngspice runner executable discovery + version probe, structured process/log/warning/error/measurement alanları, benzersiz run directory, cleanup/retain-on-failure politikası, 30 saniyelik default timeout ve cancellation token uygular. `simulate` ile `test` aynı runner'ı kullanır. Fake-process integration testleri success, launch failure, simulator failure, timeout, cancellation, artifact retention ve paralel iki run izolasyonunu doğrular; gerçek bundled Ngspice 46 version probe'u ayrıca geçti. Canonical `scripts/verify.ps1` kapısı 81 Rust/CLI testi, fmt, Clippy `-D warnings`, release/WASM build, production npm audit (`0 vulnerabilities`), Web lint ve production build ile tamamen geçti.
+**3.1 kapanış kanıtı (2026-08-12):** `kessetsu.simulation.v1` request/result sözleşmesi ve backend-neutral `SimulationRunner` sınırı eklendi. OP/transient/AC/DC sweep artık typed ve unit-aware Circuit IR analysis varyantlarıdır; malformed veya unsupported analysis, module-flatten için ayrılmış `KES-C008` ile çakışmadan `KES-C009` diagnostic'iyle simulator öncesinde fail-closed olur. Native Ngspice runner executable discovery + version probe, structured process/log/warning/error/measurement alanları, benzersiz run directory, cleanup/retain-on-failure politikası, 30 saniyelik default timeout ve cancellation token uygular. `simulate` ile `test` aynı runner'ı kullanır. Fake-process integration testleri success, launch failure, simulator failure, timeout, cancellation, artifact retention ve paralel iki run izolasyonunu doğrular; gerçek bundled Ngspice 46 version probe'u ayrıca geçti. Canonical `scripts/verify.ps1` kapısı 81 Rust/CLI testi, fmt, Clippy `-D warnings`, release/WASM build, production npm audit (`0 vulnerabilities`), Web lint ve production build ile tamamen geçti.
 
 ### 3.2 — Structured Ngspice sonuçları
 
@@ -613,11 +620,11 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 - [x] Warning, convergence ve fatal error sınıflandırması yap.
 - [x] Locale, exponent ve line-ending fixture'ları ekle.
 
-**3.2 kapanış kanıtı (2026-08-12):** Prototip stdout splitter kaldırıldı; `.meas` ve `wrdata` için ayrı `simulation_parser` modülü eklendi. Measurement parser duplicate/malformed/non-finite değerleri fail-closed reddeder; exponent, decimal-comma ve LF/CRLF fixture'larıyla korunur. Generated SPICE deterministic analysis artifact isimleri ve `wrdata all` kullanır. OP sorted scalar map'e, transient/DC real-series dataset'e, AC frequency + complex-series dataset'e dönüşür. `NL-S003..006` warning/convergence/fatal/result-parse sınıfları structured runtime diagnostics olarak taşınır. Bundled Ngspice ile gerçek OP, transient ve AC integration fixture'ları geçer; Linux CI aynı testler için Ngspice kurar. Canonical `scripts/verify.ps1` kapısı 88 Rust/CLI testi, gerçek Ngspice fixtures, fmt, Clippy `-D warnings`, release/WASM build, production audit (`0 vulnerabilities`), Web lint ve production build ile geçti.
+**3.2 kapanış kanıtı (2026-08-12):** Prototip stdout splitter kaldırıldı; `.meas` ve `wrdata` için ayrı `simulation_parser` modülü eklendi. Measurement parser duplicate/malformed/non-finite değerleri fail-closed reddeder; exponent, decimal-comma ve LF/CRLF fixture'larıyla korunur. Generated SPICE deterministic analysis artifact isimleri ve `wrdata all` kullanır. OP sorted scalar map'e, transient/DC real-series dataset'e, AC frequency + complex-series dataset'e dönüşür. `KES-S003..006` warning/convergence/fatal/result-parse sınıfları structured runtime diagnostics olarak taşınır. Bundled Ngspice ile gerçek OP, transient ve AC integration fixture'ları geçer; Linux CI aynı testler için Ngspice kurar. Canonical `scripts/verify.ps1` kapısı 88 Rust/CLI testi, gerçek Ngspice fixtures, fmt, Clippy `-D warnings`, release/WASM build, production audit (`0 vulnerabilities`), Web lint ve production build ile geçti.
 
 ### 3.3 — Assertion runtime
 
-- [x] Her assertion'a deterministik `NL-Txxx` kodu ata.
+- [x] Her assertion'a deterministik `KES-Txxx` kodu ata.
 - [x] Sonuç durumlarını tanımla: PASS, FAIL, ERROR, SKIPPED.
 - [x] Missing measurement'ı NaN yerine açıklamalı ERROR yap.
 - [x] Absolute ve relative tolerance politikası tanımla.
@@ -631,10 +638,10 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 
 ```json
 {
-  "schema_version": "netlang.assertion.v1",
+  "schema_version": "kessetsu.assertion.v1",
   "assertions": [
     {
-      "code": "NL-T001",
+      "code": "KES-T001",
       "status": "PASS",
       "metric": "max",
       "signal": "V(out)",
@@ -652,12 +659,12 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 }
 ```
 
-**3.3 kanıtı:** Assertion motoru `netlang.assertion.v1` raporu, deterministik `NL-Txxx` kimlikleri ve dört ayrı durum üretir. Dataset-first metric çözümleme OP/transient/DC verisini typed olarak işler; eksik/uygunsuz veri `ERROR`, başarısız simulation `SKIPPED` olur. Absolute peak, OP ve current-sign semantiği ile absolute/relative tolerance regression testleriyle korunur. CLI human renderer engineering prefix + birim kullanır; JSON aynı domain raporunu summary ile serialize eder. Bundled Ngspice üzerinde gerçek `test_features.nl` smoke testi iki assertion'ı typed `PASS` sonucu ile tamamladı.
+**3.3 kanıtı:** Assertion motoru `kessetsu.assertion.v1` raporu, deterministik `KES-Txxx` kimlikleri ve dört ayrı durum üretir. Dataset-first metric çözümleme OP/transient/DC verisini typed olarak işler; eksik/uygunsuz veri `ERROR`, başarısız simulation `SKIPPED` olur. Absolute peak, OP ve current-sign semantiği ile absolute/relative tolerance regression testleriyle korunur. CLI human renderer engineering prefix + birim kullanır; JSON aynı domain raporunu summary ile serialize eder. Bundled Ngspice üzerinde gerçek `test_features.kess` smoke testi iki assertion'ı typed `PASS` sonucu ile tamamladı.
 
 ### 3.4 — Simulation CLI sözleşmesi
 
-- [x] `netlang simulate` structured analysis sonucu döndürür.
-- [x] `netlang test` structured assertion sonucu döndürür.
+- [x] `kess simulate` structured analysis sonucu döndürür.
+- [x] `kess test` structured assertion sonucu döndürür.
 - [x] Human ve JSON modları aynı domain sonucunu render eder.
 - [x] Varsayılan JSON envelope'u yalnız status, diagnostics, summary, measurements, assertions ve artifact referanslarını taşıyan kompakt agent çıktısı olsun.
 - [x] AST, IR, graph, SPICE netlist, dataset ve raw simulator log gibi hacimli debug alanlarını açık `--include` seçimiyle opt-in yap.
@@ -666,29 +673,29 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 - [x] JSON stdout parse edilebilir ve logsuzdur. _(Success/failure/assertion CLI integration testleri.)_
 - [x] Simulation fixture'ları CI'da güvenilir çalışır. _(3.2 real-Ngspice fixture'ları canonical suite ve Linux CI içinde; 3.4 CLI contract fake runner ile platformlar arası korunuyor.)_
 
-**3.4 kanıtı:** `netlang.cli.v1` compact envelope `check`, `compile`, `simulate` ve `test` için ortak status/diagnostic/summary/measurement/assertion/artifact modelini kullanır. `netlang.compile.v1`, `netlang.simulation.v1` ve `netlang.assertion.v1` sürümleri `domain_versions` ile ilan edilir. AST/IR/graph/SPICE/dataset/raw-log yalnız `--include` ile `debug` altına girer. `--schema-version` bilinmeyen sürümü output oluşturmadan `NL-F002` ile fail-closed reddeder. Human ve JSON simulation render'ları aynı dataset/measurement sayısını contract testinde doğrular; JSON stdout raw logla kirlenmez.
+**3.4 kanıtı:** `kessetsu.cli.v1` compact envelope `check`, `compile`, `simulate` ve `test` için ortak status/diagnostic/summary/measurement/assertion/artifact modelini kullanır. `kessetsu.compile.v1`, `kessetsu.simulation.v1` ve `kessetsu.assertion.v1` sürümleri `domain_versions` ile ilan edilir. AST/IR/graph/SPICE/dataset/raw-log yalnız `--include` ile `debug` altına girer. `--schema-version` bilinmeyen sürümü output oluşturmadan `KES-F002` ile fail-closed reddeder. Human ve JSON simulation render'ları aynı dataset/measurement sayısını contract testinde doğrular; JSON stdout raw logla kirlenmez.
 
 ### 3.5 — Agent-ready CLI contract
 
 - [x] Ayrı daemon veya Agent API servisi kurmadan `check`, `compile`, `simulate` ve `test` komutlarını versioned JSON sözleşmesiyle sun.
-- [x] Dosyasız tool kullanımı için NetLang source'u stdin'den alma seçeneği ekle.
+- [x] Dosyasız tool kullanımı için Kessetsu source'u stdin'den alma seçeneği ekle.
 - [x] Agent sonucunu human terminal metni parse etmeye gerek bırakmayacak şekilde typed, kompakt ve structured tut.
 - [x] Aynı request için idempotent ve deterministik sonuç üret.
 - [x] Dış bir AI ajanının compile → simulate → measure → revise döngüsünü fixture tabanlı uçtan uca testle doğrula.
 
-**3.5 kanıtı:** `FILE` konumundaki `-`, source'u stdin'den alır; açık `--output` yoksa compile/simulate/test netlist'i yalnız bellekte kullanır. Dört komut da `netlang.cli.v1` envelope'u döndürür. Contract testi side-effect-free check/compile/simulate/test isteklerini ikişer kez çalıştırıp stdout'un byte-for-byte aynı olduğunu doğrular. E2E agent fixture'ı 10 Ω adayını compile eder, structured simulation measurement'ında 200 mA okur, `NL-T001=FAIL` sonucunu işler, source'u 100 Ω'a revize eder ve 20 mA ile `PASS` sonucuna ulaşır; hiçbir adım human terminal metni parse etmez.
+**3.5 kanıtı:** `FILE` konumundaki `-`, source'u stdin'den alır; açık `--output` yoksa compile/simulate/test netlist'i yalnız bellekte kullanır. Dört komut da `kessetsu.cli.v1` envelope'u döndürür. Contract testi side-effect-free check/compile/simulate/test isteklerini ikişer kez çalıştırıp stdout'un byte-for-byte aynı olduğunu doğrular. E2E agent fixture'ı 10 Ω adayını compile eder, structured simulation measurement'ında 200 mA okur, `KES-T001=FAIL` sonucunu işler, source'u 100 Ω'a revize eder ve 20 mA ile `PASS` sonucuna ulaşır; hiçbir adım human terminal metni parse etmez.
 
 ### 3.6 — Simulation model ve subcircuit temeli
 
 - [x] Güvenli, typed user-defined SPICE `.model` ve `.subckt` declaration/include sözleşmesi tasarla.
-- [x] Subcircuit pin sırası ile NetLang component pinlerini ortak katalog üzerinden doğrula.
+- [x] Subcircuit pin sırası ile Kessetsu component pinlerini ortak katalog üzerinden doğrula.
 - [x] En az bir doğrulanmış op-amp, PMOS ve power-transistor yolu sun; dilde tanımlı hiçbir temel component türü bütünüyle kullanılamaz kalmasın.
 - [x] Model kind, polarity, required pin, simulator capability ve isim çakışmalarını compile aşamasında fail-closed doğrula.
 - [x] Model kaynağı, lisansı, sürümü ve content hash'ini taşıyan provenance manifest'i tanımla.
-- [x] `netlang.lock` ile model/subcircuit çözümlemesini reproducible yap.
+- [x] `kessetsu.lock` ile model/subcircuit çözümlemesini reproducible yap.
 - [x] User model/subcircuit içeriğinin typed IR sınırını atlayarak kontrolsüz SPICE directive enjekte edememesini test et.
 
-**3.6 kanıtı:** Typed `model diode|bjt|mosfet` ve fixed-template `subcircuit opamp` declaration'ları yalnız whitelist edilmiş numeric parametrelerden canonical directive üretir; raw SPICE source'a alınmaz. Ortak component kataloğu op-amp pin sırasını doğrular. `NL-C010..013` parameter/metadata, package, pin/capability ve case-insensitive name conflict alanlarını fail-closed ayırır. `NLANG_OPAMP_V1`, `NLANG_PMOS_V1` ve `NLANG_POWER_NPN_V1` aynı gerçek Ngspice OP fixture'ında başarıyla çalışır. `netlang.models.v1` source/license/version/simulator/SHA-256 provenance taşır; exact `netlang_analog@1.0.0` çözümlemesi deterministic `netlang.lock.v1` üretir ve CLI bunu artifact olarak yazar. Çok satırlı `.control`/`.include` payload'ları dahil injection corpus'u error sonrası backend üretmediğini doğrular.
+**3.6 kanıtı:** Typed `model diode|bjt|mosfet` ve fixed-template `subcircuit opamp` declaration'ları yalnız whitelist edilmiş numeric parametrelerden canonical directive üretir; raw SPICE source'a alınmaz. Ortak component kataloğu op-amp pin sırasını doğrular. `KES-C010..013` parameter/metadata, package, pin/capability ve case-insensitive name conflict alanlarını fail-closed ayırır. `KESSETSU_OPAMP_V1`, `KESSETSU_PMOS_V1` ve `KESSETSU_POWER_NPN_V1` aynı gerçek Ngspice OP fixture'ında başarıyla çalışır. `kessetsu.models.v1` source/license/version/simulator/SHA-256 provenance taşır; exact `kessetsu_analog@1.0.0` çözümlemesi deterministic `kessetsu.lock.v1` üretir ve CLI bunu artifact olarak yazar. Çok satırlı `.control`/`.include` payload'ları dahil injection corpus'u error sonrası backend üretmediğini doğrular.
 
 ### 3.7 — Engineering measurements ve ürün benchmark'ları
 
@@ -703,12 +710,12 @@ Faz 2.5 sırasında CLI'nin process/exit kabuğu sağlamlaştırıldı ancak sim
 - [x] Canonical çok katlı power-amplifier benchmark'ı: 8 Ω yükte hedef output power, gain, distortion ve component dissipation koşulları.
 - [x] En az bir benchmark'ta dış AI ajanının başarısız tasarım adayını structured sonuçla revize edip hedefleri karşılayan adaya ulaşmasını E2E doğrula.
 
-**3.7 kapanış kanıtı (2026-08-12):** `netlang.measurement.v1`, `V(net|device)`, `I(device)` ve `P(device)` primitive'lerini; typed reduction/time-window semantiğini ve gain, bandwidth/cutoff, frequency, phase, output RMS power, efficiency, THD, clipping ve dissipation metric'lerini dataset-first değerlendirir. Eksik/uygunsuz veri message-bearing `ERROR` olur. `docs/engineering_measurements.md` formül, birim, sign convention ve analysis gereksinimlerini kaydeder. Gerçek Ngspice benchmark suite'i RC filtresinde yaklaşık 1 kHz cutoff; gain stage'de yaklaşık 10 gain ve 100 kHz bandwidth; dört katlı amplifikatörde 8 Ω üzerinde yaklaşık 1.95 W, 56.5 gain, %2.23 THD ile clipping/dissipation/device-stress koşullarını doğrular. Real-agent E2E testi 10 kHz'e kayan hatalı RC adayının versioned JSON `FAIL` sonucunu okuyup kondansatörü revize ederek beş assertion'ın tamamını `PASS` yapar. Compile IR genişlediği için rapor `netlang.compile.v2`'ye yükseltildi; CLI `domain_versions` içinde measurement sürümünü de ilan eder.
+**3.7 kapanış kanıtı (2026-08-12):** `kessetsu.measurement.v1`, `V(net|device)`, `I(device)` ve `P(device)` primitive'lerini; typed reduction/time-window semantiğini ve gain, bandwidth/cutoff, frequency, phase, output RMS power, efficiency, THD, clipping ve dissipation metric'lerini dataset-first değerlendirir. Eksik/uygunsuz veri message-bearing `ERROR` olur. `docs/engineering_measurements.md` formül, birim, sign convention ve analysis gereksinimlerini kaydeder. Gerçek Ngspice benchmark suite'i RC filtresinde yaklaşık 1 kHz cutoff; gain stage'de yaklaşık 10 gain ve 100 kHz bandwidth; dört katlı amplifikatörde 8 Ω üzerinde yaklaşık 1.95 W, 56.5 gain, %2.23 THD ile clipping/dissipation/device-stress koşullarını doğrular. Real-agent E2E testi 10 kHz'e kayan hatalı RC adayının versioned JSON `FAIL` sonucunu okuyup kondansatörü revize ederek beş assertion'ın tamamını `PASS` yapar. Compile IR genişlediği için rapor `kessetsu.compile.v2`'ye yükseltildi; CLI `domain_versions` içinde measurement sürümünü de ilan eder.
 
 ### Faz 3 kabul kriterleri
 
 - [x] OP, transient ve AC için en az birer gerçek Ngspice integration fixture'ı geçer. _(3.2 real Ngspice fixture matrisi.)_
-- [x] Simulation result'ları typed ve serialize edilebilirdir. _(`netlang.simulation.v1` + serde contract testleri.)_
+- [x] Simulation result'ları typed ve serialize edilebilirdir. _(`kessetsu.simulation.v1` + serde contract testleri.)_
 - [x] Assertion sonuçları PASS/FAIL/ERROR ayrımını doğru yapar. _(3.3 typed status ve regression suite.)_
 - [x] Paralel iki simulation dosya çakışması yaşamaz. _(3.1 unique run-directory integration testi.)_
 - [x] CLI human/JSON ve exit-code contract testleri geçer. _(3.4–3.5 cross-platform contract suite.)_
@@ -747,7 +754,7 @@ Mevcut Web/layout kodu tamamen boş değildir ve kanıt görmeden silinmeyecekti
 
 1. `webapp/src/App.tsx`, Monaco editor, WASM compile/ERC, deneysel SVG şema, SPICE görünümü ve KiCad/SPICE indirme akışı sunar.
 2. Web tek büyük React component'i içinde UI state, symbol çizimleri ve download davranışını birlikte taşır; sürdürülebilir ürün mimarisi değildir fakat çalışan davranışlar characterization kaynağıdır.
-3. Web `netlang.compile.v1` beklerken Core `netlang.compile.v2` üretir. Production TypeScript/Vite build'i gerçek browser/WASM çağrısını çalıştırmadığı için bu schema drift'ini yakalamamıştır.
+3. Web `kessetsu.compile.v1` beklerken Core `kessetsu.compile.v2` üretir. Production TypeScript/Vite build'i gerçek browser/WASM çağrısını çalıştırmadığı için bu schema drift'ini yakalamamıştır.
 4. `LayoutResult`, component koordinatları ve `net_id + polyline points` taşır. Açık pin endpoint'i, junction, geometry crossing, net label ve connectivity proof yoktur.
 5. Chain-based layout basit rail/chain devrelerinde başlangıç değeri sağlar; feedback loop, bridge, yüksek fan-out, çoklu source ve karmaşık analog topolojilerde kalite garantisi yoktur.
 6. React renderer'daki symbol geometrisi Core component kataloğuyla typed/sürümlü bir symbol sözleşmesi paylaşmaz.
@@ -781,11 +788,11 @@ Mevcut Web/layout kodu tamamen boş değildir ve kanıt görmeden silinmeyecekti
 
 ### 4.1 — Canonical ve doğrulanabilir Schematic IR
 
-- [x] Versioned, serialize edilebilir ve collection-order'dan bağımsız `netlang.schematic.v1` sözleşmesini tanımla. _Kanıt: `core/src/schematic.rs`; compile contract `netlang.compile.v3`._
+- [x] Versioned, serialize edilebilir ve collection-order'dan bağımsız `kessetsu.schematic.v1` sözleşmesini tanımla. _Kanıt: `core/src/schematic.rs`; compile contract `kessetsu.compile.v3`._
 - [x] Component instance, symbol kind/variant, value/model label, orientation ve canonical pin anchor'larını açık tiplerle taşı. _`SchematicComponent` ve `PinAnchor`._
 - [x] Wire segment, pin endpoint, named net, junction ve bağlanmayan geometry crossing kavramlarını ayrı temsil et. _`SchematicWire`, `WireEndpoint`, `SchematicNet`, `Junction`, `Crossing`._
 - [x] GND, supply ve net-label kullanımını uzun rail/karmaşık kablo kalabalığını azaltan semantik öğeler yap. _Ground/supply ve explicit yüksek-fan-out netler typed label olur._
-- [x] Layout sonucundan canonical `NetlistGraph` connectivity'sini yeniden kurup net/pin eşdeğerliğini fail-closed doğrula. _`ConnectivityReport`; mismatch `NL-L001` ile backend'i durdurur._
+- [x] Layout sonucundan canonical `NetlistGraph` connectivity'sini yeniden kurup net/pin eşdeğerliğini fail-closed doğrula. _`ConnectivityReport`; mismatch `KES-L001` ile backend'i durdurur._
 - [x] Aynı Circuit IR'nin tekrarlar ve declaration/connection sırası değişimlerinde byte-stable Schematic IR ürettiğini test et. _`schematic_json_and_svg_are_byte_stable_across_repeated_compiles`, `declaration_and_connection_order_do_not_change_schematic`._
 - [x] Symbol tanımlarını Core component kataloğuyla tek kaynaktan eşle; Web'in ayrı ve drift edebilen pin geometrisi tanımlamasını engelle. _`CatalogSymbol`/`PinSide`; Web yalnız Core SVG'yi gösterir._
 - [x] Mevcut chain heuristic'ini baseline olarak tutup feedback/bridge/fan-out/power-amplifier corpus'unda iyileştir veya daha uygun algoritmayla değiştir. _Legacy korunup canonical yol deterministic layered placement + orthogonal cost router ile değiştirildi._
@@ -819,8 +826,8 @@ Detaylı teknik plan, baseline bulguları, ölçülebilir kalite sözleşmesi ve
 
 - [x] 4.0 ADR'ında seçilen browser runtime yolunu `SimulationRunner` domain sınırını koruyarak uygula. _Kanıt: WASM `prepare_browser_simulation`/`evaluate_browser_simulation` köprüleri ve UI'dan bağımsız `BrowserSimulationRunner`._
 - [x] Simulator işini Web Worker veya eşdeğer izole runtime'da çalıştır; ana thread üzerinde blocking process/parsing yapma. _Kanıt: dynamic-import kullanan dedicated module Worker `simulation.worker.ts`; gerçek Chromium testi._
-- [x] OP, transient, AC ve DC sweep dataset'lerini native `netlang.simulation.v1` semantiğine dönüştür. _Kanıt: dört analizi birlikte çalıştıran `browser_analysis_matrix.nl` ve E2E dataset-kind matrisi._
-- [x] `netlang.measurement.v1` ve `netlang.assertion.v1` sonuçlarını browser'da Core ile aynı şekilde üret. _Kanıt: simulator adapter yalnız typed dataset üretir; WASM Core aynı `evaluate_assertions` fonksiyonunu çağırır._
+- [x] OP, transient, AC ve DC sweep dataset'lerini native `kessetsu.simulation.v1` semantiğine dönüştür. _Kanıt: dört analizi birlikte çalıştıran `browser_analysis_matrix.kess` ve E2E dataset-kind matrisi._
+- [x] `kessetsu.measurement.v1` ve `kessetsu.assertion.v1` sonuçlarını browser'da Core ile aynı şekilde üret. _Kanıt: simulator adapter yalnız typed dataset üretir; WASM Core aynı `evaluate_assertions` fonksiyonunu çağırır._
 - [x] Timeout, cancellation, progress, worker crash/restart ve stale-result suppression davranışlarını tanımla. _Kanıt: `browserRunner.test.ts` dört lifecycle testi; cancellation sonrası gerçek Worker restart E2E testi._
 - [x] Raw log ve büyük dataset'leri varsayılan UI state/JSON akışına gereksiz kopyalamadan opt-in debug olarak tut. _Worker request `includeRawLog=false` varsayılanıdır; Core değerlendirmesine tek typed sonuç aktarılır._
 - [x] Native/browser simulator sürümü ve sayısal tolerans farklarını structured provenance içinde görünür yap. _`simulator.executable/version`, runtime manifest ve parity toleransı._
@@ -836,7 +843,7 @@ Detaylı teknik plan, baseline bulguları, ölçülebilir kalite sözleşmesi ve
 - [x] Mevcut Web shell'i 4.0 kararına göre modülerleştir veya değiştir; editor, diagnostics, schematic, results ve export ayrı sorumluluklar taşısın. _Kanıt: workspace hook'u ve `EditorPanel`/`SchematicPanel`/`ResultsPanel`/`ArtifactBar` ayrımı._
 - [x] İlk açılışta çalışan RC filtre örneği ve tek belirgin `Run` akışı sun. _RC fixture varsayılandır; simulation yalnız Results header'daki Run ile başlar._
 - [x] CodePen sadeliğinde editor + diagnostics + şema + sonuç panelini responsive tek çalışma alanında birleştir. _Desktop iki sütunlu çalışma alanı, 900 px altında tek sütun._
-- [x] Monaco NetLang syntax highlighting, autocomplete ve hover component/model bilgisini ekle. _`monaco.ts` Monarch grammar, completion ve hover provider'ları._
+- [x] Monaco Kessetsu syntax highlighting, autocomplete ve hover component/model bilgisini ekle. _`monaco.ts` Monarch grammar, completion ve hover provider'ları._
 - [x] Parser/semantic/ERC diagnostic source span'lerini editörde inline göster; panel ile source konumu arasında navigasyon sağla. _Parser exact, Core semantic/ERC source annotation; Monaco markers ve tıklanabilir diagnostic satırları._
 - [x] Debounced live compile ile bilinçli simulation çalıştırmasını ayır; pahalı simulation her keystroke'ta tetiklenmesin. _250 ms compile debounce; source değişimi eski simulation sonucunu temizler._
 - [x] OP değer görünümü, transient plot, AC magnitude/phase (Bode) ve DC sweep plot bileşenlerini ortak typed dataset modelinden üret. _Dört dataset sekmesi `simulation-parity.spec.ts` ile gerçek browser'da doğrulanır._
@@ -853,10 +860,10 @@ Detaylı teknik plan, baseline bulguları, ölçülebilir kalite sözleşmesi ve
 
 - [x] Gain-stage ve dört katlı power-amplifier fixture'larını Web örnek seçicisine ekle. _RC, Gain Stage ve Power Amplifier aynı source-of-truth fixture'lardan yüklenir._
 - [x] RC, gain-stage ve power-amplifier için CLI/Web compile, canonical SPICE, model manifest/lock, measurement ve assertion parity matrisi oluştur. _Kanıt: `simulation-parity.spec.ts` ve `benchmark-parity.spec.ts`; üç benchmark'ın native/browser kararları PASS._
-- [x] Native ve browser build'lerinde aynı builtin/package modelin byte-for-byte aynı canonical directive/netlist'e ulaştığını test et. _Benchmark builtins ve `web-model-security.spec.ts` exact `netlang_analog@1.0.0` package'ı native artifact ile byte karşılaştırır._
-- [x] İlk yayın benchmark'larının ihtiyaç duyduğu lisansı doğrulanmış başlangıç model paketini tamamla; geniş üretici registry'sini Faz 5+'ta tut. _Apache-2.0 `netlang_analog@1.0.0`, NLANG op-amp ve simetrik `NLANG_POWER_NPN/PNP_V1`; power benchmark legacy-provenance transistor modellerinden çıkarıldı._
+- [x] Native ve browser build'lerinde aynı builtin/package modelin byte-for-byte aynı canonical directive/netlist'e ulaştığını test et. _Benchmark builtins ve `web-model-security.spec.ts` exact `kessetsu_analog@1.0.0` package'ı native artifact ile byte karşılaştırır._
+- [x] İlk yayın benchmark'larının ihtiyaç duyduğu lisansı doğrulanmış başlangıç model paketini tamamla; geniş üretici registry'sini Faz 5+'ta tut. _Apache-2.0 `kessetsu_analog@1.0.0`, KESSETSU op-amp ve simetrik `KESSETSU_POWER_NPN/PNP_V1`; power benchmark legacy-provenance transistor modellerinden çıkarıldı._
 - [x] Web'de model seçimi, provenance/lisans/sürüm/simulator bilgisini görüntüleme ve yalnız typed declaration/package import akışı sun. _Source editor typed seçim yüzeyidir; Models popover resolved manifest'i ve provenance alanlarını gösterir._
-- [x] User model içeriğinin Web'de de raw SPICE/control sınırını atlayamadığını security corpus'uyla test et. _`web-model-security.spec.ts` injection'ı `NL-C010` ile durdurur, SPICE/Run üretmez._
+- [x] User model içeriğinin Web'de de raw SPICE/control sınırını atlayamadığını security corpus'uyla test et. _`web-model-security.spec.ts` injection'ı `KES-C010` ile durdurur, SPICE/Run üretmez._
 - [x] Derived output power, efficiency ve dissipation metric'lerine açık steady-state zaman penceresi desteği ekle. _Ortak `start,stop` sözleşmesi, adaptive timestep için time-weighted RMS/average ve power benchmark 2–10 ms penceresi._
 - [x] THD'yi explicit fundamental, ölçüm penceresi ve spectral leakage/window politikasıyla ürün seviyesinde kesinleştir. _`thd(signal,fundamental,start,stop,hann)`; deterministic resampling, Hann projection, H2–H5, sample/period/Nyquist fail-closed kapıları._
 - [x] Low-pass dışı cevaplar için cutoff/bandwidth semantiğini açık metric veya fail-closed sınırla tanımla. _İlk AC noktası maksimumun %1'i içinde değilse ERROR; `bandwidth_fails_closed_for_non_low_pass_response`._
@@ -869,7 +876,7 @@ Detaylı teknik plan, baseline bulguları, ölçülebilir kalite sözleşmesi ve
 
 ### 4.5 — Profesyonel render ve EDA export
 
-- [x] Core içinde versioned exporter adapter/capability sözleşmesi tanımla; Web, CLI veya her exporter kendi devre/layout semantiğini yeniden kurmasın. _`netlang.export.v1`; `exporter.rs` yalnız verified Schematic IR/typed IR artefaktlarını dağıtır._
+- [x] Core içinde versioned exporter adapter/capability sözleşmesi tanımla; Web, CLI veya her exporter kendi devre/layout semantiğini yeniden kurmasın. _`kessetsu.export.v1`; `exporter.rs` yalnız verified Schematic IR/typed IR artefaktlarını dağıtır._
 - [x] İlk yayın format matrisini kullanım amacı, format açıklığı, lisans, bağlantı fidelity'si, hedef uygulama doğrulanabilirliği ve bakım maliyetiyle kaydet. _`docs/export_formats.md` kaynaklı karar matrisi._
 - [x] İlk sınıf görsel çıktılar olarak SVG, PNG ve PDF'i yalnız canonical Schematic IR üzerinden üret. _PNG resvg, PDF svg2pdf; ikisi canonical SVG projection'ını kullanır._
 - [x] Makine-okunabilir/değişimsiz çıktılar olarak canonical SPICE ve versioned Schematic IR JSON'u CLI/Web artifact'i yap. _Web/native exact-byte E2E parity._
@@ -879,14 +886,14 @@ Detaylı teknik plan, baseline bulguları, ölçülebilir kalite sözleşmesi ve
 - [x] SVG export'ta semantic text, deterministic viewBox ve theme-independent okunabilir stil üret. _Boyut/viewBox açık; white/transparent projection; golden hash corpus._
 - [x] PNG export için açık çözünürlük/scale/background seçenekleri ve görsel parity testi ekle. _0.25–8 scale, white/transparent; browser/native byte equality._
 - [x] PDF export'ta sayfa boyutu, orientation, margin, vector text ve multi-page politikasını tanımla. _Tek sayfa content media-box, doğal orientation, Schematic IR margin, deterministic vector glyph; parçalama yok._
-- [x] `netlang render circuit.nl -o circuit.svg|png|pdf` komutunu güvenli overwrite ve structured diagnostic sözleşmesiyle uygula. _Extension allowlist, source overwrite koruması, `--force`, `NL-X/NL-I`._
-- [x] `netlang export circuit.nl --target <target> --output <path>` komutuyla bütün düzenlenebilir/makine-okunabilir hedefleri aynı structured artifact sözleşmesinden sun. _Global JSON `--format` ile çakışmaması için hedef bayrağı bilinçli olarak `--target`._
+- [x] `kess render circuit.kess -o circuit.svg|png|pdf` komutunu güvenli overwrite ve structured diagnostic sözleşmesiyle uygula. _Extension allowlist, source overwrite koruması, `--force`, `KES-X/KES-I`._
+- [x] `kess export circuit.kess --target <target> --output <path>` komutuyla bütün düzenlenebilir/makine-okunabilir hedefleri aynı structured artifact sözleşmesinden sun. _Global JSON `--format` ile çakışmaması için hedef bayrağı bilinçli olarak `--target`._
 - [x] CLI JSON'da exporter schema/version, artifact path/hash, connectivity verification ve warning/loss report alanlarını taşı. _`JsonArtifact` additive contract._
 - [x] KiCad schematic export'ta symbol, pin, wire, junction, label ve model/value alanlarını connectivity fixture'larıyla doğrula. _RC/gain/power Core corpus ve KiCad XML netlist references._
 - [x] LTspice schematic export adaptörü ve aynı bağlantı fixture'larını oluştur. _Gerçek `.asy` pin koordinatlarına remap, model/analysis directive ve üç benchmark corpus._
 - [x] KiCad/LTspice dosyalarının desteklenen hedef uygulama sürümlerinde gerçekten açıldığını release smoke testine ekle. _`verify-eda-exports.ps1`: KiCad 10.0.0 ve LTspice 24.1.9 üç benchmark PASS._
 - [x] Desteklenen her Core/CLI export'unu Web Hub'da aynı capability/loss bilgisiyle tek ve anlaşılır export alanında sun. _Yedi Core-advertised format, capability details ve per-artifact status._
-- [x] Unsupported exporter özelliğini sessiz veri kaybı yerine structured fail-closed diagnostic yap. _`NL-X003/NL-X013` unverified connectivity ve unsupported symbol tests._
+- [x] Unsupported exporter özelliğini sessiz veri kaybı yerine structured fail-closed diagnostic yap. _`KES-X003/KES-X013` unverified connectivity ve unsupported symbol tests._
 
 **4.5 durum:** Format üretimi, ortak Core sahipliği, determinism ve EDA connectivity/açılabilirlik kanıtlandı. “Görsel çıktılar okunabilir” bölümü 4.1R tamamlanıp local kullanıcı onayı alınana kadar açık kabul kriteridir. Lossy dönüşüm sessiz yapılmaz.
 
@@ -894,16 +901,16 @@ Detaylı teknik plan, baseline bulguları, ölçülebilir kalite sözleşmesi ve
 
 ### 4.6 — Paylaşım, ürün anlatısı ve bağımsız agent kanıtı
 
-- [x] Versioned ve boyut-limitli client-side compressed circuit URL formatı tanımla. _`netlang.share.v1`; gzip + base64url fragment, 64 KiB source/compressed sınırı._
+- [x] Versioned ve boyut-limitli client-side compressed circuit URL formatı tanımla. _`kessetsu.share.v1`; gzip + base64url fragment, 64 KiB source/compressed sınırı._
 - [x] URL'den güvenli decode → migrate → compile akışını malformed/decompression-bomb fixture'larıyla fail-closed doğrula. _Bilinmeyen v1 öncesi/sonrası migrate edilmez; explicit version rejection, streaming decompression limiti ve unit corpus._
 - [x] Paylaşılan URL'nin source ve gerekli package/version bilgisini schema kaybı olmadan round-trip ettiğini test et. _UTF-8 source, compile schema ve exact sorted package manifest; compile sonrası manifest equality._
 - [x] İlk açılış örnek seçicisini RC, gain-stage ve power-amplifier açıklamalarıyla tamamla. _Üç canonical benchmark ve amaçlarını taşıyan select seçenekleri._
-- [x] NetLang language reference, simulation/assertion/measurement reference, supported-domain matrix, tutorial, cookbook ve troubleshooting dokümanlarını tamamla. _`docs/language_reference.md`, `simulation_and_assertions.md`, `engineering_measurements.md`, `supported_domain.md`, `tutorial.md`, `cookbook.md`, `troubleshooting.md`._
-- [x] “Neden NetLang?” anlatısını ham SPICE, geleneksel simulator ve code-based circuit araçlarından ölçülebilir farklarla açıkla; rakip iddialarını yayın öncesinde güncel kaynaklarla doğrula. _`docs/why_netlang.md`; 2026-08-13 resmi Ngspice/KiCad/LTspice/SKiDL kaynakları ve sınırlı iddialar._
-- [x] Dış bir LLM'nin doğal dilde 8 Ω power-amplifier gereksiniminden başlayıp CLI structured feedback ile devreyi revize etmesini versioned, tekrar çalıştırılabilir agent eval olarak kaydet. _16 Ω adayındaki `NL-T003` 997.7 mW feedback'i → 8 Ω → 12/12 PASS._
+- [x] Kessetsu language reference, simulation/assertion/measurement reference, supported-domain matrix, tutorial, cookbook ve troubleshooting dokümanlarını tamamla. _`docs/language_reference.md`, `simulation_and_assertions.md`, `engineering_measurements.md`, `supported_domain.md`, `tutorial.md`, `cookbook.md`, `troubleshooting.md`._
+- [x] “Neden Kessetsu?” anlatısını ham SPICE, geleneksel simulator ve code-based circuit araçlarından ölçülebilir farklarla açıkla; rakip iddialarını yayın öncesinde güncel kaynaklarla doğrula. _`docs/why_kessetsu.md`; 2026-08-13 resmi Ngspice/KiCad/LTspice/SKiDL kaynakları ve sınırlı iddialar._
+- [x] Dış bir LLM'nin doğal dilde 8 Ω power-amplifier gereksiniminden başlayıp CLI structured feedback ile devreyi revize etmesini versioned, tekrar çalıştırılabilir agent eval olarak kaydet. _16 Ω adayındaki `KES-T003` 997.7 mW feedback'i → 8 Ω → 12/12 PASS._
 - [x] Agent eval'de model/sürüm, prompt, tool çağrıları, iterasyonlar, son source ve assertion raporunu provenance ile sakla; nondeterministik canlı LLM çağrısını canonical CI kapısı yapma. _`docs/evals/power-amplifier-agent-v1.json` ve deterministic `scripts/replay-agent-eval.ps1`; deployment kimliği bilinmiyorsa açıkça belirtilir._
 - [x] Aynı son source'u Web Hub paylaşım URL'sinde açıp şema, grafik, assertion ve export akışını ürün demosu olarak doğrula. _`share.spec.ts`: URL load, connectivity-verified schema, gerçek browser run 12/12, SVG export ve yeniden share._
-- [x] Web içinde AI chat/tasarım arayüzü olmamasını eksiklik gibi gizleme; ilk yayında AI yüzeyinin CLI/tool contract, insan yüzeyinin Web Hub olduğunu açık anlat. _README ve Why NetLang product split._
+- [x] Web içinde AI chat/tasarım arayüzü olmamasını eksiklik gibi gizleme; ilk yayında AI yüzeyinin CLI/tool contract, insan yüzeyinin Web Hub olduğunu açık anlat. _README ve Why Kessetsu product split._
 
 **4.6 kabul kriteri:** İnsan ürünü ve agent ürünü aynı Core üzerinde birleşir; doğal-dil agent demosu gerçek simülasyonla kanıtlıdır fakat Web Hub herhangi bir AI sağlayıcısına bağımlı değildir.
 
@@ -912,9 +919,9 @@ Detaylı teknik plan, baseline bulguları, ölçülebilir kalite sözleşmesi ve
 ### 4.7 — Cross-platform paketleme ve public yayın kapısı
 
 - [x] Windows x86-64, Linux x86-64 ve seçilen macOS mimarileri için CLI release artifact matrisi tanımla. _Windows x86-64, Ubuntu x86-64, macOS Intel ve Apple Silicon; resmi GitHub runner mimarileri 2026-08-13 doğrulandı._
-- [x] Her artifact için simulator paketleme/keşif, executable provenance, lisans notice, checksum ve version probe yolunu tamamla. _Windows Ngspice 46 sidecar; Unix trusted PATH/override; `netlang.release.v1`, executable/archive SHA-256, Rust/font/Ngspice notices._
+- [x] Her artifact için simulator paketleme/keşif, executable provenance, lisans notice, checksum ve version probe yolunu tamamla. _Windows Ngspice 46 sidecar; Unix trusted PATH/override; `kessetsu.release.v1`, executable/archive SHA-256, Rust/font/Ngspice notices._
 - [x] Temiz Windows/Linux/macOS ortamında kurulum → ilk compile → ilk gerçek simulation → assertion smoke testini otomatikleştir. _Final aday GitHub run `31730843184`: audit ile Windows x86-64, Linux x86-64, macOS Intel ve Apple Silicon paketleme/checksum/clean-directory gerçek Ngspice 12/12 smoke job'larının tamamı PASS._
-- [ ] Web Hub production deployment, cache headers, WASM/worker MIME, CSP, error telemetry sınırı ve rollback prosedürünü doğrula. _Pages workflow, `/NetLang/` content-hash asset audit, CSP, WASM/Worker dosyaları, sıfır-telemetry sınırı ve tag/ref rollback hazır; gerçek Pages deployment private-repo Actions kapısı nedeniyle henüz çalışmadı._
+- [ ] Web Hub production deployment, cache headers, WASM/worker MIME, CSP, error telemetry sınırı ve rollback prosedürünü doğrula. _Pages workflow, `/Kessetsu/` content-hash asset audit, CSP, WASM/Worker dosyaları, sıfır-telemetry sınırı ve tag/ref rollback hazır; gerçek Pages deployment private-repo Actions kapısı nedeniyle henüz çalışmadı._
 - [x] Canonical Rust/WASM/Web kapısına gerçek-browser E2E, schematic visual/connectivity, benchmark parity ve release artifact testlerini ekle. _`verify.ps1` içindeki 11-test browser suite'e ek olarak host archive clean smoke, agent replay, deployment audit ve Windows EDA smoke çalıştırır._
 - [x] Güvenlik, dependency/license ve generated-artifact audit'lerini release kapısı yap. _npm 0 vulnerability; RustSec 0 vulnerability; 127 Rust + 81 npm license metadata ve generated-artifact audit PASS. İki transitive unmaintained bilgi notu bounded-input gerekçesiyle `docs/security_audit.md` içinde görünür, ignore edilmez._
 - [x] README'ye canlı Web Hub bağlantısı, doğrulanmış kurulum yolları, ürün ekran görüntüleri ve destek sınırlarını ekle. _Pages/release linkleri, iki gerçek Playwright görüntüsü, dört platform kurulumu ve açık physical/security sınırlar._
@@ -922,7 +929,7 @@ Detaylı teknik plan, baseline bulguları, ölçülebilir kalite sözleşmesi ve
 
 **Lisans/publication hazırlık kanıtı (2026-08-13):** `LICENSE`, GitHub'ın resmi AGPL-3.0 metniyle newline-normalized birebir eşleşti (`SHA-256 20b067f86de375aae6db0f283ab2e65de24d537733b89bd58432c101259d84cf`). Kök/Cargo lisans kopyası eşlik audit'i, CLI help notice'ı, Web Corresponding Source + full-license/no-warranty yüzeyi ve CLI/Web artifact paketleme testleri eklendi. Canonical tam `scripts/verify.ps1`; 129 Rust/CLI testi, WASM, 10 Web unit testi, 11 Chromium E2E, security/license audit, agent replay, temiz release 12/12 simulation smoke ve üç benchmark için KiCad 10/LTspice 24 round-trip ile iki kez PASS verdi.
 
-**Remote yayın kapısı kanıtı (2026-08-13):** Billing engeli kalktı. İlk Ubuntu CI run `31727404107`, PATH'ten bulunan Ngspice çalışabildiği halde provenance yolunun absolute olmaması nedeniyle agent benchmark'ında fail ederek gerçek bir taşınabilirlik kusuru yakaladı; bundled/explicit/PATH discovery canonical absolute path'e geçirildi. Follow-up `31729070656` path/agent benchmark'ını geçti ve sonraki model fixture'ında Ubuntu Ngspice 39'un `Cgd`/`Cgs` PMOS parametrelerini reddettiğini gösterdi. `NLANG_PMOS_V1@1.0.1`, explicit portable `MOS1` parametrelerine alındı ve regression testi sertleştirildi. Final aday Ubuntu full CI `31730827872` canonical repository verification'ı PASS; aynı commit'in `31730843184` run'ında audit ile dört target paketleme/checksum/clean-directory gerçek simulation smoke job'larının tamamı PASS.
+**Remote yayın kapısı kanıtı (2026-08-13):** Billing engeli kalktı. İlk Ubuntu CI run `31727404107`, PATH'ten bulunan Ngspice çalışabildiği halde provenance yolunun absolute olmaması nedeniyle agent benchmark'ında fail ederek gerçek bir taşınabilirlik kusuru yakaladı; bundled/explicit/PATH discovery canonical absolute path'e geçirildi. Follow-up `31729070656` path/agent benchmark'ını geçti ve sonraki model fixture'ında Ubuntu Ngspice 39'un `Cgd`/`Cgs` PMOS parametrelerini reddettiğini gösterdi. `KESSETSU_PMOS_V1@1.0.1`, explicit portable `MOS1` parametrelerine alındı ve regression testi sertleştirildi. Final aday Ubuntu full CI `31730827872` canonical repository verification'ı PASS; aynı commit'in `31730843184` run'ında audit ile dört target paketleme/checksum/clean-directory gerçek simulation smoke job'larının tamamı PASS.
 
 ### Faz 4 ve ilk public yayın kabul kriterleri
 
@@ -934,8 +941,8 @@ Detaylı teknik plan, baseline bulguları, ölçülebilir kalite sözleşmesi ve
 - [x] OP, transient, AC ve DC sweep sonuçları Web'de interaktif olarak görüntülenir; assertions ilgili signal/threshold ile ilişkilidir. _Worker cancellation/restart, plots/tabs/cursor/threshold tests._
 - [x] User-defined ve packaged modeller native/Web yüzeylerinde reproducible, provenance bilgili ve injection-safe çalışır. _Exact package/netlist parity ve Web injection corpus._
 - [x] RC filtre, gain-stage ve power-amplifier benchmark'ları CLI ve Web Hub'da aynı mühendislik kararlarını verir. _Benchmark parity; power amplifier 12/12._
-- [x] Dış AI agent doğal dil gereksiniminden başlayarak human terminal metni parse etmeden gerçek power-amplifier hedeflerine ulaşabildiğini versioned eval ile gösterir. _`netlang.agent-eval.v1` ve deterministic replay PASS._
-- [x] Paylaşılabilir URL devreyi ve gerekli version/package bilgisini schema kaybı olmadan round-trip eder. _`netlang.share.v1`, security unit corpus ve browser product demo._
+- [x] Dış AI agent doğal dil gereksiniminden başlayarak human terminal metni parse etmeden gerçek power-amplifier hedeflerine ulaşabildiğini versioned eval ile gösterir. _`kessetsu.agent-eval.v1` ve deterministic replay PASS._
+- [x] Paylaşılabilir URL devreyi ve gerekli version/package bilgisini schema kaybı olmadan round-trip eder. _`kessetsu.share.v1`, security unit corpus ve browser product demo._
 - [x] Desteklenen platformlarda CLI kurulumu ve ilk simülasyon temiz makine release smoke testinden geçer. _Final aday run `31730843184`: dört target PASS; her paket manifest/checksum üretip temiz dizinde gerçek Ngspice ile power-amplifier 12/12 doğruladı._
 - [x] Yeni kullanıcı yalnız public dokümanlarla bir devreyi tanımlayıp ölçebilir, assertion ekleyebilir ve hedef formatlarda export edebilir. _Language/simulation/measurement/tutorial/cookbook/troubleshooting/export/support referans seti._
 - [ ] Canonical kalite kapısı, browser E2E, schematic connectivity/visual corpus, benchmark parity ve release artifact doğrulamaları geçer. _Mevcut yerel/remote kapılar teknik olarak PASS; ancak schematic visual gate yetersiz tanımlandığı için 4.1R metrikleri ve kabul edilmiş görsel baseline eklenmeden bu üst kabul yeniden kapatılamaz._
@@ -969,18 +976,18 @@ Detaylı teknik plan, baseline bulguları, ölçülebilir kalite sözleşmesi ve
 ## 9. Hedef Pipeline
 
 ```text
-NetLang source
+Kessetsu source
     │
     ▼
-Parser ─────────────► NL-Pxxx diagnostics
+Parser ─────────────► KES-Pxxx diagnostics
     │
     ▼
 AST + source spans
     │
     ▼
-Semantic analysis / typed Circuit IR ─► NL-Cxxx diagnostics
+Semantic analysis / typed Circuit IR ─► KES-Cxxx diagnostics
     │
-    ├────────► Graph + structural ERC ─► NL-Exxx diagnostics
+    ├────────► Graph + structural ERC ─► KES-Exxx diagnostics
     ├────────► Deterministic SPICE
     ├────────► Layout IR
     └────────► Structured JSON/WASM
@@ -988,8 +995,8 @@ Semantic analysis / typed Circuit IR ─► NL-Cxxx diagnostics
                     ▼
               Simulation backend
                     │
-                    ├────► NL-Sxxx diagnostics
-                    └────► NL-Txxx assertion results
+                    ├────► KES-Sxxx diagnostics
+                    └────► KES-Txxx assertion results
 ```
 
 ---
@@ -1009,6 +1016,6 @@ Her geliştirme oturumunda:
 
 ### Aktif sıradaki ilk iş
 
-**4.0 — Ürün sözleşmesi, characterization ve teknik kararlar.**
+**Kessetsu kimlik migrasyonu.**
 
-İlk uygulama dilimi mevcut Web/WASM runtime'ını gerçek browser smoke testiyle görünür kılacak, `netlang.compile.v1`/`v2` drift'ini fail-closed düzeltecek ve minimal/RC/bridge/gain-stage/fan-out/power-amplifier corpus'unda mevcut schematic davranışını karakterize edecektir. Bu kanıttan sonra Web shell, renderer, Schematic IR ve layout algoritması için ayrı reuse/refactor/rewrite kararı verilecek; ardından browser simulation ADR'ı kapatılacaktır.
+`docs/kessetsu_migration.md` içindeki uygulama ve kabul listesini atomik biçimde tamamla. Migrasyon canonical kalite kapısıyla doğrulandıktan sonra Faz 4'ün açık 4.1R profesyonel şema owner-review ve production deployment işlerine dön.

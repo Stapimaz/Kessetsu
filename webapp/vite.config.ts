@@ -6,13 +6,13 @@ import { copyFileSync, mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 export default defineConfig({
-  base: process.env.NETLANG_BASE_PATH ?? '/',
+  base: process.env.KESSETSU_BASE_PATH ?? '/',
   plugins: [
     react(),
     // @ts-ignore
     wasm(),
     {
-      name: 'netlang-runtime-license-bundle',
+      name: 'kessetsu-runtime-license-bundle',
       closeBundle() {
         const licenseDir = resolve(import.meta.dirname, 'dist/licenses')
         mkdirSync(licenseDir, { recursive: true })
@@ -45,7 +45,7 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      'netlang-core': fileURLToPath(new URL('../core/pkg', import.meta.url))
+      'kessetsu-core': fileURLToPath(new URL('../core/pkg', import.meta.url))
     }
   },
   optimizeDeps: {

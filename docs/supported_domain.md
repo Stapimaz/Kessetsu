@@ -1,4 +1,4 @@
-# NetLang İlk Public Sürüm Destek Matrisi
+# Kessetsu İlk Public Sürüm Destek Matrisi
 
 Bu belge Faz 4 için ilan edilen elektriksel kapsamı dondurur. “Destekleniyor”, syntax'ın parse edilmesinden fazlasıdır: typed IR, canonical SPICE, ERC ve ilgili native/Web doğrulama kapılarının bulunması demektir. Tabloda olmayan özellikler fail-closed diagnostic üretmeli; yaklaşık destek varmış gibi sunulmamalıdır.
 
@@ -16,11 +16,11 @@ Bu belge Faz 4 için ilan edilen elektriksel kapsamı dondurur. “Destekleniyor
 
 ## Model kapsamı
 
-- Builtin: `2N3904`, `2N3906`, `2N2222`, `NLANG_POWER_NPN_V1`, `NLANG_POWER_PNP_V1`, `1N4148`, `1N4007`, `IRF540`, `NLANG_PMOS_V1`, `NLANG_OPAMP_V1`.
-- Verified generic PMOS: `NLANG_PMOS_V1@1.0.1`; portable Ngspice `MOS1` DC modeli, üretici/datasheet veya parasitic model iddiası yok.
+- Builtin: `2N3904`, `2N3906`, `2N2222`, `KESSETSU_POWER_NPN_V1`, `KESSETSU_POWER_PNP_V1`, `1N4148`, `1N4007`, `IRF540`, `KESSETSU_PMOS_V1`, `KESSETSU_OPAMP_V1`.
+- Verified generic PMOS: `KESSETSU_PMOS_V1@1.0.1`; portable Ngspice `MOS1` DC modeli, üretici/datasheet veya parasitic model iddiası yok.
 - User model: typed diode/BJT/MOSFET parametre whitelist'i.
 - User subcircuit: yalnız typed op-amp template'i.
-- Package import: exact ad+sürüm, content hash, lisans ve simulator capability içeren `netlang.models.v1`/`netlang.lock.v1`.
+- Package import: exact ad+sürüm, content hash, lisans ve simulator capability içeren `kessetsu.models.v1`/`kessetsu.lock.v1`.
 - Desteklenmez: raw `.include`, `.model`, `.subckt`, `.control`; floating package version; arbitrary vendor script/model injection.
 
 ## Analysis, dataset ve ölçüm kapsamı
@@ -43,4 +43,4 @@ Bu belge Faz 4 için ilan edilen elektriksel kapsamı dondurur. “Destekleniyor
 
 ## Bilinçli fiziksel sınırlar
 
-NetLang'in ilk sürümü schematic-level SPICE mühendislik aracıdır; PCB layout/DRC, transmission-line/EM field çözümü, RF S-parameter workflow'u, digital HDL, thermal/aging/reliability, package/PCB parasitic extraction, EMC/ESD, manufacturing tolerance/Monte Carlo ve datasheet limit database'i sağlamaz. Simülasyon sonucu gerçek laboratuvar ölçümü veya mühendis incelemesinin yerine geçmez. Desteklenen analog/mixed-signal SPICE kapsamı ileride typed domain sözleşmeleriyle genişleyebilir; bugünkü mimari eğitim devreleriyle sınırlı değildir.
+Kessetsu'nun ilk sürümü schematic-level SPICE mühendislik aracıdır; PCB layout/DRC, transmission-line/EM field çözümü, RF S-parameter workflow'u, digital HDL, thermal/aging/reliability, package/PCB parasitic extraction, EMC/ESD, manufacturing tolerance/Monte Carlo ve datasheet limit database'i sağlamaz. Simülasyon sonucu gerçek laboratuvar ölçümü veya mühendis incelemesinin yerine geçmez. Desteklenen analog/mixed-signal SPICE kapsamı ileride typed domain sözleşmeleriyle genişleyebilir; bugünkü mimari eğitim devreleriyle sınırlı değildir.

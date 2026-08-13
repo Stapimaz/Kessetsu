@@ -1,6 +1,6 @@
-# NetLang Web App
+# Kessetsu Web App
 
-Tarayıcı arayüzü React, TypeScript, Vite ve `netlang-core` WASM paketiyle çalışır. Derleme mantığı Web içinde tekrar edilmez; `compile_netlang` üzerinden canonical `netlang.compile.v1` raporu tüketilir.
+Tarayıcı arayüzü React, TypeScript, Vite ve `kessetsu-core` WASM paketiyle çalışır. Derleme mantığı Web içinde tekrar edilmez; `compile_kessetsu` üzerinden canonical `kessetsu.compile.v1` raporu tüketilir.
 
 ## Yerel geliştirme
 
@@ -19,4 +19,4 @@ npm run build
 npm run dev
 ```
 
-`npm run build`, önce Rust çekirdeğini `core/pkg` altına WASM olarak üretir, ardından TypeScript ve Vite production build çalıştırır. Editördeki default devre repository kökündeki `examples/demo_circuit.nl` dosyasıdır; ayrı bir Web-only dil örneği tutulmaz.
+`npm run build`, önce Rust çekirdeğini `core/pkg` altına WASM olarak üretir, ardından TypeScript ve Vite production build çalıştırır. Editördeki default devre repository kökündeki `examples/demo_circuit.kess` dosyasıdır; ayrı bir Web-only dil örneği tutulmaz.

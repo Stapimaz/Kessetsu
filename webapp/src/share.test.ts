@@ -7,23 +7,23 @@ import {
   encodeShareFragment,
 } from './share';
 
-const compileSchema = 'netlang.compile.v3';
+const compileSchema = 'kessetsu.compile.v3';
 const manifest: ModelManifest = {
-  schema_version: 'netlang.models.v1',
+  schema_version: 'kessetsu.models.v1',
   models: [],
-  packages: [{ name: 'netlang_analog', version: '1.0.0' }],
+  packages: [{ name: 'kessetsu_analog', version: '1.0.0' }],
 };
 
 describe('versioned circuit share URLs', () => {
   it('round-trips UTF-8 source and exact package versions', async () => {
-    const source = 'model_include netlang_analog 1.0.0\n// Ω ölçümü\n';
+    const source = 'model_include kessetsu_analog 1.0.0\n// Ω ölçümü\n';
     const fragment = await encodeShareFragment(source, compileSchema, manifest);
     const decoded = await decodeShareFragment(fragment, compileSchema);
     expect(decoded).toMatchObject({ source, packages: manifest.packages });
     expect(() => assertSharedPackages(decoded!, manifest)).not.toThrow();
   });
 
-  it.each(['#netlang=2.abc', '#netlang=1.***', '#anything'])('rejects malformed or unsupported input: %s', async (fragment) => {
+  it.each(['#kessetsu=2.abc', '#kessetsu=1.***', '#anything'])('rejects malformed or unsupported input: %s', async (fragment) => {
     await expect(decodeShareFragment(fragment, compileSchema)).rejects.toThrow();
   });
 
@@ -34,7 +34,7 @@ describe('versioned circuit share URLs', () => {
     ).arrayBuffer());
     let binary = '';
     for (const byte of compressed) binary += String.fromCharCode(byte);
-    const fragment = `#netlang=1.${btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '')}`;
+    const fragment = `#kessetsu=1.${btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '')}`;
     await expect(decodeShareFragment(fragment, compileSchema)).rejects.toThrow(/decompressed size limit/);
   });
 

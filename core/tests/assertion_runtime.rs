@@ -1,10 +1,10 @@
-use netlang_core::ir::{Analysis, CircuitIR, SIUnit, ast_to_ir};
-use netlang_core::parse_program;
-use netlang_core::sim_result::{
+use kessetsu_core::ir::{Analysis, CircuitIR, SIUnit, ast_to_ir};
+use kessetsu_core::parse_program;
+use kessetsu_core::sim_result::{
     ASSERTION_SCHEMA_VERSION, AssertionStatus, TolerancePolicy, evaluate_assertions,
     evaluate_assertions_with_policy, format_quantity,
 };
-use netlang_core::simulation::{
+use kessetsu_core::simulation::{
     AnalysisDataset, Dataset, RealSeriesDataset, SeriesAxis, SimulationResult, SimulationStatus,
     SimulatorInfo, SimulatorLog, SimulatorProcessStatus,
 };
@@ -17,7 +17,7 @@ fn circuit(source: &str) -> CircuitIR {
 
 fn simulation(status: SimulationStatus, data: Dataset) -> SimulationResult {
     SimulationResult {
-        schema_version: "netlang.simulation.v1".to_string(),
+        schema_version: "kessetsu.simulation.v1".to_string(),
         status,
         analyses: vec![Analysis::OperatingPoint],
         simulator: SimulatorInfo {
@@ -72,7 +72,7 @@ fn assertion_report_has_deterministic_codes_statuses_and_summary() {
             .iter()
             .map(|result| result.code.as_str())
             .collect::<Vec<_>>(),
-        ["NL-T001", "NL-T002", "NL-T003"]
+        ["KES-T001", "KES-T002", "KES-T003"]
     );
     assert_eq!(report.assertions[0].status, AssertionStatus::Fail);
     assert_eq!(report.assertions[0].actual, Some(5.0));

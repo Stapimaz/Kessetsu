@@ -1,5 +1,5 @@
 {
-  "schema_version": "netlang.web-runtime.v1",
+  "schema_version": "kessetsu.web-runtime.v1",
   "simulator": {
     "adapter": "eecircuit-engine",
     "version": "1.7.0",

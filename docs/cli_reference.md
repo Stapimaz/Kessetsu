@@ -1,32 +1,32 @@
-# NetLang CLI Reference
+# Kessetsu CLI Reference
 
-NetLang CLI, `.nl` kaynaklarını ortak Rust derleme hattından geçirir; ERC, SPICE üretimi, Ngspice çalıştırma ve assertion değerlendirme komutları sunar. Human çıktı insanlar, sürümlü JSON çıktı otomasyon ve AI ajanları içindir.
+Kessetsu CLI, `.kess` kaynaklarını ortak Rust derleme hattından geçirir; ERC, SPICE üretimi, Ngspice çalıştırma ve assertion değerlendirme komutları sunar. Human çıktı insanlar, sürümlü JSON çıktı otomasyon ve AI ajanları içindir.
 
 ## Kullanım
 
 ```bash
-netlang [--format human|json] [--schema-version netlang.cli.v1] \
+kess [--format human|json] [--schema-version kessetsu.cli.v1] \
   [--include ast,ir,graph,spice,datasets,models,raw-log] <COMMAND> [OPTIONS] <FILE>
 ```
 
 `--format` gerçek bir global seçenektir; alt komuttan önce veya sonra yazılabilir:
 
 ```bash
-netlang --format json check examples/demo_circuit.nl
-netlang check examples/demo_circuit.nl --format json
+kess --format json check examples/demo_circuit.kess
+kess check examples/demo_circuit.kess --format json
 ```
 
-`--schema-version` ve `--include` da global seçeneklerdir. `--include` virgülle ayrılarak veya tekrarlanarak kullanılabilir. Bilinmeyen schema sürümü `NL-F002` ve exit `2` ile, kaynak okunmadan ve output oluşturulmadan reddedilir.
+`--schema-version` ve `--include` da global seçeneklerdir. `--include` virgülle ayrılarak veya tekrarlanarak kullanılabilir. Bilinmeyen schema sürümü `KES-F002` ve exit `2` ile, kaynak okunmadan ve output oluşturulmadan reddedilir.
 
 ## Stdin ve dosyasız agent kullanımı
 
-Dosya yolu yerine `-` verildiğinde NetLang source stdin'den okunur:
+Dosya yolu yerine `-` verildiğinde Kessetsu source stdin'den okunur:
 
 ```bash
-netlang check - --format json < circuit.nl
-netlang compile - --format json --include spice < circuit.nl
-netlang simulate - --format json < circuit.nl
-netlang test - --format json < circuit.nl
+kess check - --format json < circuit.kess
+kess compile - --format json --include spice < circuit.kess
+kess simulate - --format json < circuit.kess
+kess test - --format json < circuit.kess
 ```
 
 Stdin ile `compile`, `simulate` ve `test`, açık `--output` yoksa çalışma dizinine SPICE dosyası yazmaz. `compile` JSON çağrısında generated netlist gerekiyorsa `--include spice` kullanılır. Human `compile -` netlist'i stdout'a basar. Kalıcı artifact istenirse normal güvenli overwrite sözleşmesiyle `--output result.spice` verilebilir.
@@ -40,7 +40,7 @@ Side-effect-free stdin + JSON kullanımı agent retry'ları için idempotenttir:
 Parse, semantic validation ve ERC çalıştırır; dosya üretmez.
 
 ```bash
-netlang check examples/demo_circuit.nl
+kess check examples/demo_circuit.kess
 ```
 
 ### `compile`
@@ -48,14 +48,14 @@ netlang check examples/demo_circuit.nl
 Kontroller başarılıysa SPICE netlist üretir.
 
 ```bash
-netlang compile examples/demo_circuit.nl
-netlang compile examples/demo_circuit.nl --output build/demo.spice
+kess compile examples/demo_circuit.kess
+kess compile examples/demo_circuit.kess --output build/demo.spice
 ```
 
 Varsayılan hedef kaynak dosyanın `.spice` uzantılı halidir. Var olan dosya sessizce ezilmez; bilinçli overwrite için `--force` gerekir:
 
 ```bash
-netlang compile examples/demo_circuit.nl --force
+kess compile examples/demo_circuit.kess --force
 ```
 
 `--output` yolu çalışma dizinine göre çözülür. Hedef kaynak dosyanın kendisiyse `--force` verilse bile işlem reddedilir. CLI eksik parent dizinlerini otomatik oluşturmaz.
@@ -64,10 +64,10 @@ netlang compile examples/demo_circuit.nl --force
 
 Derler, aynı output politikasına göre SPICE dosyasını yazar ve ortak simulation runner üzerinden Ngspice'ı batch modunda çalıştırır. Runner executable sürümünü doğrular, her çalışma için benzersiz temporary directory kullanır ve varsayılan 30 saniyelik timeout uygular. Simulator process status veya fatal/error çıktısı başarısızsa exit `3` döner. Human ve JSON renderer aynı typed `SimulationResult` nesnesini kullanır; raw simulator log yalnız açık `--include raw-log` ile gösterilir.
 
-Dil seviyesinde `op`, `tran`, `ac` ve bağımsız voltage/current source için `dc` sweep desteklenir. Analysis argümanları ve fiziksel birimleri semantic aşamada doğrulanır; desteklenmeyen veya hatalı analysis `NL-C009` verir ve simulator başlatılmaz.
+Dil seviyesinde `op`, `tran`, `ac` ve bağımsız voltage/current source için `dc` sweep desteklenir. Analysis argümanları ve fiziksel birimleri semantic aşamada doğrulanır; desteklenmeyen veya hatalı analysis `KES-C009` verir ve simulator başlatılmaz.
 
 ```bash
-netlang simulate examples/demo_circuit.nl --force
+kess simulate examples/demo_circuit.kess --force
 ```
 
 ### `test`
@@ -75,25 +75,25 @@ netlang simulate examples/demo_circuit.nl --force
 Derleme ve simülasyondan sonra kaynak içindeki assertion'ları değerlendirir. Simülasyon problemi exit `3`, başarısız assertion exit `4` üretir.
 
 ```bash
-netlang test examples/test_features.nl --force
+kess test examples/test_features.kess --force
 ```
 
-Her assertion kaynak sırasına göre deterministik bir `NL-Txxx` kodu alır. Durumlar `PASS`, `FAIL`, `ERROR` ve `SKIPPED` olarak ayrılır: eşik sağlanmıyorsa `FAIL`, ölçüm bulunamıyor veya metric desteklenmiyorsa `ERROR`, simülasyon tamamlanmadıysa `SKIPPED` üretilir. Bu durumların herhangi biri varsa komut exit `4` döner.
+Her assertion kaynak sırasına göre deterministik bir `KES-Txxx` kodu alır. Durumlar `PASS`, `FAIL`, `ERROR` ve `SKIPPED` olarak ayrılır: eşik sağlanmıyorsa `FAIL`, ölçüm bulunamıyor veya metric desteklenmiyorsa `ERROR`, simülasyon tamamlanmadıysa `SKIPPED` üretilir. Bu durumların herhangi biri varsa komut exit `4` döner.
 
 Desteklenen temel metric'ler `value`, `min`, `max`, `peak`, `average`/`avg` ve `rms`'tir. `peak`, signed maksimum değil `max(abs(x))` anlamına gelir. OP analizinde `value`, `min`, `max` ve `average` signed skaler değeri; `peak` ve `rms` mutlak büyüklüğü verir. Equality ve inclusive comparator'lar küçük numeric sapmalar için tanımlı absolute/relative tolerans uygular; strict `<`/`>` sınırları gevşetilmez.
 
 Akım işareti component'in canonical pozitif/reference pinine giren yönü pozitif kabul eder. Voltage source için bu `plus` pinidir; dolayısıyla güç veren bir kaynağın ölçülen akımı çoğu zaman negatiftir. Human çıktı engineering prefix ve fiziksel birimi birlikte gösterir; JSON aynı typed assertion raporunu ve sayısal summary'yi taşır.
 
-Ngspice executable discovery gerektiğinde `NETLANG_NGSPICE` environment variable ile açık bir executable yoluna yönlendirilebilir. Yol başlatılamazsa simülasyon exit `3` ile fail-closed olur.
+Ngspice executable discovery gerektiğinde `KESSETSU_NGSPICE` environment variable ile açık bir executable yoluna yönlendirilebilir. Yol başlatılamazsa simülasyon exit `3` ile fail-closed olur.
 
 ### `render`
 
 Canonical Schematic IR üzerinden SVG, PNG veya tek sayfa vector PDF üretir. Format output uzantısından seçilir; PNG ölçeği `0.25..8`, arka plan `white|transparent` olabilir.
 
 ```bash
-netlang render circuit.nl --output circuit.svg
-netlang render circuit.nl --output circuit.png --scale 3 --background transparent
-netlang render circuit.nl --output circuit.pdf
+kess render circuit.kess --output circuit.svg
+kess render circuit.kess --output circuit.png --scale 3 --background transparent
+kess render circuit.kess --output circuit.pdf
 ```
 
 ### `export`
@@ -101,17 +101,17 @@ netlang render circuit.nl --output circuit.pdf
 Versioned ortak exporter sözleşmesinden makine-okunabilir veya düzenlenebilir çıktı üretir:
 
 ```bash
-netlang export circuit.nl --target schematic-json --output circuit.netlang.json
-netlang export circuit.nl --target spice --output circuit.spice
-netlang export circuit.nl --target kicad --output circuit.kicad_sch
-netlang export circuit.nl --target ltspice --output circuit.asc
+kess export circuit.kess --target schematic-json --output circuit.kessetsu.json
+kess export circuit.kess --target spice --output circuit.spice
+kess export circuit.kess --target kicad --output circuit.kicad_sch
+kess export circuit.kess --target ltspice --output circuit.asc
 ```
 
-`render` ve `export`, canonical connectivity doğrulanmadıysa veya hedef bir özelliği güvenle temsil edemiyorsa `NL-X...` diagnostic ile çıktı üretmeden durur. Mevcut dosyayı yenilemek için `--force` gerekir. `--format json` artifact schema/version, MIME, SHA-256, byte length, connectivity, capability, warning ve loss alanlarını bildirir. Formatların sınırları [export matrix](export_formats.md) içinde tanımlıdır.
+`render` ve `export`, canonical connectivity doğrulanmadıysa veya hedef bir özelliği güvenle temsil edemiyorsa `KES-X...` diagnostic ile çıktı üretmeden durur. Mevcut dosyayı yenilemek için `--force` gerekir. `--format json` artifact schema/version, MIME, SHA-256, byte length, connectivity, capability, warning ve loss alanlarını bildirir. Formatların sınırları [export matrix](export_formats.md) içinde tanımlıdır.
 
 ## JSON sözleşmesi
 
-JSON stdout her çalıştırmada tek bir JSON objesidir; progress ve simulator logları stdout'a yazılmaz. Varsayılan agent envelope sürümü `netlang.cli.v1`'dir. Compile raporu `netlang.compile.v3`, canonical şema `netlang.schematic.v1`, simulation sonucu `netlang.simulation.v1`, engineering measurement modeli `netlang.measurement.v1`, assertion raporu `netlang.assertion.v1` kullanır; geçerli alt sözleşmeler `domain_versions` alanında görünür.
+JSON stdout her çalıştırmada tek bir JSON objesidir; progress ve simulator logları stdout'a yazılmaz. Varsayılan agent envelope sürümü `kessetsu.cli.v1`'dir. Compile raporu `kessetsu.compile.v3`, canonical şema `kessetsu.schematic.v1`, simulation sonucu `kessetsu.simulation.v1`, engineering measurement modeli `kessetsu.measurement.v1`, assertion raporu `kessetsu.assertion.v1` kullanır; geçerli alt sözleşmeler `domain_versions` alanında görünür.
 
 Assertion primitive'leri, derived metric formülleri, analiz gereksinimleri ve sign convention için [engineering measurement sözleşmesine](engineering_measurements.md) bakın.
 
@@ -121,11 +121,11 @@ Başarılı `check` özeti:
 
 ```json
 {
-  "schema_version": "netlang.cli.v1",
+  "schema_version": "kessetsu.cli.v1",
   "command": "check",
   "status": "success",
   "domain_versions": {
-    "compile": "netlang.compile.v3",
+    "compile": "kessetsu.compile.v3",
     "simulation": null,
     "measurement": null,
     "assertion": null
@@ -148,9 +148,9 @@ Başarılı `check` özeti:
 Debug alanlarını isteme örneği:
 
 ```bash
-netlang compile circuit.nl --format json --include ast,ir,graph,spice
-netlang simulate circuit.nl --format json --include datasets,raw-log --force
-netlang compile circuit.nl --format json --include models --force
+kess compile circuit.kess --format json --include ast,ir,graph,spice
+kess simulate circuit.kess --format json --include datasets,raw-log --force
+kess compile circuit.kess --format json --include models --force
 ```
 
 İlk komutta `debug.ast`, `debug.ir`, `debug.graph` ve `debug.spice_netlist`; ikincide `debug.datasets` ve `debug.raw_log`; üçüncüde `debug.models.manifest` ve `debug.models.lock` oluşur. Seçilmeyen hacimli alanlar `null` yazılmak yerine tamamen dışarıda bırakılır.
@@ -159,10 +159,10 @@ netlang compile circuit.nl --format json --include models --force
 
 ```json
 {
-  "schema_version": "netlang.assertion.v1",
+  "schema_version": "kessetsu.assertion.v1",
   "assertions": [
     {
-      "code": "NL-T001",
+      "code": "KES-T001",
       "status": "PASS",
       "metric": "peak",
       "signal": "I(V1)",
@@ -185,7 +185,7 @@ Diagnostic alanları bütün aşamalarda ortaktır:
 
 ```json
 {
-  "code": "NL-E003",
+  "code": "KES-E003",
   "severity": "error",
   "stage": "erc",
   "message": "Floating Pin: R1.p1 is not connected to anything.",
@@ -194,13 +194,13 @@ Diagnostic alanları bütün aşamalarda ortaktır:
 }
 ```
 
-Başarılı `compile`, yazılan SPICE dosyasını `artifacts` içinde `spice_netlist` olarak bildirir. Kullanılan bir model/subcircuit varsa aynı dizindeki deterministic `netlang.lock` ayrıca `model_lock` artifact'i olur. Netlist metni yalnız `--include spice`, model provenance ve lock içeriği yalnız `--include models` ile döner. I/O veya runtime hatalarında `status` hiçbir zaman `success` değildir.
+Başarılı `compile`, yazılan SPICE dosyasını `artifacts` içinde `spice_netlist` olarak bildirir. Kullanılan bir model/subcircuit varsa aynı dizindeki deterministic `kessetsu.lock` ayrıca `model_lock` artifact'i olur. Netlist metni yalnız `--include spice`, model provenance ve lock içeriği yalnız `--include models` ile döner. I/O veya runtime hatalarında `status` hiçbir zaman `success` değildir.
 
 ## Model ve subcircuit kullanımı
 
 User-defined device model ve op-amp subcircuit'leri raw SPICE değil typed declaration'dır:
 
-```netlang
+```kessetsu
 model diode SafeD version=1.0.0 license=MIT Is=2e-9 Rs=0.5
 model bjt SafeN npn version=1.0.0 license=MIT Is=1e-12 Bf=100
 model mosfet SafeP pmos version=1.0.0 license=MIT Vto=-2 Kp=4
@@ -209,12 +209,12 @@ subcircuit opamp SafeOp (in_p,in_n,vcc,vee,out) version=1.0.0 license=MIT gain=1
 
 Exact packaged model seçimi:
 
-```netlang
-model_include netlang_analog 1.0.0
-opamp U1 NLANG_PACKAGE_OPAMP
+```kessetsu
+model_include kessetsu_analog 1.0.0
+opamp U1 KESSETSU_PACKAGE_OPAMP
 ```
 
-`version` ve `license` user declaration'larında zorunlu, `source` opsiyoneldir. İzinli parametreler kind'e göre sınırlıdır; bilinmeyen parametre, yanlış polarity/kind, hatalı pin sırası, duplicate ad veya raw directive payload compile aşamasında structured `NL-C010..013` diagnostic'i üretir. Builtin generic doğrulama yolları `NLANG_OPAMP_V1`, `NLANG_PMOS_V1` ve `NLANG_POWER_NPN_V1`'dir.
+`version` ve `license` user declaration'larında zorunlu, `source` opsiyoneldir. İzinli parametreler kind'e göre sınırlıdır; bilinmeyen parametre, yanlış polarity/kind, hatalı pin sırası, duplicate ad veya raw directive payload compile aşamasında structured `KES-C010..013` diagnostic'i üretir. Builtin generic doğrulama yolları `KESSETSU_OPAMP_V1`, `KESSETSU_PMOS_V1` ve `KESSETSU_POWER_NPN_V1`'dir.
 
 ## Exit kodları
 

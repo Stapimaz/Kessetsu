@@ -6,7 +6,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $corePath = Join-Path $repoRoot 'core'
 $resultPath = Join-Path $repoRoot 'webapp/test-results/eda-smoke'
-$netlang = Join-Path $corePath 'target/release/netlang.exe'
+$kess = Join-Path $corePath 'target/release/kess.exe'
 
 $kicad = Get-Command 'kicad-cli' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1
 if (-not $kicad) {
@@ -28,26 +28,26 @@ if (-not $kicad -or -not $ltspice) {
 }
 Push-Location $corePath
 try { cargo build --release } finally { Pop-Location }
-if ($LASTEXITCODE -ne 0) { throw 'NetLang release build failed.' }
+if ($LASTEXITCODE -ne 0) { throw 'Kessetsu release build failed.' }
 
 New-Item -ItemType Directory -Force $resultPath | Out-Null
 $fixtures = @('rc_filter', 'gain_stage', 'power_amplifier')
 foreach ($name in $fixtures) {
-    $source = Join-Path $corePath "tests/fixtures/benchmarks/$name.nl"
+    $source = Join-Path $corePath "tests/fixtures/benchmarks/$name.kess"
     $kicadSchematic = Join-Path $resultPath "$name.kicad_sch"
     $kicadNetlist = Join-Path $resultPath "$name.kicad.xml"
     $kicadErc = Join-Path $resultPath "$name.erc.rpt"
     $ltspiceSchematic = Join-Path $resultPath "$name.asc"
     $ltspiceNetlist = Join-Path $resultPath "$name.net"
 
-    & $netlang export $source --target kicad --output $kicadSchematic --force
+    & $kess export $source --target kicad --output $kicadSchematic --force
     if ($LASTEXITCODE -ne 0) { throw "$name KiCad export failed." }
     & $kicad sch export netlist --format kicadxml --output $kicadNetlist $kicadSchematic
     if ($LASTEXITCODE -ne 0) { throw "$name did not open in KiCad." }
     & $kicad sch erc --output $kicadErc $kicadSchematic
     if ($LASTEXITCODE -ne 0) { throw "$name KiCad ERC invocation failed." }
 
-    & $netlang export $source --target ltspice --output $ltspiceSchematic --force
+    & $kess export $source --target ltspice --output $ltspiceSchematic --force
     if ($LASTEXITCODE -ne 0) { throw "$name LTspice export failed." }
     $process = Start-Process -FilePath $ltspice -ArgumentList @('-netlist', $ltspiceSchematic) -Wait -PassThru -WindowStyle Hidden
     if ($process.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $ltspiceNetlist)) {

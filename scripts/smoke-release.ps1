@@ -7,7 +7,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $archivePath = [System.IO.Path]::GetFullPath($Archive)
 if (-not (Test-Path -LiteralPath $archivePath -PathType Leaf)) { throw "Archive is missing: $archivePath" }
-$smokeRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("netlang-release-smoke-" + [Guid]::NewGuid().ToString("N"))
+$smokeRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("kessetsu-release-smoke-" + [Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $smokeRoot | Out-Null
 try {
     if ($archivePath.EndsWith(".zip", [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -27,9 +27,9 @@ try {
     & $binary --version
     if ($LASTEXITCODE -ne 0) { throw "CLI version probe failed" }
     if ($manifest.simulator.policy -eq "bundled-ngspice-46") {
-        $env:NETLANG_NGSPICE = Join-Path $bundleRoot "tools/ngspice/bin/ngspice_con.exe"
+        $env:KESSETSU_NGSPICE = Join-Path $bundleRoot "tools/ngspice/bin/ngspice_con.exe"
     }
-    $source = Join-Path $repoRoot "core/tests/fixtures/benchmarks/power_amplifier.nl"
+    $source = Join-Path $repoRoot "core/tests/fixtures/benchmarks/power_amplifier.kess"
     $output = Join-Path $smokeRoot "power-amplifier.spice"
     $json = (& $binary test $source --output $output --format json | Out-String) | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or $json.status -ne "success" -or $json.assertions.summary.passed -ne 12) {

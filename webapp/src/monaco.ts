@@ -16,8 +16,8 @@ type MonacoEnvironment = typeof globalThis & {
 
 loader.config({ monaco });
 
-monaco.languages.register({ id: 'netlang' });
-monaco.editor.defineTheme('netlang-dark', {
+monaco.languages.register({ id: 'kessetsu' });
+monaco.editor.defineTheme('kessetsu-dark', {
   base: 'vs-dark',
   inherit: true,
   rules: [
@@ -30,7 +30,7 @@ monaco.editor.defineTheme('netlang-dark', {
   ],
   colors: { 'editor.background': '#111722', 'editorLineNumber.foreground': '#526078' },
 });
-monaco.languages.setMonarchTokensProvider('netlang', {
+monaco.languages.setMonarchTokensProvider('kessetsu', {
   tokenizer: {
     root: [
       [/\/\/.*$/, 'comment'],
@@ -55,13 +55,13 @@ const declarations = [
   ['diode', 'Diode with optional model: diode D1 1N4148'],
   ['transistor', 'BJT: transistor Q1 npn 2N3904'],
   ['mosfet', 'MOSFET: mosfet M1 nmos IRF540'],
-  ['opamp', 'Five-pin op-amp: opamp U1 NLANG_OPAMP_V1'],
+  ['opamp', 'Five-pin op-amp: opamp U1 KESSETSU_OPAMP_V1'],
   ['connect', 'Connect canonical pins or a named net'],
   ['simulate', 'Add typed op, tran, ac or dc analysis'],
   ['assert', 'Add an executable engineering requirement'],
 ] as const;
 
-monaco.languages.registerCompletionItemProvider('netlang', {
+monaco.languages.registerCompletionItemProvider('kessetsu', {
   provideCompletionItems(model, position) {
     const range = model.getWordUntilPosition(position);
     return {
@@ -81,7 +81,7 @@ monaco.languages.registerCompletionItemProvider('netlang', {
   },
 });
 
-monaco.languages.registerHoverProvider('netlang', {
+monaco.languages.registerHoverProvider('kessetsu', {
   provideHover(model, position) {
     const word = model.getWordAtPosition(position);
     const declaration = word && declarations.find(([label]) => label === word.word);

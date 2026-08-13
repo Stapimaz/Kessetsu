@@ -1,8 +1,8 @@
 mod common;
 
 use common::{TestWorkspace, read_fixture};
-use netlang_core::ir::{AcScale, Analysis, Quantity, SIUnit};
-use netlang_core::simulation::{
+use kessetsu_core::ir::{AcScale, Analysis, Quantity, SIUnit};
+use kessetsu_core::simulation::{
     ArtifactPolicy, CancellationToken, Dataset, NgspiceRunner, SimulationRequest,
     SimulationRunErrorKind, SimulationRunner, SimulationStatus,
 };
@@ -189,7 +189,7 @@ fn real_ngspice_produces_structured_op_transient_and_ac_datasets() {
         assert_eq!(result.status, SimulationStatus::Succeeded, "{fixture}");
         assert_eq!(result.datasets.len(), 1, "{fixture}");
         let serialized = serde_json::to_value(&result).expect("simulation result should serialize");
-        assert_eq!(serialized["schema_version"], "netlang.simulation.v1");
+        assert_eq!(serialized["schema_version"], "kessetsu.simulation.v1");
         let dataset = &result.datasets[0].data;
         match (expected_kind, dataset) {
             ("operating_point", Dataset::OperatingPoint { values }) => {

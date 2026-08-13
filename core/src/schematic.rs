@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap, VecDeque};
 
-pub const SCHEMATIC_SCHEMA_VERSION: &str = "netlang.schematic.v1";
+pub const SCHEMATIC_SCHEMA_VERSION: &str = "kessetsu.schematic.v1";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Point {

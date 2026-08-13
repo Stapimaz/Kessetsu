@@ -6,7 +6,7 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
-pub const SIMULATION_SCHEMA_VERSION: &str = "netlang.simulation.v1";
+pub const SIMULATION_SCHEMA_VERSION: &str = "kessetsu.simulation.v1";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SimulationRequest {
@@ -205,7 +205,7 @@ pub trait SimulationRunner {
 }
 
 pub fn analysis_data_filename(index: usize, analysis: &Analysis) -> String {
-    format!("netlang-analysis-{index:03}-{}.data", analysis.kind_name())
+    format!("kessetsu-analysis-{index:03}-{}.data", analysis.kind_name())
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -405,7 +405,7 @@ mod native {
                 );
                 warnings.push(message.clone());
                 diagnostics.push(SimulatorDiagnostic {
-                    code: "NL-S003".to_string(),
+                    code: "KES-S003".to_string(),
                     severity: SimulatorDiagnosticSeverity::Warning,
                     kind: SimulatorDiagnosticKind::Warning,
                     message,
@@ -453,7 +453,7 @@ mod native {
                     .unwrap_or_default()
                     .as_nanos();
                 let path = root.join(format!(
-                    "netlang-sim-{}-{timestamp}-{sequence}",
+                    "kessetsu-sim-{}-{timestamp}-{sequence}",
                     std::process::id()
                 ));
                 match fs::create_dir(&path) {
@@ -619,7 +619,7 @@ mod native {
     }
 
     fn discover_ngspice_path() -> PathBuf {
-        if let Some(configured_path) = env::var_os("NETLANG_NGSPICE")
+        if let Some(configured_path) = env::var_os("KESSETSU_NGSPICE")
             && !configured_path.is_empty()
         {
             let configured_path = PathBuf::from(configured_path);

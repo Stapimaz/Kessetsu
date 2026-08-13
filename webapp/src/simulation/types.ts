@@ -16,7 +16,7 @@ export interface BrowserAnalysisPlan {
 }
 
 export interface BrowserSimulationPlan {
-  schema_version: 'netlang.simulation.v1';
+  schema_version: 'kessetsu.simulation.v1';
   simulator_adapter: 'eecircuit-engine@1.7.0';
   analyses: BrowserAnalysisPlan[];
 }
@@ -42,7 +42,7 @@ export interface EngineResult {
 }
 
 export interface SimulationResult {
-  schema_version: 'netlang.simulation.v1';
+  schema_version: 'kessetsu.simulation.v1';
   status: 'succeeded' | 'failed' | 'timed_out' | 'cancelled';
   analyses: Analysis[];
   simulator: { executable: string; version: string };
@@ -85,7 +85,7 @@ export interface AssertionResult {
 }
 
 export interface AssertionReport {
-  schema_version: 'netlang.assertion.v1';
+  schema_version: 'kessetsu.assertion.v1';
   tolerance: { absolute: number; relative: number };
   assertions: AssertionResult[];
   summary: { total: number; passed: number; failed: number; errors: number; skipped: number };

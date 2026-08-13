@@ -8,8 +8,8 @@ test('downloads every advertised artifact from the shared Core contract', async 
   await expect(page.getByTestId('compile-success')).toBeVisible();
   await page.screenshot({ path: 'test-results/exports-ui.png', fullPage: true });
   const expected = ['svg', 'png', 'pdf', 'schematic_json', 'spice', 'kicad', 'ltspice'];
-  const binary = resolve('../core/target/release', process.platform === 'win32' ? 'netlang.exe' : 'netlang');
-  const fixture = resolve('../core/tests/fixtures/benchmarks/rc_filter.nl');
+  const binary = resolve('../core/target/release', process.platform === 'win32' ? 'kess.exe' : 'kess');
+  const fixture = resolve('../core/tests/fixtures/benchmarks/rc_filter.kess');
   await expect(page.locator('[data-export-format]')).toHaveCount(expected.length);
 
   for (const format of expected) {

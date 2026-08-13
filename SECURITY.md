@@ -2,7 +2,7 @@
 
 ## Supported release
 
-Security fixes target the latest published NetLang release. The first release deliberately rejects raw SPICE directives, floating model-package versions, unknown share schemas and unverified export connectivity.
+Security fixes target the latest published Kessetsu release. The first release deliberately rejects raw SPICE directives, floating model-package versions, unknown share schemas and unverified export connectivity.
 
 ## Reporting a vulnerability
 

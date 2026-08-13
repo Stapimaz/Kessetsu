@@ -1,18 +1,18 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
-use netlang_core::compiler::{
+use kessetsu_core::compiler::{
     COMPILE_SCHEMA_VERSION, CompileOptions, CompileReport, Diagnostic, DiagnosticSeverity,
     DiagnosticStage, compile_source,
 };
-use netlang_core::exporter::{
+use kessetsu_core::exporter::{
     EXPORT_SCHEMA_VERSION, ExportArtifact, ExportCapability, ExportFormat, ExportOptions,
     RenderBackground, export_report,
 };
-use netlang_core::measurement::MEASUREMENT_SCHEMA_VERSION;
-use netlang_core::sim_result::{
+use kessetsu_core::measurement::MEASUREMENT_SCHEMA_VERSION;
+use kessetsu_core::sim_result::{
     ASSERTION_SCHEMA_VERSION, AssertionReport, AssertionResult, AssertionStatus, AssertionSummary,
     format_quantity,
 };
-use netlang_core::simulation::{
+use kessetsu_core::simulation::{
     CancellationToken, NgspiceRunner, SIMULATION_SCHEMA_VERSION, SimulationRequest,
     SimulationResult, SimulationRunner,
 };
@@ -24,14 +24,14 @@ use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::process;
 
-const CLI_SCHEMA_VERSION: &str = "netlang.cli.v1";
+const CLI_SCHEMA_VERSION: &str = "kessetsu.cli.v1";
 
 #[derive(Parser)]
 #[command(
-    name = "netlang",
+    name = "kess",
     version,
-    about = "NetLang Circuit Compiler and Simulator",
-    after_help = "License: AGPL-3.0-only. Copyright (C) 2026 Stapimaz. No warranty. Source and terms: https://github.com/Stapimaz/NetLang"
+    about = "Kessetsu Circuit Compiler and Simulator",
+    after_help = "License: AGPL-3.0-only. Copyright (C) 2026 Stapimaz. No warranty. Source and terms: https://github.com/Stapimaz/Kessetsu"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -259,7 +259,7 @@ fn run(cli: Cli) -> i32 {
     let includes = cli.include.iter().copied().collect::<BTreeSet<_>>();
     if cli.schema_version != CLI_SCHEMA_VERSION {
         let diagnostic = diagnostic(
-            "NL-F002",
+            "KES-F002",
             DiagnosticStage::Cli,
             format!(
                 "Unsupported CLI schema '{}'; expected '{}'.",
@@ -285,10 +285,10 @@ fn run(cli: Cli) -> i32 {
         Ok(source) => source,
         Err(error) => {
             let diagnostic = diagnostic(
-                "NL-I001",
+                "KES-I001",
                 DiagnosticStage::Io,
                 if source_is_stdin {
-                    format!("Could not read NetLang source from stdin: {error}")
+                    format!("Could not read Kessetsu source from stdin: {error}")
                 } else {
                     format!("Could not read file '{}': {error}", source_path.display())
                 },
@@ -357,7 +357,7 @@ fn run(cli: Cli) -> i32 {
             Err(message) => {
                 report
                     .diagnostics
-                    .push(diagnostic("NL-X017", DiagnosticStage::Cli, message));
+                    .push(diagnostic("KES-X017", DiagnosticStage::Cli, message));
                 emit(
                     &cli.format,
                     command,
@@ -437,10 +437,10 @@ fn run(cli: Cli) -> i32 {
             let lock_path = spice_path
                 .parent()
                 .unwrap_or_else(|| Path::new("."))
-                .join("netlang.lock");
+                .join("kessetsu.lock");
             if let Err(error) = fs::write(&lock_path, model_lock) {
                 report.diagnostics.push(diagnostic(
-                    "NL-I005",
+                    "KES-I005",
                     DiagnosticStage::Io,
                     format!(
                         "Could not write model lockfile '{}': {error}",
@@ -586,7 +586,7 @@ fn write_artifact(
 ) -> Result<(), Box<Diagnostic>> {
     if paths_refer_to_same_file(source_path, output_path) {
         return Err(Box::new(diagnostic(
-            "NL-I002",
+            "KES-I002",
             DiagnosticStage::Io,
             format!(
                 "Refusing to overwrite source file '{}' with a generated artifact.",
@@ -596,7 +596,7 @@ fn write_artifact(
     }
     if output_path.exists() && !force {
         return Err(Box::new(diagnostic(
-            "NL-I003",
+            "KES-I003",
             DiagnosticStage::Io,
             format!(
                 "Output file '{}' already exists; pass --force to overwrite it.",
@@ -606,7 +606,7 @@ fn write_artifact(
     }
     fs::write(output_path, bytes).map_err(|error| {
         Box::new(diagnostic(
-            "NL-I004",
+            "KES-I004",
             DiagnosticStage::Io,
             format!(
                 "Could not write artifact to '{}': {error}",
@@ -639,7 +639,7 @@ fn run_artifact_command(
         Err(message) => {
             report
                 .diagnostics
-                .push(diagnostic("NL-I006", DiagnosticStage::Io, message));
+                .push(diagnostic("KES-I006", DiagnosticStage::Io, message));
             emit(
                 output_format,
                 command,
@@ -760,7 +760,7 @@ fn write_spice(
 ) -> Result<(), Box<Diagnostic>> {
     if paths_refer_to_same_file(source_path, output_path) {
         return Err(Box::new(diagnostic(
-            "NL-I002",
+            "KES-I002",
             DiagnosticStage::Io,
             format!(
                 "Refusing to overwrite source file '{}' with generated SPICE.",
@@ -771,7 +771,7 @@ fn write_spice(
 
     if output_path.exists() && !force {
         return Err(Box::new(diagnostic(
-            "NL-I003",
+            "KES-I003",
             DiagnosticStage::Io,
             format!(
                 "Output file '{}' already exists; pass --force to overwrite it.",
@@ -782,7 +782,7 @@ fn write_spice(
 
     fs::write(output_path, spice).map_err(|error| {
         Box::new(diagnostic(
-            "NL-I004",
+            "KES-I004",
             DiagnosticStage::Io,
             format!(
                 "Could not write SPICE file to '{}': {error}",
@@ -815,7 +815,7 @@ fn run_simulate(
         Ok(simulation) => simulation,
         Err(error) => {
             report.diagnostics.push(diagnostic(
-                "NL-S001",
+                "KES-S001",
                 DiagnosticStage::Simulation,
                 error.to_string(),
             ));
@@ -845,7 +845,7 @@ fn run_simulate(
         };
         report
             .diagnostics
-            .push(diagnostic("NL-S002", DiagnosticStage::Simulation, details));
+            .push(diagnostic("KES-S002", DiagnosticStage::Simulation, details));
         emit(
             format,
             command,
@@ -908,7 +908,7 @@ fn print_simulator_logs(simulation: &SimulationResult) {
 fn run_simulation(
     report: &CompileReport,
     spice: &str,
-) -> Result<SimulationResult, netlang_core::simulation::SimulationRunError> {
+) -> Result<SimulationResult, kessetsu_core::simulation::SimulationRunError> {
     let analyses = report
         .ir
         .as_ref()
@@ -935,7 +935,7 @@ fn run_assertions(
         Ok(simulation) => simulation,
         Err(error) => {
             report.diagnostics.push(diagnostic(
-                "NL-S001",
+                "KES-S001",
                 DiagnosticStage::Simulation,
                 error.to_string(),
             ));
@@ -965,7 +965,7 @@ fn run_assertions(
         };
         report
             .diagnostics
-            .push(diagnostic("NL-S002", DiagnosticStage::Simulation, details));
+            .push(diagnostic("KES-S002", DiagnosticStage::Simulation, details));
         emit(
             format,
             command,
@@ -983,7 +983,7 @@ fn run_assertions(
         .ir
         .as_ref()
         .expect("successful compile report must preserve typed IR");
-    let assertion_report = netlang_core::sim_result::evaluate_assertions(circuit, &simulation);
+    let assertion_report = kessetsu_core::sim_result::evaluate_assertions(circuit, &simulation);
     let all_passed = assertion_report.all_passed();
     if *format == Format::Human {
         for result in &assertion_report.assertions {
@@ -1151,7 +1151,7 @@ fn build_json_output(
             Path::new(path)
                 .parent()
                 .unwrap_or_else(|| Path::new("."))
-                .join("netlang.lock")
+                .join("kessetsu.lock")
                 .to_string_lossy()
                 .into_owned()
         })
@@ -1245,7 +1245,7 @@ impl JsonDiagnostic {
         }
     }
 
-    fn from_simulation(diagnostic: &netlang_core::simulation::SimulatorDiagnostic) -> Self {
+    fn from_simulation(diagnostic: &kessetsu_core::simulation::SimulatorDiagnostic) -> Self {
         Self {
             code: diagnostic.code.clone(),
             severity: format!("{:?}", diagnostic.severity).to_ascii_lowercase(),

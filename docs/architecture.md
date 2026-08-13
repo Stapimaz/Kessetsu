@@ -1,23 +1,23 @@
-# NetLang Projesi Mimari Anayasası
+# Kessetsu Projesi Mimari Anayasası
 
-Bu doküman, NetLang projesinin çekirdek algoritmalarını, derleme süreçlerini ve dil tasarım standartlarını açıklar. **Projeye dahil olan tüm geliştiriciler ve Yapay Zeka Ajanları (AI Agents), projede herhangi bir kod yazmadan önce bu dokümandaki kurallara uymak ZORUNDADIR.**
+Bu doküman, Kessetsu projesinin çekirdek algoritmalarını, derleme süreçlerini ve dil tasarım standartlarını açıklar. **Projeye dahil olan tüm geliştiriciler ve Yapay Zeka Ajanları (AI Agents), projede herhangi bir kod yazmadan önce bu dokümandaki kurallara uymak ZORUNDADIR.**
 
 > **Geliştirme planı ve görev takibi için:** `docs/ROADMAP.md` dosyasına bakınız.
 
 ## 1. Sistemin Temel Parçaları
 
-NetLang projesi temelde iki ana parçadan oluşur:
-1. **`netlang-core` (Rust):** Dilin ayrıştırıcısı (parser), AST oluşturucusu, Circuit IR dönüştürücüsü, ERC (Electrical Rules Check) motoru, SPICE netlist jeneratörü ve otomatik şema (layout) motorunu barındıran çekirdek kütüphane.
+Kessetsu projesi temelde iki ana parçadan oluşur:
+1. **`kessetsu-core` (Rust):** Dilin ayrıştırıcısı (parser), AST oluşturucusu, Circuit IR dönüştürücüsü, ERC (Electrical Rules Check) motoru, SPICE netlist jeneratörü ve otomatik şema (layout) motorunu barındıran çekirdek kütüphane.
    - Hem bir kütüphane (`lib`), hem CLI (`bin/`) olarak hem de Web için WASM (`wasm.rs`) olarak derlenir.
-2. **`webapp` (React/TS):** Kullanıcının kodu yazdığı ve sonuçları (şema/grafik) gördüğü UI. `netlang-core`'u WASM üzerinden tarayıcı içinde gerçek zamanlı çalıştırır.
+2. **`webapp` (React/TS):** Kullanıcının kodu yazdığı ve sonuçları (şema/grafik) gördüğü UI. `kessetsu-core`'u WASM üzerinden tarayıcı içinde gerçek zamanlı çalıştırır.
 
 ### Derleme Pipeline'ı
 
 ```
-NetLang Source (.nl)
+Kessetsu Source (.kess)
     │
     ▼
-  Parser (netlang.pest → pest → AST)
+  Parser (kessetsu.pest → pest → AST)
     │
     ▼
   Module Flattening → Canonical AST
@@ -37,15 +37,15 @@ NetLang Source (.nl)
 
 ### Tek Compile Sözleşmesi
 
-Çekirdeğin canonical derleme girişi `compile_source(source, options) -> CompileReport` fonksiyonudur. Bu fonksiyon dosya yazmaz, process başlatmaz ve log basmaz; bu yan etkiler CLI gibi frontend'lere aittir. Rapor şeması `netlang.compile.v3` ile sürümlüdür ve opsiyonlara göre flattened AST, typed IR, deterministik graph özeti, SPICE, canonical `netlang.schematic.v1`, SVG, geçici legacy layout ve KiCad çıktıları taşıyabilir.
+Çekirdeğin canonical derleme girişi `compile_source(source, options) -> CompileReport` fonksiyonudur. Bu fonksiyon dosya yazmaz, process başlatmaz ve log basmaz; bu yan etkiler CLI gibi frontend'lere aittir. Rapor şeması `kessetsu.compile.v3` ile sürümlüdür ve opsiyonlara göre flattened AST, typed IR, deterministik graph özeti, SPICE, canonical `kessetsu.schematic.v1`, SVG, geçici legacy layout ve KiCad çıktıları taşıyabilir.
 
 Parse, flatten, semantic ve ERC hataları ortak `Diagnostic` modeline dönüştürülür. Error severity varsa hiçbir backend çıktısı üretilmez; warning ve info sonuçları başarılı çıktılarla birlikte taşınabilir. CLI ve WASM kendi paralel derleme akışlarını kurmamalı, yalnızca bu entrypoint'in adaptörü olmalıdır.
 
-CLI, canonical raporu `netlang.cli.v1` agent envelope'u içinde render eder; Core raporunun semantiğini değiştirmez. Varsayılan JSON yalnız kompakt durum/diagnostic/summary/measurement/assertion/artifact alanlarını taşır. AST, IR, graph, SPICE, dataset ve raw simulator log açık `--include` olmadan serialize edilmez. Compile, simulation, measurement ve assertion alt sözleşmelerinin sürümleri `domain_versions` içinde ilan edilir; bilinmeyen CLI schema isteği hiçbir compile veya dosya yazma işlemi başlamadan `NL-F002` ile reddedilir. JSON stdout tek bir obje olarak kalır. Dosya yazma frontend sorumluluğudur: mevcut output açık `--force` olmadan ezilmez ve hiçbir generated output kaynak `.nl` dosyasının üzerine yazılamaz.
+CLI, canonical raporu `kessetsu.cli.v1` agent envelope'u içinde render eder; Core raporunun semantiğini değiştirmez. Varsayılan JSON yalnız kompakt durum/diagnostic/summary/measurement/assertion/artifact alanlarını taşır. AST, IR, graph, SPICE, dataset ve raw simulator log açık `--include` olmadan serialize edilmez. Compile, simulation, measurement ve assertion alt sözleşmelerinin sürümleri `domain_versions` içinde ilan edilir; bilinmeyen CLI schema isteği hiçbir compile veya dosya yazma işlemi başlamadan `KES-F002` ile reddedilir. JSON stdout tek bir obje olarak kalır. Dosya yazma frontend sorumluluğudur: mevcut output açık `--force` olmadan ezilmez ve hiçbir generated output kaynak `.kess` dosyasının üzerine yazılamaz.
 
 CLI'da kaynak yolu `-` ise source stdin'den okunur. Stdin tabanlı `compile`, `simulate` ve `test` açık `--output` verilmedikçe SPICE dosyası yazmaz; netlist process içinde simulation'a aktarılır ve JSON caller gerekirse `--include spice` ile metni alır. Böylece tool çağrıları geçici kaynak dosyasına ihtiyaç duymaz ve side-effect-free stdin istekleri aynı input/seçenekler için byte-stable JSON üretir. Dosya tabanlı komutların mevcut güvenli overwrite politikası değişmez.
 
-Simulator executable discovery, dağıtılan binary konumlarını ve sistem fallback'ini dener; otomasyon/packaging ortamları açık bir executable yolu için `NETLANG_NGSPICE` kullanabilir. Bu override derleme hattını değiştirmez ve başlatma/process hataları CLI'da exit `3` olarak kalır.
+Simulator executable discovery, dağıtılan binary konumlarını ve sistem fallback'ini dener; otomasyon/packaging ortamları açık bir executable yolu için `KESSETSU_NGSPICE` kullanabilir. Bu override derleme hattını değiştirmez ve başlatma/process hataları CLI'da exit `3` olarak kalır.
 
 ## 2. Dilin Sözdizimi (Syntax) ve Kurallar
 
@@ -72,7 +72,7 @@ Simulator executable discovery, dağıtılan binary konumlarını ve sistem fall
   - `source Vin ac(1V)` → small-signal AC kaynağı
   - `source Vin sine_ac(0V, 1V, 1kHz, 1V)` → transient ve AC analizlerinde ortak kaynak
   - Geriye uyumluluk: `source Vin "SINE(0 1V 1kHz)"` da kabul edilir (string olarak)
-- **Simülasyon Komutları:** Analysis komutları raw SPICE metni olarak taşınmaz; semantic aşamada typed `Analysis` varyantlarına çevrilir. Desteklenmeyen komut, arity, birim veya sweep yönü `NL-C009` ile fail-closed reddedilir.
+- **Simülasyon Komutları:** Analysis komutları raw SPICE metni olarak taşınmaz; semantic aşamada typed `Analysis` varyantlarına çevrilir. Desteklenmeyen komut, arity, birim veya sweep yönü `KES-C009` ile fail-closed reddedilir.
   - `simulate op` — DC Operating Point
   - `simulate tran 10us 1ms` — Transient
   - `simulate ac dec 10 1Hz 1MHz` — AC Analiz
@@ -100,10 +100,10 @@ Component pin adları, canonical backend sırası, SPICE prefix'i ve layout pin 
 
 SPICE motoru için düğüm isimleri rastgele tam sayılar DEĞİLDİR. Okunabilirlik ve determinism için özel bir algoritma kullanılır:
 
-1. Explicit `net GND` hattına bağlı her şey her zaman `"0"` düğümündedir ve bu referans legacy fallback'ten önceliklidir. Explicit GND yoksa lexicographic olarak ilk voltage-source `minus` neti geriye uyumluluk fallback'i olur. Birden fazla bağımsız aday deterministic seçilse bile `NL-E008` ambiguity diagnostic üretilir; belirsizlik sessizce başarılı sayılmaz.
+1. Explicit `net GND` hattına bağlı her şey her zaman `"0"` düğümündedir ve bu referans legacy fallback'ten önceliklidir. Explicit GND yoksa lexicographic olarak ilk voltage-source `minus` neti geriye uyumluluk fallback'i olur. Birden fazla bağımsız aday deterministic seçilse bile `KES-E008` ambiguity diagnostic üretilir; belirsizlik sessizce başarılı sayılmaz.
 2. **User-named netler birinci sınıf kimliktir.** Kullanıcı `net output` tanımladıysa, o net SPICE'ta `output` olarak görünür.
-   - Component ve net aynı exact identifier'ı paylaşamaz (`NL-E006`).
-   - Aynı fiziksel nete birden fazla user-name bağlanamaz (`NL-E007`).
+   - Component ve net aynı exact identifier'ı paylaşamaz (`KES-E006`).
+   - Aynı fiziksel nete birden fazla user-name bağlanamaz (`KES-E007`).
 3. User ismi olmayan netlerde, kendisine bağlı pinlerin listesi **alfabetik olarak sıralanır** ve en baştaki pinin adı alınır.
 4. Pin adındaki nokta `.` karakteri alt çizgiye `_` çevrilip başına `N_` eklenir.
    - *Örnek:* Bir düğüme `R1.p2`, `C1.p1` ve `Q1.b` bağlıysa. Alfabetik sırada ilk gelen `C1.p1`'dir. Düğüm ismi **`N_C1_p1`** olur. SPICE çıktısında voltaj `v(N_C1_p1)` olarak okunur.
@@ -114,7 +114,7 @@ SPICE motoru için düğüm isimleri rastgele tam sayılar DEĞİLDİR. Okunabil
 
 ## 5. SPICE Motoru ve Standart Modeller
 
-Ngspice entegrasyonu Windows'ta repository/release sidecar ile, otomasyon ve diğer paketleme ortamlarında `NETLANG_NGSPICE` override'ı ile çalışır.
+Ngspice entegrasyonu Windows'ta repository/release sidecar ile, otomasyon ve diğer paketleme ortamlarında `KESSETSU_NGSPICE` override'ı ile çalışır.
 - Eğer IR içerisinde `2N3904`, `1N4148`, `IRF540` gibi bilinen bir parça kullanılırsa, SPICE jeneratörü builtin `.model` tanımını otomatik olarak netlist'in sonuna ekler. Kullanıcıların `.model` yazmasına gerek yoktur.
 - **Model provenance:** Her modelin kaynağı (builtin/user-defined) ve tipi (NPN/PNP/NMOS/PMOS/D) IR'de belirtilir.
 - **Model kalitesi:** Dahili modeller "generic" kalitededir. İleri sürümlerde üretici-spesifik modeller ve kalite seviyeleri eklenecektir.
@@ -126,34 +126,34 @@ Ngspice entegrasyonu Windows'ta repository/release sidecar ile, otomasyon ve di�
 | 2N3904 | BJT NPN | Builtin |
 | 2N3906 | BJT PNP | Builtin |
 | 2N2222 | BJT NPN | Builtin |
-| NLANG_POWER_NPN_V1 | Generic power BJT NPN | Verified builtin |
-| NLANG_POWER_PNP_V1 | Generic power BJT PNP | Verified builtin |
+| KESSETSU_POWER_NPN_V1 | Generic power BJT NPN | Verified builtin |
+| KESSETSU_POWER_PNP_V1 | Generic power BJT PNP | Verified builtin |
 | 1N4148 | Diode | Builtin |
 | 1N4007 | Diode | Builtin |
 | IRF540 | MOSFET NMOS | Builtin |
-| NLANG_PMOS_V1 | Generic MOSFET PMOS | Verified builtin |
-| NLANG_OPAMP_V1 | Generic op-amp subcircuit | Verified builtin |
+| KESSETSU_PMOS_V1 | Generic MOSFET PMOS | Verified builtin |
+| KESSETSU_OPAMP_V1 | Generic op-amp subcircuit | Verified builtin |
 
-Builtin default'lar BJT için `2N3904`/`2N3906`, MOSFET için `IRF540`, diode için `1N4148`, op-amp için `NLANG_OPAMP_V1`'dir. Böylece dilde tanımlı temel component türlerinden hiçbiri bütünüyle kullanılamaz durumda değildir. `NLANG_*` modelleri NetLang'in kendi generic ve lisansı açık doğrulama modelleridir; belirli bir üretici parçasının datasheet eşleniği oldukları iddia edilmez. `NLANG_PMOS_V1` provenance sürümü `1.0.1`'dir ve Ngspice `MOS1` için portable model parametreleri kullanır.
+Builtin default'lar BJT için `2N3904`/`2N3906`, MOSFET için `IRF540`, diode için `1N4148`, op-amp için `KESSETSU_OPAMP_V1`'dir. Böylece dilde tanımlı temel component türlerinden hiçbiri bütünüyle kullanılamaz durumda değildir. `KESSETSU_*` modelleri Kessetsu'nun kendi generic ve lisansı açık doğrulama modelleridir; belirli bir üretici parçasının datasheet eşleniği oldukları iddia edilmez. `KESSETSU_PMOS_V1` provenance sürümü `1.0.1`'dir ve Ngspice `MOS1` için portable model parametreleri kullanır.
 
 ### Typed user model ve subcircuit sınırı
 
-NetLang raw `.include`, `.model`, `.subckt` veya control directive kabul etmez. Kullanıcı yalnız typed declaration verir; parameter whitelist, numeric parse, model kind/polarity ve metadata semantic aşamada doğrulandıktan sonra directive Core tarafından canonical biçimde üretilir:
+Kessetsu raw `.include`, `.model`, `.subckt` veya control directive kabul etmez. Kullanıcı yalnız typed declaration verir; parameter whitelist, numeric parse, model kind/polarity ve metadata semantic aşamada doğrulandıktan sonra directive Core tarafından canonical biçimde üretilir:
 
-```netlang
+```kessetsu
 model diode SafeD version=1.0.0 license=MIT Is=2e-9 Rs=0.5
 model mosfet SafeP pmos version=1.0.0 license=MIT Vto=-2 Kp=4
 subcircuit opamp SafeOp (in_p,in_n,vcc,vee,out) version=1.0.0 license=MIT gain=100k bandwidth=2MHz
 ```
 
 - Device model kind'leri `diode`, `bjt` ve `mosfet`; güvenli subcircuit template'i şu aşamada `opamp` ile sınırlıdır.
-- BJT `npn|pnp`, MOSFET `nmos|pmos` polarity ister. Component/model kind veya polarity uyuşmazlığı `NL-C004` olur.
-- User model/subcircuit `version` ve `license` metadata'sı taşır; `source` opsiyoneldir. İzinli elektriksel parametreler kind'e göre sabit whitelist'ten gelir. Bilinmeyen/duplicate/non-finite parameter `NL-C010` olur.
-- Op-amp pin sırası ortak component kataloğundaki `in_p,in_n,vcc,vee,out` sırasıyla byte-for-byte uyuşur; aksi durum `NL-C012`'dir. Backend kendi ayrı pin listesine güvenmez.
-- Builtin, package, user model ve subcircuit adları case-insensitive tek namespace içindedir; çakışma `NL-C013` ile reddedilir.
-- Simulator capability şu sözleşmede `ngspice-35+` olarak provenance'a yazılır. Desteklenmeyen paket/sürüm `NL-C011` ile fail-closed olur.
+- BJT `npn|pnp`, MOSFET `nmos|pmos` polarity ister. Component/model kind veya polarity uyuşmazlığı `KES-C004` olur.
+- User model/subcircuit `version` ve `license` metadata'sı taşır; `source` opsiyoneldir. İzinli elektriksel parametreler kind'e göre sabit whitelist'ten gelir. Bilinmeyen/duplicate/non-finite parameter `KES-C010` olur.
+- Op-amp pin sırası ortak component kataloğundaki `in_p,in_n,vcc,vee,out` sırasıyla byte-for-byte uyuşur; aksi durum `KES-C012`'dir. Backend kendi ayrı pin listesine güvenmez.
+- Builtin, package, user model ve subcircuit adları case-insensitive tek namespace içindedir; çakışma `KES-C013` ile reddedilir.
+- Simulator capability şu sözleşmede `ngspice-35+` olarak provenance'a yazılır. Desteklenmeyen paket/sürüm `KES-C011` ile fail-closed olur.
 
-Exact package kullanımı `model_include netlang_analog 1.0.0` biçimindedir. Floating version/range yoktur. Kullanılan model ve paketler `netlang.models.v1` manifest'inde source, license, version, simulator capability ve `sha256:` content hash ile taşınır. Dosya tabanlı compile/simulate/test model kullanıyorsa SPICE artifact'iyle aynı dizine deterministic `netlang.lock` (`netlang.lock.v1`) yazılır ve CLI bunu `model_lock` artifact'i olarak bildirir. Stdin-only çağrı filesystem'e yazmaz; manifest ve lock içeriği `--include models` ile alınabilir.
+Exact package kullanımı `model_include kessetsu_analog 1.0.0` biçimindedir. Floating version/range yoktur. Kullanılan model ve paketler `kessetsu.models.v1` manifest'inde source, license, version, simulator capability ve `sha256:` content hash ile taşınır. Dosya tabanlı compile/simulate/test model kullanıyorsa SPICE artifact'iyle aynı dizine deterministic `kessetsu.lock` (`kessetsu.lock.v1`) yazılır ve CLI bunu `model_lock` artifact'i olarak bildirir. Stdin-only çağrı filesystem'e yazmaz; manifest ve lock içeriği `--include models` ile alınabilir.
 
 Quoted parameter içine `.control`, `.include`, shell veya satır sonu saklama girişimleri typed numeric/metadata doğrulamasından geçemez; error varken SPICE backend çalışmaz. Bu injection sınırı regression testleriyle korunur.
 
@@ -164,27 +164,27 @@ Quoted parameter içine `.control`, `.include`, shell veya satır sonu saklama g
 ### Yapısal Kontroller (Simülasyonsuz)
 | Kod | Severity | Açıklama |
 |---|---|---|
-| NL-E001 | Error | Duplicate component declaration |
-| NL-E002 | Error | Undefined component reference |
-| NL-E003 | Error | Floating pin (bağlantısız zorunlu pin) |
-| NL-E004 | Error | Direct short circuit (source plus=minus) |
-| NL-E005 | Error | Component türünde bulunmayan pin referansı |
-| NL-E006 | Error | Component/net namespace çakışması |
-| NL-E007 | Error | Aynı fiziksel net için birden fazla user-name |
-| NL-E008 | Error | Birden fazla bağımsız ground adayı |
-| NL-E009 | Error | Duplicate net declaration |
+| KES-E001 | Error | Duplicate component declaration |
+| KES-E002 | Error | Undefined component reference |
+| KES-E003 | Error | Floating pin (bağlantısız zorunlu pin) |
+| KES-E004 | Error | Direct short circuit (source plus=minus) |
+| KES-E005 | Error | Component türünde bulunmayan pin referansı |
+| KES-E006 | Error | Component/net namespace çakışması |
+| KES-E007 | Error | Aynı fiziksel net için birden fazla user-name |
+| KES-E008 | Error | Birden fazla bağımsız ground adayı |
+| KES-E009 | Error | Duplicate net declaration |
 
 ### Runtime Diagnostic'leri
 | Kod | Severity | Açıklama |
 |---|---|---|
-| NL-S001 | Error | Simulator executable başlatılamadı |
-| NL-S002 | Error | Simulator process/output başarısızlığı |
-| NL-S003 | Warning | Simulator warning veya runtime cleanup uyarısı |
-| NL-S004 | Error | Convergence/singular-matrix/timestep başarısızlığı |
-| NL-S005 | Error | Fatal veya aborted simulator çıktısı |
-| NL-S006 | Error | Measurement veya analysis dataset parse başarısızlığı |
+| KES-S001 | Error | Simulator executable başlatılamadı |
+| KES-S002 | Error | Simulator process/output başarısızlığı |
+| KES-S003 | Warning | Simulator warning veya runtime cleanup uyarısı |
+| KES-S004 | Error | Convergence/singular-matrix/timestep başarısızlığı |
+| KES-S005 | Error | Fatal veya aborted simulator çıktısı |
+| KES-S006 | Error | Measurement veya analysis dataset parse başarısızlığı |
 
-Assertion sonuçları simulation diagnostic'lerinden ayrı, sürümlü `netlang.assertion.v1` raporunda taşınır. Kaynak sırasındaki her assertion deterministik `NL-T001`, `NL-T002`, ... kimliği alır ve `PASS`, `FAIL`, `ERROR` veya `SKIPPED` durumlarından biriyle sonuçlanır. Eksik ya da desteklenmeyen ölçüm `NaN` üretmez; açıklamalı `ERROR` olur. Simulation başarıyla tamamlanmadıysa assertion sonucu uydurulmaz ve `SKIPPED` olarak raporlanır.
+Assertion sonuçları simulation diagnostic'lerinden ayrı, sürümlü `kessetsu.assertion.v1` raporunda taşınır. Kaynak sırasındaki her assertion deterministik `KES-T001`, `KES-T002`, ... kimliği alır ve `PASS`, `FAIL`, `ERROR` veya `SKIPPED` durumlarından biriyle sonuçlanır. Eksik ya da desteklenmeyen ölçüm `NaN` üretmez; açıklamalı `ERROR` olur. Simulation başarıyla tamamlanmadıysa assertion sonucu uydurulmaz ve `SKIPPED` olarak raporlanır.
 
 ### Simulation domain ve runner sınırı
 
@@ -192,7 +192,7 @@ Native simulator process ayrıntıları Core'un ortak simulation sözleşmesine 
 
 Native runner her çalıştırma için benzersiz bir temporary directory oluşturur. Başarılı çalışmanın artifact'ları temizlenir; hata artifact'ları yalnız açık `retain_on_failure` politikasıyla korunur. Runner executable discovery ve version probe uygular, timeout'ta process'i sonlandırır ve paylaşılabilir cancellation token kabul eder. CLI `simulate` ve `test` aynı runner üzerinden çalışır.
 
-Ngspice analysis verileri stdout tablo metninden çıkarılmaz. Generated SPICE her typed analysis sonrasında deterministic isimli `wrdata` çıktısı üretir. OP sonucu sorted scalar map'e, transient/DC sonucu ortak axis ve real signal serilerine, AC sonucu frequency axis ile real/imaginary signal serilerine parse edilir. Parser exponent, decimal-comma ve LF/CRLF farklarını normalize eder; malformed, duplicate veya non-finite veri `NL-S006` ile fail-closed olur.
+Ngspice analysis verileri stdout tablo metninden çıkarılmaz. Generated SPICE her typed analysis sonrasında deterministic isimli `wrdata` çıktısı üretir. OP sonucu sorted scalar map'e, transient/DC sonucu ortak axis ve real signal serilerine, AC sonucu frequency axis ile real/imaginary signal serilerine parse edilir. Parser exponent, decimal-comma ve LF/CRLF farklarını normalize eder; malformed, duplicate veya non-finite veri `KES-S006` ile fail-closed olur.
 
 ### Assertion ve ölçüm semantiği
 
@@ -208,7 +208,7 @@ Ngspice analysis verileri stdout tablo metninden çıkarılmaz. Generated SPICE 
 - **JSON modu (`--format json`):** Makine-okunabilir structured diagnostics
   ```json
   {
-    "code": "NL-E003",
+    "code": "KES-E003",
     "severity": "error",
     "stage": "erc",
     "message": "Floating Pin: R1.p1 is not connected to anything.",
@@ -230,7 +230,7 @@ Render/export sahipliği şu sınırı izler:
 
 ```text
 Circuit IR + Canonical Graph
-        → netlang.schematic.v1
+        → kessetsu.schematic.v1
         → SVG / PNG / PDF / Schematic JSON / KiCad / LTspice exporters
         → CLI artifact writer veya Web download UI
 ```
@@ -242,13 +242,13 @@ Legacy `layout.rs` için başlangıç davranışı aşağıdaki gibidir; Faz 4 m
 Şematiği çizerken parçaları x/y koordinatlarına yerleştirmek için **chain-based vertical layout** yaklaşımı kullanılır. DFS, layout pipeline'ında traversal ve başlangıç sıralaması için kullanılan heuristic'lerden biridir.
 
 - **Mevcut heuristic:** Voltage-source rail'leri, GND yönü, through-pin ve `is_signal_pin` bilgisi chain sıralamasını ve rotation seçimini etkiler. BJT/MOSFET gibi aktif elemanlar için ayrı yerleşim davranışı vardır; bütün topolojilerde ideal yön garanti edilmez.
-- **Canonical kapı:** `netlang.schematic.v1`, her bağlı graph pinini typed wire endpoint veya semantic net label ile temsil eder; eksik/fazla pin/net varsa `NL-L001` ile fail-closed olur.
+- **Canonical kapı:** `kessetsu.schematic.v1`, her bağlı graph pinini typed wire endpoint veya semantic net label ile temsil eder; eksik/fazla pin/net varsa `KES-L001` ile fail-closed olur.
 - **Yerleşim/router:** Deterministik layered placement, shared pin-side metadata, orthogonal cost-based routing ve yüksek fan-out/power netleri için semantic label kullanır. Symbol/wire/label collision, crossing ve bend sayıları versioned kalite raporundadır.
 - **Visual regression:** Altı devrelik corpus'un deterministic SVG SHA-256 golden'ları Rust testinde, gerçek browser görüntüsü Playwright corpus testinde korunur.
 
-## 8. NetLang Vizyonu ve Ekosistem Manifestosu
+## 8. Kessetsu Vizyonu ve Ekosistem Manifestosu
 
-**NetLang**, analog ve karma-sinyal devrelerini yazılım gibi derlemek, simüle etmek ve assertion'larla test etmek için tasarlanmış; native ve browser ortamlarında çalışan, AI-agent odaklı, deterministik bir SPICE derleyicisi ve doğrulama altyapısıdır.
+**Kessetsu**, analog ve karma-sinyal devrelerini yazılım gibi derlemek, simüle etmek ve assertion'larla test etmek için tasarlanmış; native ve browser ortamlarında çalışan, AI-agent odaklı, deterministik bir SPICE derleyicisi ve doğrulama altyapısıdır.
 
 ```
 Compile, simulate and test circuits like software.
@@ -256,23 +256,23 @@ Compile, simulate and test circuits like software.
 
 Bu ekosistem üç sütun üzerinde yükselir:
 
-### 1. NetLang Core (Rust Çekirdeği)
+### 1. Kessetsu Core (Rust Çekirdeği)
 Projenin kalbi. Parser, IR, ERC, SPICE jeneratör ve layout motoru tek bir Rust crate içinde yaşar. Hem kütüphane (`lib`), hem CLI, hem WASM olarak derlenir. Deterministik davranış sağlar — aynı devre, her platformda aynı sonucu üretir.
 
-### 2. NetLang CLI (Yapay Zeka ve Geliştiriciler İçin Motor)
+### 2. Kessetsu CLI (Yapay Zeka ve Geliştiriciler İçin Motor)
 Derleme/ERC/SPICE üretimi için internet gerektirmeyen Rust CLI'dır. Windows x86-64 release'i Ngspice sidecar taşır; Linux x86-64 ile macOS Intel/Apple Silicon release'leri version-probed sistem Ngspice'ını keşfeder ve açık executable override'ını destekler.
 
 - **Mevcut dağıtım:** Dört platform artifact'i, SHA-256/release manifest'i ve clean-machine simulation smoke'u. `cargo install` ve VS Code extension sonraki dağıtım hedefleridir.
 - **Kullanım:** AI ajanları ve donanım mühendisleri devreyi derlemek, test etmek ve otomatik JSON formatında hataları ayıklamak için kullanır. Ayrıntılar [CLI Reference](cli_reference.md) içindedir.
 - **TDD Döngüsü:** Ajan, assertion'ları yazılım testleri gibi kullanarak devreyi iteratif olarak düzeltebilir (Self-Healing). Her iterasyonda structured feedback alır.
 
-### 3. NetLang Web Hub (İnsanlar İçin Vitrin ve Oyun Alanı)
+### 3. Kessetsu Web Hub (İnsanlar İçin Vitrin ve Oyun Alanı)
 Kullanıcıların kayıtsız, indirmesiz kullanabildiği; Rust çekirdeğini WASM ile tarayıcıda çalıştıran arayüz.
 
 - **Mevcut workspace:** Kod yaz → debounced WASM compile/ERC → canonical şema → dedicated worker içinde Ngspice simulation → typed plot/measurement/assertion sonuçları.
-- **Mevcut export:** Core'un `netlang.export.v1` capability sözleşmesi üzerinden SVG, PNG, PDF, Schematic JSON, SPICE, KiCad ve LTspice; Web exporter semantiğini yeniden kurmaz.
-- **Mevcut paylaşım:** `netlang.share.v1` source, compile schema ve exact package/version manifest'ini gzip + base64url URL fragment'inde taşır. Decode streaming boyut limitlidir; bilinmeyen sürüm, bozuk payload veya compile sonrası package uyuşmazlığı fail-closed olur. Sunucuya proje yüklenmez.
+- **Mevcut export:** Core'un `kessetsu.export.v1` capability sözleşmesi üzerinden SVG, PNG, PDF, Schematic JSON, SPICE, KiCad ve LTspice; Web exporter semantiğini yeniden kurmaz.
+- **Mevcut paylaşım:** `kessetsu.share.v1` source, compile schema ve exact package/version manifest'ini gzip + base64url URL fragment'inde taşır. Decode streaming boyut limitlidir; bilinmeyen sürüm, bozuk payload veya compile sonrası package uyuşmazlığı fail-closed olur. Sunucuya proje yüklenmez.
 
 **Güvenlik notu:** Web playground'da kullanıcı girdisi doğrudan SPICE string olarak netlist'e eklenmez. Tüm girdiler IR üzerinden typed olarak işlenir. Raw SPICE erişimi (ileride `unsafe spice_raw {}`) web sürümünde varsayılan olarak kapalıdır.
 
-**ÖZETLE:** NetLang bir "çizim programı" değil, bir devre derleyicisi ve doğrulama altyapısıdır. Bugünkü ürün CLI'da agent-oriented compile/test/export geri bildirimi ve Web'de aynı Core'a bağlı compile/simulation/measurement/schematic/export/share workspace'i sunar. Cross-platform release paketleme sıradaki ürün kapısıdır.
+**ÖZETLE:** Kessetsu bir "çizim programı" değil, bir devre derleyicisi ve doğrulama altyapısıdır. Bugünkü ürün CLI'da agent-oriented compile/test/export geri bildirimi ve Web'de aynı Core'a bağlı compile/simulation/measurement/schematic/export/share workspace'i sunar. Cross-platform release paketleme sıradaki ürün kapısıdır.

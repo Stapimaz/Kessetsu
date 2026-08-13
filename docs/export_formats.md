@@ -1,8 +1,8 @@
 # Export Sözleşmesi ve Format Matrisi
 
-NetLang'in export katmanı Web'e veya CLI'a ait değildir. Bütün çıktılar typed Circuit IR'den üretilen ve bağlantısı doğrulanan `netlang.schematic.v1` üzerinden `netlang.export.v1` sözleşmesiyle hazırlanır. CLI ve Web yalnız bu ortak Core API'sini çağırır.
+Kessetsu'nun export katmanı Web'e veya CLI'a ait değildir. Bütün çıktılar typed Circuit IR'den üretilen ve bağlantısı doğrulanan `kessetsu.schematic.v1` üzerinden `kessetsu.export.v1` sözleşmesiyle hazırlanır. CLI ve Web yalnız bu ortak Core API'sini çağırır.
 
-Her artifact şu kanıtları taşır: exporter adı/sürümü, MIME ve uzantı, byte uzunluğu, SHA-256, `connectivity_verified`, capability alanları, warning listesi ve bilinen semantik kayıplar. Desteklenmeyen topoloji veya sembol sessizce yaklaşık çizilmez; `NL-Xxxx` diagnostic ile export durur.
+Her artifact şu kanıtları taşır: exporter adı/sürümü, MIME ve uzantı, byte uzunluğu, SHA-256, `connectivity_verified`, capability alanları, warning listesi ve bilinen semantik kayıplar. Desteklenmeyen topoloji veya sembol sessizce yaklaşık çizilmez; `KES-Xxxx` diagnostic ile export durur.
 
 ## İlk yayın formatları
 
@@ -11,10 +11,10 @@ Her artifact şu kanıtları taşır: exporter adı/sürümü, MIME ve uzantı, 
 | SVG | Ölçeklenebilir görsel, doküman ve Web | Evet | Hayır | Hayır | Semantic text, sabit `viewBox`, açık renk stili |
 | PNG | Sunum, rapor, hızlı paylaşım | Görsel izdüşüm | Hayır | Hayır | Pure-Rust canonical SVG raster; `0.25..8` scale, beyaz/transparan arka plan |
 | PDF | Baskı ve vektör doküman | Görsel izdüşüm | Hayır | Hayır | Tek sayfa, içerik sınırı, auto orientation, Schematic IR margin'i, deterministic vector glyphs; multi-page yok |
-| Schematic IR JSON | Kayıpsız makine alışverişi | Evet | Evet | Hayır | `netlang.schematic.v1`, deterministic pretty JSON |
+| Schematic IR JSON | Kayıpsız makine alışverişi | Evet | Evet | Hayır | `kessetsu.schematic.v1`, deterministic pretty JSON |
 | SPICE | Simülasyon ve otomasyon | Evet | Evet | Evet | Canonical Ngspice netlist |
 | KiCad `.kicad_sch` | Düzenlemeye devam etme | Evet | Metadata | Hayır | KiCad 10 parser/netlist/ERC smoke; portable embedded symbols symbol-table warning üretebilir |
-| LTspice `.asc` | Düzenleme ve LTspice simülasyonu | Evet | Evet | Evet | LTspice 24.1.9 gerçek `-netlist` smoke; assertions `.nl` kaynağında kalır |
+| LTspice `.asc` | Düzenleme ve LTspice simülasyonu | Evet | Evet | Evet | LTspice 24.1.9 gerçek `-netlist` smoke; assertions `.kess` kaynağında kalır |
 
 PDF politikası bilerek tek sayfadır: elektronik şema bölünerek basılırsa bağlantı takibi kötüleşir. Çok büyük şemada Core önce okunabilir Schematic IR üretmek zorundadır; exporter keyfî sayfa kırılımı icat etmez. İlk sürüm A4/Letter çerçevesi yerine canonical içerik boyutunda media box kullanır; böylece boş alan taşınmaz ve orientation içerikten doğal olarak çıkar.
 
@@ -36,7 +36,7 @@ KiCad modern s-expression şema formatını ve `.kicad_sch` uzantısını resmi 
 | Hedef | Karar | Gerekçe |
 |---|---|---|
 | Qucs-S `.sch` | Faz 5+ adapter adayı | Qucs-S şemayı proje girdisi olarak belgeliyor ancak bu sürümde kurulu hedef uygulamayla round-trip kanıtı yok: <https://qucs-s-help.readthedocs.io/en/latest/overview/understanding-file-structure.html> |
-| CircuitJS | Faz 5+ adapter adayı | Açık metin/URL devre aktarımı var; bileşen ve analog model semantiği NetLang kapsamıyla bire bir değil. Resmi kaynak: <https://github.com/sharpie7/circuitjs1> |
+| CircuitJS | Faz 5+ adapter adayı | Açık metin/URL devre aktarımı var; bileşen ve analog model semantiği Kessetsu kapsamıyla bire bir değil. Resmi kaynak: <https://github.com/sharpie7/circuitjs1> |
 | EasyEDA JSON | Faz 5+ adapter adayı | Format açık ve belgeli olsa da sıkıştırılmış primitive sözleşmesi/editör sürümü bakım maliyeti yüksek; gerçek import smoke olmadan destek ilan edilmiyor: <https://docs.easyeda.com/en/DocumentFormat/EasyEDA-Document-Format/> |
 | EDIF | İlk yayın dışında | Genel değişim standardı olsa da hedef uygulama ve analog schematic davranışı üzerinde doğrulanmış, düşük-kayıplı bir akış yok |
 
@@ -45,14 +45,14 @@ Bu kararlar format sayısını küçük tutmak için değil, “download düğme
 ## CLI
 
 ```powershell
-netlang render circuit.nl --output circuit.svg
-netlang render circuit.nl --output circuit.png --scale 3 --background transparent
-netlang render circuit.nl --output circuit.pdf
+kess render circuit.kess --output circuit.svg
+kess render circuit.kess --output circuit.png --scale 3 --background transparent
+kess render circuit.kess --output circuit.pdf
 
-netlang export circuit.nl --target schematic-json --output circuit.schematic.json
-netlang export circuit.nl --target spice --output circuit.spice
-netlang export circuit.nl --target kicad --output circuit.kicad_sch
-netlang export circuit.nl --target ltspice --output circuit.asc
+kess export circuit.kess --target schematic-json --output circuit.schematic.json
+kess export circuit.kess --target spice --output circuit.spice
+kess export circuit.kess --target kicad --output circuit.kicad_sch
+kess export circuit.kess --target ltspice --output circuit.asc
 ```
 
 Var olan hedefi değiştirmek için açıkça `--force` gerekir. Kaynak dosyanın üstüne yazma her durumda reddedilir. `--format json` kullanıldığında çıktı dosyasının kendisi stdout'a karıştırılmaz; agent yalnız structured artifact metadata ve diagnostics görür.

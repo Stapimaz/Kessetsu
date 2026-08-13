@@ -1,10 +1,10 @@
 mod common;
 
 use common::{normalize_text, read_fixture};
-use netlang_core::erc::check_rules;
-use netlang_core::graph::{NetlistGraph, generate_spice};
-use netlang_core::ir::ast_to_ir;
-use netlang_core::parse_program;
+use kessetsu_core::erc::check_rules;
+use kessetsu_core::graph::{NetlistGraph, generate_spice};
+use kessetsu_core::ir::ast_to_ir;
+use kessetsu_core::parse_program;
 use std::fs;
 use std::path::Path;
 
@@ -21,7 +21,7 @@ fn generate(source: &str) -> String {
 
 #[test]
 fn minimal_circuit_matches_canonical_spice_snapshot() {
-    let source = read_fixture("valid/minimal.nl");
+    let source = read_fixture("valid/minimal.kess");
     let actual = generate(&source);
     let expected = normalize_text(&read_fixture("golden/minimal.spice"));
     assert_eq!(actual, expected);
@@ -33,10 +33,10 @@ fn valid_repository_examples_match_canonical_spice_snapshots() {
         .join("..")
         .join("examples");
     let cases = [
-        ("demo_circuit.nl", "golden/demo_circuit.spice"),
-        ("wheatstone.nl", "golden/wheatstone.spice"),
-        ("test_features.nl", "golden/test_features.spice"),
-        ("test_nc.nl", "golden/test_nc.spice"),
+        ("demo_circuit.kess", "golden/demo_circuit.spice"),
+        ("wheatstone.kess", "golden/wheatstone.spice"),
+        ("test_features.kess", "golden/test_features.spice"),
+        ("test_nc.kess", "golden/test_nc.spice"),
     ];
 
     for (source_name, golden_name) in cases {

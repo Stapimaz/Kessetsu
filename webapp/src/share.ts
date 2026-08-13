@@ -1,10 +1,10 @@
 import type { ModelManifest } from './domain';
 
-export const SHARE_SCHEMA_VERSION = 'netlang.share.v1';
+export const SHARE_SCHEMA_VERSION = 'kessetsu.share.v1';
 export const MAX_SHARE_SOURCE_BYTES = 64 * 1024;
 export const MAX_SHARE_COMPRESSED_BYTES = 64 * 1024;
 const MAX_SHARE_ENVELOPE_BYTES = 96 * 1024;
-const PREFIX = '#netlang=1.';
+const PREFIX = '#kessetsu=1.';
 
 export interface SharePackage {
   name: string;
@@ -119,7 +119,7 @@ function migrateShareEnvelope(raw: unknown): ShareEnvelope {
 
 export async function decodeShareFragment(fragment: string, expectedCompileSchema: string): Promise<ShareEnvelope | null> {
   if (!fragment) return null;
-  if (!fragment.startsWith(PREFIX)) throw new Error('Unsupported NetLang share URL version');
+  if (!fragment.startsWith(PREFIX)) throw new Error('Unsupported Kessetsu share URL version');
   const encoded = fragment.slice(PREFIX.length);
   if (encoded.length > Math.ceil(MAX_SHARE_COMPRESSED_BYTES * 4 / 3)) {
     throw new Error('Share payload exceeds the compressed size limit');

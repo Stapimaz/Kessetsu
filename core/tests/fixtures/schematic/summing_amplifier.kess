@@ -10,7 +10,7 @@ source VP 12V
 source VN 12V
 source V1 sine(0V,100mV,1kHz)
 source V2 sine(0V,50mV,2kHz)
-opamp U1 NLANG_OPAMP_V1
+opamp U1 KESSETSU_OPAMP_V1
 resistor R1 10k
 resistor R2 20k
 resistor RF 47k

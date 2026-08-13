@@ -1,4 +1,4 @@
-* NetLang Generated SPICE Netlist
+* Kessetsu Generated SPICE Netlist
 C_Ce N_Ce_p1 0 1e-4
 C_Cin N_Cin_p1 N_Cin_p2 1e-5
 C_Cout N_Cout_p1 N_Cout_p2 1e-5
@@ -20,7 +20,7 @@ set wr_vecnames
 set numdgt=17
 save all @Q_Q1[ic]
 op
-wrdata netlang-analysis-000-op.data all
+wrdata kessetsu-analysis-000-op.data all
 print all
 quit
 .endc

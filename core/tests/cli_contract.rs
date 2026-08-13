@@ -1,12 +1,12 @@
 mod common;
 
 use common::{TestWorkspace, read_fixture};
-use netlang_core::compiler::{COMPILE_SCHEMA_VERSION, CompileOptions, compile_source};
+use kessetsu_core::compiler::{COMPILE_SCHEMA_VERSION, CompileOptions, compile_source};
 use serde_json::Value;
 use std::fs;
 use std::path::Path;
 
-const CLI_SCHEMA_VERSION: &str = "netlang.cli.v1";
+const CLI_SCHEMA_VERSION: &str = "kessetsu.cli.v1";
 
 fn path_argument(path: &std::path::Path) -> String {
     path.to_string_lossy().into_owned()
@@ -20,13 +20,13 @@ fn help_exposes_project_license_source_and_warranty_notice() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("AGPL-3.0-only"));
     assert!(stdout.contains("No warranty"));
-    assert!(stdout.contains("https://github.com/Stapimaz/NetLang"));
+    assert!(stdout.contains("https://github.com/Stapimaz/Kessetsu"));
 }
 
 #[test]
 fn check_supports_human_and_machine_readable_success() {
     let workspace = TestWorkspace::new("check-success");
-    let source = workspace.write("valid.nl", &read_fixture("valid/minimal.nl"));
+    let source = workspace.write("valid.kess", &read_fixture("valid/minimal.kess"));
     let source_arg = path_argument(&source);
 
     let human = workspace.run_cli(&["check", &source_arg]);
@@ -49,35 +49,35 @@ fn check_supports_human_and_machine_readable_success() {
 fn io_parse_and_erc_failures_use_documented_exit_codes() {
     let workspace = TestWorkspace::new("failure-codes");
 
-    let missing = workspace.path().join("missing.nl");
+    let missing = workspace.path().join("missing.kess");
     let missing_arg = path_argument(&missing);
     let io_error = workspace.run_cli(&["check", &missing_arg]);
     assert_eq!(io_error.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&io_error.stderr).contains("Could not read file"));
 
     let parse_source = workspace.write(
-        "parse-error.nl",
-        &read_fixture("invalid/parser/missing_value.nl"),
+        "parse-error.kess",
+        &read_fixture("invalid/parser/missing_value.kess"),
     );
     let parse_arg = path_argument(&parse_source);
     let parse_error = workspace.run_cli(&["check", &parse_arg]);
     assert_eq!(parse_error.status.code(), Some(2));
-    assert!(String::from_utf8_lossy(&parse_error.stderr).contains("NL-P001"));
+    assert!(String::from_utf8_lossy(&parse_error.stderr).contains("KES-P001"));
 
     let erc_source = workspace.write(
-        "erc-error.nl",
-        &read_fixture("invalid/semantic/floating_pin.nl"),
+        "erc-error.kess",
+        &read_fixture("invalid/semantic/floating_pin.kess"),
     );
     let erc_arg = path_argument(&erc_source);
     let erc_error = workspace.run_cli(&["check", &erc_arg]);
     assert_eq!(erc_error.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&erc_error.stderr).contains("NL-E003"));
+    assert!(String::from_utf8_lossy(&erc_error.stderr).contains("KES-E003"));
 }
 
 #[test]
 fn compile_writes_only_inside_its_isolated_workspace() {
     let workspace = TestWorkspace::new("compile-output");
-    let source = workspace.write("circuit.nl", &read_fixture("valid/minimal.nl"));
+    let source = workspace.write("circuit.kess", &read_fixture("valid/minimal.kess"));
     let source_arg = path_argument(&source);
 
     let output = workspace.run_cli(&["compile", &source_arg]);
@@ -99,18 +99,18 @@ fn cli_text_normalization_handles_crlf_native_and_json_paths() {
     let workspace = TestWorkspace::new("normalization");
     let native_root = workspace.path().to_string_lossy();
     let json_root = native_root.replace('\\', "\\\\");
-    let input = format!("{native_root}\\file.nl\r\n{json_root}\\\\file.spice\r\n");
+    let input = format!("{native_root}\\file.kess\r\n{json_root}\\\\file.spice\r\n");
 
     assert_eq!(
         workspace.normalize_cli_text(input.as_bytes()),
-        "<TEMP>/file.nl\n<TEMP>/file.spice\n"
+        "<TEMP>/file.kess\n<TEMP>/file.spice\n"
     );
 }
 
 #[test]
 fn format_is_a_true_global_option_before_or_after_the_subcommand() {
     let workspace = TestWorkspace::new("format-placement");
-    let source = workspace.write("valid.nl", &read_fixture("valid/minimal.nl"));
+    let source = workspace.write("valid.kess", &read_fixture("valid/minimal.kess"));
     let source_arg = path_argument(&source);
 
     let supported = workspace.run_cli(&["--format", "json", "check", &source_arg]);
@@ -127,8 +127,8 @@ fn format_is_a_true_global_option_before_or_after_the_subcommand() {
 fn json_parse_errors_do_not_mix_logs_into_stdout() {
     let workspace = TestWorkspace::new("json-error");
     let source = workspace.write(
-        "invalid.nl",
-        &read_fixture("invalid/parser/missing_parenthesis.nl"),
+        "invalid.kess",
+        &read_fixture("invalid/parser/missing_parenthesis.kess"),
     );
     let source_arg = path_argument(&source);
 
@@ -140,7 +140,7 @@ fn json_parse_errors_do_not_mix_logs_into_stdout() {
     assert_eq!(value["status"], "error");
     assert_eq!(value["schema_version"], CLI_SCHEMA_VERSION);
     assert_eq!(value["domain_versions"]["compile"], COMPILE_SCHEMA_VERSION);
-    assert_eq!(value["diagnostics"][0]["code"], "NL-P001");
+    assert_eq!(value["diagnostics"][0]["code"], "KES-P001");
     assert_eq!(value["diagnostics"][0]["stage"], "parse");
 }
 
@@ -148,8 +148,8 @@ fn json_parse_errors_do_not_mix_logs_into_stdout() {
 fn semantic_errors_are_structured_and_use_the_semantic_exit_code() {
     let workspace = TestWorkspace::new("semantic-error");
     let source = workspace.write(
-        "invalid.nl",
-        &read_fixture("invalid/semantic/invalid_value.nl"),
+        "invalid.kess",
+        &read_fixture("invalid/semantic/invalid_value.kess"),
     );
     let source_arg = path_argument(&source);
 
@@ -159,7 +159,7 @@ fn semantic_errors_are_structured_and_use_the_semantic_exit_code() {
     let value: Value =
         serde_json::from_slice(&output.stdout).expect("stdout must contain only valid JSON");
     assert_eq!(value["status"], "error");
-    assert_eq!(value["diagnostics"][0]["code"], "NL-C001");
+    assert_eq!(value["diagnostics"][0]["code"], "KES-C001");
     assert_eq!(value["diagnostics"][0]["component"], "R1");
     assert_eq!(value["diagnostics"][0]["pin"], Value::Null);
     assert_eq!(value["diagnostics"][0]["field"], "value");
@@ -168,8 +168,8 @@ fn semantic_errors_are_structured_and_use_the_semantic_exit_code() {
 #[test]
 fn invalid_analysis_fails_before_simulator_launch() {
     let workspace = TestWorkspace::new("analysis-error");
-    let source_text = read_fixture("valid/minimal.nl").replace("simulate op", "simulate noise");
-    let source = workspace.write("invalid-analysis.nl", &source_text);
+    let source_text = read_fixture("valid/minimal.kess").replace("simulate op", "simulate noise");
+    let source = workspace.write("invalid-analysis.kess", &source_text);
     let source_arg = path_argument(&source);
 
     let output = workspace.run_cli(&["simulate", &source_arg, "--format", "json"]);
@@ -178,7 +178,7 @@ fn invalid_analysis_fails_before_simulator_launch() {
     let value: Value =
         serde_json::from_slice(&output.stdout).expect("analysis error should be structured JSON");
     assert_eq!(value["status"], "error");
-    assert_eq!(value["diagnostics"][0]["code"], "NL-C009");
+    assert_eq!(value["diagnostics"][0]["code"], "KES-C009");
     assert_eq!(value["diagnostics"][0]["stage"], "semantic");
     assert!(!source.with_extension("spice").exists());
 }
@@ -186,8 +186,8 @@ fn invalid_analysis_fails_before_simulator_launch() {
 #[test]
 fn compile_debug_json_matches_the_canonical_library_report() {
     let workspace = TestWorkspace::new("canonical-report");
-    let source_text = read_fixture("valid/minimal.nl");
-    let source = workspace.write("circuit.nl", &source_text);
+    let source_text = read_fixture("valid/minimal.kess");
+    let source = workspace.write("circuit.kess", &source_text);
     let source_arg = path_argument(&source);
 
     let output = workspace.run_cli(&[
@@ -231,7 +231,7 @@ fn compile_debug_json_matches_the_canonical_library_report() {
 #[test]
 fn default_json_is_compact_and_verbose_fields_are_explicitly_opt_in() {
     let workspace = TestWorkspace::new("compact-json");
-    let source = workspace.write("circuit.nl", &read_fixture("valid/minimal.nl"));
+    let source = workspace.write("circuit.kess", &read_fixture("valid/minimal.kess"));
     let source_arg = path_argument(&source);
 
     let output = workspace.run_cli(&["compile", &source_arg, "--format", "json"]);
@@ -249,7 +249,7 @@ fn default_json_is_compact_and_verbose_fields_are_explicitly_opt_in() {
 #[test]
 fn unknown_cli_schema_fails_closed_before_creating_output() {
     let workspace = TestWorkspace::new("unknown-schema");
-    let source = workspace.write("circuit.nl", &read_fixture("valid/minimal.nl"));
+    let source = workspace.write("circuit.kess", &read_fixture("valid/minimal.kess"));
     let source_arg = path_argument(&source);
 
     let output = workspace.run_cli(&[
@@ -258,20 +258,20 @@ fn unknown_cli_schema_fails_closed_before_creating_output() {
         "--format",
         "json",
         "--schema-version",
-        "netlang.cli.v999",
+        "kessetsu.cli.v999",
     ]);
     assert_eq!(output.status.code(), Some(2));
     assert!(output.stderr.is_empty());
     assert!(!source.with_extension("spice").exists());
     let value: Value = serde_json::from_slice(&output.stdout).expect("schema error should parse");
     assert_eq!(value["schema_version"], CLI_SCHEMA_VERSION);
-    assert_eq!(value["diagnostics"][0]["code"], "NL-F002");
+    assert_eq!(value["diagnostics"][0]["code"], "KES-F002");
 }
 
 #[test]
 fn output_policy_requires_force_and_never_overwrites_the_source() {
     let workspace = TestWorkspace::new("overwrite-policy");
-    let source = workspace.write("circuit.nl", &read_fixture("valid/minimal.nl"));
+    let source = workspace.write("circuit.kess", &read_fixture("valid/minimal.kess"));
     let source_arg = path_argument(&source);
 
     let first = workspace.run_cli(&["compile", &source_arg]);
@@ -281,7 +281,7 @@ fn output_policy_requires_force_and_never_overwrites_the_source() {
     assert_eq!(refused.status.code(), Some(2));
     let refused_json: Value =
         serde_json::from_slice(&refused.stdout).expect("refusal should be structured JSON");
-    assert_eq!(refused_json["diagnostics"][0]["code"], "NL-I003");
+    assert_eq!(refused_json["diagnostics"][0]["code"], "KES-I003");
     assert_eq!(refused_json["spice_netlist"], Value::Null);
 
     let forced = workspace.run_cli(&["compile", &source_arg, "--force"]);
@@ -300,7 +300,7 @@ fn output_policy_requires_force_and_never_overwrites_the_source() {
 #[test]
 fn render_and_export_emit_versioned_artifacts_with_safe_overwrite() {
     let workspace = TestWorkspace::new("render-export");
-    let source = workspace.write("circuit.nl", &read_fixture("valid/minimal.nl"));
+    let source = workspace.write("circuit.kess", &read_fixture("valid/minimal.kess"));
     let source_arg = path_argument(&source);
     let png = workspace.path().join("circuit.png");
     let png_arg = path_argument(&png);
@@ -313,7 +313,7 @@ fn render_and_export_emit_versioned_artifacts_with_safe_overwrite() {
     let refused = workspace.run_cli(&["render", &source_arg, "-o", &png_arg, "--format", "json"]);
     assert_eq!(refused.status.code(), Some(2));
     let refused: Value = serde_json::from_slice(&refused.stdout).unwrap();
-    assert_eq!(refused["diagnostics"][0]["code"], "NL-I003");
+    assert_eq!(refused["diagnostics"][0]["code"], "KES-I003");
 
     let kicad = workspace.path().join("circuit.kicad_sch");
     let kicad_arg = path_argument(&kicad);
@@ -330,8 +330,11 @@ fn render_and_export_emit_versioned_artifacts_with_safe_overwrite() {
     assert_eq!(json.status.code(), Some(0));
     assert!(json.stderr.is_empty());
     let value: Value = serde_json::from_slice(&json.stdout).expect("stdout should be JSON only");
-    assert_eq!(value["domain_versions"]["export"], "netlang.export.v1");
-    assert_eq!(value["artifacts"][0]["schema_version"], "netlang.export.v1");
+    assert_eq!(value["domain_versions"]["export"], "kessetsu.export.v1");
+    assert_eq!(
+        value["artifacts"][0]["schema_version"],
+        "kessetsu.export.v1"
+    );
     assert_eq!(value["artifacts"][0]["connectivity_verified"], true);
     assert_eq!(value["artifacts"][0]["sha256"].as_str().unwrap().len(), 64);
 }
@@ -339,14 +342,14 @@ fn render_and_export_emit_versioned_artifacts_with_safe_overwrite() {
 #[test]
 fn simulator_process_status_and_json_status_cannot_disagree() {
     let workspace = TestWorkspace::new("simulator-status");
-    let source = workspace.write("circuit.nl", &read_fixture("valid/minimal.nl"));
+    let source = workspace.write("circuit.kess", &read_fixture("valid/minimal.kess"));
     let source_arg = path_argument(&source);
     let success_simulator =
         workspace.write_fake_simulator("success-simulator", "No. of Data Rows : 1", "", 0);
 
     let success = workspace.run_cli_with_env(
         &["simulate", &source_arg, "--format", "json"],
-        "NETLANG_NGSPICE",
+        "KESSETSU_NGSPICE",
         &success_simulator,
     );
     assert_eq!(
@@ -361,7 +364,7 @@ fn simulator_process_status_and_json_status_cannot_disagree() {
     assert_eq!(success_json["status"], "success");
     assert_eq!(
         success_json["domain_versions"]["simulation"],
-        "netlang.simulation.v1"
+        "kessetsu.simulation.v1"
     );
     assert_eq!(success_json["summary"]["analyses"], 1);
     assert!(success_json.get("debug").is_none());
@@ -376,7 +379,7 @@ fn simulator_process_status_and_json_status_cannot_disagree() {
             "--include",
             "datasets,raw-log",
         ],
-        "NETLANG_NGSPICE",
+        "KESSETSU_NGSPICE",
         &success_simulator,
     );
     assert_eq!(verbose.status.code(), Some(0));
@@ -391,7 +394,7 @@ fn simulator_process_status_and_json_status_cannot_disagree() {
 
     let human = workspace.run_cli_with_env(
         &["simulate", &source_arg, "--force"],
-        "NETLANG_NGSPICE",
+        "KESSETSU_NGSPICE",
         &success_simulator,
     );
     assert_eq!(human.status.code(), Some(0));
@@ -404,7 +407,7 @@ fn simulator_process_status_and_json_status_cannot_disagree() {
         workspace.write_fake_simulator("failing-simulator", "", "Fatal error: singular matrix", 9);
     let failure = workspace.run_cli_with_env(
         &["simulate", &source_arg, "--format", "json", "--force"],
-        "NETLANG_NGSPICE",
+        "KESSETSU_NGSPICE",
         &failing_simulator,
     );
     assert_eq!(failure.status.code(), Some(3));
@@ -412,7 +415,7 @@ fn simulator_process_status_and_json_status_cannot_disagree() {
     let failure_json: Value =
         serde_json::from_slice(&failure.stdout).expect("failure stdout should be JSON only");
     assert_eq!(failure_json["status"], "simulation_error");
-    assert_eq!(failure_json["diagnostics"][0]["code"], "NL-S002");
+    assert_eq!(failure_json["diagnostics"][0]["code"], "KES-S002");
 }
 
 #[test]
@@ -420,9 +423,9 @@ fn failed_assertion_has_structured_result_and_exit_code_four() {
     let workspace = TestWorkspace::new("assertion-status");
     let source_text = format!(
         "{}assert peak(I(V1)) < 100mA\n",
-        read_fixture("valid/minimal.nl")
+        read_fixture("valid/minimal.kess")
     );
-    let source = workspace.write("circuit.nl", &source_text);
+    let source = workspace.write("circuit.kess", &source_text);
     let source_arg = path_argument(&source);
     let simulator = workspace.write_fake_simulator(
         "measurement-simulator",
@@ -433,7 +436,7 @@ fn failed_assertion_has_structured_result_and_exit_code_four() {
 
     let output = workspace.run_cli_with_env(
         &["test", &source_arg, "--format", "json"],
-        "NETLANG_NGSPICE",
+        "KESSETSU_NGSPICE",
         &simulator,
     );
     assert_eq!(
@@ -448,9 +451,9 @@ fn failed_assertion_has_structured_result_and_exit_code_four() {
     assert_eq!(value["status"], "test_failed");
     assert_eq!(
         value["assertions"]["schema_version"],
-        "netlang.assertion.v1"
+        "kessetsu.assertion.v1"
     );
-    assert_eq!(value["assertions"]["assertions"][0]["code"], "NL-T001");
+    assert_eq!(value["assertions"]["assertions"][0]["code"], "KES-T001");
     assert_eq!(value["assertions"]["assertions"][0]["status"], "FAIL");
     assert_eq!(value["assertions"]["assertions"][0]["actual"], 0.2);
     assert_eq!(value["assertions"]["summary"]["failed"], 1);
@@ -462,10 +465,10 @@ fn every_repository_example_has_an_explicit_cli_check_and_compile_outcome() {
     let examples = Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples");
 
     for name in [
-        "demo_circuit.nl",
-        "test_features.nl",
-        "test_nc.nl",
-        "wheatstone.nl",
+        "demo_circuit.kess",
+        "test_features.kess",
+        "test_nc.kess",
+        "wheatstone.kess",
     ] {
         let source = examples.join(name);
         let source_arg = path_argument(&source);
@@ -486,7 +489,7 @@ fn every_repository_example_has_an_explicit_cli_check_and_compile_outcome() {
         assert!(output_path.is_file(), "missing SPICE output for {name}");
     }
 
-    let intentionally_invalid = examples.join("test_amp.nl");
+    let intentionally_invalid = examples.join("test_amp.kess");
     let invalid_arg = path_argument(&intentionally_invalid);
     let output = workspace.run_cli(&["check", &invalid_arg, "--format", "json"]);
     assert_eq!(output.status.code(), Some(1));
@@ -497,6 +500,6 @@ fn every_repository_example_has_an_explicit_cli_check_and_compile_outcome() {
             .as_array()
             .expect("diagnostics should be an array")
             .iter()
-            .any(|diagnostic| diagnostic["code"] == "NL-E003")
+            .any(|diagnostic| diagnostic["code"] == "KES-E003")
     );
 }

@@ -1,11 +1,11 @@
-use netlang_core::compiler::{CompileOptions, compile_source};
-use netlang_core::exporter::{
+use kessetsu_core::compiler::{CompileOptions, compile_source};
+use kessetsu_core::exporter::{
     EXPORT_SCHEMA_VERSION, ExportFormat, ExportOptions, RenderBackground, export_capabilities,
     export_report,
 };
 
-fn compile_fixture() -> netlang_core::compiler::CompileReport {
-    let source = include_str!("fixtures/benchmarks/rc_filter.nl");
+fn compile_fixture() -> kessetsu_core::compiler::CompileReport {
+    let source = include_str!("fixtures/benchmarks/rc_filter.kess");
     let report = compile_source(source, CompileOptions::all_outputs());
     assert!(!report.has_errors(), "{:?}", report.diagnostics);
     report
@@ -44,7 +44,7 @@ fn visual_and_eda_payloads_have_real_format_signatures() {
     );
     let json: serde_json::Value =
         serde_json::from_slice(&export(ExportFormat::SchematicJson).bytes).unwrap();
-    assert_eq!(json["schema_version"], "netlang.schematic.v1");
+    assert_eq!(json["schema_version"], "kessetsu.schematic.v1");
 }
 
 #[test]
@@ -79,17 +79,17 @@ fn png_options_are_explicit_and_invalid_scale_fails_closed() {
         },
     )
     .unwrap_err();
-    assert_eq!(error.code, "NL-X004");
+    assert_eq!(error.code, "KES-X004");
 }
 
 #[test]
 fn editable_exports_cover_the_complete_canonical_benchmark_corpus() {
     for (name, source) in [
-        ("rc", include_str!("fixtures/benchmarks/rc_filter.nl")),
-        ("gain", include_str!("fixtures/benchmarks/gain_stage.nl")),
+        ("rc", include_str!("fixtures/benchmarks/rc_filter.kess")),
+        ("gain", include_str!("fixtures/benchmarks/gain_stage.kess")),
         (
             "power",
-            include_str!("fixtures/benchmarks/power_amplifier.nl"),
+            include_str!("fixtures/benchmarks/power_amplifier.kess"),
         ),
     ] {
         let report = compile_source(source, CompileOptions::all_outputs());
@@ -114,14 +114,14 @@ fn editable_exports_cover_the_complete_canonical_benchmark_corpus() {
 fn unsupported_symbol_and_unverified_connectivity_fail_closed() {
     let mut report = compile_fixture();
     report.schematic.as_mut().unwrap().components[0].symbol =
-        netlang_core::component::CatalogSymbol::ModulePort;
+        kessetsu_core::component::CatalogSymbol::ModulePort;
     let unsupported =
         export_report(&report, ExportFormat::Ltspice, ExportOptions::default()).unwrap_err();
-    assert_eq!(unsupported.code, "NL-X013");
+    assert_eq!(unsupported.code, "KES-X013");
 
     let mut report = compile_fixture();
     report.schematic.as_mut().unwrap().connectivity.verified = false;
     let unverified =
         export_report(&report, ExportFormat::Kicad, ExportOptions::default()).unwrap_err();
-    assert_eq!(unverified.code, "NL-X003");
+    assert_eq!(unverified.code, "KES-X003");
 }

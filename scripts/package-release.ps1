@@ -16,11 +16,11 @@ if (-not $outputRoot.StartsWith($repoFull, [System.StringComparison]::OrdinalIgn
 }
 
 $isWindowsTarget = $Target -eq "windows-x86_64"
-$binaryName = if ($isWindowsTarget) { "netlang.exe" } else { "netlang" }
+$binaryName = if ($isWindowsTarget) { "kess.exe" } else { "kess" }
 $binary = Join-Path $repoRoot "core/target/release/$binaryName"
 if (-not (Test-Path -LiteralPath $binary -PathType Leaf)) { throw "Release binary is missing: $binary" }
 
-$bundleName = "netlang-v$Version-$Target"
+$bundleName = "kessetsu-v$Version-$Target"
 $stage = Join-Path $outputRoot $bundleName
 if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
 New-Item -ItemType Directory -Path $stage -Force | Out-Null
@@ -36,8 +36,8 @@ Copy-Item -LiteralPath (Join-Path $repoRoot "core/assets/fonts/RobotoMono-OFL.tx
 $cargoMetadata = (& cargo metadata --manifest-path (Join-Path $repoRoot "core/Cargo.toml") --format-version 1 --locked | Out-String) | ConvertFrom-Json
 if ($LASTEXITCODE -ne 0) { throw "cargo metadata failed while producing license inventory" }
 $rustLicenses = [ordered]@{
-    schema_version = "netlang.rust-licenses.v1"
-    packages = @($cargoMetadata.packages | Where-Object { $_.name -ne "netlang-core" } | Sort-Object name, version | ForEach-Object {
+    schema_version = "kessetsu.rust-licenses.v1"
+    packages = @($cargoMetadata.packages | Where-Object { $_.name -ne "kessetsu-core" } | Sort-Object name, version | ForEach-Object {
         [ordered]@{ name = $_.name; version = $_.version; license = $_.license; repository = $_.repository }
     })
 }
@@ -53,14 +53,14 @@ if ($isWindowsTarget) {
 
 $binaryHash = (Get-FileHash -LiteralPath (Join-Path $stage $binaryName) -Algorithm SHA256).Hash.ToLowerInvariant()
 $manifest = [ordered]@{
-    schema_version = "netlang.release.v1"
+    schema_version = "kessetsu.release.v1"
     version = $Version
     target = $Target
     executable = $binaryName
     executable_sha256 = $binaryHash
     simulator = [ordered]@{
         policy = $simulatorPolicy
-        override = "NETLANG_NGSPICE"
+        override = "KESSETSU_NGSPICE"
         version_probe = "ngspice -v"
     }
     generated_from = if ($env:GITHUB_SHA) { $env:GITHUB_SHA } else { (& git -C $repoRoot rev-parse HEAD).Trim() }
@@ -69,20 +69,20 @@ $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $stage
 
 $install = if ($isWindowsTarget) {
 @"
-NetLang $Version / $Target
+Kessetsu $Version / $Target
 
-Run: .\netlang.exe --version
+Run: .\kess.exe --version
 Simulation runtime: bundled tools\ngspice\bin\ngspice_con.exe (Ngspice 46).
 The full upstream license inventory is under tools\ngspice\docs.
-Override only with a trusted executable: `$env:NETLANG_NGSPICE='C:\full\path\ngspice_con.exe'
+Override only with a trusted executable: `$env:KESSETSU_NGSPICE='C:\full\path\ngspice_con.exe'
 "@
 } else {
 @"
-NetLang $Version / $Target
+Kessetsu $Version / $Target
 
-Run: ./netlang --version
+Run: ./kess --version
 Install Ngspice from the operating-system package manager, then verify: ngspice -v
-NetLang discovers `ngspice` on PATH. Override only with a trusted full path via NETLANG_NGSPICE.
+Kessetsu discovers `ngspice` on PATH. Override only with a trusted full path via KESSETSU_NGSPICE.
 The simulator executable and reported version are included in each simulation result.
 "@
 }

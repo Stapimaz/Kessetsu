@@ -83,7 +83,7 @@ $releaseTarget = if ($env:OS -eq 'Windows_NT' -and $architecture -eq 'X64') {
 }
 Invoke-NativeStep 'Package host release artifact' { & (Join-Path $repoRoot 'scripts/package-release.ps1') -Target $releaseTarget -Version '0.1.0' }
 $releaseArchive = Get-ChildItem (Join-Path $repoRoot 'release-artifacts') -File |
-    Where-Object { $_.Name -like "netlang-v0.1.0-$releaseTarget.*" -and $_.Name -notlike '*.sha256' } |
+    Where-Object { $_.Name -like "kessetsu-v0.1.0-$releaseTarget.*" -and $_.Name -notlike '*.sha256' } |
     Select-Object -First 1 -ExpandProperty FullName
 Invoke-NativeStep 'Clean release artifact simulation smoke' { & (Join-Path $repoRoot 'scripts/smoke-release.ps1') -Archive $releaseArchive }
 if ($env:OS -eq 'Windows_NT') {

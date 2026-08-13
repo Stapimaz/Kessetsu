@@ -1,4 +1,4 @@
-* NetLang Generated SPICE Netlist
+* Kessetsu Generated SPICE Netlist
 C_C1 N_C1_p1 my_signal 1e-4
 I_I1 my_power 0 SINE(0 0.005 10000)
 Q_Q1 N_Q1_c N_C1_p1 my_power 2N3906
@@ -17,7 +17,7 @@ set wr_vecnames
 set numdgt=17
 save all @Q_Q1[ic] @Q_Q2[ic]
 tran 1e-6 0.01
-wrdata netlang-analysis-000-tran.data all
+wrdata kessetsu-analysis-000-tran.data all
 meas tran max_v_my_signal MAX V(my_signal)
 meas tran peak_pos_i_v1 MAX I(V_V1)
 meas tran peak_neg_i_v1 MIN I(V_V1)

@@ -1,9 +1,9 @@
-use netlang_core::ast::Statement;
-use netlang_core::ir::{
+use kessetsu_core::ast::Statement;
+use kessetsu_core::ir::{
     AcScale, Analysis, BJTPolarity, ComponentKind, ComponentParams, SIUnit, SourceValue, Waveform,
     ast_to_ir, parse_quantity, parse_si_value, parse_waveform, resolve_model,
 };
-use netlang_core::parse_program;
+use kessetsu_core::parse_program;
 
 fn assert_approx_eq(actual: f64, expected: f64) {
     let tolerance = f64::max(expected.abs() * 1e-12, 1e-15);
@@ -66,15 +66,15 @@ fn builtin_model_resolution_covers_supported_polarities() {
     for (name, expected_kind) in [
         (
             "2N3904",
-            ComponentKind::BJT(netlang_core::ir::BJTPolarity::NPN),
+            ComponentKind::BJT(kessetsu_core::ir::BJTPolarity::NPN),
         ),
         (
             "2N3906",
-            ComponentKind::BJT(netlang_core::ir::BJTPolarity::PNP),
+            ComponentKind::BJT(kessetsu_core::ir::BJTPolarity::PNP),
         ),
         (
             "IRF540",
-            ComponentKind::MOSFET(netlang_core::ir::FETPolarity::NMOS),
+            ComponentKind::MOSFET(kessetsu_core::ir::FETPolarity::NMOS),
         ),
         ("1N4148", ComponentKind::Diode),
     ] {
@@ -125,7 +125,7 @@ fn malformed_numbers_and_trailing_text_are_rejected() {
 
 #[test]
 fn every_assertion_comparator_reaches_typed_ir() {
-    use netlang_core::ast::Cmp;
+    use kessetsu_core::ast::Cmp;
 
     let cases = [
         ("<", Cmp::Lt),
@@ -164,7 +164,7 @@ fn invalid_or_missing_component_values_fail_ir_conversion() {
         let program = parse_program(source).expect("syntax should parse");
         let diagnostic = ast_to_ir(&program).expect_err("invalid value reached typed IR");
         assert_eq!(
-            diagnostic.code, "NL-C001",
+            diagnostic.code, "KES-C001",
             "unexpected error for {source:?}"
         );
     }
@@ -184,7 +184,7 @@ fn waveform_arity_and_units_are_validated() {
         let program = parse_program(source).expect("syntax should parse");
         let diagnostic = ast_to_ir(&program).expect_err("invalid waveform reached typed IR");
         assert_eq!(
-            diagnostic.code, "NL-C002",
+            diagnostic.code, "KES-C002",
             "unexpected error for {source:?}"
         );
     }
@@ -227,7 +227,7 @@ fn assertion_threshold_dimension_matches_signal_dimension() {
         let program = parse_program(source).expect("syntax should parse");
         let diagnostic = ast_to_ir(&program).expect_err("invalid assertion reached typed IR");
         assert_eq!(
-            diagnostic.code, "NL-C006",
+            diagnostic.code, "KES-C006",
             "unexpected error for {source:?}"
         );
     }
@@ -262,7 +262,7 @@ fn builtin_model_defaults_are_explicit_in_typed_ir() {
         ("transistor Q1 pnp\n", "2N3906"),
         ("mosfet M1\n", "IRF540"),
         ("diode D1\n", "1N4148"),
-        ("opamp U1\n", "NLANG_OPAMP_V1"),
+        ("opamp U1\n", "KESSETSU_OPAMP_V1"),
     ] {
         let program = parse_program(source).expect("component should parse");
         let circuit = ast_to_ir(&program).expect("builtin default should resolve");
@@ -277,14 +277,14 @@ fn builtin_model_defaults_are_explicit_in_typed_ir() {
 #[test]
 fn unsupported_and_incompatible_models_fail_closed_with_codes() {
     for (source, expected_code) in [
-        ("transistor Q1 NOT_A_MODEL\n", "NL-C003"),
-        ("mosfet M1 NOT_A_MODEL\n", "NL-C003"),
-        ("diode D1 NOT_A_MODEL\n", "NL-C003"),
-        ("opamp U1 LM358\n", "NL-C003"),
-        ("transistor Q1 1N4148\n", "NL-C004"),
-        ("transistor Q1 pnp 2N3904\n", "NL-C004"),
-        ("diode D1 2N3904\n", "NL-C004"),
-        ("mosfet M1 1N4148\n", "NL-C004"),
+        ("transistor Q1 NOT_A_MODEL\n", "KES-C003"),
+        ("mosfet M1 NOT_A_MODEL\n", "KES-C003"),
+        ("diode D1 NOT_A_MODEL\n", "KES-C003"),
+        ("opamp U1 LM358\n", "KES-C003"),
+        ("transistor Q1 1N4148\n", "KES-C004"),
+        ("transistor Q1 pnp 2N3904\n", "KES-C004"),
+        ("diode D1 2N3904\n", "KES-C004"),
+        ("mosfet M1 1N4148\n", "KES-C004"),
     ] {
         let program = parse_program(source).expect("component syntax should parse");
         let diagnostic = ast_to_ir(&program).expect_err("invalid model reached typed IR");
@@ -298,7 +298,7 @@ fn unsupported_and_incompatible_models_fail_closed_with_codes() {
 
 #[test]
 fn flattened_module_ports_use_an_explicit_parameter_variant() {
-    let source = include_str!("fixtures/valid/module.nl");
+    let source = include_str!("fixtures/valid/module.kess");
     let program = parse_program(source)
         .expect("module fixture should parse")
         .flatten()
@@ -315,7 +315,7 @@ fn semantic_diagnostics_are_serializable_for_cli_and_wasm() {
     let program = parse_program("diode D1 UNKNOWN\n").expect("syntax should parse");
     let diagnostic = ast_to_ir(&program).expect_err("unknown model should fail");
     let json = serde_json::to_value(&diagnostic).expect("diagnostic should serialize");
-    assert_eq!(json["code"], "NL-C003");
+    assert_eq!(json["code"], "KES-C003");
     assert_eq!(json["component"], "D1");
     assert_eq!(json["field"], "model");
 }
@@ -370,7 +370,7 @@ fn unsupported_or_malformed_analyses_fail_closed() {
         let program = parse_program(source).expect("analysis syntax should parse");
         let diagnostic = ast_to_ir(&program).expect_err("invalid analysis reached typed IR");
         assert_eq!(
-            diagnostic.code, "NL-C009",
+            diagnostic.code, "KES-C009",
             "unexpected error for {source:?}"
         );
         assert_eq!(diagnostic.field.as_deref(), Some("analysis"));

@@ -24,11 +24,11 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
     let mut errors = Vec::new();
     let mut declared = HashSet::new();
 
-    // 1. Duplicate declaration check (NL-E001)
+    // 1. Duplicate declaration check (KES-E001)
     for comp in &circuit.components {
         if !declared.insert(comp.id.clone()) {
             errors.push(ErcDiagnostic {
-                code: "NL-E001".to_string(),
+                code: "KES-E001".to_string(),
                 severity: Severity::Error,
                 message: format!("Duplicate component declaration: {}", comp.id),
                 component: Some(comp.id.clone()),
@@ -41,7 +41,7 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
     for net in &circuit.nets {
         if !declared_nets.insert(net) {
             errors.push(ErcDiagnostic {
-                code: "NL-E009".to_string(),
+                code: "KES-E009".to_string(),
                 severity: Severity::Error,
                 message: format!("Duplicate net declaration: {net}"),
                 component: None,
@@ -50,7 +50,7 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
         }
         if declared.contains(net) {
             errors.push(ErcDiagnostic {
-                code: "NL-E006".to_string(),
+                code: "KES-E006".to_string(),
                 severity: Severity::Error,
                 message: format!(
                     "Namespace collision: '{net}' is declared as both a component and a net."
@@ -61,12 +61,12 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
         }
     }
 
-    // 2. Undefined component check (NL-E002)
+    // 2. Undefined component check (KES-E002)
     for conn in &circuit.connections {
         for p in &conn.pins {
             if !p.component.is_empty() && !declared.contains(&p.component) {
                 errors.push(ErcDiagnostic {
-                    code: "NL-E002".to_string(),
+                    code: "KES-E002".to_string(),
                     severity: Severity::Error,
                     message: format!("Connection refers to undeclared component: {}", p.component),
                     component: Some(p.component.clone()),
@@ -76,7 +76,7 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
         }
     }
 
-    // 3. Invalid component pin check (NL-E005). Module ports are dynamic until
+    // 3. Invalid component pin check (KES-E005). Module ports are dynamic until
     // module interface pins are carried into IR.
     for conn in &circuit.connections {
         for pin in &conn.pins {
@@ -90,7 +90,7 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
                 && !is_valid_pin(&component.kind, &pin.pin)
             {
                 errors.push(ErcDiagnostic {
-                    code: "NL-E005".to_string(),
+                    code: "KES-E005".to_string(),
                     severity: Severity::Error,
                     message: format!(
                         "Invalid pin reference: {}.{} does not exist.",
@@ -103,12 +103,12 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
         }
     }
 
-    // 4. Floating Pin Check (NL-E003)
+    // 4. Floating Pin Check (KES-E003)
     for comp in &circuit.components {
         for pin in component_definition(&comp.kind).pins {
             if graph.get_net(&comp.id, pin.name).is_none() {
                 errors.push(ErcDiagnostic {
-                    code: "NL-E003".to_string(),
+                    code: "KES-E003".to_string(),
                     severity: Severity::Error,
                     message: format!(
                         "Floating Pin: {}.{} is not connected to anything.",
@@ -121,7 +121,7 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
         }
     }
 
-    // 5. Short Circuit Check (Direct short across a power source) (NL-E004)
+    // 5. Short Circuit Check (Direct short across a power source) (KES-E004)
     for comp in &circuit.components {
         if comp.kind == ComponentKind::VoltageSource {
             let net1 = graph.get_net(&comp.id, "plus");
@@ -129,7 +129,7 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
 
             if net1.is_some() && net1 == net2 {
                 errors.push(ErcDiagnostic {
-                    code: "NL-E004".to_string(),
+                    code: "KES-E004".to_string(),
                     severity: Severity::Error,
                     message: format!(
                         "CRITICAL SHORT CIRCUIT: Source {} plus and minus are connected together!",
@@ -142,10 +142,10 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
         }
     }
 
-    // 6. A physical net may have at most one user-facing name (NL-E007).
+    // 6. A physical net may have at most one user-facing name (KES-E007).
     for conflict in &graph.net_name_conflicts {
         errors.push(ErcDiagnostic {
-            code: "NL-E007".to_string(),
+            code: "KES-E007".to_string(),
             severity: Severity::Error,
             message: format!(
                 "Conflicting user net names refer to the same physical net: {}.",
@@ -157,10 +157,10 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
     }
 
     // 7. Ground selection remains deterministic for diagnostics, but ambiguity
-    // is an error until the source explicitly names a single GND net (NL-E008).
+    // is an error until the source explicitly names a single GND net (KES-E008).
     if graph.ground_candidates.len() > 1 {
         errors.push(ErcDiagnostic {
-            code: "NL-E008".to_string(),
+            code: "KES-E008".to_string(),
             severity: Severity::Error,
             message: format!(
                 "Ambiguous {} ground candidates: {}. Connect the intended reference to a single explicit 'net GND'.",

@@ -1,4 +1,4 @@
-* NetLang structured OP fixture
+* Kessetsu structured OP fixture
 V_INPUT in 0 5
 R_TOP in out 1k
 R_BOTTOM out 0 1k
@@ -7,7 +7,7 @@ R_BOTTOM out 0 1k
 set wr_singlescale
 set wr_vecnames
 op
-wrdata netlang-analysis-000-op.data all
+wrdata kessetsu-analysis-000-op.data all
 quit
 .endc
 .end

@@ -8,7 +8,7 @@ net OUT
 source VP 12V
 source VN 12V
 source VIN sine_ac(0V,500mV,1kHz,1V)
-opamp U1 NLANG_OPAMP_V1
+opamp U1 KESSETSU_OPAMP_V1
 resistor RF 9k
 resistor RG 1k
 resistor RL 10k

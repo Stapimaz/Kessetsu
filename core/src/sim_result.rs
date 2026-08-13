@@ -3,7 +3,7 @@ use crate::ir::{Assertion, CircuitIR, SIUnit};
 use crate::simulation::SimulationResult;
 use serde::{Deserialize, Serialize};
 
-pub const ASSERTION_SCHEMA_VERSION: &str = "netlang.assertion.v1";
+pub const ASSERTION_SCHEMA_VERSION: &str = "kessetsu.assertion.v1";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -115,7 +115,7 @@ fn evaluate_one(
     simulation: &SimulationResult,
     tolerance: TolerancePolicy,
 ) -> AssertionResult {
-    let code = format!("NL-T{:03}", index + 1);
+    let code = format!("KES-T{:03}", index + 1);
     let comparator = comparator_text(&assertion.cmp).to_string();
     let base = |status, actual, message| AssertionResult {
         code: code.clone(),

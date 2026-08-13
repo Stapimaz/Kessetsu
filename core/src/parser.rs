@@ -2,8 +2,8 @@ use crate::ast::*;
 use pest::Parser;
 
 #[derive(Parser)]
-#[grammar = "netlang.pest"]
-pub struct NetlangParser;
+#[grammar = "kessetsu.pest"]
+pub struct KessetsuParser;
 
 pub fn parse_program(input: &str) -> Result<Program, pest::error::Error<Rule>> {
     let mut modules = Vec::new();
@@ -12,7 +12,7 @@ pub fn parse_program(input: &str) -> Result<Program, pest::error::Error<Rule>> {
     let mut subcircuits = Vec::new();
     let mut main_statements = Vec::new();
 
-    let pairs = NetlangParser::parse(Rule::program, input)?;
+    let pairs = KessetsuParser::parse(Rule::program, input)?;
 
     for pair in pairs {
         if pair.as_rule() == Rule::program {

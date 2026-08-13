@@ -107,7 +107,7 @@ function simulatorVersion(info: string, results: EngineResult[]): string {
 }
 
 async function runPlan(id: number, plan: BrowserSimulationPlan, includeRawLog: boolean) {
-  if (plan.schema_version !== 'netlang.simulation.v1') {
+  if (plan.schema_version !== 'kessetsu.simulation.v1') {
     throw new Error(`Unsupported simulation plan schema: ${plan.schema_version}`);
   }
   send({ type: 'progress', id, completed: 0, total: plan.analyses.length, message: 'Simulator indiriliyor' });
@@ -145,7 +145,7 @@ async function runPlan(id: number, plan: BrowserSimulationPlan, includeRawLog: b
   }
 
   const result: SimulationResult = {
-    schema_version: 'netlang.simulation.v1',
+    schema_version: 'kessetsu.simulation.v1',
     status: 'succeeded',
     analyses: plan.analyses.map((entry) => entry.analysis),
     simulator: {
@@ -156,7 +156,7 @@ async function runPlan(id: number, plan: BrowserSimulationPlan, includeRawLog: b
     measurements: {},
     datasets,
     diagnostics: warnings.map((message) => ({
-      code: 'NL-S003',
+      code: 'KES-S003',
       severity: 'warning',
       kind: 'warning',
       message,

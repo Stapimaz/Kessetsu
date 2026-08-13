@@ -1,4 +1,4 @@
-# NetLang Web Runtime — Third-Party Notices
+# Kessetsu Web Runtime — Third-Party Notices
 
 ## EEcircuit Engine 1.7.0
 

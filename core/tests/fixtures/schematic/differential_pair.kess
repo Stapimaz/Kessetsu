@@ -10,8 +10,8 @@ source VCCS 12V
 source VINP 1V
 source VINN 1V
 current_source ITAIL 2mA
-transistor Q1 npn NLANG_POWER_NPN_V1
-transistor Q2 npn NLANG_POWER_NPN_V1
+transistor Q1 npn KESSETSU_POWER_NPN_V1
+transistor Q2 npn KESSETSU_POWER_NPN_V1
 resistor RC1 4.7k
 resistor RC2 4.7k
 connect VCCS.minus, VINP.minus, VINN.minus, ITAIL.minus to GND

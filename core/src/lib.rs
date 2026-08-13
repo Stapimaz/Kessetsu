@@ -49,6 +49,6 @@ mod tests {
         let bad_graph = crate::graph::NetlistGraph::build(&bad_circuit);
         let errors = check_rules(&bad_circuit, &bad_graph);
         assert!(!errors.is_empty());
-        assert_eq!(errors[0].code, "NL-E002");
+        assert_eq!(errors[0].code, "KES-E002");
     }
 }

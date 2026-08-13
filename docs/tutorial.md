@@ -1,8 +1,8 @@
 # Tutorial: From Source to Verified Circuit
 
-This tutorial builds a first-order RC low-pass, verifies its cutoff and exports the result. You can paste the same source into Web Hub or save it as `rc.nl` for the CLI.
+This tutorial builds a first-order RC low-pass, verifies its cutoff and exports the result. You can paste the same source into Web Hub or save it as `rc.kess` for the CLI.
 
-```netlang
+```kessetsu
 net GND
 net IN
 net OUT
@@ -24,31 +24,31 @@ assert cutoff(V(OUT),V(IN)) < 1010Hz
 First, validate syntax, semantics, ERC and schematic connectivity without simulation:
 
 ```powershell
-netlang check rc.nl
+kess check rc.kess
 ```
 
 Then run the engineering assertions:
 
 ```powershell
-netlang test rc.nl
+kess test rc.kess
 ```
 
 An agent should request structured output instead of parsing human prose:
 
 ```powershell
-Get-Content rc.nl | netlang test - --format json
+Get-Content rc.kess | kess test - --format json
 ```
 
 Export visual, machine and editable artifacts from the same verified circuit:
 
 ```powershell
-netlang render rc.nl -o rc.svg
-netlang render rc.nl -o rc.png --scale 3
-netlang export rc.nl --target schematic-json -o rc.netlang.json
-netlang export rc.nl --target kicad -o rc.kicad_sch
-netlang export rc.nl --target ltspice -o rc.asc
+kess render rc.kess -o rc.svg
+kess render rc.kess -o rc.png --scale 3
+kess export rc.kess --target schematic-json -o rc.kessetsu.json
+kess export rc.kess --target kicad -o rc.kicad_sch
+kess export rc.kess --target ltspice -o rc.asc
 ```
 
 Existing targets are not overwritten unless `--force` is explicit. Open the source in Web Hub to inspect the schematic and Bode result, then press **Share**: the URL fragment contains a compressed, versioned copy of the source and exact model-package versions. No project upload or account is required.
 
-Next try the canonical [gain stage](../core/tests/fixtures/benchmarks/gain_stage.nl) and [8 Ω power amplifier](../core/tests/fixtures/benchmarks/power_amplifier.nl). The supported physical boundary is documented in [supported domain](supported_domain.md).
+Next try the canonical [gain stage](../core/tests/fixtures/benchmarks/gain_stage.kess) and [8 Ω power amplifier](../core/tests/fixtures/benchmarks/power_amplifier.kess). The supported physical boundary is documented in [supported domain](supported_domain.md).

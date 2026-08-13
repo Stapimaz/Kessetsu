@@ -1,11 +1,11 @@
-# NetLang
+# Kessetsu
 
-[Web Hub](https://stapimaz.github.io/NetLang/) · [CLI releases](https://github.com/Stapimaz/NetLang/releases) · [Tutorial](docs/tutorial.md) · [Supported domain](docs/supported_domain.md)
+[Web Hub](https://stapimaz.github.io/Kessetsu/) · [CLI releases](https://github.com/Stapimaz/Kessetsu/releases) · [Tutorial](docs/tutorial.md) · [Supported domain](docs/supported_domain.md)
 
-NetLang, devreleri metinle tanımlayıp yazılım gibi derlemek, simüle etmek ve assertion'larla sınamak için geliştirilen agent-driven bir circuit engineering platformudur. CLI'ın human modu insanlara, versioned JSON modu AI ajanları ve otomasyona; zero-friction Web Hub ise tarayıcı kullanıcılarına hizmet eder. Bütün yüzeyler aynı Rust çekirdeğini kullanır; typed Circuit IR, deterministik graph/ERC, SPICE netlist, layout ve EDA çıktıları ortak semantikten üretilir.
+Kessetsu, devreleri metinle tanımlayıp yazılım gibi derlemek, simüle etmek ve assertion'larla sınamak için geliştirilen agent-driven bir circuit engineering platformudur. CLI'ın human modu insanlara, versioned JSON modu AI ajanları ve otomasyona; zero-friction Web Hub ise tarayıcı kullanıcılarına hizmet eder. Bütün yüzeyler aynı Rust çekirdeğini kullanır; typed Circuit IR, deterministik graph/ERC, SPICE netlist, layout ve EDA çıktıları ortak semantikten üretilir.
 
 ```text
-Electrical requirements → NetLang source → compile/ERC → simulate/measure/assert → structured feedback
+Electrical requirements → Kessetsu source → compile/ERC → simulate/measure/assert → structured feedback
 ```
 
 Proje belirli bir eğitim senaryosu veya devre sınıfıyla sınırlı değildir. Hedef; insanların ve AI ajanlarının ölçülebilir gereksinimlerden başlayıp topoloji, değer ve model seçimlerini güvenilir structured feedback ile iteratif geliştirebilmesidir.
@@ -13,12 +13,12 @@ Proje belirli bir eğitim senaryosu veya devre sınıfıyla sınırlı değildir
 ## Mevcut kapsam
 
 - Rust parser, module flattening ve typed Circuit IR
-- Sürümlü `netlang.compile.v3` compile raporu ve `netlang.schematic.v1` şema sözleşmesi
-- Deterministik net isimlendirme ve `NL-P/C/E/I/S/F` diagnostic alanları
+- Sürümlü `kessetsu.compile.v3` compile raporu ve `kessetsu.schematic.v1` şema sözleşmesi
+- Deterministik net isimlendirme ve `KES-P/C/E/I/S/F` diagnostic alanları
 - SPICE üretimi, simulator discovery/provenance ve Windows Ngspice sidecar runtime
 - Typed OP/transient/AC/DC simulation sonucu ve PASS/FAIL/ERROR/SKIPPED assertion runtime
-- Compact `netlang.cli.v1` JSON, stdin agent döngüsü ve debug `--include` seçimi
-- Typed user/package model-subcircuit çözümleme, provenance manifest'i ve `netlang.lock`
+- Compact `kessetsu.cli.v1` JSON, stdin agent döngüsü ve debug `--include` seçimi
+- Typed user/package model-subcircuit çözümleme, provenance manifest'i ve `kessetsu.lock`
 - Human/JSON CLI; güvenli output/overwrite ve exit-code sözleşmesi
 - WASM tabanlı, gerçek browser simulation çalıştıran React Web Hub
 - Canonical, bağlantısı doğrulanmış automatic schematic motoru
@@ -29,11 +29,11 @@ Güncel görev ve sınırlar için [roadmap](docs/ROADMAP.md), mimari kurallar i
 
 ## Web Hub
 
-NetLang Web Hub, terminal kullanmak istemeyen insanların devreleri CodePen benzeri sade bir çalışma alanında doğrudan tarayıcıdan geliştirebilmesi için tasarlanan ana ürün yüzeyidir. Ayrı bir Web-only motor kullanmaz; CLI ile aynı canonical Rust çekirdeğini WebAssembly üzerinden çalıştırır.
+Kessetsu Web Hub, terminal kullanmak istemeyen insanların devreleri CodePen benzeri sade bir çalışma alanında doğrudan tarayıcıdan geliştirebilmesi için tasarlanan ana ürün yüzeyidir. Ayrı bir Web-only motor kullanmaz; CLI ile aynı canonical Rust çekirdeğini WebAssembly üzerinden çalıştırır.
 
 Mevcut repository build'inde Web Hub şunları yapabiliyor:
 
-- Monaco ile NetLang kodunu düzenleme, örnek devre seçme
+- Monaco ile Kessetsu kodunu düzenleme, örnek devre seçme
 - WASM üzerinden canlı compile, ERC ve canonical schematic connectivity doğrulama
 - Web Worker içinde gerçek OP/transient/AC/DC simulation
 - İnteraktif waveform/Bode/DC grafikleri ve assertion sonuçları
@@ -43,13 +43,13 @@ Mevcut repository build'inde Web Hub şunları yapabiliyor:
 
 İlk sürümde Web Hub içinde AI chat yoktur ve bu gizlenen bir eksik değildir: AI/otomasyon yüzeyi CLI'ın stdin + versioned JSON tool contract'ı, insan yüzeyi Web Hub'dır. İkisi de aynı Core'u kullanır. Provider-independent Web AI tasarım yüzeyi sonraki faz için bilinçli olarak ayrılmıştır.
 
-![NetLang Web Hub RC workspace](docs/assets/web-hub-workspace.png)
+![Kessetsu Web Hub RC workspace](docs/assets/web-hub-workspace.png)
 
 ![Power amplifier simulation with 12 passing requirements](docs/assets/web-hub-power-amplifier.png)
 
-## Kısa NetLang örneği
+## Kısa Kessetsu örneği
 
-```netlang
+```kessetsu
 net GND
 net out
 
@@ -66,31 +66,31 @@ Aynı kaynak CLI'dan veya Web Hub'dan compile edildiğinde aynı IR, diagnostic 
 
 ## Hızlı başlangıç
 
-Hazır CLI paketleri [GitHub Releases](https://github.com/Stapimaz/NetLang/releases) sayfasında Windows x86-64, Linux x86-64, macOS Intel ve macOS Apple Silicon için SHA-256 dosyalarıyla yayınlanır. Windows paketi doğrulanmış Ngspice sidecar'ını içerir; Linux/macOS'ta `ngspice` sistem paketini kurun veya güvenilen full path'i `NETLANG_NGSPICE` ile verin. Her paketteki `INSTALL.txt` ve `release-manifest.json` kesin yolu/provenance'i açıklar.
+Hazır CLI paketleri [GitHub Releases](https://github.com/Stapimaz/Kessetsu/releases) sayfasında Windows x86-64, Linux x86-64, macOS Intel ve macOS Apple Silicon için SHA-256 dosyalarıyla yayınlanır. Windows paketi doğrulanmış Ngspice sidecar'ını içerir; Linux/macOS'ta `ngspice` sistem paketini kurun veya güvenilen full path'i `KESSETSU_NGSPICE` ile verin. Her paketteki `INSTALL.txt` ve `release-manifest.json` kesin yolu/provenance'i açıklar.
 
 Gereksinimler:
 
 - Rust `1.97.1` ve `wasm32-unknown-unknown` target
 - `wasm-pack 0.13.1`
 - Node sürümü [`.nvmrc`](.nvmrc) ile eşleşen npm kurulumu
-- Windows yerel simülasyonu için repository'deki sidecar; alternatif simulator yolu için `NETLANG_NGSPICE`
+- Windows yerel simülasyonu için repository'deki sidecar; alternatif simulator yolu için `KESSETSU_NGSPICE`
 
 CLI'yi derleyip örnek bir devreyi kontrol etmek:
 
 ```powershell
 cd core
 cargo build --release
-cargo run --release -- check ../examples/demo_circuit.nl
-cargo run --release -- compile ../examples/demo_circuit.nl --output ../examples/demo_circuit.spice
+cargo run --release -- check ../examples/demo_circuit.kess
+cargo run --release -- compile ../examples/demo_circuit.kess --output ../examples/demo_circuit.spice
 ```
 
 Makine-okunabilir çıktı:
 
 ```powershell
-cargo run --release -- check ../examples/demo_circuit.nl --format json
+cargo run --release -- check ../examples/demo_circuit.kess --format json
 ```
 
-Var olan output dosyaları varsayılan olarak ezilmez; bilinçli overwrite için `--force` gerekir. CLI komutları, JSON alanları ve exit kodları [CLI reference](docs/cli_reference.md) içinde tanımlıdır. İlk devre için [tutorial](docs/tutorial.md), kısa çözümler için [cookbook](docs/cookbook.md), sorunlar için [troubleshooting](docs/troubleshooting.md) ve ürün farkları için [Why NetLang?](docs/why_netlang.md) ile devam edin.
+Var olan output dosyaları varsayılan olarak ezilmez; bilinçli overwrite için `--force` gerekir. CLI komutları, JSON alanları ve exit kodları [CLI reference](docs/cli_reference.md) içinde tanımlıdır. İlk devre için [tutorial](docs/tutorial.md), kısa çözümler için [cookbook](docs/cookbook.md), sorunlar için [troubleshooting](docs/troubleshooting.md) ve ürün farkları için [Why Kessetsu?](docs/why_kessetsu.md) ile devam edin.
 
 ## Build ve doğrulama
 
@@ -124,7 +124,7 @@ npm.cmd run build
 ## Repository yapısı
 
 - `core/`: Rust library, CLI, WASM adaptörü, test corpus'u ve Windows Ngspice runtime
-- `examples/`: canonical `.nl` örnekleri
+- `examples/`: canonical `.kess` örnekleri
 - `webapp/`: React/TypeScript zero-friction Web Hub
 - `docs/`: roadmap, architecture, dil/simulation/export sözleşmeleri ve kullanım rehberleri
 - `scripts/verify.ps1`: kök kalite kapısı
@@ -139,6 +139,6 @@ npm.cmd run build
 
 ## Lisans
 
-NetLang kaynak kodu [GNU Affero General Public License v3.0 only](LICENSE) (`AGPL-3.0-only`) altında açık kaynak olarak sunulur. AGPL yükümlülükleri olmadan kapalı kaynak servis veya ürün kullanımı için telif hakkı sahibinden ayrı bir [ticari lisans](COMMERCIAL_LICENSE.md) alınabilir.
+Kessetsu kaynak kodu [GNU Affero General Public License v3.0 only](LICENSE) (`AGPL-3.0-only`) altında açık kaynak olarak sunulur. AGPL yükümlülükleri olmadan kapalı kaynak servis veya ürün kullanımı için telif hakkı sahibinden ayrı bir [ticari lisans](COMMERCIAL_LICENSE.md) alınabilir.
 
-NetLang ile oluşturduğunuz devre kaynakları ve export çıktıları yalnızca NetLang kullanıldığı için AGPL kapsamına girmez. Üçüncü taraf bileşenler kendi lisanslarını korur; dağıtım notice'ları release paketleri ve Web build'i içindedir. Katkı politikası için [CONTRIBUTING.md](CONTRIBUTING.md) dosyasına bakın.
+Kessetsu ile oluşturduğunuz devre kaynakları ve export çıktıları yalnızca Kessetsu kullanıldığı için AGPL kapsamına girmez. Üçüncü taraf bileşenler kendi lisanslarını korur; dağıtım notice'ları release paketleri ve Web build'i içindedir. Katkı politikası için [CONTRIBUTING.md](CONTRIBUTING.md) dosyasına bakın.

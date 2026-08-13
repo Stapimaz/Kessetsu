@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import init, {
-  compile_netlang,
+  compile_kessetsu,
   compile_schema_version,
   evaluate_browser_simulation,
-  export_netlang,
+  export_kessetsu,
   export_schema_version,
   prepare_browser_simulation,
   supported_export_capabilities,
-} from 'netlang-core';
-import rcFilter from '../../../core/tests/fixtures/benchmarks/rc_filter.nl?raw';
-import gainStage from '../../../core/tests/fixtures/benchmarks/gain_stage.nl?raw';
-import powerAmplifier from '../../../core/tests/fixtures/benchmarks/power_amplifier.nl?raw';
+} from 'kessetsu-core';
+import rcFilter from '../../../core/tests/fixtures/benchmarks/rc_filter.kess?raw';
+import gainStage from '../../../core/tests/fixtures/benchmarks/gain_stage.kess?raw';
+import powerAmplifier from '../../../core/tests/fixtures/benchmarks/power_amplifier.kess?raw';
 import type { CompileReport, ExportArtifact, ExportFormat, WorkspaceState } from '../domain';
 import { BrowserSimulationRunner, SimulationCancelledError } from '../simulation/browserRunner';
 import type { BrowserEvaluation, BrowserSimulationPlan } from '../simulation/types';
@@ -47,7 +47,7 @@ const initialState: WorkspaceState = {
   evaluation: null,
 };
 
-export function useNetlangWorkspace() {
+export function useKessetsuWorkspace() {
   const [state, setState] = useState(initialState);
   const runnerRef = useRef<BrowserSimulationRunner | null>(null);
   const sharedEnvelopeRef = useRef<ShareEnvelope | null>(null);
@@ -80,7 +80,7 @@ export function useNetlangWorkspace() {
   const compile = useCallback(() => {
     if (!state.wasmLoaded) return;
     try {
-      const result = compile_netlang(state.code) as CompileReport;
+      const result = compile_kessetsu(state.code) as CompileReport;
       if (result.schema_version !== compile_schema_version()) {
         throw new Error(`Unsupported compile report schema: ${result.schema_version}`);
       }
@@ -104,7 +104,7 @@ export function useNetlangWorkspace() {
       setState((current) => ({
         ...current,
         compileSucceeded: false,
-        diagnostics: [{ code: 'NL-W001', severity: 'error', stage: 'io', message: errorMessage(error) }],
+        diagnostics: [{ code: 'KES-W001', severity: 'error', stage: 'io', message: errorMessage(error) }],
         schematic: null,
         schematicSvg: '',
         spiceNetlist: '',
@@ -170,7 +170,7 @@ export function useNetlangWorkspace() {
     if (!state.wasmLoaded || !state.compileSucceeded) {
       throw new Error('Compile and connectivity verification must succeed before export');
     }
-    const artifact = export_netlang(state.code, format, scale, transparent) as ExportArtifact;
+    const artifact = export_kessetsu(state.code, format, scale, transparent) as ExportArtifact;
     if (artifact.schema_version !== export_schema_version()) {
       throw new Error(`Unsupported export schema: ${artifact.schema_version}`);
     }

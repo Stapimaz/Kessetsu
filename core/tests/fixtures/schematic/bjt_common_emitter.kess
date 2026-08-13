@@ -6,7 +6,7 @@ net OUT
 net EMITTER
 source VCCS 12V
 source VIN sine(0V,20mV,1kHz)
-transistor Q1 npn NLANG_POWER_NPN_V1
+transistor Q1 npn KESSETSU_POWER_NPN_V1
 resistor RC 4.7k
 resistor RE 1k
 resistor RL 10k

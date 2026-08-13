@@ -75,7 +75,7 @@ fn symbol(component: &SchematicComponent) -> Result<LtSymbol, ExportError> {
         },
         CatalogSymbol::ModulePort => {
             return Err(ExportError {
-                code: "NL-X013".to_string(),
+                code: "KES-X013".to_string(),
                 message: format!(
                     "LTspice exporter has no lossless symbol for module port '{}'",
                     component.id
@@ -182,7 +182,7 @@ fn component_value(component: &SchematicComponent, circuit: &CircuitIR) -> Strin
             .model
             .clone()
             .or_else(|| component.value.clone())
-            .unwrap_or_else(|| "NetLang".to_string());
+            .unwrap_or_else(|| "Kessetsu".to_string());
     };
     match &ir.parameters {
         ComponentParams::TwoPinPassive { value } => format_spice_number(value.value),
@@ -193,7 +193,7 @@ fn component_value(component: &SchematicComponent, circuit: &CircuitIR) -> Strin
             .model
             .clone()
             .or_else(|| component.value.clone())
-            .unwrap_or_else(|| "NetLang".to_string()),
+            .unwrap_or_else(|| "Kessetsu".to_string()),
     }
 }
 
@@ -206,7 +206,7 @@ pub fn generate_ltspice_asc(
 ) -> Result<String, ExportError> {
     if !schematic.connectivity.verified {
         return Err(ExportError {
-            code: "NL-X003".to_string(),
+            code: "KES-X003".to_string(),
             message: "canonical connectivity proof failed; LTspice export stopped".to_string(),
             diagnostics: Vec::new(),
         });
@@ -218,7 +218,7 @@ pub fn generate_ltspice_asc(
         let lt_symbol = symbol(component)?;
         if lt_symbol.pins.len() != component.pins.len() {
             return Err(ExportError {
-                code: "NL-X014".to_string(),
+                code: "KES-X014".to_string(),
                 message: format!(
                     "LTspice symbol '{}' pin count does not match canonical component '{}'",
                     lt_symbol.name, component.id
@@ -242,7 +242,7 @@ pub fn generate_ltspice_asc(
                 .get(&(component.clone(), pin.clone()))
                 .copied()
                 .ok_or_else(|| ExportError {
-                    code: "NL-X015".to_string(),
+                    code: "KES-X015".to_string(),
                     message: format!("LTspice pin mapping is missing for {component}.{pin}"),
                     diagnostics: Vec::new(),
                 }),

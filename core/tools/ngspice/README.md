@@ -1,6 +1,6 @@
-# NetLang Ngspice runtime
+# Kessetsu Ngspice runtime
 
-Bu dizin NetLang'in yerel Windows simülasyonu için kullandığı, bilinçli olarak
+Bu dizin Kessetsu'nun yerel Windows simülasyonu için kullandığı, bilinçli olarak
 küçültülmüş Ngspice çalışma zamanı paketidir. Ngspice kaynak/test dağıtımı
 değildir.
 
@@ -12,8 +12,8 @@ değildir.
 - Resmî dokümantasyon: <https://ngspice.sourceforge.io/docs.html>
 - Resmî geliştirme ve lisans özeti: <https://ngspice.sourceforge.io/devel.html>
 
-Sürüm, `bin/ngspice_con.exe --version` çıktısıyla doğrulanır. NetLang önce
-`NETLANG_NGSPICE` ile verilen açık executable yolunu, ardından repository/release
+Sürüm, `bin/ngspice_con.exe --version` çıktısıyla doğrulanır. Kessetsu önce
+`KESSETSU_NGSPICE` ile verilen açık executable yolunu, ardından repository/release
 Windows sidecar konumlarını ve son olarak platforma göre `ngspice_con.exe` veya
 `ngspice` sistem fallback'ini dener. İlk release'in Linux/macOS paketleri sistem
 paket yöneticisinden kurulan, version-probed `ngspice` kullanır; kesin matris ve
@@ -23,7 +23,7 @@ smoke sözleşmesi [release belgesindedir](../../../docs/release.md).
 
 | Dosya | Amaç |
 | --- | --- |
-| `bin/ngspice_con.exe` | NetLang'in batch modunda çağırdığı konsol simulator |
+| `bin/ngspice_con.exe` | Kessetsu'nun batch modunda çağırdığı konsol simulator |
 | `bin/libomp140.x86_64.dll` | Bu Windows binary'sinin OpenMP çalışma zamanı |
 | `share/ngspice/scripts/spinit` | Deterministik, minimal başlangıç ayarları |
 | `docs/COPYING` | Upstream lisans metinleri ve istisnaları |
@@ -31,7 +31,7 @@ smoke sözleşmesi [release belgesindedir](../../../docs/release.md).
 | `docs/README` | Upstream proje ve kaynak bilgisi |
 
 GUI executable, upstream örnek/test ağacı, PDF manual, geliştirme notları,
-XSPICE `.cm` code model'leri ve OpenVAF/OSDI model kütüphaneleri NetLang'in
+XSPICE `.cm` code model'leri ve OpenVAF/OSDI model kütüphaneleri Kessetsu'nun
 mevcut analog runtime profilinin parçası değildir. `spinit` bu eksik opsiyonel
 kütüphaneleri yüklemeye çalışmayacak şekilde açıkça yapılandırılmıştır. Bu
 özelliklerden biri ürün kapsamına alındığında, fixture ve dağıtım incelemesiyle
@@ -43,7 +43,7 @@ ayrı bir runtime profili tanımlanmalıdır.
 
 1. Yalnız yukarıdaki runtime dosyalarını içeren temiz bir geçici dizinde
    `ngspice_con.exe --version` sürüm 46 raporladı.
-2. `examples/test_features.nl` kaynağından üretilen SPICE netlist batch modunda
+2. `examples/test_features.kess` kaynağından üretilen SPICE netlist batch modunda
    exit code 0 ile çalıştı.
 3. Ölçüm çıktısı `max_v_my_signal = 6.20001e-08` değerini üretti ve eksik init,
    code-model veya OSDI dosyası hatası vermedi.

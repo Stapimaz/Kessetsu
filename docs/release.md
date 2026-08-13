@@ -5,11 +5,11 @@
 | Artifact | Runner/architecture | Simulator policy |
 |---|---|---|
 | `windows-x86_64.zip` | Windows Server x86-64 | Bundled, version-probed Ngspice 46 plus complete upstream notice inventory |
-| `linux-x86_64.tar.gz` | Ubuntu x86-64 | Trusted `ngspice` on `PATH`, or explicit `NETLANG_NGSPICE` full path |
+| `linux-x86_64.tar.gz` | Ubuntu x86-64 | Trusted `ngspice` on `PATH`, or explicit `KESSETSU_NGSPICE` full path |
 | `macos-x86_64.tar.gz` | macOS Intel | Homebrew/system `ngspice`, or explicit override |
 | `macos-aarch64.tar.gz` | macOS Apple Silicon | Homebrew/system `ngspice`, or explicit override |
 
-Every archive contains `netlang`, `INSTALL.txt`, `README.md`, `LICENSE`, `NOTICE`, `COMMERCIAL_LICENSE.md`, `SUPPORTED_DOMAIN.md` and `release-manifest.json`; a sibling `.sha256` protects the archive. The manifest records target, Git commit, simulator policy and executable SHA-256. `scripts/smoke-release.ps1` extracts to a new temporary directory, verifies the binary, probes its version, performs a real power-amplifier simulation and requires 12/12 assertions.
+Every archive contains `kess` (`kess.exe` on Windows), `INSTALL.txt`, `README.md`, `LICENSE`, `NOTICE`, `COMMERCIAL_LICENSE.md`, `SUPPORTED_DOMAIN.md` and `release-manifest.json`; a sibling `.sha256` protects the archive. The manifest records target, Git commit, simulator policy and executable SHA-256. `scripts/smoke-release.ps1` extracts to a new temporary directory, verifies the binary, probes its version, performs a real power-amplifier simulation and requires 12/12 assertions.
 
 ## Web production
 

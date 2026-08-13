@@ -1,4 +1,4 @@
-use netlang_core::compiler::{
+use kessetsu_core::compiler::{
     COMPILE_SCHEMA_VERSION, CompileOptions, Diagnostic, DiagnosticSeverity, DiagnosticStage,
     compile_source,
 };
@@ -44,7 +44,7 @@ fn parser_failure_is_structured_and_stops_downstream_stages() {
 
     assert!(report.has_errors());
     assert_eq!(report.diagnostics.len(), 1);
-    assert_eq!(report.diagnostics[0].code, "NL-P001");
+    assert_eq!(report.diagnostics[0].code, "KES-P001");
     assert_eq!(report.diagnostics[0].stage, DiagnosticStage::Parse);
     assert_eq!(report.diagnostics[0].severity, DiagnosticSeverity::Error);
     assert!(report.diagnostics[0].line.is_some());
@@ -61,7 +61,7 @@ fn parser_failure_is_structured_and_stops_downstream_stages() {
 fn flatten_failure_is_structured_and_stops_downstream_stages() {
     let report = compile_source("use Missing U1\n", CompileOptions::all_outputs());
 
-    assert_eq!(report.diagnostics[0].code, "NL-C008");
+    assert_eq!(report.diagnostics[0].code, "KES-C008");
     assert_eq!(report.diagnostics[0].stage, DiagnosticStage::Flatten);
     assert!(report.ir.is_none());
     assert!(report.spice_netlist.is_none());
@@ -71,7 +71,7 @@ fn flatten_failure_is_structured_and_stops_downstream_stages() {
 fn semantic_failure_preserves_ast_but_blocks_graph_and_backends() {
     let report = compile_source("resistor R1 nope\n", CompileOptions::all_outputs());
 
-    assert_eq!(report.diagnostics[0].code, "NL-C001");
+    assert_eq!(report.diagnostics[0].code, "KES-C001");
     assert_eq!(report.diagnostics[0].stage, DiagnosticStage::Semantic);
     assert_eq!(report.diagnostics[0].line, Some(1));
     assert!(report.diagnostics[0].column.is_some());
@@ -90,7 +90,7 @@ fn erc_failure_preserves_ir_and_graph_but_blocks_backends() {
         report
             .diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.code == "NL-E002")
+            .any(|diagnostic| diagnostic.code == "KES-E002")
     );
     assert!(
         report
@@ -141,7 +141,7 @@ fn report_json_uses_stable_schema_and_lowercase_diagnostic_enums() {
 fn warning_diagnostics_do_not_turn_a_successful_report_into_an_error() {
     let mut report = compile_source(VALID_SOURCE, CompileOptions::default());
     report.diagnostics.push(Diagnostic {
-        code: "NL-S004".to_string(),
+        code: "KES-S004".to_string(),
         severity: DiagnosticSeverity::Warning,
         stage: DiagnosticStage::Erc,
         message: "Example non-blocking warning".to_string(),
@@ -158,7 +158,7 @@ fn warning_diagnostics_do_not_turn_a_successful_report_into_an_error() {
 
 #[test]
 fn shared_web_default_example_compiles_every_browser_output() {
-    let source = include_str!("../../examples/demo_circuit.nl");
+    let source = include_str!("../../examples/demo_circuit.kess");
     assert!(!source.contains("battery"));
 
     let report = compile_source(source, CompileOptions::all_outputs());
@@ -180,8 +180,8 @@ fn kicad_export_embeds_typed_source_symbols_and_pins() {
         .kicad_sch
         .expect("valid source circuit should produce KiCad output");
 
-    assert!(kicad.contains("NetLang:NL_V1"));
-    assert!(kicad.contains("NetLang:NL_I1"));
+    assert!(kicad.contains("Kessetsu:NL_V1"));
+    assert!(kicad.contains("Kessetsu:NL_I1"));
     assert!(kicad.contains("(name \"plus\""));
     assert!(kicad.contains("(name \"minus\""));
 }

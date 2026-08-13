@@ -1,12 +1,12 @@
 mod common;
 
 use common::{fixture_path, read_fixture};
-use netlang_core::ast::Statement;
-use netlang_core::parse_program;
+use kessetsu_core::ast::Statement;
+use kessetsu_core::parse_program;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-fn nl_files(directory: &Path) -> Vec<PathBuf> {
+fn kess_files(directory: &Path) -> Vec<PathBuf> {
     let mut files: Vec<_> = fs::read_dir(directory)
         .unwrap_or_else(|error| panic!("could not read '{}': {error}", directory.display()))
         .map(|entry| {
@@ -14,7 +14,10 @@ fn nl_files(directory: &Path) -> Vec<PathBuf> {
                 .expect("fixture directory entry must be readable")
                 .path()
         })
-        .filter(|path| path.extension().is_some_and(|extension| extension == "nl"))
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "kess")
+        })
         .collect();
     files.sort();
     files
@@ -25,7 +28,7 @@ fn every_repository_example_parses_and_flattens() {
     let examples = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("..")
         .join("examples");
-    let files = nl_files(&examples);
+    let files = kess_files(&examples);
 
     assert_eq!(
         files.len(),
@@ -44,7 +47,7 @@ fn every_repository_example_parses_and_flattens() {
 
 #[test]
 fn valid_fixture_corpus_parses_and_flattens() {
-    let files = nl_files(&fixture_path("valid"));
+    let files = kess_files(&fixture_path("valid"));
     assert_eq!(files.len(), 3);
 
     for path in files {
@@ -59,7 +62,7 @@ fn valid_fixture_corpus_parses_and_flattens() {
 
 #[test]
 fn parser_invalid_fixture_corpus_is_rejected() {
-    let files = nl_files(&fixture_path("invalid/parser"));
+    let files = kess_files(&fixture_path("invalid/parser"));
     assert_eq!(files.len(), 4);
 
     for path in files {
@@ -95,7 +98,7 @@ fn identifiers_are_ascii_while_unicode_comments_are_supported() {
 
 #[test]
 fn module_use_flattening_prefixes_components_and_preserves_port_connections() {
-    let source = read_fixture("valid/module.nl");
+    let source = read_fixture("valid/module.kess");
     let flat = parse_program(&source)
         .expect("module fixture should parse")
         .flatten()

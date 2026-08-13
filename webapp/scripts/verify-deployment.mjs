@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const expectedBase = process.env.NETLANG_BASE_PATH ?? '/';
+const expectedBase = process.env.KESSETSU_BASE_PATH ?? '/';
 const dist = resolve(import.meta.dirname, '../dist');
 const html = readFileSync(resolve(dist, 'index.html'), 'utf8');
 const references = [...html.matchAll(/(?:src|href)="([^"]+)"/g)].map((match) => match[1]);

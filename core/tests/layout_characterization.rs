@@ -1,4 +1,4 @@
-use netlang_core::compiler::{CompileOptions, compile_source};
+use kessetsu_core::compiler::{CompileOptions, compile_source};
 use std::collections::BTreeSet;
 
 struct Fixture {
@@ -10,32 +10,32 @@ struct Fixture {
 const CORPUS: &[Fixture] = &[
     Fixture {
         name: "minimal",
-        source: include_str!("fixtures/valid/minimal.nl"),
+        source: include_str!("fixtures/valid/minimal.kess"),
         component_count: 2,
     },
     Fixture {
         name: "rc_filter",
-        source: include_str!("fixtures/benchmarks/rc_filter.nl"),
+        source: include_str!("fixtures/benchmarks/rc_filter.kess"),
         component_count: 3,
     },
     Fixture {
         name: "wheatstone",
-        source: include_str!("../../examples/wheatstone.nl"),
+        source: include_str!("../../examples/wheatstone.kess"),
         component_count: 6,
     },
     Fixture {
         name: "gain_stage",
-        source: include_str!("fixtures/benchmarks/gain_stage.nl"),
+        source: include_str!("fixtures/benchmarks/gain_stage.kess"),
         component_count: 7,
     },
     Fixture {
         name: "high_fanout",
-        source: include_str!("fixtures/schematic/high_fanout.nl"),
+        source: include_str!("fixtures/schematic/high_fanout.kess"),
         component_count: 9,
     },
     Fixture {
         name: "power_amplifier",
-        source: include_str!("fixtures/benchmarks/power_amplifier.nl"),
+        source: include_str!("fixtures/benchmarks/power_amplifier.kess"),
         component_count: 11,
     },
 ];
@@ -82,7 +82,7 @@ fn legacy_layout_corpus_keeps_component_and_net_coverage_visible() {
 
 #[test]
 fn characterization_exposes_legacy_layout_serialization_instability() {
-    let source = include_str!("fixtures/benchmarks/power_amplifier.nl");
+    let source = include_str!("fixtures/benchmarks/power_amplifier.kess");
     let first = compile_source(source, CompileOptions::all_outputs())
         .layout
         .expect("layout was requested");

@@ -1,9 +1,9 @@
 mod common;
 
 use common::{TestWorkspace, read_fixture};
-use netlang_core::compiler::{CompileOptions, compile_source};
-use netlang_core::sim_result::evaluate_assertions;
-use netlang_core::simulation::{
+use kessetsu_core::compiler::{CompileOptions, compile_source};
+use kessetsu_core::sim_result::evaluate_assertions;
+use kessetsu_core::simulation::{
     CancellationToken, NgspiceRunner, SimulationRequest, SimulationRunner,
 };
 use serde_json::Value;
@@ -46,9 +46,9 @@ fn json(output: &std::process::Output) -> Value {
 #[test]
 fn canonical_rc_gain_stage_and_power_amplifier_meet_real_ngspice_targets() {
     for fixture in [
-        "benchmarks/rc_filter.nl",
-        "benchmarks/gain_stage.nl",
-        "benchmarks/power_amplifier.nl",
+        "benchmarks/rc_filter.kess",
+        "benchmarks/gain_stage.kess",
+        "benchmarks/power_amplifier.kess",
     ] {
         run_benchmark(fixture);
     }
@@ -64,25 +64,25 @@ fn external_agent_revises_a_real_rc_design_from_structured_feedback() {
         "Ngspice discovery should resolve PATH/bundled executables to an existing absolute path: {}",
         executable.display()
     );
-    let target = read_fixture("benchmarks/rc_filter.nl");
+    let target = read_fixture("benchmarks/rc_filter.kess");
     let initial = target.replace("159.154943nF", "15.9154943nF");
 
     let failing = workspace.run_cli_with_stdin_and_env(
         &["test", "-", "--format", "json"],
         &initial,
-        "NETLANG_NGSPICE",
+        "KESSETSU_NGSPICE",
         executable,
     );
     assert_eq!(failing.status.code(), Some(4));
     let failing = json(&failing);
-    assert_eq!(failing["schema_version"], "netlang.cli.v1");
+    assert_eq!(failing["schema_version"], "kessetsu.cli.v1");
     assert_eq!(
         failing["domain_versions"]["assertion"],
-        "netlang.assertion.v1"
+        "kessetsu.assertion.v1"
     );
     assert_eq!(
         failing["domain_versions"]["measurement"],
-        "netlang.measurement.v1"
+        "kessetsu.measurement.v1"
     );
     let cutoff_failure = failing["assertions"]["assertions"]
         .as_array()
@@ -99,7 +99,7 @@ fn external_agent_revises_a_real_rc_design_from_structured_feedback() {
     let revised = workspace.run_cli_with_stdin_and_env(
         &["test", "-", "--format", "json"],
         &target,
-        "NETLANG_NGSPICE",
+        "KESSETSU_NGSPICE",
         executable,
     );
     assert_eq!(revised.status.code(), Some(0));

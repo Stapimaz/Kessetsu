@@ -46,12 +46,12 @@ jobs:
       - name: Build production Web Hub
         working-directory: webapp
         env:
-          NETLANG_BASE_PATH: /NetLang/
+          KESSETSU_BASE_PATH: /Kessetsu/
         run: npm run build
       - name: Verify runtime integrity and licenses
         working-directory: webapp
         env:
-          NETLANG_BASE_PATH: /NetLang/
+          KESSETSU_BASE_PATH: /Kessetsu/
         run: npm run verify:runtime && npm run verify:deployment
       - name: Mark static output for GitHub Pages
         run: touch webapp/dist/.nojekyll

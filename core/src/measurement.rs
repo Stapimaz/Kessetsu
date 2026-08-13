@@ -5,7 +5,7 @@ use crate::ir::{
 };
 use crate::simulation::{ComplexSeries, Dataset, RealSeriesDataset, SimulationResult};
 
-pub const MEASUREMENT_SCHEMA_VERSION: &str = "netlang.measurement.v1";
+pub const MEASUREMENT_SCHEMA_VERSION: &str = "kessetsu.measurement.v1";
 
 pub fn evaluate_assertion_metric(
     assertion: &Assertion,

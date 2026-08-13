@@ -44,7 +44,7 @@ impl TestWorkspace {
             .collect();
         let sequence = NEXT_WORKSPACE_ID.fetch_add(1, Ordering::Relaxed);
         let root = std::env::temp_dir().join(format!(
-            "netlang-test-{safe_label}-{}-{sequence}",
+            "kessetsu-test-{safe_label}-{}-{sequence}",
             std::process::id()
         ));
         fs::create_dir(&root)
@@ -68,20 +68,20 @@ impl TestWorkspace {
     }
 
     pub fn run_cli(&self, arguments: &[&str]) -> Output {
-        Command::new(env!("CARGO_BIN_EXE_netlang"))
+        Command::new(env!("CARGO_BIN_EXE_kess"))
             .args(arguments)
             .current_dir(&self.root)
             .output()
-            .unwrap_or_else(|error| panic!("could not run NetLang CLI: {error}"))
+            .unwrap_or_else(|error| panic!("could not run Kessetsu CLI: {error}"))
     }
 
     pub fn run_cli_with_env(&self, arguments: &[&str], key: &str, value: &Path) -> Output {
-        Command::new(env!("CARGO_BIN_EXE_netlang"))
+        Command::new(env!("CARGO_BIN_EXE_kess"))
             .args(arguments)
             .env(key, value)
             .current_dir(&self.root)
             .output()
-            .unwrap_or_else(|error| panic!("could not run NetLang CLI: {error}"))
+            .unwrap_or_else(|error| panic!("could not run Kessetsu CLI: {error}"))
     }
 
     pub fn run_cli_with_stdin(&self, arguments: &[&str], input: &str) -> Output {
@@ -104,7 +104,7 @@ impl TestWorkspace {
         input: &str,
         environment: Option<(&str, &Path)>,
     ) -> Output {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_netlang"));
+        let mut command = Command::new(env!("CARGO_BIN_EXE_kess"));
         command
             .args(arguments)
             .current_dir(&self.root)
@@ -116,7 +116,7 @@ impl TestWorkspace {
         }
         let mut child = command
             .spawn()
-            .unwrap_or_else(|error| panic!("could not run NetLang CLI: {error}"));
+            .unwrap_or_else(|error| panic!("could not run Kessetsu CLI: {error}"));
         child
             .stdin
             .take()
@@ -139,7 +139,7 @@ impl TestWorkspace {
         let (file_name, contents) = (
             format!("{name}.cmd"),
             format!(
-                "@echo off\r\nif \"%~1\"==\"-v\" (\r\n  echo ngspice-test-1\r\n  exit /b 0\r\n)\r\nif exist circuit.spice (\r\n  findstr /c:\"wrdata netlang-analysis-000-op.data\" circuit.spice > nul && (\r\n    >netlang-analysis-000-op.data echo scale v_v1#branch\r\n    >>netlang-analysis-000-op.data echo 0 0.2\r\n  )\r\n)\r\n{}{}exit /b {code}\r\n",
+                "@echo off\r\nif \"%~1\"==\"-v\" (\r\n  echo ngspice-test-1\r\n  exit /b 0\r\n)\r\nif exist circuit.spice (\r\n  findstr /c:\"wrdata kessetsu-analysis-000-op.data\" circuit.spice > nul && (\r\n    >kessetsu-analysis-000-op.data echo scale v_v1#branch\r\n    >>kessetsu-analysis-000-op.data echo 0 0.2\r\n  )\r\n)\r\n{}{}exit /b {code}\r\n",
                 stdout
                     .lines()
                     .map(|line| format!("echo {line}\r\n"))
@@ -155,7 +155,7 @@ impl TestWorkspace {
         let (file_name, contents) = (
             format!("{name}.sh"),
             format!(
-                "#!/bin/sh\nif [ \"$1\" = \"-v\" ]; then\n  printf '%s\\n' 'ngspice-test-1'\n  exit 0\nfi\nif [ -f circuit.spice ] && grep -q 'wrdata netlang-analysis-000-op.data' circuit.spice; then\n  printf '%s\\n' 'scale v_v1#branch' '0 0.2' > netlang-analysis-000-op.data\nfi\n{}{}exit {code}\n",
+                "#!/bin/sh\nif [ \"$1\" = \"-v\" ]; then\n  printf '%s\\n' 'ngspice-test-1'\n  exit 0\nfi\nif [ -f circuit.spice ] && grep -q 'wrdata kessetsu-analysis-000-op.data' circuit.spice; then\n  printf '%s\\n' 'scale v_v1#branch' '0 0.2' > kessetsu-analysis-000-op.data\nfi\n{}{}exit {code}\n",
                 stdout
                     .lines()
                     .map(|line| format!("printf '%s\\n' '{line}'\n"))
@@ -215,14 +215,14 @@ impl TestWorkspace {
         #[cfg(windows)]
         let (file_name, contents) = (
             format!("{name}.cmd"),
-            "@echo off\r\nif \"%~1\"==\"-v\" (\r\n  echo ngspice-agent-loop-1\r\n  exit /b 0\r\n)\r\nset current=-0.2\r\nset magnitude=0.2\r\nfindstr /c:\" 100\" circuit.spice > nul\r\nif not errorlevel 1 (\r\n  set current=-0.02\r\n  set magnitude=0.02\r\n)\r\n>netlang-analysis-000-op.data echo scale v_v1#branch\r\n>>netlang-analysis-000-op.data echo 0 %current%\r\necho peak_pos_i_v1 = %current%\r\necho peak_neg_i_v1 = %current%\r\necho observed_current = %magnitude%\r\necho No. of Data Rows : 1\r\nexit /b 0\r\n"
+            "@echo off\r\nif \"%~1\"==\"-v\" (\r\n  echo ngspice-agent-loop-1\r\n  exit /b 0\r\n)\r\nset current=-0.2\r\nset magnitude=0.2\r\nfindstr /c:\" 100\" circuit.spice > nul\r\nif not errorlevel 1 (\r\n  set current=-0.02\r\n  set magnitude=0.02\r\n)\r\n>kessetsu-analysis-000-op.data echo scale v_v1#branch\r\n>>kessetsu-analysis-000-op.data echo 0 %current%\r\necho peak_pos_i_v1 = %current%\r\necho peak_neg_i_v1 = %current%\r\necho observed_current = %magnitude%\r\necho No. of Data Rows : 1\r\nexit /b 0\r\n"
                 .to_string(),
         );
 
         #[cfg(not(windows))]
         let (file_name, contents) = (
             format!("{name}.sh"),
-            "#!/bin/sh\nif [ \"$1\" = \"-v\" ]; then\n  printf '%s\\n' 'ngspice-agent-loop-1'\n  exit 0\nfi\ncurrent=-0.2\nmagnitude=0.2\nif grep -Eq '^R_R1 .* 100$' circuit.spice; then\n  current=-0.02\n  magnitude=0.02\nfi\nprintf '%s\\n' 'scale v_v1#branch' \"0 $current\" > netlang-analysis-000-op.data\nprintf '%s\\n' \"peak_pos_i_v1 = $current\" \"peak_neg_i_v1 = $current\" \"observed_current = $magnitude\" 'No. of Data Rows : 1'\nexit 0\n"
+            "#!/bin/sh\nif [ \"$1\" = \"-v\" ]; then\n  printf '%s\\n' 'ngspice-agent-loop-1'\n  exit 0\nfi\ncurrent=-0.2\nmagnitude=0.2\nif grep -Eq '^R_R1 .* 100$' circuit.spice; then\n  current=-0.02\n  magnitude=0.02\nfi\nprintf '%s\\n' 'scale v_v1#branch' \"0 $current\" > kessetsu-analysis-000-op.data\nprintf '%s\\n' \"peak_pos_i_v1 = $current\" \"peak_neg_i_v1 = $current\" \"observed_current = $magnitude\" 'No. of Data Rows : 1'\nexit 0\n"
                 .to_string(),
         );
 
@@ -260,7 +260,7 @@ impl Drop for TestWorkspace {
             && self
                 .root
                 .file_name()
-                .is_some_and(|name| name.to_string_lossy().starts_with("netlang-test-"));
+                .is_some_and(|name| name.to_string_lossy().starts_with("kessetsu-test-"));
 
         if is_owned_workspace && self.root.exists() {
             fs::remove_dir_all(&self.root).unwrap_or_else(|error| {

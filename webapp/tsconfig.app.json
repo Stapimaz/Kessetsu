@@ -6,7 +6,7 @@
     "module": "esnext",
     "types": ["vite/client"],
     "paths": {
-      "netlang-core": ["../core/pkg"]
+      "kessetsu-core": ["../core/pkg"]
     },
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,

@@ -236,7 +236,7 @@ fn component_markup(component: &SchematicComponent) -> String {
         .or(component
             .model
             .as_deref()
-            .filter(|model| !model.starts_with("NLANG_")))
+            .filter(|model| !model.starts_with("KESSETSU_")))
         .unwrap_or("");
     let mirror = if component.mirrored_x {
         format!(
@@ -273,7 +273,7 @@ pub fn render_svg_with_background(schematic: &Schematic, white_background: bool)
     let width = (schematic.bounds.max.x - schematic.bounds.min.x) * SCALE;
     let height = (schematic.bounds.max.y - schematic.bounds.min.y) * SCALE;
     let mut svg = format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" role=\"img\" aria-label=\"NetLang schematic\" data-schema=\"{}\" width=\"{width}\" height=\"{height}\" viewBox=\"{min_x} {min_y} {width} {height}\"><style>.sheet{{fill:#fff}}.wire{{fill:none;stroke:#315f8a;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}}.junction{{fill:#315f8a}}.reference{{font:600 14px 'Roboto Mono',ui-monospace,SFMono-Regular,Consolas,monospace;fill:#111827}}.value{{font:12px 'Roboto Mono',ui-monospace,SFMono-Regular,Consolas,monospace;fill:#475569}}.net-label{{font:600 14px 'Roboto Mono',ui-monospace,SFMono-Regular,Consolas,monospace;fill:#274c77}}</style>",
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" role=\"img\" aria-label=\"Kessetsu schematic\" data-schema=\"{}\" width=\"{width}\" height=\"{height}\" viewBox=\"{min_x} {min_y} {width} {height}\"><style>.sheet{{fill:#fff}}.wire{{fill:none;stroke:#315f8a;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}}.junction{{fill:#315f8a}}.reference{{font:600 14px 'Roboto Mono',ui-monospace,SFMono-Regular,Consolas,monospace;fill:#111827}}.value{{font:12px 'Roboto Mono',ui-monospace,SFMono-Regular,Consolas,monospace;fill:#475569}}.net-label{{font:600 14px 'Roboto Mono',ui-monospace,SFMono-Regular,Consolas,monospace;fill:#274c77}}</style>",
         escape_xml(&schematic.schema_version)
     );
     if white_background {

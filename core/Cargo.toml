@@ -1,19 +1,19 @@
 [package]
-name = "netlang-core"
+name = "kessetsu-core"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.97.1"
 description = "Deterministic circuit DSL, simulation, schematic and EDA export core"
 license = "AGPL-3.0-only"
-repository = "https://github.com/Stapimaz/NetLang"
-homepage = "https://stapimaz.github.io/NetLang/"
+repository = "https://github.com/Stapimaz/Kessetsu"
+homepage = "https://stapimaz.github.io/Kessetsu/"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [[bin]]
-name = "netlang"
-path = "src/bin/netlang.rs"
+name = "kess"
+path = "src/bin/kess.rs"
 
 [dependencies]
 pest = "2.7"

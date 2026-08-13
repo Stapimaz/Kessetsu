@@ -7,13 +7,13 @@ import {
 import type { BrowserSimulationPlan, SimulationResult, WorkerRequest, WorkerResponse } from './types';
 
 const plan: BrowserSimulationPlan = {
-  schema_version: 'netlang.simulation.v1',
+  schema_version: 'kessetsu.simulation.v1',
   simulator_adapter: 'eecircuit-engine@1.7.0',
   analyses: [],
 };
 
 const result: SimulationResult = {
-  schema_version: 'netlang.simulation.v1',
+  schema_version: 'kessetsu.simulation.v1',
   status: 'succeeded',
   analyses: [],
   simulator: { executable: 'test', version: 'test' },

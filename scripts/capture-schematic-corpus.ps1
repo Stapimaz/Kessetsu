@@ -9,7 +9,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $corePath = Join-Path $repoRoot 'core'
 $webPath = Join-Path $repoRoot 'webapp'
 $isWindowsHost = $env:OS -eq 'Windows_NT'
-$cliName = if ($isWindowsHost) { 'netlang.exe' } else { 'netlang' }
+$cliName = if ($isWindowsHost) { 'kess.exe' } else { 'kess' }
 $cliPath = Join-Path $corePath "target/release/$cliName"
 $npmCommand = if ($isWindowsHost) { 'npm.cmd' } else { 'npm' }
 
@@ -41,25 +41,25 @@ if (-not $SkipBuild -or -not (Test-Path -LiteralPath $cliPath)) {
 }
 
 if (-not (Test-Path -LiteralPath $cliPath)) {
-    throw "NetLang CLI was not found at $cliPath"
+    throw "Kessetsu CLI was not found at $cliPath"
 }
 
 New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 
 $corpus = @(
-    @{ name = 'minimal'; source = 'core/tests/fixtures/valid/minimal.nl'; family = 'minimal' },
-    @{ name = 'rc-filter'; source = 'core/tests/fixtures/benchmarks/rc_filter.nl'; family = 'passive-filter' },
-    @{ name = 'wheatstone'; source = 'examples/wheatstone.nl'; family = 'bridge' },
-    @{ name = 'gain-stage'; source = 'core/tests/fixtures/benchmarks/gain_stage.nl'; family = 'feedback' },
-    @{ name = 'high-fanout'; source = 'core/tests/fixtures/schematic/high_fanout.nl'; family = 'fanout' },
-    @{ name = 'power-amplifier'; source = 'core/tests/fixtures/benchmarks/power_amplifier.nl'; family = 'multi-stage' },
-    @{ name = 'inverting-amplifier'; source = 'core/tests/fixtures/schematic/inverting_amplifier.nl'; family = 'feedback' },
-    @{ name = 'differential-pair'; source = 'core/tests/fixtures/schematic/differential_pair.nl'; family = 'symmetric' },
-    @{ name = 'mosfet-common-source'; source = 'core/tests/fixtures/schematic/mosfet_common_source.nl'; family = 'transistor-stage' },
-    @{ name = 'rlc-ladder'; source = 'core/tests/fixtures/schematic/rlc_ladder.nl'; family = 'passive-ladder' },
-    @{ name = 'diode-clamp'; source = 'core/tests/fixtures/schematic/diode_clamp.nl'; family = 'clamp' },
-    @{ name = 'bjt-common-emitter'; source = 'core/tests/fixtures/schematic/bjt_common_emitter.nl'; family = 'transistor-stage' },
-    @{ name = 'summing-amplifier'; source = 'core/tests/fixtures/schematic/summing_amplifier.nl'; family = 'multi-input-feedback' }
+    @{ name = 'minimal'; source = 'core/tests/fixtures/valid/minimal.kess'; family = 'minimal' },
+    @{ name = 'rc-filter'; source = 'core/tests/fixtures/benchmarks/rc_filter.kess'; family = 'passive-filter' },
+    @{ name = 'wheatstone'; source = 'examples/wheatstone.kess'; family = 'bridge' },
+    @{ name = 'gain-stage'; source = 'core/tests/fixtures/benchmarks/gain_stage.kess'; family = 'feedback' },
+    @{ name = 'high-fanout'; source = 'core/tests/fixtures/schematic/high_fanout.kess'; family = 'fanout' },
+    @{ name = 'power-amplifier'; source = 'core/tests/fixtures/benchmarks/power_amplifier.kess'; family = 'multi-stage' },
+    @{ name = 'inverting-amplifier'; source = 'core/tests/fixtures/schematic/inverting_amplifier.kess'; family = 'feedback' },
+    @{ name = 'differential-pair'; source = 'core/tests/fixtures/schematic/differential_pair.kess'; family = 'symmetric' },
+    @{ name = 'mosfet-common-source'; source = 'core/tests/fixtures/schematic/mosfet_common_source.kess'; family = 'transistor-stage' },
+    @{ name = 'rlc-ladder'; source = 'core/tests/fixtures/schematic/rlc_ladder.kess'; family = 'passive-ladder' },
+    @{ name = 'diode-clamp'; source = 'core/tests/fixtures/schematic/diode_clamp.kess'; family = 'clamp' },
+    @{ name = 'bjt-common-emitter'; source = 'core/tests/fixtures/schematic/bjt_common_emitter.kess'; family = 'transistor-stage' },
+    @{ name = 'summing-amplifier'; source = 'core/tests/fixtures/schematic/summing_amplifier.kess'; family = 'multi-input-feedback' }
 )
 
 $manifestEntries = @()
@@ -126,7 +126,7 @@ foreach ($entry in $corpus) {
 }
 
 $manifest = [ordered]@{
-    schema_version = 'netlang.schematic-quality-corpus.v1'
+    schema_version = 'kessetsu.schematic-quality-corpus.v1'
     generated_at_utc = [DateTime]::UtcNow.ToString('o')
     cli = $cliPath
     output_directory = $OutputDirectory
@@ -135,7 +135,7 @@ $manifest = [ordered]@{
 $manifest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $OutputDirectory 'manifest.json') -Encoding utf8
 
 $indexLines = @(
-    '# NetLang schematic quality capture',
+    '# Kessetsu schematic quality capture',
     '',
     'Generated artifacts are diagnostic evidence, not accepted visual goldens.',
     ''
@@ -156,15 +156,15 @@ $indexLines | Set-Content -LiteralPath (Join-Path $OutputDirectory 'index.md') -
 if ($IncludeWeb) {
     Push-Location $webPath
     try {
-        $previousCapture = $env:NETLANG_CAPTURE_VISUALS
-        $env:NETLANG_CAPTURE_VISUALS = '1'
+        $previousCapture = $env:KESSETSU_CAPTURE_VISUALS
+        $env:KESSETSU_CAPTURE_VISUALS = '1'
         try {
             Invoke-Checked 'Capture fixed-viewport Web schematic corpus' {
                 & $npmCommand run test:e2e -- schematic-corpus.spec.ts
             }
         }
         finally {
-            $env:NETLANG_CAPTURE_VISUALS = $previousCapture
+            $env:KESSETSU_CAPTURE_VISUALS = $previousCapture
         }
         $webCapture = Join-Path $webPath 'test-results/schematic-corpus'
         if (Test-Path -LiteralPath $webCapture) {

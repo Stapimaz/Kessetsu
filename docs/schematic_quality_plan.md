@@ -2,7 +2,7 @@
 
 - Status: Active — Phase 4 release blocker
 - Opened: 2026-08-13
-- Scope: Core-owned schematic analysis, placement, routing, rendering and every CLI/Web/export projection that consumes `netlang.schematic.v1`
+- Scope: Core-owned schematic analysis, placement, routing, rendering and every CLI/Web/export projection that consumes `kessetsu.schematic.v1`
 
 ## Why this work was reopened
 
@@ -18,9 +18,9 @@ Therefore the earlier Phase 4 visual-readability acceptance is reopened. Public 
 
 The three Web Hub examples were rendered through the same Core/CLI path used by SVG/PNG/PDF export:
 
-- `rc_filter.nl`: electrically understandable, but the source-to-resistor wire makes an unnecessarily large rectangular detour; the drawing is much wider than its information content; raw floating-point component values are not presentation quality.
-- `gain_stage.nl`: the feedback loop is visually fragmented into repeated `OUT`/`FB` labels; supply sources, feedback resistors and load form distant islands; op-amp supply/model text overlaps; page utilization and alignment are poor.
-- `power_amplifier.nl`: the four functional stages do not read as one left-to-right chain; buffer, gain, driver and output connections are mostly labels rather than visible wires; the third op-amp drops to another row without a clear reason; dual supplies dominate separate corners; output transistors and load do not form a recognizable class-B output stage.
+- `rc_filter.kess`: electrically understandable, but the source-to-resistor wire makes an unnecessarily large rectangular detour; the drawing is much wider than its information content; raw floating-point component values are not presentation quality.
+- `gain_stage.kess`: the feedback loop is visually fragmented into repeated `OUT`/`FB` labels; supply sources, feedback resistors and load form distant islands; op-amp supply/model text overlaps; page utilization and alignment are poor.
+- `power_amplifier.kess`: the four functional stages do not read as one left-to-right chain; buffer, gain, driver and output connections are mostly labels rather than visible wires; the third op-amp drops to another row without a clear reason; dual supplies dominate separate corners; output transistors and load do not form a recognizable class-B output stage.
 
 These are not cosmetic nits. A schematic is an engineering explanation of a circuit. Correct connectivity hidden behind labels is not sufficient.
 

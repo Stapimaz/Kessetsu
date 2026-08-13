@@ -429,7 +429,7 @@ fn component_net_names(graph: &NetlistGraph, component: &IRComponent) -> Vec<Str
 }
 
 pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
-    let mut spice = String::from("* NetLang Generated SPICE Netlist\n");
+    let mut spice = String::from("* Kessetsu Generated SPICE Netlist\n");
     let mut used_models = BTreeSet::new();
 
     let mut components: Vec<_> = circuit.components.iter().collect();

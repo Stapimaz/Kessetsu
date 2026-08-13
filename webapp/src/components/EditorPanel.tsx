@@ -3,7 +3,7 @@ import { Code2, Play } from 'lucide-react';
 import { useCallback, useEffect, useRef } from 'react';
 import type { editor } from 'monaco-editor';
 import type { CompileDiagnostic } from '../domain';
-import { type ExampleId, examples } from '../hooks/useNetlangWorkspace';
+import { type ExampleId, examples } from '../hooks/useKessetsuWorkspace';
 import { monaco } from '../monaco';
 
 interface Props {
@@ -24,7 +24,7 @@ export function EditorPanel({ code, diagnostics, wasmLoaded, compileSucceeded, o
   const applyMarkers = useCallback(() => {
     const model = modelRef.current;
     if (!model) return;
-    monaco.editor.setModelMarkers(model, 'netlang-core', diagnostics.map((diagnostic) => ({
+    monaco.editor.setModelMarkers(model, 'kessetsu-core', diagnostics.map((diagnostic) => ({
       severity: diagnostic.severity === 'error'
         ? monaco.MarkerSeverity.Error
         : diagnostic.severity === 'warning'
@@ -55,9 +55,9 @@ export function EditorPanel({ code, diagnostics, wasmLoaded, compileSucceeded, o
   };
 
   return (
-    <section className="workspace-panel editor-panel" aria-label="NetLang source editor">
+    <section className="workspace-panel editor-panel" aria-label="Kessetsu source editor">
       <header className="workspace-header">
-        <div className="header-title"><Code2 size={18} /><strong>NetLang</strong></div>
+        <div className="header-title"><Code2 size={18} /><strong>Kessetsu</strong></div>
         <label className="example-picker">
           <span className="sr-only">Örnek devre</span>
           <select
@@ -76,8 +76,8 @@ export function EditorPanel({ code, diagnostics, wasmLoaded, compileSucceeded, o
       <div className="editor-container">
         <Editor
           height="100%"
-          language="netlang"
-          theme="netlang-dark"
+          language="kessetsu"
+          theme="kessetsu-dark"
           value={code}
           onMount={onMount}
           onChange={(value) => onCodeChange(value ?? '')}

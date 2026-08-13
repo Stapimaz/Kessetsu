@@ -3,7 +3,7 @@ mod common;
 use common::TestWorkspace;
 use serde_json::Value;
 
-const CLI_SCHEMA_VERSION: &str = "netlang.cli.v1";
+const CLI_SCHEMA_VERSION: &str = "kessetsu.cli.v1";
 
 fn candidate(resistance: &str) -> String {
     format!(
@@ -79,13 +79,13 @@ fn versioned_stdin_requests_are_byte_stable_for_agent_retries() {
         let first = workspace.run_cli_with_stdin_and_env(
             &arguments,
             &source,
-            "NETLANG_NGSPICE",
+            "KESSETSU_NGSPICE",
             &simulator,
         );
         let second = workspace.run_cli_with_stdin_and_env(
             &arguments,
             &source,
-            "NETLANG_NGSPICE",
+            "KESSETSU_NGSPICE",
             &simulator,
         );
         assert_eq!(first.status.code(), Some(0));
@@ -109,13 +109,13 @@ fn external_agent_loop_compiles_measures_and_revises_without_parsing_human_text(
     assert_eq!(compile_json["status"], "success");
     assert_eq!(
         compile_json["domain_versions"]["compile"],
-        "netlang.compile.v3"
+        "kessetsu.compile.v3"
     );
 
     let simulate = workspace.run_cli_with_stdin_and_env(
         &["simulate", "-", "--format", "json"],
         &initial,
-        "NETLANG_NGSPICE",
+        "KESSETSU_NGSPICE",
         &simulator,
     );
     assert_eq!(simulate.status.code(), Some(0));
@@ -124,13 +124,13 @@ fn external_agent_loop_compiles_measures_and_revises_without_parsing_human_text(
     assert_eq!(simulate_json["measurements"]["observed_current"], 0.2);
     assert_eq!(
         simulate_json["domain_versions"]["simulation"],
-        "netlang.simulation.v1"
+        "kessetsu.simulation.v1"
     );
 
     let failing_test = workspace.run_cli_with_stdin_and_env(
         &["test", "-", "--format", "json"],
         &initial,
-        "NETLANG_NGSPICE",
+        "KESSETSU_NGSPICE",
         &simulator,
     );
     assert_eq!(failing_test.status.code(), Some(4));
@@ -146,7 +146,7 @@ fn external_agent_loop_compiles_measures_and_revises_without_parsing_human_text(
     let passing_test = workspace.run_cli_with_stdin_and_env(
         &["test", "-", "--format", "json"],
         &revised,
-        "NETLANG_NGSPICE",
+        "KESSETSU_NGSPICE",
         &simulator,
     );
     assert_eq!(passing_test.status.code(), Some(0));

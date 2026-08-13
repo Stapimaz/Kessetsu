@@ -121,19 +121,19 @@ pub fn classify_simulator_log(stdout: &str, stderr: &str) -> Vec<SimulatorDiagno
         let lower = message.to_ascii_lowercase();
         let classified = if contains_convergence_failure(&lower) {
             Some((
-                "NL-S004",
+                "KES-S004",
                 SimulatorDiagnosticSeverity::Error,
                 SimulatorDiagnosticKind::Convergence,
             ))
         } else if contains_fatal_failure(&lower) {
             Some((
-                "NL-S005",
+                "KES-S005",
                 SimulatorDiagnosticSeverity::Error,
                 SimulatorDiagnosticKind::Fatal,
             ))
         } else if lower.contains("warning") {
             Some((
-                "NL-S003",
+                "KES-S003",
                 SimulatorDiagnosticSeverity::Warning,
                 SimulatorDiagnosticKind::Warning,
             ))
@@ -159,7 +159,7 @@ pub fn classify_simulator_log(stdout: &str, stderr: &str) -> Vec<SimulatorDiagno
 
 pub fn result_parse_diagnostic(message: impl Into<String>) -> SimulatorDiagnostic {
     SimulatorDiagnostic {
-        code: "NL-S006".to_string(),
+        code: "KES-S006".to_string(),
         severity: SimulatorDiagnosticSeverity::Error,
         kind: SimulatorDiagnosticKind::ResultParse,
         message: message.into(),

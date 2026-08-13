@@ -19,7 +19,7 @@ fn to_json_compatible<T: Serialize>(value: &T, context: &str) -> Result<JsValue,
 
 /// Thin browser adapter over the canonical, side-effect-free compile pipeline.
 #[wasm_bindgen]
-pub fn compile_netlang(input: &str) -> Result<JsValue, JsValue> {
+pub fn compile_kessetsu(input: &str) -> Result<JsValue, JsValue> {
     let report = compile_source(input, CompileOptions::all_outputs());
     to_json_compatible(&report, "compile report")
 }
@@ -37,7 +37,7 @@ pub fn compile_schema_version() -> String {
 /// Binary payloads are serialized as byte arrays and should be downloaded as
 /// `Uint8Array` by the browser adapter.
 #[wasm_bindgen]
-pub fn export_netlang(
+pub fn export_kessetsu(
     input: &str,
     format: &str,
     scale: f32,

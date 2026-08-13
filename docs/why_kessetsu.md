@@ -1,10 +1,10 @@
-# Why NetLang?
+# Why Kessetsu?
 
-NetLang is not a claim that existing simulators or EDA tools are inadequate. It connects several jobs that are usually separate: a compact circuit language, deterministic validation, real SPICE simulation, engineering assertions, structured agent feedback, automatic schematic rendering, editable exports and a no-account browser workspace.
+Kessetsu is not a claim that existing simulators or EDA tools are inadequate. It connects several jobs that are usually separate: a compact circuit language, deterministic validation, real SPICE simulation, engineering assertions, structured agent feedback, automatic schematic rendering, editable exports and a no-account browser workspace.
 
 ## Measurable differences
 
-| Workflow | What the established tool optimizes for | What NetLang adds |
+| Workflow | What the established tool optimizes for | What Kessetsu adds |
 |---|---|---|
 | Raw Ngspice netlist | Broad open-source SPICE simulation from file/CLI; Ngspice itself does not provide schematic entry | Typed/allowlisted source, source-located diagnostics, ERC, versioned datasets/measurements/assertions, automatic schematic and seven exports |
 | KiCad or LTspice | Mature graphical schematic capture plus integrated simulation/waveform workflows | One text source callable by an AI agent, deterministic JSON feedback and the same Core in a zero-install browser; editable files are outputs, not replacements for those editors |
@@ -14,7 +14,7 @@ The repository tests these claims rather than relying on slogans: three real Ngs
 
 ## Who it is for
 
-NetLang can serve learners, working engineers, hobbyists, automation and AI agents within its [declared analog/mixed-signal boundary](supported_domain.md). It is not limited to coursework, and it does not claim to replace PCB layout, RF/EM, thermal/reliability analysis, laboratory validation or engineering review.
+Kessetsu can serve learners, working engineers, hobbyists, automation and AI agents within its [declared analog/mixed-signal boundary](supported_domain.md). It is not limited to coursework, and it does not claim to replace PCB layout, RF/EM, thermal/reliability analysis, laboratory validation or engineering review.
 
 ## Product split
 

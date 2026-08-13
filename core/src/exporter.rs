@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::str::FromStr;
 
-pub const EXPORT_SCHEMA_VERSION: &str = "netlang.export.v1";
+pub const EXPORT_SCHEMA_VERSION: &str = "kessetsu.export.v1";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -226,7 +226,7 @@ impl std::error::Error for ExportError {}
 
 fn schematic(report: &CompileReport) -> Result<&Schematic, ExportError> {
     report.schematic.as_ref().ok_or_else(|| ExportError {
-        code: "NL-X002".to_string(),
+        code: "KES-X002".to_string(),
         message: "canonical Schematic IR is unavailable; export stopped".to_string(),
         diagnostics: report.diagnostics.clone(),
     })
@@ -235,7 +235,7 @@ fn schematic(report: &CompileReport) -> Result<&Schematic, ExportError> {
 fn render_png(schematic: &Schematic, options: ExportOptions) -> Result<Vec<u8>, ExportError> {
     if !(0.25..=8.0).contains(&options.scale) || !options.scale.is_finite() {
         return Err(ExportError {
-            code: "NL-X004".to_string(),
+            code: "KES-X004".to_string(),
             message: "PNG scale must be a finite value between 0.25 and 8".to_string(),
             diagnostics: Vec::new(),
         });
@@ -249,7 +249,7 @@ fn render_png(schematic: &Schematic, options: ExportOptions) -> Result<Vec<u8>, 
         .fontdb_mut()
         .load_font_data(include_bytes!("../assets/fonts/RobotoMono.ttf").to_vec());
     let tree = resvg::usvg::Tree::from_str(&svg, &parser).map_err(|error| ExportError {
-        code: "NL-X005".to_string(),
+        code: "KES-X005".to_string(),
         message: format!("could not parse canonical SVG for PNG rendering: {error}"),
         diagnostics: Vec::new(),
     })?;
@@ -258,7 +258,7 @@ fn render_png(schematic: &Schematic, options: ExportOptions) -> Result<Vec<u8>, 
     let height = ((size.height() as f32) * options.scale).round() as u32;
     let mut pixmap =
         resvg::tiny_skia::Pixmap::new(width.max(1), height.max(1)).ok_or_else(|| ExportError {
-            code: "NL-X006".to_string(),
+            code: "KES-X006".to_string(),
             message: "PNG dimensions exceed the rasterizer limit".to_string(),
             diagnostics: Vec::new(),
         })?;
@@ -268,7 +268,7 @@ fn render_png(schematic: &Schematic, options: ExportOptions) -> Result<Vec<u8>, 
         &mut pixmap.as_mut(),
     );
     pixmap.encode_png().map_err(|error| ExportError {
-        code: "NL-X007".to_string(),
+        code: "KES-X007".to_string(),
         message: format!("could not encode PNG: {error}"),
         diagnostics: Vec::new(),
     })
@@ -281,7 +281,7 @@ fn render_pdf(schematic: &Schematic) -> Result<Vec<u8>, ExportError> {
         .fontdb_mut()
         .load_font_data(include_bytes!("../assets/fonts/RobotoMono.ttf").to_vec());
     let tree = svg2pdf::usvg::Tree::from_str(&svg, &parser).map_err(|error| ExportError {
-        code: "NL-X008".to_string(),
+        code: "KES-X008".to_string(),
         message: format!("could not parse canonical SVG for PDF rendering: {error}"),
         diagnostics: Vec::new(),
     })?;
@@ -297,7 +297,7 @@ fn render_pdf(schematic: &Schematic) -> Result<Vec<u8>, ExportError> {
         svg2pdf::PageOptions { dpi: 96.0 },
     )
     .map_err(|error| ExportError {
-        code: "NL-X009".to_string(),
+        code: "KES-X009".to_string(),
         message: format!("could not encode vector PDF: {error}"),
         diagnostics: Vec::new(),
     })
@@ -310,7 +310,7 @@ pub fn export_report(
 ) -> Result<ExportArtifact, ExportError> {
     if report.has_errors() {
         return Err(ExportError {
-            code: "NL-X001".to_string(),
+            code: "KES-X001".to_string(),
             message: "source has compile/ERC errors; no artifact was produced".to_string(),
             diagnostics: report.diagnostics.clone(),
         });
@@ -344,7 +344,7 @@ pub fn export_report(
         ExportFormat::SchematicJson => {
             let schematic = schematic(report)?;
             let mut json = serde_json::to_vec_pretty(schematic).map_err(|error| ExportError {
-                code: "NL-X010".to_string(),
+                code: "KES-X010".to_string(),
                 message: format!("could not serialize Schematic IR: {error}"),
                 diagnostics: Vec::new(),
             })?;
@@ -356,7 +356,7 @@ pub fn export_report(
                 .spice_netlist
                 .as_ref()
                 .ok_or_else(|| ExportError {
-                    code: "NL-X011".to_string(),
+                    code: "KES-X011".to_string(),
                     message: "canonical SPICE is unavailable".to_string(),
                     diagnostics: Vec::new(),
                 })?
@@ -368,12 +368,12 @@ pub fn export_report(
             let schematic = schematic(report)?;
             if report.ir.as_ref().is_some_and(|ir| !ir.analyses.is_empty()) {
                 losses.push(
-                    "simulation commands and assertions remain in the .nl source; KiCad export contains topology, values and model metadata"
+                    "simulation commands and assertions remain in the .kess source; KiCad export contains topology, values and model metadata"
                         .to_string(),
                 );
             }
             warnings.push(
-                "KiCad may report a symbol-table warning for portable embedded NetLang symbols; embedded definitions remain editable and connectivity-safe"
+                "KiCad may report a symbol-table warning for portable embedded Kessetsu symbols; embedded definitions remain editable and connectivity-safe"
                     .to_string(),
             );
             (
@@ -384,7 +384,7 @@ pub fn export_report(
         ExportFormat::Ltspice => {
             let schematic = schematic(report)?;
             let circuit = report.ir.as_ref().ok_or_else(|| ExportError {
-                code: "NL-X016".to_string(),
+                code: "KES-X016".to_string(),
                 message: "typed Circuit IR is unavailable for LTspice export".to_string(),
                 diagnostics: Vec::new(),
             })?;
@@ -394,12 +394,12 @@ pub fn export_report(
                 .is_some_and(|ir| !ir.assertions.is_empty())
             {
                 losses.push(
-                    "engineering assertions remain in the .nl source; LTspice export contains topology, values, model directives and analyses"
+                    "engineering assertions remain in the .kess source; LTspice export contains topology, values, model directives and analyses"
                         .to_string(),
                 );
             }
             warnings.push(
-                "LTspice symbols use the standard bundled symbol library; keep the .nl source as the authoritative design"
+                "LTspice symbols use the standard bundled symbol library; keep the .kess source as the authoritative design"
                     .to_string(),
             );
             (
@@ -411,7 +411,7 @@ pub fn export_report(
 
     if !connectivity_verified && format.capability().preserves_connectivity {
         return Err(ExportError {
-            code: "NL-X003".to_string(),
+            code: "KES-X003".to_string(),
             message: "canonical connectivity proof failed; export stopped".to_string(),
             diagnostics: Vec::new(),
         });
@@ -420,7 +420,7 @@ pub fn export_report(
     let sha256 = format!("{:x}", Sha256::digest(&bytes));
     Ok(ExportArtifact {
         schema_version: EXPORT_SCHEMA_VERSION.to_string(),
-        exporter: format!("netlang-{}", format.id()),
+        exporter: format!("kessetsu-{}", format.id()),
         exporter_version: 1,
         format,
         label: export_capabilities()

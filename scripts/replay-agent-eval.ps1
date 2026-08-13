@@ -4,13 +4,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$sourcePath = Join-Path $repoRoot "core/tests/fixtures/benchmarks/power_amplifier.nl"
+$sourcePath = Join-Path $repoRoot "core/tests/fixtures/benchmarks/power_amplifier.kess"
 if (-not $Binary) {
-    $name = if ($IsWindows -or $env:OS -eq "Windows_NT") { "netlang.exe" } else { "netlang" }
+    $name = if ($IsWindows -or $env:OS -eq "Windows_NT") { "kess.exe" } else { "kess" }
     $Binary = Join-Path $repoRoot "core/target/release/$name"
 }
 if (-not (Test-Path -LiteralPath $Binary -PathType Leaf)) {
-    throw "NetLang release binary not found at $Binary. Run cargo build --release first."
+    throw "Kessetsu release binary not found at $Binary. Run cargo build --release first."
 }
 
 $finalSource = Get-Content -LiteralPath $sourcePath -Raw -Encoding UTF8
@@ -20,7 +20,7 @@ if ($candidateJson.status -ne "test_failed" -or $candidateJson.assertions.summar
     throw "Agent eval iteration 0 no longer produces exactly one structured failure."
 }
 $failed = @($candidateJson.assertions.assertions | Where-Object { $_.status -eq "FAIL" })
-if ($failed.Count -ne 1 -or $failed[0].code -ne "NL-T003" -or $failed[0].metric -ne "output_power") {
+if ($failed.Count -ne 1 -or $failed[0].code -ne "KES-T003" -or $failed[0].metric -ne "output_power") {
     throw "Agent eval iteration 0 failure identity changed."
 }
 
@@ -28,4 +28,4 @@ $finalJson = ($finalSource | & $Binary test - --format json | Out-String) | Conv
 if ($finalJson.status -ne "success" -or $finalJson.assertions.summary.passed -ne 12) {
     throw "Agent eval final source did not pass all 12 assertions."
 }
-Write-Host "Agent eval PASS: 16 ohm candidate fails NL-T003; 8 ohm revision passes 12/12."
+Write-Host "Agent eval PASS: 16 ohm candidate fails KES-T003; 8 ohm revision passes 12/12."

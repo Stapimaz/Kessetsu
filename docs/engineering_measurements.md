@@ -1,6 +1,6 @@
 # Engineering Measurement Contract
 
-NetLang engineering measurements are evaluated from typed `netlang.simulation.v1` datasets by the versioned `netlang.measurement.v1` model. Assertions never infer a passing value from missing data: an unavailable signal, incompatible analysis or invalid argument becomes an assertion `ERROR`.
+Kessetsu engineering measurements are evaluated from typed `kessetsu.simulation.v1` datasets by the versioned `kessetsu.measurement.v1` model. Assertions never infer a passing value from missing data: an unavailable signal, incompatible analysis or invalid argument becomes an assertion `ERROR`.
 
 ## Primitives and sign convention
 
@@ -15,7 +15,7 @@ Component and net namespaces cannot collide, so `V(OUT)` is unambiguous. Indepen
 
 Device-limit checks use the same primitives, for example:
 
-```netlang
+```kessetsu
 assert peak(V(Q1)) < 40V
 assert peak(V(Q1.c,Q1.e),2ms,10ms) < 40V
 assert peak(I(Q1)) < 1A
@@ -31,7 +31,7 @@ These are simulated operating limits supplied by the design requirement. They ar
 
 Transient/DC reductions can be windowed with inclusive SI-valued time bounds:
 
-```netlang
+```kessetsu
 assert rms(V(OUT),2ms,10ms) > 3V
 ```
 
@@ -53,7 +53,7 @@ The contract requires `0 <= start < stop` and at least one sample inside the win
 
 `V(component.pin,component.pin)` is the explicit terminal-pair primitive for stress checks. It validates both component pins against the shared catalog and preserves the written polarity; for example `V(Q1.c,Q1.e)` is VCE and `V(M1.g,M1.s)` is VGS. The shorthand `V(Q1)` remains the device's canonical main terminal pair for compatibility.
 
-`bandwidth`/`cutoff` is intentionally low-pass-only in `netlang.measurement.v1`: the first AC point must be within 1% of the maximum response and a later downward −3 dB crossing must exist. Band-pass, high-pass or multi-peak responses fail closed instead of returning a misleading “cutoff”; explicit lower/upper crossing metrics are reserved for a later schema revision.
+`bandwidth`/`cutoff` is intentionally low-pass-only in `kessetsu.measurement.v1`: the first AC point must be within 1% of the maximum response and a later downward −3 dB crossing must exist. Band-pass, high-pass or multi-peak responses fail closed instead of returning a misleading “cutoff”; explicit lower/upper crossing metrics are reserved for a later schema revision.
 
 Frequency sweeps should use `ac(amplitude)` sources. A source used by both transient and AC analyses uses `sine_ac(offset, amplitude, frequency, ac_amplitude)`.
 
@@ -63,6 +63,6 @@ Derived metrics validate argument count, physical units, target component type, 
 
 The canonical real-simulator fixtures are:
 
-- `core/tests/fixtures/benchmarks/rc_filter.nl`: cutoff and AC phase/response.
-- `core/tests/fixtures/benchmarks/gain_stage.nl`: bias, closed-loop gain, bandwidth and clipping.
-- `core/tests/fixtures/benchmarks/power_amplifier.nl`: four stages, 8 Ω output power, gain, THD, clipping, dissipation, and device stress.
+- `core/tests/fixtures/benchmarks/rc_filter.kess`: cutoff and AC phase/response.
+- `core/tests/fixtures/benchmarks/gain_stage.kess`: bias, closed-loop gain, bandwidth and clipping.
+- `core/tests/fixtures/benchmarks/power_amplifier.kess`: four stages, 8 Ω output power, gain, THD, clipping, dissipation, and device stress.

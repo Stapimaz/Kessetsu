@@ -1,11 +1,11 @@
 mod common;
 
 use common::read_fixture;
-use netlang_core::component::component_definition;
-use netlang_core::erc::{ErcDiagnostic, check_rules};
-use netlang_core::graph::{NetId, NetlistGraph, format_spice_number, generate_spice};
-use netlang_core::ir::{BJTPolarity, CircuitIR, ComponentKind, FETPolarity, ast_to_ir};
-use netlang_core::parse_program;
+use kessetsu_core::component::component_definition;
+use kessetsu_core::erc::{ErcDiagnostic, check_rules};
+use kessetsu_core::graph::{NetId, NetlistGraph, format_spice_number, generate_spice};
+use kessetsu_core::ir::{BJTPolarity, CircuitIR, ComponentKind, FETPolarity, ast_to_ir};
+use kessetsu_core::parse_program;
 
 fn circuit_from(source: &str) -> CircuitIR {
     let program = parse_program(source)
@@ -24,15 +24,15 @@ fn diagnostics_for(source: &str) -> Vec<ErcDiagnostic> {
 #[test]
 fn each_existing_erc_code_has_a_regression_fixture() {
     let cases = [
-        ("invalid/semantic/duplicate_component.nl", "NL-E001"),
-        ("invalid/semantic/undefined_component.nl", "NL-E002"),
-        ("invalid/semantic/floating_pin.nl", "NL-E003"),
-        ("invalid/semantic/shorted_source.nl", "NL-E004"),
-        ("invalid/semantic/invalid_pin.nl", "NL-E005"),
-        ("invalid/semantic/namespace_collision.nl", "NL-E006"),
-        ("invalid/semantic/net_name_conflict.nl", "NL-E007"),
-        ("invalid/semantic/ground_ambiguity.nl", "NL-E008"),
-        ("invalid/semantic/duplicate_net.nl", "NL-E009"),
+        ("invalid/semantic/duplicate_component.kess", "KES-E001"),
+        ("invalid/semantic/undefined_component.kess", "KES-E002"),
+        ("invalid/semantic/floating_pin.kess", "KES-E003"),
+        ("invalid/semantic/shorted_source.kess", "KES-E004"),
+        ("invalid/semantic/invalid_pin.kess", "KES-E005"),
+        ("invalid/semantic/namespace_collision.kess", "KES-E006"),
+        ("invalid/semantic/net_name_conflict.kess", "KES-E007"),
+        ("invalid/semantic/ground_ambiguity.kess", "KES-E008"),
+        ("invalid/semantic/duplicate_net.kess", "KES-E009"),
     ];
 
     for (fixture, expected_code) in cases {
@@ -52,7 +52,7 @@ fn each_existing_erc_code_has_a_regression_fixture() {
 
 #[test]
 fn voltage_source_minus_net_is_canonical_ground() {
-    let circuit = circuit_from(&read_fixture("valid/minimal.nl"));
+    let circuit = circuit_from(&read_fixture("valid/minimal.kess"));
     let graph = NetlistGraph::build(&circuit);
 
     assert_eq!(graph.get_net("V1", "minus"), Some(NetId::GROUND));
@@ -140,7 +140,7 @@ fn disconnected_source_ground_fallback_is_lexicographically_stable() {
 
 #[test]
 fn standard_models_and_full_netlist_are_byte_stable_across_rebuilds() {
-    let source = include_str!("../../examples/test_features.nl");
+    let source = include_str!("../../examples/test_features.kess");
     let circuit = circuit_from(source);
     let baseline = generate_spice(&circuit, &NetlistGraph::build(&circuit));
 
@@ -225,20 +225,20 @@ fn explicit_gnd_net_takes_priority_over_legacy_source_minus_order() {
     assert!(
         check_rules(&circuit, &graph)
             .iter()
-            .all(|diagnostic| diagnostic.code != "NL-E008")
+            .all(|diagnostic| diagnostic.code != "KES-E008")
     );
 }
 
 #[test]
 fn multiple_legacy_ground_candidates_are_reported_but_resolved_deterministically() {
-    let circuit = circuit_from(&read_fixture("invalid/semantic/ground_ambiguity.nl"));
+    let circuit = circuit_from(&read_fixture("invalid/semantic/ground_ambiguity.kess"));
     let graph = NetlistGraph::build(&circuit);
     let diagnostics = check_rules(&circuit, &graph);
 
     assert!(!graph.ground_is_explicit);
     assert_eq!(graph.ground_candidates, ["A1.minus", "Z1.minus"]);
     assert_eq!(graph.get_net("A1", "minus"), Some(NetId::GROUND));
-    assert!(diagnostics.iter().any(|item| item.code == "NL-E008"));
+    assert!(diagnostics.iter().any(|item| item.code == "KES-E008"));
 }
 
 #[test]

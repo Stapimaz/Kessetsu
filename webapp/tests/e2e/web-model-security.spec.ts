@@ -11,12 +11,12 @@ async function replaceSource(page: Page, source: string) {
   await page.keyboard.insertText(source);
 }
 
-const packageCircuit = `model_include netlang_analog 1.0.0
+const packageCircuit = `model_include kessetsu_analog 1.0.0
 net GND
 net VDD
 net OUT
 source VS 5V
-opamp U1 NLANG_PACKAGE_OPAMP
+opamp U1 KESSETSU_PACKAGE_OPAMP
 resistor R1 10k
 connect VS.minus to GND
 connect VS.plus to VDD
@@ -31,19 +31,19 @@ simulate op
 `;
 
 test('keeps exact packages reproducible and rejects model directive injection in Web', async ({ page }) => {
-  const binary = resolve('../core/target/release', process.platform === 'win32' ? 'netlang.exe' : 'netlang');
+  const binary = resolve('../core/target/release', process.platform === 'win32' ? 'kess.exe' : 'kess');
   await page.goto('/');
   await replaceSource(page, packageCircuit);
   await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('model-manifest')).toHaveAttribute(
     'data-manifest',
-    /"name":"netlang_analog","version":"1\.0\.0"/,
+    /"name":"kessetsu_analog","version":"1\.0\.0"/,
   );
   const manifest = JSON.parse(await page.getByTestId('model-manifest').getAttribute('data-manifest') ?? '{}');
-  expect(manifest.packages[0]).toMatchObject({ name: 'netlang_analog', version: '1.0.0' });
-  expect(manifest.models[0].name).toBe('NLANG_PACKAGE_OPAMP');
+  expect(manifest.packages[0]).toMatchObject({ name: 'kessetsu_analog', version: '1.0.0' });
+  expect(manifest.models[0].name).toBe('KESSETSU_PACKAGE_OPAMP');
 
-  const sourcePath = resolve('test-results/package-model.nl');
+  const sourcePath = resolve('test-results/package-model.kess');
   const outputPath = resolve('test-results/package-model.spice');
   writeFileSync(sourcePath, packageCircuit);
   execFileSync(binary, ['compile', sourcePath, '--output', outputPath, '--force']);
@@ -51,7 +51,7 @@ test('keeps exact packages reproducible and rejects model directive injection in
     .toBe(readFileSync(outputPath, 'utf8').replace(/\r\n/g, '\n'));
 
   await replaceSource(page, 'model diode Evil version=1 license=MIT Is="1e-9 .control"\n');
-  await expect(page.getByText(/NL-C010/)).toBeVisible();
+  await expect(page.getByText(/KES-C010/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Run' })).toBeDisabled();
   await expect(page.locator('.spice-details pre')).toContainText('Geçerli devre bekleniyor');
 });
