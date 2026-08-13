@@ -57,8 +57,13 @@ fn canonical_rc_gain_stage_and_power_amplifier_meet_real_ngspice_targets() {
 #[test]
 fn external_agent_revises_a_real_rc_design_from_structured_feedback() {
     let workspace = TestWorkspace::new("real-rc-agent-revision");
-    let executable = std::fs::canonicalize(NgspiceRunner::discover().executable())
-        .expect("Ngspice executable should resolve to an absolute path");
+    let discovered = NgspiceRunner::discover();
+    let executable = discovered.executable();
+    assert!(
+        executable.is_absolute() && executable.is_file(),
+        "Ngspice discovery should resolve PATH/bundled executables to an existing absolute path: {}",
+        executable.display()
+    );
     let target = read_fixture("benchmarks/rc_filter.nl");
     let initial = target.replace("159.154943nF", "15.9154943nF");
 
@@ -66,7 +71,7 @@ fn external_agent_revises_a_real_rc_design_from_structured_feedback() {
         &["test", "-", "--format", "json"],
         &initial,
         "NETLANG_NGSPICE",
-        &executable,
+        executable,
     );
     assert_eq!(failing.status.code(), Some(4));
     let failing = json(&failing);
@@ -95,7 +100,7 @@ fn external_agent_revises_a_real_rc_design_from_structured_feedback() {
         &["test", "-", "--format", "json"],
         &target,
         "NETLANG_NGSPICE",
-        &executable,
+        executable,
     );
     assert_eq!(revised.status.code(), Some(0));
     let revised = json(&revised);

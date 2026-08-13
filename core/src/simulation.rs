@@ -622,7 +622,15 @@ mod native {
         if let Some(configured_path) = env::var_os("NETLANG_NGSPICE")
             && !configured_path.is_empty()
         {
-            return PathBuf::from(configured_path);
+            let configured_path = PathBuf::from(configured_path);
+            return canonical_executable(&configured_path)
+                .or_else(|| {
+                    (configured_path.components().count() == 1)
+                        .then(|| configured_path.to_str())
+                        .flatten()
+                        .and_then(executable_on_path)
+                })
+                .unwrap_or(configured_path);
         }
 
         let binary_name = if cfg!(windows) {
@@ -644,9 +652,24 @@ mod native {
             }
         }
         candidates
-            .into_iter()
-            .find(|candidate| candidate.is_file())
+            .iter()
+            .find_map(|candidate| canonical_executable(candidate))
+            .or_else(|| executable_on_path(binary_name))
             .unwrap_or_else(|| PathBuf::from(binary_name))
+    }
+
+    fn canonical_executable(candidate: &Path) -> Option<PathBuf> {
+        candidate
+            .is_file()
+            .then(|| fs::canonicalize(candidate).unwrap_or_else(|_| candidate.to_path_buf()))
+    }
+
+    fn executable_on_path(binary_name: &str) -> Option<PathBuf> {
+        env::var_os("PATH").and_then(|path| {
+            env::split_paths(&path)
+                .map(|directory| directory.join(binary_name))
+                .find_map(|candidate| canonical_executable(&candidate))
+        })
     }
 
     fn cancelled_before_launch(request: &SimulationRequest, executable: &Path) -> SimulationResult {
