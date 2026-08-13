@@ -88,11 +88,26 @@ Ngspice executable discovery gerektiğinde `NETLANG_NGSPICE` environment variabl
 
 ### `render`
 
-SVG renderer henüz uygulanmadığı için komut fail-closed davranır: çıktı üretmez, `NL-F001` verir ve exit `2` döner. Başarı stub'ı değildir.
+Canonical Schematic IR üzerinden SVG, PNG veya tek sayfa vector PDF üretir. Format output uzantısından seçilir; PNG ölçeği `0.25..8`, arka plan `white|transparent` olabilir.
 
 ```bash
-netlang render examples/demo_circuit.nl
+netlang render circuit.nl --output circuit.svg
+netlang render circuit.nl --output circuit.png --scale 3 --background transparent
+netlang render circuit.nl --output circuit.pdf
 ```
+
+### `export`
+
+Versioned ortak exporter sözleşmesinden makine-okunabilir veya düzenlenebilir çıktı üretir:
+
+```bash
+netlang export circuit.nl --target schematic-json --output circuit.netlang.json
+netlang export circuit.nl --target spice --output circuit.spice
+netlang export circuit.nl --target kicad --output circuit.kicad_sch
+netlang export circuit.nl --target ltspice --output circuit.asc
+```
+
+`render` ve `export`, canonical connectivity doğrulanmadıysa veya hedef bir özelliği güvenle temsil edemiyorsa `NL-X...` diagnostic ile çıktı üretmeden durur. Mevcut dosyayı yenilemek için `--force` gerekir. `--format json` artifact schema/version, MIME, SHA-256, byte length, connectivity, capability, warning ve loss alanlarını bildirir. Formatların sınırları [export matrix](export_formats.md) içinde tanımlıdır.
 
 ## JSON sözleşmesi
 
@@ -205,7 +220,7 @@ opamp U1 NLANG_PACKAGE_OPAMP
 
 - `0`: Başarı.
 - `1`: Flatten, semantic validation veya ERC hatası.
-- `2`: Parse, I/O, güvenli output politikası veya henüz uygulanmamış frontend komutu hatası.
+- `2`: Parse, I/O, güvenli output politikası veya export/render frontend hatası.
 - `3`: Simulator başlatma/process/runtime hatası.
 - `4`: Bir veya daha fazla assertion başarısız.
 

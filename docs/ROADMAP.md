@@ -875,16 +875,16 @@ Mevcut Web/layout kodu tamamen boş değildir ve kanıt görmeden silinmeyecekti
 
 ### 4.6 — Paylaşım, ürün anlatısı ve bağımsız agent kanıtı
 
-- [ ] Versioned ve boyut-limitli client-side compressed circuit URL formatı tanımla.
-- [ ] URL'den güvenli decode → migrate → compile akışını malformed/decompression-bomb fixture'larıyla fail-closed doğrula.
-- [ ] Paylaşılan URL'nin source ve gerekli package/version bilgisini schema kaybı olmadan round-trip ettiğini test et.
-- [ ] İlk açılış örnek seçicisini RC, gain-stage ve power-amplifier açıklamalarıyla tamamla.
-- [ ] NetLang language reference, simulation/assertion/measurement reference, supported-domain matrix, tutorial, cookbook ve troubleshooting dokümanlarını tamamla.
-- [ ] “Neden NetLang?” anlatısını ham SPICE, geleneksel simulator ve code-based circuit araçlarından ölçülebilir farklarla açıkla; rakip iddialarını yayın öncesinde güncel kaynaklarla doğrula.
-- [ ] Dış bir LLM'nin doğal dilde 8 Ω power-amplifier gereksiniminden başlayıp CLI structured feedback ile devreyi revize etmesini versioned, tekrar çalıştırılabilir agent eval olarak kaydet.
-- [ ] Agent eval'de model/sürüm, prompt, tool çağrıları, iterasyonlar, son source ve assertion raporunu provenance ile sakla; nondeterministik canlı LLM çağrısını canonical CI kapısı yapma.
-- [ ] Aynı son source'u Web Hub paylaşım URL'sinde açıp şema, grafik, assertion ve export akışını ürün demosu olarak doğrula.
-- [ ] Web içinde AI chat/tasarım arayüzü olmamasını eksiklik gibi gizleme; ilk yayında AI yüzeyinin CLI/tool contract, insan yüzeyinin Web Hub olduğunu açık anlat.
+- [x] Versioned ve boyut-limitli client-side compressed circuit URL formatı tanımla. _`netlang.share.v1`; gzip + base64url fragment, 64 KiB source/compressed sınırı._
+- [x] URL'den güvenli decode → migrate → compile akışını malformed/decompression-bomb fixture'larıyla fail-closed doğrula. _Bilinmeyen v1 öncesi/sonrası migrate edilmez; explicit version rejection, streaming decompression limiti ve unit corpus._
+- [x] Paylaşılan URL'nin source ve gerekli package/version bilgisini schema kaybı olmadan round-trip ettiğini test et. _UTF-8 source, compile schema ve exact sorted package manifest; compile sonrası manifest equality._
+- [x] İlk açılış örnek seçicisini RC, gain-stage ve power-amplifier açıklamalarıyla tamamla. _Üç canonical benchmark ve amaçlarını taşıyan select seçenekleri._
+- [x] NetLang language reference, simulation/assertion/measurement reference, supported-domain matrix, tutorial, cookbook ve troubleshooting dokümanlarını tamamla. _`docs/language_reference.md`, `simulation_and_assertions.md`, `engineering_measurements.md`, `supported_domain.md`, `tutorial.md`, `cookbook.md`, `troubleshooting.md`._
+- [x] “Neden NetLang?” anlatısını ham SPICE, geleneksel simulator ve code-based circuit araçlarından ölçülebilir farklarla açıkla; rakip iddialarını yayın öncesinde güncel kaynaklarla doğrula. _`docs/why_netlang.md`; 2026-08-13 resmi Ngspice/KiCad/LTspice/SKiDL kaynakları ve sınırlı iddialar._
+- [x] Dış bir LLM'nin doğal dilde 8 Ω power-amplifier gereksiniminden başlayıp CLI structured feedback ile devreyi revize etmesini versioned, tekrar çalıştırılabilir agent eval olarak kaydet. _16 Ω adayındaki `NL-T003` 997.7 mW feedback'i → 8 Ω → 12/12 PASS._
+- [x] Agent eval'de model/sürüm, prompt, tool çağrıları, iterasyonlar, son source ve assertion raporunu provenance ile sakla; nondeterministik canlı LLM çağrısını canonical CI kapısı yapma. _`docs/evals/power-amplifier-agent-v1.json` ve deterministic `scripts/replay-agent-eval.ps1`; deployment kimliği bilinmiyorsa açıkça belirtilir._
+- [x] Aynı son source'u Web Hub paylaşım URL'sinde açıp şema, grafik, assertion ve export akışını ürün demosu olarak doğrula. _`share.spec.ts`: URL load, connectivity-verified schema, gerçek browser run 12/12, SVG export ve yeniden share._
+- [x] Web içinde AI chat/tasarım arayüzü olmamasını eksiklik gibi gizleme; ilk yayında AI yüzeyinin CLI/tool contract, insan yüzeyinin Web Hub olduğunu açık anlat. _README ve Why NetLang product split._
 
 **4.6 kabul kriteri:** İnsan ürünü ve agent ürünü aynı Core üzerinde birleşir; doğal-dil agent demosu gerçek simülasyonla kanıtlıdır fakat Web Hub herhangi bir AI sağlayıcısına bağımlı değildir.
 

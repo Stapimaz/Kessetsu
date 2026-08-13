@@ -60,7 +60,7 @@ export function EditorPanel({ code, diagnostics, wasmLoaded, compileSucceeded, o
         <label className="example-picker">
           <span className="sr-only">Örnek devre</span>
           <select aria-label="Örnek devre" defaultValue="rc" onChange={(event) => onExample(event.target.value as ExampleId)}>
-            {Object.entries(examples).map(([id, example]) => <option key={id} value={id}>{example.label}</option>)}
+            {Object.entries(examples).map(([id, example]) => <option key={id} value={id}>{example.label} — {example.description}</option>)}
           </select>
         </label>
         <button className="secondary-button" onClick={onCompile} disabled={!wasmLoaded}>

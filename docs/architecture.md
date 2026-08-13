@@ -271,8 +271,8 @@ Kullanıcıların kayıtsız, indirmesiz kullanabildiği; Rust çekirdeğini WAS
 
 - **Mevcut workspace:** Kod yaz → debounced WASM compile/ERC → canonical şema → dedicated worker içinde Ngspice simulation → typed plot/measurement/assertion sonuçları.
 - **Mevcut export:** Core'un `netlang.export.v1` capability sözleşmesi üzerinden SVG, PNG, PDF, Schematic JSON, SPICE, KiCad ve LTspice; Web exporter semantiğini yeniden kurmaz.
-- **Planlanan paylaşım:** URL-embedded circuit ve kalıcı paylaşım akışı ürün hedefidir; mevcut Web arayüzünde yoktur.
+- **Mevcut paylaşım:** `netlang.share.v1` source, compile schema ve exact package/version manifest'ini gzip + base64url URL fragment'inde taşır. Decode streaming boyut limitlidir; bilinmeyen sürüm, bozuk payload veya compile sonrası package uyuşmazlığı fail-closed olur. Sunucuya proje yüklenmez.
 
 **Güvenlik notu:** Web playground'da kullanıcı girdisi doğrudan SPICE string olarak netlist'e eklenmez. Tüm girdiler IR üzerinden typed olarak işlenir. Raw SPICE erişimi (ileride `unsafe spice_raw {}`) web sürümünde varsayılan olarak kapalıdır.
 
-**ÖZETLE:** NetLang bir "çizim programı" değil, bir devre derleyicisi ve doğrulama altyapısıdır. Bugünkü ürün CLI'da agent-oriented compile/test/export geri bildirimi ve Web'de aynı Core'a bağlı compile/simulation/measurement/schematic/export workspace'i sunar. URL tabanlı paylaşım ile cross-platform release paketleme sıradaki ürün kapılarıdır.
+**ÖZETLE:** NetLang bir "çizim programı" değil, bir devre derleyicisi ve doğrulama altyapısıdır. Bugünkü ürün CLI'da agent-oriented compile/test/export geri bildirimi ve Web'de aynı Core'a bağlı compile/simulation/measurement/schematic/export/share workspace'i sunar. Cross-platform release paketleme sıradaki ürün kapısıdır.

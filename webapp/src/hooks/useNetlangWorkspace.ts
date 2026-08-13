@@ -14,6 +14,7 @@ import powerAmplifier from '../../../core/tests/fixtures/benchmarks/power_amplif
 import type { CompileReport, ExportArtifact, ExportFormat, WorkspaceState } from '../domain';
 import { BrowserSimulationRunner, SimulationCancelledError } from '../simulation/browserRunner';
 import type { BrowserEvaluation, BrowserSimulationPlan } from '../simulation/types';
+import { assertSharedPackages, decodeShareFragment, encodeShareFragment, type ShareEnvelope } from '../share';
 
 export const examples = {
   rc: { label: 'RC Low-pass', description: '1 kHz cutoff, AC analysis', source: rcFilter },
@@ -40,6 +41,7 @@ const initialState: WorkspaceState = {
   modelManifest: null,
   exportCapabilities: [],
   exportMessage: '',
+  shareMessage: '',
   simulationState: 'idle',
   simulationMessage: 'Run ile simülasyonu başlatın',
   evaluation: null,
@@ -48,17 +50,22 @@ const initialState: WorkspaceState = {
 export function useNetlangWorkspace() {
   const [state, setState] = useState(initialState);
   const runnerRef = useRef<BrowserSimulationRunner | null>(null);
+  const sharedEnvelopeRef = useRef<ShareEnvelope | null>(null);
 
   useEffect(() => {
     let mounted = true;
     void init()
-      .then(() => {
+      .then(async () => {
         if (!mounted) return;
         const capabilities = supported_export_capabilities();
+        const shared = await decodeShareFragment(globalThis.location.hash, compile_schema_version());
+        sharedEnvelopeRef.current = shared;
         setState((current) => ({
           ...current,
+          code: shared?.source ?? current.code,
           wasmLoaded: true,
           exportCapabilities: capabilities as WorkspaceState['exportCapabilities'],
+          shareMessage: shared ? 'Shared circuit loaded · package versions will be verified' : '',
         }));
       })
       .catch((error: unknown) => mounted && setState((current) => ({ ...current, wasmError: errorMessage(error) })));
@@ -79,6 +86,10 @@ export function useNetlangWorkspace() {
       }
       const hasErrors = result.diagnostics.some((diagnostic) => diagnostic.severity === 'error');
       const verified = Boolean(result.schematic?.connectivity.verified && result.schematic_svg);
+      if (!hasErrors && sharedEnvelopeRef.current) {
+        assertSharedPackages(sharedEnvelopeRef.current, result.ir?.model_manifest ?? null);
+        sharedEnvelopeRef.current = null;
+      }
       setState((current) => ({
         ...current,
         diagnostics: result.diagnostics,
@@ -118,6 +129,7 @@ export function useNetlangWorkspace() {
       simulationMessage: 'Kaynak değişti; Run ile yeniden simüle edin',
       evaluation: null,
       exportMessage: '',
+      shareMessage: '',
     }));
   }, []);
 
@@ -171,5 +183,19 @@ export function useNetlangWorkspace() {
     return artifact;
   }, [state.code, state.compileSucceeded, state.wasmLoaded]);
 
-  return { state, setCode, loadExample, compile, run, cancel, createExport };
+  const share = useCallback(async () => {
+    if (!state.wasmLoaded || !state.compileSucceeded) throw new Error('Compile must succeed before sharing');
+    const fragment = await encodeShareFragment(state.code, compile_schema_version(), state.modelManifest);
+    const url = new URL(globalThis.location.href);
+    url.hash = fragment.slice(1);
+    globalThis.history.replaceState(null, '', url);
+    try {
+      await globalThis.navigator.clipboard.writeText(url.href);
+      setState((current) => ({ ...current, shareMessage: 'Share URL copied · source and package versions embedded' }));
+    } catch {
+      setState((current) => ({ ...current, shareMessage: 'Share URL ready in the address bar · source and package versions embedded' }));
+    }
+  }, [state.code, state.compileSucceeded, state.modelManifest, state.wasmLoaded]);
+
+  return { state, setCode, loadExample, compile, run, cancel, createExport, share };
 }

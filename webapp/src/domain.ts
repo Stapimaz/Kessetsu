@@ -92,6 +92,7 @@ export interface WorkspaceState {
   modelManifest: ModelManifest | null;
   exportCapabilities: ExportDescriptor[];
   exportMessage: string;
+  shareMessage: string;
   simulationState: SimulationState;
   simulationMessage: string;
   evaluation: BrowserEvaluation | null;

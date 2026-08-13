@@ -27,7 +27,11 @@ use std::process;
 const CLI_SCHEMA_VERSION: &str = "netlang.cli.v1";
 
 #[derive(Parser)]
-#[command(name = "netlang", about = "NetLang Circuit Compiler and Simulator")]
+#[command(
+    name = "netlang",
+    version,
+    about = "NetLang Circuit Compiler and Simulator"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,

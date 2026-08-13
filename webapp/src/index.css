@@ -36,6 +36,10 @@ button:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 
 .app-shell { height: 100vh; display: grid; grid-template-rows: 48px minmax(0, 1fr) 46px; overflow: hidden; }
 .product-header, .artifact-bar, .workspace-header { display: flex; align-items: center; }
 .product-header { padding: 0 18px; justify-content: space-between; border-bottom: 1px solid var(--border); background: rgba(17, 23, 34, .92); }
+.product-actions { display: flex; align-items: center; gap: 8px; }
+.share-status { color: var(--muted); font-size: 11px; max-width: 360px; text-align: right; }
+.share-button { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel-raised); cursor: pointer; }
+.share-button:disabled { cursor: not-allowed; opacity: .45; }
 .wordmark { font-weight: 850; letter-spacing: .16em; color: var(--accent); }
 .tagline { margin-left: 14px; color: var(--muted); font-size: 12px; }
 .theme-button, .icon-actions button { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel-raised); cursor: pointer; }

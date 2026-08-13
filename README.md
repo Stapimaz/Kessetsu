@@ -13,15 +13,17 @@ Proje belirli bir eğitim senaryosu veya devre sınıfıyla sınırlı değildir
 - Rust parser, module flattening ve typed Circuit IR
 - Sürümlü `netlang.compile.v3` compile raporu ve `netlang.schematic.v1` şema sözleşmesi
 - Deterministik net isimlendirme ve `NL-P/C/E/I/S/F` diagnostic alanları
-- SPICE üretimi ve Windows ngspice-46 sidecar runtime
+- SPICE üretimi, simulator discovery/provenance ve Windows Ngspice sidecar runtime
 - Typed OP/transient/AC/DC simulation sonucu ve PASS/FAIL/ERROR/SKIPPED assertion runtime
 - Compact `netlang.cli.v1` JSON, stdin agent döngüsü ve debug `--include` seçimi
 - Typed user/package model-subcircuit çözümleme, provenance manifest'i ve `netlang.lock`
 - Human/JSON CLI; güvenli output/overwrite ve exit-code sözleşmesi
-- WASM tabanlı React playground
-- Deneysel automatic layout ve KiCad schematic export
+- WASM tabanlı, gerçek browser simulation çalıştıran React Web Hub
+- Canonical, bağlantısı doğrulanmış automatic schematic motoru
+- SVG, PNG, PDF, Schematic JSON, SPICE, KiCad ve LTspice export
+- Sürümlü, sıkıştırılmış ve package-aware paylaşım URL'leri
 
-Engineering measurement/benchmark katmanı `netlang.measurement.v1` sözleşmesiyle tamamlanmıştır; profesyonel şema kalitesi sonraki fazın kapsamındadır. Güncel görev ve sınırlar için [roadmap](docs/ROADMAP.md), mimari kurallar için [architecture](docs/architecture.md), formül ve sign convention'lar için [engineering measurements](docs/engineering_measurements.md) esas alınır.
+Güncel görev ve sınırlar için [roadmap](docs/ROADMAP.md), mimari kurallar için [architecture](docs/architecture.md), fiziksel kapsam için [supported domain](docs/supported_domain.md) ve formül/sign convention'lar için [engineering measurements](docs/engineering_measurements.md) esas alınır.
 
 ## Web Hub
 
@@ -29,13 +31,15 @@ NetLang Web Hub, terminal kullanmak istemeyen insanların devreleri CodePen benz
 
 Mevcut repository build'inde Web Hub şunları yapabiliyor:
 
-- NetLang kodunu tarayıcıda düzenleme
-- WASM üzerinden canlı compile ve ERC
-- Diagnostic'leri ve üretilen SPICE netlist'i gösterme
-- Deneysel otomatik şemayı render etme
-- SPICE ve KiCad schematic dosyalarını indirme
+- Monaco ile NetLang kodunu düzenleme, örnek devre seçme
+- WASM üzerinden canlı compile, ERC ve canonical schematic connectivity doğrulama
+- Web Worker içinde gerçek OP/transient/AC/DC simulation
+- İnteraktif waveform/Bode/DC grafikleri ve assertion sonuçları
+- Canonical şemayı zoom/fit ile inceleme
+- Yedi görsel, makine ve EDA formatını capability/loss bilgisiyle indirme
+- Source ve exact package sürümlerini sıkıştırılmış URL ile paylaşma
 
-Tam ürün hedefinde buna browser simulation, OP/transient/AC/DC grafikleri, assertion sonuçları, yüksek kaliteli şema, SVG/PNG ve doğrulanmış KiCad/LTspice export'ları ile paylaşılabilir devre bağlantıları eklenecek. Proje bütün ürün kabul kriterleri tamamlanana kadar private geliştirilmektedir; public Web Hub bağlantısı yayın aşamasında buraya eklenecektir.
+İlk sürümde Web Hub içinde AI chat yoktur ve bu gizlenen bir eksik değildir: AI/otomasyon yüzeyi CLI'ın stdin + versioned JSON tool contract'ı, insan yüzeyi Web Hub'dır. İkisi de aynı Core'u kullanır. Provider-independent Web AI tasarım yüzeyi sonraki faz için bilinçli olarak ayrılmıştır. Public Web Hub bağlantısı release deployment tamamlandığında buraya eklenecektir.
 
 ## Kısa NetLang örneği
 
@@ -78,7 +82,7 @@ Makine-okunabilir çıktı:
 cargo run --release -- check ../examples/demo_circuit.nl --format json
 ```
 
-Var olan output dosyaları varsayılan olarak ezilmez; bilinçli overwrite için `--force` gerekir. CLI komutları, JSON alanları ve exit kodları [CLI reference](docs/cli_reference.md) içinde tanımlıdır.
+Var olan output dosyaları varsayılan olarak ezilmez; bilinçli overwrite için `--force` gerekir. CLI komutları, JSON alanları ve exit kodları [CLI reference](docs/cli_reference.md) içinde tanımlıdır. İlk devre için [tutorial](docs/tutorial.md), kısa çözümler için [cookbook](docs/cookbook.md), sorunlar için [troubleshooting](docs/troubleshooting.md) ve ürün farkları için [Why NetLang?](docs/why_netlang.md) ile devam edin.
 
 ## Build ve doğrulama
 
@@ -113,8 +117,8 @@ npm.cmd run build
 
 - `core/`: Rust library, CLI, WASM adaptörü, test corpus'u ve Windows Ngspice runtime
 - `examples/`: canonical `.nl` örnekleri
-- `webapp/`: React/TypeScript playground
-- `docs/`: roadmap, architecture ve CLI sözleşmesi
+- `webapp/`: React/TypeScript zero-friction Web Hub
+- `docs/`: roadmap, architecture, dil/simulation/export sözleşmeleri ve kullanım rehberleri
 - `scripts/verify.ps1`: kök kalite kapısı
 
 ## Önemli sınırlar
