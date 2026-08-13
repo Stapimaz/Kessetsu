@@ -4,9 +4,9 @@
 >
 > Mimari kurallar için `docs/architecture.md`, kullanıcıya açık CLI sözleşmesi için `docs/cli_reference.md` kullanılır. Bu belgeler arasında çelişki varsa geliştirme durumu açısından bu roadmap esas alınır ve çelişki aktif milestone içinde düzeltilir.
 >
-> Son kapsamlı repo denetimi: **2026-08-13**
+> Son kapsamlı repo denetimi: **2026-08-14**
 >
-> Aktif milestone: **Kessetsu kimlik migrasyonu — Faz 4 release blocker**
+> Aktif milestone: **Faz 4 — Profesyonel Şema, Web Hub ve Yayın**
 >
 > Önceki milestone: **Faz 3 — Simülasyon ve Assertion Runtime (tamamlandı)**
 
@@ -72,7 +72,7 @@ Repository bütünleşik ürün geliştirmesi sırasında private kalır. CLI/Ag
 - [x] Ürün ve repository markasını `Kessetsu`, canonical CLI komutunu `kess`, kaynak uzantısını `.kess` olarak kesinleştir.
 - [x] Yayınlanmamış repo için eski kimlik alias'ları bırakmayan temiz ve atomik migrasyon politikasını seç.
 - [x] Package, schema, diagnostic, model, environment, Web, workflow ve doküman kapsamını `docs/kessetsu_migration.md` içinde kaydet.
-- [x] `docs/kessetsu_migration.md` içerik migrasyonunu tamamla ve canonical kalite kapısını geçir. _2026-08-14 clean-cache full verification PASS; yalnız GitHub repository ve yerel kök klasörünün dış rename adımı kaldı._
+- [x] `docs/kessetsu_migration.md` içerik migrasyonunu tamamla ve canonical kalite kapısını geçir. _2026-08-14 clean-cache full verification PASS; private repository `Stapimaz/Kessetsu` ve yeni origin doğrulandı. Yalnız açık VS Code/Codex oturumu kapandıktan sonraki yerel klasör rename'i kaldı._
 
 ### Üç ana ürün yüzeyi
 
@@ -1016,6 +1016,6 @@ Her geliştirme oturumunda:
 
 ### Aktif sıradaki ilk iş
 
-**Kessetsu kimlik migrasyonu.**
+**4.1R — Profesyonel şema owner review ve kapanış.**
 
-`docs/kessetsu_migration.md` içindeki uygulama ve kabul listesini atomik biçimde tamamla. Migrasyon canonical kalite kapısıyla doğrulandıktan sonra Faz 4'ün açık 4.1R profesyonel şema owner-review ve production deployment işlerine dön.
+Kessetsu kimlik migrasyonu tamamlandı. Local Web Hub'da canonical RC, gain-stage ve power-amplifier şemalarını proje sahibinin görsel onayına sun; 4.1R kabulünden sonra production deployment ve public yayın kapısına dön.

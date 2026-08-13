@@ -41,7 +41,8 @@ Bu belge, yayınlanmamış projenin geçici kimliğinden Kessetsu'ya tek seferli
 - [x] `kess --help`, representative `.kess` compile/simulate/render/export ve JSON schema/diagnostic yollarını doğrula.
 - [x] Canonical `scripts/verify.ps1` kalite kapısını geçir.
 - [x] Roadmap ve bu belgeyi doğrulama kanıtlarıyla kapat.
-- [ ] GitHub repository adını `Kessetsu`, remote URL'yi ve yerel klasör adını güncelle.
+- [x] GitHub repository adını `Kessetsu` yap ve origin fetch/push URL'lerini doğrula.
+- [ ] VS Code/Codex oturumu kapandıktan sonra yerel kök klasörü `Kessetsu` olarak yeniden adlandır.
 
 ## Bilinçli olarak bu migrasyonun dışında kalanlar
 
@@ -59,4 +60,5 @@ Bu belge, yayınlanmamış projenin geçici kimliğinden Kessetsu'ya tek seferli
 - Şematik corpus canonical Kessetsu üreticisiyle yeniden oluşturuldu; schema değişiminin etkilediği altı deterministic SVG golden hash'i yeni byte çıktılarıyla güncellendi ve connectivity/quality kapıları geçti.
 - Temiz cache sonrası canonical `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify.ps1` tamamen PASS: Rust fmt/Clippy/test/release, WASM, Web lint + 10 unit + production build, runtime/deployment audit, 11 Chromium E2E, dependency/license/security audit, replayable agent eval, paketlenmiş Windows `kess.exe` üzerinde gerçek Ngspice 12/12 smoke ve RC/gain/power KiCad+LTspice smoke.
 - Eski isimli ignored release/WASM/Web-test artifact'leri silindi; Rust build cache'i temizlenip yalnız yeni kimlikle baştan üretildi.
-- Kalan dış adım: doğrulanmış commit pushlandıktan sonra GitHub repository ve yerel kök klasör adını değiştirmek.
+- Commit `79c7632` private `main` branch'ine pushlandı; GitHub repository `Stapimaz/Kessetsu` olarak yeniden adlandırıldı, origin fetch/push URL'leri ve remote `main` commit'i doğrulandı.
+- Kalan yerel adım yalnız VS Code/Codex oturum kökü olan klasörü oturum kapandıktan sonra `Kessetsu` yapmak; tracked ürün veya release içeriğini etkilemez.
