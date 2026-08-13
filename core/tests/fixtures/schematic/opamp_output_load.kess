@@ -1,0 +1,17 @@
+model_include kessetsu_analog 1.0.0
+net GND
+net VDD
+net OUT
+source VS 5V
+opamp U1 KESSETSU_PACKAGE_OPAMP
+resistor R1 10k
+connect VS.minus to GND
+connect VS.plus to VDD
+connect U1.in_p to GND
+connect U1.in_n to OUT
+connect U1.vcc to VDD
+connect U1.vee to GND
+connect U1.out to OUT
+connect R1.p1 to OUT
+connect R1.p2 to GND
+simulate op

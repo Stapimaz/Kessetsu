@@ -1,5 +1,5 @@
-use crate::component::CatalogSymbol;
-use crate::schematic::{NetKind, Point, Schematic, SchematicComponent};
+use crate::component::{CatalogSymbol, PinSide};
+use crate::schematic::{NetKind, Point, Schematic, SchematicComponent, SchematicText, TextAnchor};
 
 const SCALE: i32 = 32;
 
@@ -209,35 +209,6 @@ fn symbol_markup(component: &SchematicComponent) -> String {
 
 fn component_markup(component: &SchematicComponent) -> String {
     let (x, y) = px(component.origin);
-    let center_x = (component.bounds.min.x + component.bounds.max.x) * SCALE / 2;
-    let center_y = (component.bounds.min.y + component.bounds.max.y) * SCALE / 2;
-    let (reference_x, reference_y, reference_anchor) = match component.symbol {
-        CatalogSymbol::OpAmp => (
-            component.bounds.max.x * SCALE + 8,
-            component.bounds.min.y * SCALE + 14,
-            "start",
-        ),
-        CatalogSymbol::Bjt | CatalogSymbol::Mosfet => (
-            component.bounds.min.x * SCALE - 8,
-            component.bounds.min.y * SCALE + 14,
-            "end",
-        ),
-        _ => (center_x, component.bounds.min.y * SCALE - 16, "middle"),
-    };
-    let (value_x, value_y, value_anchor) = match component.symbol {
-        CatalogSymbol::VoltageSource | CatalogSymbol::CurrentSource => {
-            (component.bounds.max.x * SCALE + 28, center_y + 5, "start")
-        }
-        _ => (center_x, component.bounds.max.y * SCALE + 20, "middle"),
-    };
-    let value = component
-        .value
-        .as_deref()
-        .or(component
-            .model
-            .as_deref()
-            .filter(|model| !model.starts_with("KESSETSU_")))
-        .unwrap_or("");
     let mirror = if component.mirrored_x {
         format!(
             " translate({} 0) scale(-1 1)",
@@ -247,20 +218,112 @@ fn component_markup(component: &SchematicComponent) -> String {
         String::new()
     };
     format!(
-        "<g class=\"component\" data-component=\"{id}\"><g transform=\"translate({x} {y}) rotate({rotation}){mirror}\">{symbol}</g><text class=\"reference\" x=\"{reference_x}\" y=\"{reference_y}\" text-anchor=\"{reference_anchor}\">{reference}</text>{value_markup}</g>",
+        "<g class=\"component\" data-component=\"{id}\"><g transform=\"translate({x} {y}) rotate({rotation}){mirror}\">{symbol}</g></g>",
         id = escape_xml(&component.id),
         rotation = component.orientation.degrees(),
         symbol = symbol_markup(component),
-        reference = escape_xml(&component.reference),
-        value_markup = if value.is_empty() {
-            String::new()
-        } else {
+    )
+}
+
+fn text_markup(text: &SchematicText) -> String {
+    let (x, y) = px(text.point);
+    let anchor = match text.anchor {
+        TextAnchor::Start => "start",
+        TextAnchor::Middle => "middle",
+        TextAnchor::End => "end",
+    };
+    let class = match text.role {
+        crate::schematic::TextRole::Reference => "reference",
+        crate::schematic::TextRole::Value | crate::schematic::TextRole::Model => "value",
+    };
+    format!(
+        "<text id=\"{}\" class=\"{class}\" data-component=\"{}\" x=\"{x}\" y=\"{y}\" text-anchor=\"{anchor}\">{}</text>",
+        escape_xml(&text.id),
+        escape_xml(&text.component),
+        escape_xml(&text.text)
+    )
+}
+
+fn supply_points_down(name: &str) -> bool {
+    matches!(name.to_ascii_uppercase().as_str(), "VEE" | "VSS" | "-V")
+}
+
+fn label_markup(label: &crate::schematic::NetLabel) -> String {
+    let (x, y) = px(label.point);
+    match label.kind {
+        NetKind::Ground => {
+            let (anchor_x, anchor_y, rotation, stub) = match label.side {
+                PinSide::Top => (x, y, 180, String::new()),
+                PinSide::Bottom => (x, y, 0, String::new()),
+                PinSide::Left => (
+                    x - SCALE,
+                    y,
+                    0,
+                    format!(
+                        "<path d=\"M {x} {y} H {}\" stroke=\"#172033\" stroke-width=\"2\" fill=\"none\"/>",
+                        x - SCALE
+                    ),
+                ),
+                PinSide::Right => (
+                    x + SCALE,
+                    y,
+                    0,
+                    format!(
+                        "<path d=\"M {x} {y} H {}\" stroke=\"#172033\" stroke-width=\"2\" fill=\"none\"/>",
+                        x + SCALE
+                    ),
+                ),
+            };
             format!(
-                "<text class=\"value\" x=\"{value_x}\" y=\"{value_y}\" text-anchor=\"{value_anchor}\">{}</text>",
-                escape_xml(value)
+                "<g class=\"net-label ground\" data-net=\"{}\">{stub}<g transform=\"translate({anchor_x} {anchor_y}) rotate({rotation})\"><path d=\"M 0 0 v 7 m -10 0 h 20 m -7 5 h 14 m -4 5 h 8\" stroke=\"#172033\" stroke-width=\"2\" fill=\"none\"/></g></g>",
+                label.net,
             )
         }
-    )
+        NetKind::Supply => {
+            let points_down = supply_points_down(&label.text);
+            let rotation = if points_down { 180 } else { 0 };
+            let text_y = if points_down { y + 28 } else { y - 16 };
+            format!(
+                "<g class=\"net-label supply\" data-net=\"{}\"><g transform=\"translate({x} {y}) rotate({rotation})\"><path d=\"M 0 0 v -9 m -5 4 l 5 -5 5 5\" stroke=\"#172033\" stroke-width=\"2\" fill=\"none\"/></g><text x=\"{x}\" y=\"{text_y}\" text-anchor=\"middle\">{}</text></g>",
+                label.net,
+                escape_xml(&label.text)
+            )
+        }
+        NetKind::Signal => {
+            let tag = |tag_x: i32, tag_y: i32, transform: &str| {
+                format!(
+                    "<g transform=\"translate({tag_x} {tag_y}) {transform}\"><path d=\"M 0 0 h 10 l 5 -5 h 34 v 10 h -34 Z\" fill=\"#eff6ff\" stroke=\"#2563eb\" stroke-width=\"1.5\"/></g>"
+                )
+            };
+            let (shape, text_x, text_y, anchor) = match label.side {
+                PinSide::Right => (tag(x, y, ""), x + 30, y + 5, "middle"),
+                PinSide::Left => (tag(x, y, "scale(-1 1)"), x - 30, y + 5, "middle"),
+                PinSide::Top => (
+                    format!(
+                        "<path d=\"M {x} {y} v -10\" stroke=\"#2563eb\" stroke-width=\"1.5\"/>{}",
+                        tag(x, y - 10, "")
+                    ),
+                    x + 30,
+                    y - 5,
+                    "middle",
+                ),
+                PinSide::Bottom => (
+                    format!(
+                        "<path d=\"M {x} {y} v 10\" stroke=\"#2563eb\" stroke-width=\"1.5\"/>{}",
+                        tag(x, y + 10, "")
+                    ),
+                    x + 30,
+                    y + 15,
+                    "middle",
+                ),
+            };
+            format!(
+                "<g class=\"net-label signal\" data-net=\"{}\">{shape}<text x=\"{text_x}\" y=\"{text_y}\" text-anchor=\"{anchor}\">{}</text></g>",
+                label.net,
+                escape_xml(&label.text)
+            )
+        }
+    }
 }
 
 pub fn render_svg(schematic: &Schematic) -> String {
@@ -316,22 +379,11 @@ pub fn render_svg_with_background(schematic: &Schematic, white_background: bool)
     for component in &schematic.components {
         svg.push_str(&component_markup(component));
     }
+    for text in &schematic.texts {
+        svg.push_str(&text_markup(text));
+    }
     for label in &schematic.labels {
-        let (x, y) = px(label.point);
-        match label.kind {
-            NetKind::Ground => svg.push_str(&format!(
-                "<g class=\"net-label ground\" data-net=\"{}\"><path d=\"M {x} {y} v 7 m -10 0 h 20 m -7 5 h 14 m -4 5 h 8\" stroke=\"#172033\" stroke-width=\"2\" fill=\"none\"/></g>",
-                label.net
-            )),
-            NetKind::Supply => svg.push_str(&format!(
-                "<g class=\"net-label supply\" data-net=\"{}\"><path d=\"M {x} {y} v -9 m -5 4 l 5 -5 5 5\" stroke=\"#172033\" stroke-width=\"2\" fill=\"none\"/><text x=\"{}\" y=\"{}\" text-anchor=\"middle\">{}</text></g>",
-                label.net, x, y - 16, escape_xml(&label.text)
-            )),
-            NetKind::Signal => svg.push_str(&format!(
-                "<g class=\"net-label signal\" data-net=\"{}\"><path d=\"M {x} {y} h 10 l 5 -5 h 34 v 10 h -34 Z\" fill=\"#eff6ff\" stroke=\"#2563eb\" stroke-width=\"1.5\"/><text x=\"{}\" y=\"{}\">{}</text></g>",
-                label.net, x + 18, y + 5, escape_xml(&label.text)
-            )),
-        }
+        svg.push_str(&label_markup(label));
     }
     svg.push_str("</svg>");
     svg
@@ -353,5 +405,13 @@ mod tests {
         assert_eq!(Orientation::Down.degrees(), 90);
         assert_eq!(Orientation::Left.degrees(), 180);
         assert_eq!(Orientation::Up.degrees(), 270);
+    }
+
+    #[test]
+    fn supply_direction_follows_rail_semantics_not_symbol_orientation() {
+        assert!(!supply_points_down("VCC"));
+        assert!(!supply_points_down("VDD"));
+        assert!(supply_points_down("VEE"));
+        assert!(supply_points_down("VSS"));
     }
 }

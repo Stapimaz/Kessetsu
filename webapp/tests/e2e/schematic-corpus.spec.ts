@@ -39,7 +39,7 @@ test('renders the canonical schematic corpus with verified quality', async ({ pa
 
     const schematic = page.getByTestId('canonical-schematic');
     await expect(schematic).toHaveAttribute('data-quality', 'pass');
-    await expect(schematic.locator(`[data-component="${component}"]`)).toBeVisible();
+    await expect(schematic.locator(`g.component[data-component="${component}"]`)).toBeVisible();
     await expect(schematic.locator('svg[data-schema="kessetsu.schematic.v1"]')).toBeVisible();
 
     if (process.env.KESSETSU_CAPTURE_VISUALS) {

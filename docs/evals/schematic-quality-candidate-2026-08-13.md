@@ -1,10 +1,16 @@
 # Schematic Quality Candidate — 2026-08-13
 
-- Status: Agent-reviewed candidate; owner review and export parity are still open
+- Status: **Rejected/superseded on 2026-08-14 after owner visual review; never accepted as a golden**
 - Generator: Core/CLI release renderer and the exact same Core SVG embedded by Web Hub
 - Harness: `scripts/capture-schematic-corpus.ps1 -IncludeWeb`
 - Corpus: thirteen circuits; CLI SVG/PNG/Schematic JSON plus fixed-viewport Chromium screenshots
 - Canonical local verification: `powershell -ExecutionPolicy Bypass -File scripts/verify.ps1` PASS on 2026-08-13 (Rust/WASM/Web/Chromium/audit/package/EDA smoke)
+
+## Post-candidate owner audit
+
+The screenshots behind this document exposed failures that the original automated scorecard did not measure: rail/GND glyphs were logically attached but visually offset from their pins, component reference/value/model text was placed only inside the SVG renderer and could sit on wires or drift far from its symbol, short passive connections took avoidable rectangular detours, and dual-supply blocks produced weak composition. The owner therefore rejected this candidate.
+
+The replacement work moves text placement into the versioned Schematic IR, adds text↔symbol/wire/text/label hard gates plus normalized detour/alignment metrics, anchors semantic glyphs at the exact pin, gives rail direction electrical semantics, and iterates over the full thirteen-circuit PNG corpus. The scores below describe only this superseded artifact and must not be used as current acceptance evidence.
 
 ## What changed from the rejected baseline
 

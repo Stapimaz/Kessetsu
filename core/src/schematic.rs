@@ -46,6 +46,13 @@ impl Rect {
             && self.min.y <= other.max.y
             && self.max.y >= other.min.y
     }
+
+    fn overlaps_interior(self, other: Self) -> bool {
+        self.min.x < other.max.x
+            && self.max.x > other.min.x
+            && self.min.y < other.max.y
+            && self.max.y > other.min.y
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -137,6 +144,33 @@ pub struct SchematicComponent {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+pub enum TextRole {
+    Reference,
+    Value,
+    Model,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TextAnchor {
+    Start,
+    Middle,
+    End,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SchematicText {
+    pub id: String,
+    pub component: String,
+    pub role: TextRole,
+    pub text: String,
+    pub point: Point,
+    pub anchor: TextAnchor,
+    pub bounds: Rect,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum NetKind {
     Ground,
     Supply,
@@ -197,6 +231,7 @@ pub struct NetLabel {
     pub text: String,
     pub kind: NetKind,
     pub point: Point,
+    pub side: PinSide,
     pub attached_to: PinRef,
 }
 
@@ -214,10 +249,22 @@ pub struct QualityReport {
     pub symbol_collisions: usize,
     pub wire_symbol_collisions: usize,
     pub label_symbol_collisions: usize,
+    pub detached_semantic_labels: usize,
+    pub text_symbol_collisions: usize,
+    pub text_wire_collisions: usize,
+    pub text_text_collisions: usize,
+    pub text_label_collisions: usize,
+    pub detached_component_texts: usize,
+    pub component_text_pair_violations: usize,
     pub crossings: usize,
     pub crossing_limit: usize,
     pub bends: usize,
     pub wire_length: usize,
+    pub avoidable_wire_detour: usize,
+    pub wire_detour_per_mille: usize,
+    pub aligned_endpoint_wires: usize,
+    pub direct_aligned_wires: usize,
+    pub aligned_wire_coverage_per_mille: usize,
     pub local_signal_pins: usize,
     pub wired_local_signal_pins: usize,
     pub explicit_wire_coverage_per_mille: usize,
@@ -235,6 +282,7 @@ pub struct QualityReport {
 pub struct Schematic {
     pub schema_version: String,
     pub components: Vec<SchematicComponent>,
+    pub texts: Vec<SchematicText>,
     pub nets: Vec<SchematicNet>,
     pub wires: Vec<SchematicWire>,
     pub junctions: Vec<Junction>,
@@ -829,9 +877,10 @@ fn placement_lane(
         } | ComponentParams::CurrentSource {
             value: SourceValue::Dc(_)
         }
-    ) && graph
-        .get_net(&component.id, "plus")
-        .is_some_and(|net| supplies.contains(&net))
+    ) && ["plus", "minus"]
+        .into_iter()
+        .filter_map(|pin| graph.get_net(&component.id, pin))
+        .any(|net| supplies.contains(&net))
     {
         return PlacementLane::PowerBlock;
     }
@@ -913,6 +962,604 @@ fn placed_component_mirrored(
         bounds,
         pins,
     }
+}
+
+fn translate_component(component: &mut SchematicComponent, dx: i32, dy: i32) {
+    component.origin = component.origin.offset(dx, dy);
+    component.bounds = Rect {
+        min: component.bounds.min.offset(dx, dy),
+        max: component.bounds.max.offset(dx, dy),
+    };
+    for pin in &mut component.pins {
+        pin.point = pin.point.offset(dx, dy);
+        pin.escape = pin.escape.offset(dx, dy);
+    }
+}
+
+fn align_grounded_output_loads(
+    circuit: &CircuitIR,
+    graph: &NetlistGraph,
+    components: &mut [SchematicComponent],
+) {
+    let mut alignments = Vec::new();
+    for load in &circuit.components {
+        if !is_two_pin_passive(&load.kind) {
+            continue;
+        }
+        let Some(signal_net) = component_nets(load, graph)
+            .into_iter()
+            .find(|net| *net != NetId::GROUND)
+        else {
+            continue;
+        };
+        if !component_nets(load, graph).contains(&NetId::GROUND)
+            || connected_pin_count(circuit, graph, signal_net) > 3
+        {
+            continue;
+        }
+
+        let drivers: Vec<_> = circuit
+            .components
+            .iter()
+            .flat_map(|component| {
+                component_definition(&component.kind)
+                    .pins
+                    .iter()
+                    .filter(|pin| pin.flow == PinFlow::Output)
+                    .filter_map(move |pin| {
+                        (graph.get_net(&component.id, pin.name) == Some(signal_net))
+                            .then_some((component.id.as_str(), pin.name))
+                    })
+            })
+            .collect();
+        if drivers.len() != 1 {
+            continue;
+        }
+        let Some(driver) = circuit
+            .components
+            .iter()
+            .find(|component| component.id == drivers[0].0)
+        else {
+            continue;
+        };
+        let is_direct_follower = component_definition(&driver.kind)
+            .pins
+            .iter()
+            .filter(|pin| pin.flow == PinFlow::Input)
+            .any(|pin| graph.get_net(&driver.id, pin.name) == Some(signal_net));
+        if !is_direct_follower {
+            continue;
+        }
+        let Some(load_pin) = component_definition(&load.kind)
+            .pins
+            .iter()
+            .find(|pin| graph.get_net(&load.id, pin.name) == Some(signal_net))
+        else {
+            continue;
+        };
+        let Some(driver_x) = components
+            .iter()
+            .find(|component| component.id == drivers[0].0)
+            .and_then(|component| component.pins.iter().find(|pin| pin.name == drivers[0].1))
+            .map(|pin| pin.point.x)
+        else {
+            continue;
+        };
+        let Some(load_x) = components
+            .iter()
+            .find(|component| component.id == load.id)
+            .and_then(|component| component.pins.iter().find(|pin| pin.name == load_pin.name))
+            .map(|pin| pin.point.x)
+        else {
+            continue;
+        };
+        alignments.push((load.id.as_str(), driver_x - load_x));
+    }
+
+    for (load_id, dx) in alignments {
+        if dx == 0 {
+            continue;
+        }
+        let Some(index) = components
+            .iter()
+            .position(|component| component.id == load_id)
+        else {
+            continue;
+        };
+        let shifted = Rect {
+            min: components[index].bounds.min.offset(dx, 0),
+            max: components[index].bounds.max.offset(dx, 0),
+        };
+        if components.iter().enumerate().any(|(other_index, other)| {
+            other_index != index && shifted.overlaps_interior(other.bounds)
+        }) {
+            continue;
+        }
+        translate_component(&mut components[index], dx, 0);
+    }
+}
+
+fn text_width_units(text: &str) -> i32 {
+    i32::try_from(text.chars().count())
+        .unwrap_or(i32::MAX / 4)
+        .saturating_add(2)
+        / 3
+}
+
+fn text_bounds(point: Point, anchor: TextAnchor, text: &str) -> Rect {
+    let width = text_width_units(text).max(1);
+    let (min_x, max_x) = match anchor {
+        TextAnchor::Start => (point.x, point.x.saturating_add(width)),
+        TextAnchor::Middle => {
+            let left = width / 2;
+            (
+                point.x.saturating_sub(left),
+                point.x.saturating_add(width - left),
+            )
+        }
+        TextAnchor::End => (point.x.saturating_sub(width), point.x),
+    };
+    Rect {
+        min: Point::new(min_x, point.y.saturating_sub(1)),
+        max: Point::new(max_x, point.y),
+    }
+}
+
+fn text_candidate(point: Point, anchor: TextAnchor) -> (Point, TextAnchor) {
+    (point, anchor)
+}
+
+fn component_text_candidates(
+    component: &SchematicComponent,
+    role: TextRole,
+) -> Vec<(Point, TextAnchor)> {
+    let bounds = component.bounds;
+    let center_x = (bounds.min.x + bounds.max.x) / 2;
+    let center_y = (bounds.min.y + bounds.max.y) / 2;
+    let vertical = matches!(component.orientation, Orientation::Down | Orientation::Up);
+    let mut candidates = match (component.symbol, role, vertical) {
+        (CatalogSymbol::VoltageSource | CatalogSymbol::CurrentSource, TextRole::Reference, _) => {
+            vec![
+                text_candidate(Point::new(bounds.min.x - 1, center_y), TextAnchor::End),
+                text_candidate(Point::new(center_x, bounds.min.y - 1), TextAnchor::Middle),
+            ]
+        }
+        (CatalogSymbol::VoltageSource | CatalogSymbol::CurrentSource, TextRole::Value, _) => vec![
+            text_candidate(Point::new(bounds.max.x + 1, center_y), TextAnchor::Start),
+            text_candidate(Point::new(center_x, bounds.max.y + 2), TextAnchor::Middle),
+        ],
+        (CatalogSymbol::OpAmp, TextRole::Reference, _) => vec![
+            text_candidate(
+                Point::new(bounds.max.x, bounds.min.y - 1),
+                TextAnchor::Middle,
+            ),
+            text_candidate(
+                Point::new(bounds.max.x + 1, bounds.min.y),
+                TextAnchor::Start,
+            ),
+        ],
+        (CatalogSymbol::Bjt | CatalogSymbol::Mosfet, TextRole::Reference, _) => {
+            let near = if component.mirrored_x {
+                text_candidate(
+                    Point::new(bounds.max.x + 1, bounds.min.y - 1),
+                    TextAnchor::Start,
+                )
+            } else {
+                text_candidate(
+                    Point::new(bounds.min.x - 1, bounds.min.y - 1),
+                    TextAnchor::End,
+                )
+            };
+            let far = if component.mirrored_x {
+                text_candidate(
+                    Point::new(bounds.min.x - 1, bounds.min.y - 1),
+                    TextAnchor::End,
+                )
+            } else {
+                text_candidate(
+                    Point::new(bounds.max.x + 1, bounds.min.y - 1),
+                    TextAnchor::Start,
+                )
+            };
+            vec![
+                near,
+                far,
+                text_candidate(Point::new(center_x, bounds.min.y - 2), TextAnchor::Middle),
+            ]
+        }
+        (CatalogSymbol::Bjt | CatalogSymbol::Mosfet, TextRole::Model, _) => vec![
+            text_candidate(Point::new(bounds.min.x - 1, bounds.max.y), TextAnchor::End),
+            text_candidate(
+                Point::new(bounds.max.x + 1, bounds.max.y),
+                TextAnchor::Start,
+            ),
+        ],
+        (_, TextRole::Reference, true) => vec![
+            text_candidate(Point::new(bounds.min.x - 1, center_y), TextAnchor::End),
+            text_candidate(Point::new(bounds.max.x + 1, center_y), TextAnchor::Start),
+        ],
+        (_, TextRole::Value | TextRole::Model, true) => vec![
+            text_candidate(
+                Point::new(bounds.max.x + 1, center_y + 1),
+                TextAnchor::Start,
+            ),
+            text_candidate(Point::new(bounds.min.x - 1, center_y + 1), TextAnchor::End),
+        ],
+        (_, TextRole::Reference, false) => vec![
+            text_candidate(Point::new(center_x, bounds.min.y - 1), TextAnchor::Middle),
+            text_candidate(Point::new(center_x, bounds.min.y - 2), TextAnchor::Middle),
+            text_candidate(Point::new(center_x, bounds.max.y + 2), TextAnchor::Middle),
+            text_candidate(Point::new(bounds.min.x - 1, center_y), TextAnchor::End),
+            text_candidate(Point::new(bounds.max.x + 1, center_y), TextAnchor::Start),
+        ],
+        (_, TextRole::Value | TextRole::Model, false) => vec![
+            text_candidate(Point::new(center_x, bounds.max.y + 2), TextAnchor::Middle),
+            text_candidate(Point::new(center_x, bounds.max.y + 3), TextAnchor::Middle),
+            text_candidate(Point::new(center_x, bounds.min.y - 2), TextAnchor::Middle),
+            text_candidate(Point::new(center_x, bounds.min.y - 3), TextAnchor::Middle),
+            text_candidate(Point::new(bounds.max.x + 1, center_y), TextAnchor::Start),
+            text_candidate(Point::new(bounds.min.x - 1, center_y), TextAnchor::End),
+            text_candidate(Point::new(bounds.min.x - 1, center_y - 1), TextAnchor::End),
+            text_candidate(Point::new(bounds.min.x - 1, center_y + 1), TextAnchor::End),
+            text_candidate(
+                Point::new(bounds.max.x + 1, center_y - 1),
+                TextAnchor::Start,
+            ),
+            text_candidate(
+                Point::new(bounds.max.x + 1, center_y + 1),
+                TextAnchor::Start,
+            ),
+        ],
+    };
+    candidates.extend([
+        text_candidate(Point::new(center_x, bounds.min.y - 2), TextAnchor::Middle),
+        text_candidate(Point::new(center_x, bounds.min.y - 3), TextAnchor::Middle),
+        text_candidate(Point::new(center_x, bounds.max.y + 3), TextAnchor::Middle),
+        text_candidate(Point::new(center_x, bounds.max.y + 4), TextAnchor::Middle),
+        text_candidate(Point::new(bounds.min.x - 2, center_y), TextAnchor::End),
+        text_candidate(Point::new(bounds.min.x - 2, center_y - 2), TextAnchor::End),
+        text_candidate(Point::new(bounds.min.x - 2, center_y + 2), TextAnchor::End),
+        text_candidate(Point::new(bounds.min.x - 2, center_y + 4), TextAnchor::End),
+        text_candidate(Point::new(bounds.max.x + 2, center_y), TextAnchor::Start),
+        text_candidate(
+            Point::new(bounds.max.x + 2, center_y - 2),
+            TextAnchor::Start,
+        ),
+        text_candidate(
+            Point::new(bounds.max.x + 2, center_y + 2),
+            TextAnchor::Start,
+        ),
+        text_candidate(
+            Point::new(bounds.max.x + 2, center_y + 4),
+            TextAnchor::Start,
+        ),
+    ]);
+    candidates
+}
+
+fn overlap_penalty(bounds: Rect, obstacles: &[Rect]) -> usize {
+    obstacles
+        .iter()
+        .filter(|obstacle| bounds.overlaps_interior(**obstacle))
+        .count()
+}
+
+fn path_crosses_text_interior(bounds: Rect, wire: &SchematicWire) -> bool {
+    points_on_path(&wire.points).into_iter().any(|point| {
+        point.x > bounds.min.x
+            && point.x < bounds.max.x
+            && point.y > bounds.min.y
+            && point.y <= bounds.max.y
+    })
+}
+
+fn text_horizontal_side(bounds: Rect, component: Rect) -> i8 {
+    if bounds.max.x <= component.min.x {
+        -1
+    } else if bounds.min.x >= component.max.x {
+        1
+    } else {
+        0
+    }
+}
+
+struct TextPlacementContext<'a> {
+    components: &'a [SchematicComponent],
+    component_obstacles: &'a [Rect],
+    label_obstacles: &'a [Rect],
+    placed_obstacles: &'a [Rect],
+    wires: &'a [SchematicWire],
+}
+
+fn text_candidate_penalty(
+    bounds: Rect,
+    point: Point,
+    component: &SchematicComponent,
+    context: &TextPlacementContext<'_>,
+    index: usize,
+) -> usize {
+    let vertical_passive =
+        matches!(
+            component.symbol,
+            CatalogSymbol::Resistor
+                | CatalogSymbol::Capacitor
+                | CatalogSymbol::Inductor
+                | CatalogSymbol::Diode
+        ) && matches!(component.orientation, Orientation::Down | Orientation::Up);
+    let candidate_side = text_horizontal_side(bounds, component.bounds);
+    let component_center_x = (component.bounds.min.x + component.bounds.max.x) / 2;
+    let component_center_y = (component.bounds.min.y + component.bounds.max.y) / 2;
+    let local_side_crowding = if vertical_passive && candidate_side != 0 {
+        context
+            .components
+            .iter()
+            .filter(|other| other.id != component.id)
+            .filter(|other| {
+                let other_center_x = (other.bounds.min.x + other.bounds.max.x) / 2;
+                let other_center_y = (other.bounds.min.y + other.bounds.max.y) / 2;
+                (other_center_y - component_center_y).abs() <= 2
+                    && if candidate_side < 0 {
+                        other_center_x < component_center_x
+                    } else {
+                        other_center_x > component_center_x
+                    }
+            })
+            .count()
+            * 250
+    } else {
+        0
+    };
+    let proximity = usize::try_from(
+        (point.x - component_center_x).abs() + (point.y - component_center_y).abs(),
+    )
+    .unwrap_or(usize::MAX / 8)
+        * 8;
+    overlap_penalty(bounds, context.component_obstacles) * 20_000
+        + overlap_penalty(bounds, context.label_obstacles) * 20_000
+        + overlap_penalty(bounds, context.placed_obstacles) * 20_000
+        + context
+            .wires
+            .iter()
+            .filter(|wire| path_crosses_text_interior(bounds, wire))
+            .count()
+            * 20_000
+        + local_side_crowding
+        + proximity
+        + index
+}
+
+fn text_pair_style_penalty(
+    component: &SchematicComponent,
+    reference: Rect,
+    reference_point: Point,
+    secondary: Rect,
+    secondary_point: Point,
+) -> usize {
+    let passive = matches!(
+        component.symbol,
+        CatalogSymbol::Resistor
+            | CatalogSymbol::Capacitor
+            | CatalogSymbol::Inductor
+            | CatalogSymbol::Diode
+    );
+    let vertical = matches!(component.orientation, Orientation::Down | Orientation::Up);
+    let reference_side = text_horizontal_side(reference, component.bounds);
+    let secondary_side = text_horizontal_side(secondary, component.bounds);
+    if passive && vertical {
+        return if reference_side != 0
+            && reference_side == secondary_side
+            && (reference_point.y - secondary_point.y).abs() == 1
+        {
+            0
+        } else {
+            5_000
+        };
+    }
+    if passive {
+        let reference_above = reference.max.y <= component.bounds.min.y;
+        let reference_below = reference.min.y >= component.bounds.max.y;
+        let secondary_above = secondary.max.y <= component.bounds.min.y;
+        let secondary_below = secondary.min.y >= component.bounds.max.y;
+        let reference_centered = reference_side == 0;
+        let secondary_centered = secondary_side == 0;
+        return if reference_centered && secondary_centered && reference_above && secondary_below {
+            0
+        } else if reference_centered
+            && secondary_centered
+            && ((reference_above && secondary_above) || (reference_below && secondary_below))
+            && (reference_point.y - secondary_point.y).abs() == 1
+        {
+            100
+        } else if reference_side != 0
+            && reference_side == secondary_side
+            && (1..=2).contains(&(reference_point.y - secondary_point.y).abs())
+        {
+            250
+        } else {
+            5_000
+        };
+    }
+    if matches!(
+        component.symbol,
+        CatalogSymbol::VoltageSource | CatalogSymbol::CurrentSource
+    ) {
+        let center_y = (component.bounds.min.y + component.bounds.max.y) / 2;
+        let secondary_above_or_below =
+            secondary.max.y <= component.bounds.min.y || secondary.min.y >= component.bounds.max.y;
+        return if reference_side < 0
+            && secondary_side > 0
+            && reference_point.y == secondary_point.y
+            && (component.bounds.min.y..=component.bounds.max.y).contains(&reference_point.y)
+        {
+            0
+        } else if reference_side < 0
+            && reference_point.y == center_y
+            && secondary_side == 0
+            && secondary_above_or_below
+        {
+            100
+        } else {
+            2_000
+        };
+    }
+    usize::try_from(
+        (reference_point.x - secondary_point.x).abs()
+            + (reference_point.y - secondary_point.y).abs(),
+    )
+    .unwrap_or(usize::MAX / 16)
+        * 4
+}
+
+fn rect_manhattan_gap(left: Rect, right: Rect) -> usize {
+    let dx = if left.max.x < right.min.x {
+        right.min.x - left.max.x
+    } else if right.max.x < left.min.x {
+        left.min.x - right.max.x
+    } else {
+        0
+    };
+    let dy = if left.max.y < right.min.y {
+        right.min.y - left.max.y
+    } else if right.max.y < left.min.y {
+        left.min.y - right.max.y
+    } else {
+        0
+    };
+    usize::try_from(dx.saturating_add(dy)).unwrap_or(usize::MAX)
+}
+
+fn place_component_texts(
+    components: &[SchematicComponent],
+    labels: &[NetLabel],
+    wires: &[SchematicWire],
+) -> Vec<SchematicText> {
+    let component_obstacles: Vec<_> = components
+        .iter()
+        .map(|component| component.bounds)
+        .collect();
+    let label_obstacles: Vec<_> = labels.iter().map(semantic_label_bounds).collect();
+    let mut placed = Vec::<SchematicText>::new();
+    for component in components {
+        let display_model = component
+            .model
+            .as_deref()
+            .filter(|model| !model.starts_with("KESSETSU_"));
+        let secondary = component
+            .value
+            .as_deref()
+            .filter(|text| !text.is_empty())
+            .map(|text| (TextRole::Value, text))
+            .or_else(|| display_model.map(|text| (TextRole::Model, text)));
+        let reference_text = component.reference.as_str();
+        let placed_obstacles: Vec<_> = placed.iter().map(|text| text.bounds).collect();
+        let placement_context = TextPlacementContext {
+            components,
+            component_obstacles: &component_obstacles,
+            label_obstacles: &label_obstacles,
+            placed_obstacles: &placed_obstacles,
+            wires,
+        };
+        if let Some((secondary_role, secondary_text)) = secondary {
+            let reference_candidates = component_text_candidates(component, TextRole::Reference);
+            let secondary_candidates = component_text_candidates(component, secondary_role);
+            let mut pairs = Vec::new();
+            for (reference_index, (reference_point, reference_anchor)) in
+                reference_candidates.into_iter().enumerate()
+            {
+                let reference_bounds =
+                    text_bounds(reference_point, reference_anchor, reference_text);
+                let reference_penalty = text_candidate_penalty(
+                    reference_bounds,
+                    reference_point,
+                    component,
+                    &placement_context,
+                    reference_index,
+                );
+                for (secondary_index, (secondary_point, secondary_anchor)) in
+                    secondary_candidates.iter().copied().enumerate()
+                {
+                    let secondary_bounds =
+                        text_bounds(secondary_point, secondary_anchor, secondary_text);
+                    let secondary_penalty = text_candidate_penalty(
+                        secondary_bounds,
+                        secondary_point,
+                        component,
+                        &placement_context,
+                        secondary_index,
+                    );
+                    let pair_collision =
+                        usize::from(reference_bounds.overlaps_interior(secondary_bounds)) * 20_000;
+                    let style = text_pair_style_penalty(
+                        component,
+                        reference_bounds,
+                        reference_point,
+                        secondary_bounds,
+                        secondary_point,
+                    );
+                    pairs.push((
+                        reference_penalty + secondary_penalty + pair_collision + style,
+                        reference_point,
+                        reference_anchor,
+                        reference_bounds,
+                        secondary_point,
+                        secondary_anchor,
+                        secondary_bounds,
+                    ));
+                }
+            }
+            pairs.sort_by_key(|pair| (pair.0, pair.1, pair.2 as u8, pair.4, pair.5 as u8));
+            let (
+                _,
+                reference_point,
+                reference_anchor,
+                reference_bounds,
+                secondary_point,
+                secondary_anchor,
+                secondary_bounds,
+            ) = pairs[0];
+            placed.push(SchematicText {
+                id: format!("T{:04}", placed.len() + 1),
+                component: component.id.clone(),
+                role: TextRole::Reference,
+                text: reference_text.to_string(),
+                point: reference_point,
+                anchor: reference_anchor,
+                bounds: reference_bounds,
+            });
+            placed.push(SchematicText {
+                id: format!("T{:04}", placed.len() + 1),
+                component: component.id.clone(),
+                role: secondary_role,
+                text: secondary_text.to_string(),
+                point: secondary_point,
+                anchor: secondary_anchor,
+                bounds: secondary_bounds,
+            });
+        } else {
+            let mut candidates = component_text_candidates(component, TextRole::Reference)
+                .into_iter()
+                .enumerate()
+                .map(|(index, (point, anchor))| {
+                    let bounds = text_bounds(point, anchor, reference_text);
+                    let penalty =
+                        text_candidate_penalty(bounds, point, component, &placement_context, index);
+                    (penalty, point, anchor, bounds)
+                })
+                .collect::<Vec<_>>();
+            candidates.sort_by_key(|candidate| (candidate.0, candidate.1, candidate.2 as u8));
+            let (_, point, anchor, bounds) = candidates[0];
+            placed.push(SchematicText {
+                id: format!("T{:04}", placed.len() + 1),
+                component: component.id.clone(),
+                role: TextRole::Reference,
+                text: reference_text.to_string(),
+                point,
+                anchor,
+                bounds,
+            });
+        }
+    }
+    placed
 }
 
 fn oriented_between(
@@ -1413,11 +2060,90 @@ fn diode_clamp_placement(
     Some(placed)
 }
 
+fn small_parallel_network_placement(
+    circuit: &CircuitIR,
+    graph: &NetlistGraph,
+) -> Option<Vec<SchematicComponent>> {
+    if !(3..=4).contains(&circuit.components.len())
+        || circuit
+            .components
+            .iter()
+            .any(|component| component_definition(&component.kind).pins.len() != 2)
+    {
+        return None;
+    }
+    let mut network_nets = BTreeSet::new();
+    for component in &circuit.components {
+        let nets = component_nets(component, graph);
+        if nets.len() != 2 {
+            return None;
+        }
+        network_nets.extend(nets);
+    }
+    if network_nets.len() != 2
+        || circuit
+            .components
+            .iter()
+            .any(|component| component_nets(component, graph) != network_nets)
+    {
+        return None;
+    }
+
+    let top_net = circuit
+        .components
+        .iter()
+        .filter(|component| {
+            matches!(
+                component.kind,
+                ComponentKind::VoltageSource | ComponentKind::CurrentSource
+            )
+        })
+        .find_map(|component| graph.get_net(&component.id, "plus"))
+        .or_else(|| {
+            network_nets
+                .iter()
+                .copied()
+                .find(|net| *net != NetId::GROUND)
+        })
+        .or_else(|| network_nets.iter().copied().next())?;
+    let mut ordered: Vec<_> = circuit.components.iter().collect();
+    ordered.sort_by_key(|component| {
+        let class = match component.kind {
+            ComponentKind::VoltageSource => 0,
+            ComponentKind::CurrentSource => 1,
+            _ => 2,
+        };
+        (class, component.id.as_str())
+    });
+    let mut placed = Vec::new();
+    for (index, component) in ordered.into_iter().enumerate() {
+        let first_pin = component_definition(&component.kind).pins.first()?;
+        let first_net = graph.get_net(&component.id, first_pin.name)?;
+        let orientation = if first_net == top_net {
+            Orientation::Down
+        } else {
+            Orientation::Up
+        };
+        let index = i32::try_from(index).ok()?;
+        placed.push(placed_component(
+            component,
+            graph,
+            orientation,
+            Point::new(4 + index * 6, 8),
+        ));
+    }
+    placed.sort_by(|left, right| left.id.cmp(&right.id));
+    Some(placed)
+}
+
 fn place_components(
     circuit: &CircuitIR,
     graph: &NetlistGraph,
     supplies: &BTreeSet<NetId>,
 ) -> Vec<SchematicComponent> {
+    if let Some(parallel) = small_parallel_network_placement(circuit, graph) {
+        return parallel;
+    }
     if let Some(bridge) = bridge_placement(circuit, graph) {
         return bridge;
     }
@@ -1464,6 +2190,9 @@ fn place_components(
             (*lane == PlacementLane::Main).then_some((*rank, components.len()))
         })
         .collect();
+    let max_main_count = main_counts.values().copied().max().unwrap_or(1);
+    let power_y =
+        MAIN_Y + 7 + i32::try_from(max_main_count.saturating_sub(1)).unwrap_or(i32::MAX / 7) * 7;
     let mut result = Vec::new();
     let mut power_index = 0_i32;
     for ((rank, lane), components) in layers {
@@ -1501,13 +2230,21 @@ fn place_components(
                     } else {
                         (index, 0)
                     };
-                    Point::new(
-                        rank_x + column * 5,
-                        MAIN_Y + 5 + (main_count - 1).max(0) * 7 + row * 6,
-                    )
+                    if compact_passive_chain
+                        && components.len() <= 2
+                        && is_two_pin_passive(&component.kind)
+                        && component_nets(component, graph).contains(&NetId::GROUND)
+                    {
+                        Point::new(rank_x - i32::from(main_count > 0) * 2 + index * 5, MAIN_Y)
+                    } else {
+                        Point::new(
+                            rank_x + column * 5,
+                            MAIN_Y + 5 + (main_count - 1).max(0) * 7 + row * 4,
+                        )
+                    }
                 }
                 PlacementLane::PowerBlock => {
-                    let point = Point::new(1, MAIN_Y + 7 + power_index * 6);
+                    let point = Point::new(1 + power_index * 5, power_y);
                     power_index += 1;
                     point
                 }
@@ -1515,6 +2252,7 @@ fn place_components(
             result.push(placed_component(component, graph, orientation, desired));
         }
     }
+    align_grounded_output_loads(circuit, graph, &mut result);
     result.sort_by(|left, right| left.id.cmp(&right.id));
     result
 }
@@ -1567,27 +2305,33 @@ fn label_net(circuit: &CircuitIR, net: &SchematicNet) -> bool {
     net.kind != NetKind::Signal || (is_explicit_name(circuit, &net.name) && net.pins.len() >= 8)
 }
 
-fn route_bounds(components: &[SchematicComponent], net_count: usize) -> Rect {
-    let min_x = components
+fn route_bounds(components: &[SchematicComponent], labels: &[NetLabel], net_count: usize) -> Rect {
+    let mut min_x = components
         .iter()
         .map(|component| component.bounds.min.x)
         .min()
         .unwrap_or(0);
-    let min_y = components
+    let mut min_y = components
         .iter()
         .map(|component| component.bounds.min.y)
         .min()
         .unwrap_or(0);
-    let max_x = components
+    let mut max_x = components
         .iter()
         .map(|component| component.bounds.max.x)
         .max()
         .unwrap_or(0);
-    let max_y = components
+    let mut max_y = components
         .iter()
         .map(|component| component.bounds.max.y)
         .max()
         .unwrap_or(0);
+    for bounds in labels.iter().map(semantic_label_bounds) {
+        min_x = min_x.min(bounds.min.x);
+        min_y = min_y.min(bounds.min.y);
+        max_x = max_x.max(bounds.max.x);
+        max_y = max_y.max(bounds.max.y);
+    }
     let margin = 8 + net_count as i32 * 2;
     Rect {
         min: Point::new(min_x - margin, min_y - margin),
@@ -1595,11 +2339,18 @@ fn route_bounds(components: &[SchematicComponent], net_count: usize) -> Rect {
     }
 }
 
-fn blocked_points(components: &[SchematicComponent]) -> BTreeSet<Point> {
+fn blocked_points(components: &[SchematicComponent], labels: &[NetLabel]) -> BTreeSet<Point> {
     let mut blocked = BTreeSet::new();
     for component in components {
         for x in component.bounds.min.x..=component.bounds.max.x {
             for y in component.bounds.min.y..=component.bounds.max.y {
+                blocked.insert(Point::new(x, y));
+            }
+        }
+    }
+    for bounds in labels.iter().map(semantic_label_bounds) {
+        for x in bounds.min.x..=bounds.max.x {
+            for y in bounds.min.y..=bounds.max.y {
                 blocked.insert(Point::new(x, y));
             }
         }
@@ -1738,6 +2489,52 @@ fn orthogonal_route(
         .map(|(_, path)| path)
 }
 
+fn direct_pin_route(
+    start: Point,
+    goal: Point,
+    start_ref: &PinRef,
+    goal_ref: &PinRef,
+    components: &[SchematicComponent],
+    occupied: &BTreeMap<Point, NetId>,
+    net: NetId,
+) -> Option<Vec<Point>> {
+    if start.x != goal.x && start.y != goal.y {
+        return None;
+    }
+    let pin_side = |reference: &PinRef| {
+        components
+            .iter()
+            .find(|component| component.id == reference.component)?
+            .pins
+            .iter()
+            .find(|pin| pin.name == reference.pin)
+            .map(|pin| pin.side)
+    };
+    let direction = ((goal.x - start.x).signum(), (goal.y - start.y).signum());
+    let start_outward = side_vector(pin_side(start_ref)?);
+    let goal_outward = side_vector(pin_side(goal_ref)?);
+    if direction.0 * start_outward.0 + direction.1 * start_outward.1 < 0
+        || -direction.0 * goal_outward.0 + -direction.1 * goal_outward.1 < 0
+    {
+        return None;
+    }
+    let path = vec![start, goal];
+    let interior = points_on_path(&path)
+        .into_iter()
+        .filter(|point| *point != start && *point != goal);
+    for point in interior {
+        if components.iter().any(|component| {
+            component.id != start_ref.component
+                && component.id != goal_ref.component
+                && component.bounds.contains(point)
+        }) || occupied.get(&point).is_some_and(|other| *other != net)
+        {
+            return None;
+        }
+    }
+    Some(path)
+}
+
 fn points_on_path(points: &[Point]) -> Vec<Point> {
     let mut result = Vec::new();
     for pair in points.windows(2) {
@@ -1793,18 +2590,51 @@ type RoutedElements = (
     Vec<NetLabel>,
 );
 
+fn build_semantic_labels(
+    circuit: &CircuitIR,
+    components: &[SchematicComponent],
+    nets: &[SchematicNet],
+) -> Result<Vec<NetLabel>, SchematicError> {
+    let (anchors, _) = pin_maps(components);
+    let mut labels = Vec::new();
+    for net in nets.iter().filter(|net| label_net(circuit, net)) {
+        for pin in &net.pins {
+            let (point, _) = anchors.get(pin).ok_or_else(|| SchematicError {
+                message: format!("missing anchor for {}", pin.id()),
+            })?;
+            let side = components
+                .iter()
+                .find(|component| component.id == pin.component)
+                .and_then(|component| component.pins.iter().find(|anchor| anchor.name == pin.pin))
+                .map(|anchor| anchor.side)
+                .unwrap_or(PinSide::Right);
+            labels.push(NetLabel {
+                id: format!("L{:04}", labels.len() + 1),
+                net: net.id,
+                text: net.name.clone(),
+                kind: net.kind,
+                point: *point,
+                side,
+                attached_to: pin.clone(),
+            });
+        }
+    }
+    Ok(labels)
+}
+
 fn route_schematic(
     circuit: &CircuitIR,
     components: &[SchematicComponent],
     nets: &[SchematicNet],
+    labels: Vec<NetLabel>,
 ) -> Result<RoutedElements, SchematicError> {
     let (anchors, pin_points) = pin_maps(components);
-    let bounds = route_bounds(components, nets.len());
-    let blocked = blocked_points(components);
+    let bounds = route_bounds(components, &labels, nets.len());
+    let blocked = blocked_points(components, &labels);
     let mut occupied: BTreeMap<Point, NetId> = BTreeMap::new();
     let mut wires = Vec::new();
     let mut junctions = Vec::new();
-    let mut labels = Vec::new();
+    let mut labels = labels;
     let mut wire_counter = 1;
     let mut junction_counter = 1;
 
@@ -1813,38 +2643,6 @@ fn route_schematic(
             continue;
         }
         if label_net(circuit, net) {
-            for (label_index, pin) in net.pins.iter().enumerate() {
-                let (_point, escape) = anchors.get(pin).ok_or_else(|| SchematicError {
-                    message: format!("missing anchor for {}", pin.id()),
-                })?;
-                let side = components
-                    .iter()
-                    .find(|component| component.id == pin.component)
-                    .and_then(|component| {
-                        component.pins.iter().find(|anchor| anchor.name == pin.pin)
-                    })
-                    .map(|anchor| anchor.side)
-                    .unwrap_or(PinSide::Right);
-                let offset = i32::try_from(label_index % 2).unwrap_or(0);
-                let label_point = match side {
-                    PinSide::Left => escape.offset(-1, -offset),
-                    PinSide::Right => escape.offset(1, -offset),
-                    PinSide::Top => escape.offset(0, -1),
-                    PinSide::Bottom => escape.offset(0, 1),
-                };
-                labels.push(NetLabel {
-                    id: format!("L{:04}", labels.len() + 1),
-                    net: net.id,
-                    text: net.name.clone(),
-                    kind: net.kind,
-                    point: if matches!(net.kind, NetKind::Ground | NetKind::Supply) {
-                        *escape
-                    } else {
-                        label_point
-                    },
-                    attached_to: pin.clone(),
-                });
-            }
             continue;
         }
 
@@ -1853,6 +2651,28 @@ fn route_schematic(
             let end_ref = &net.pins[1];
             let (start_point, start_escape) = anchors[start_ref];
             let (end_point, end_escape) = anchors[end_ref];
+            if let Some(points) = direct_pin_route(
+                start_point,
+                end_point,
+                start_ref,
+                end_ref,
+                components,
+                &occupied,
+                net.id,
+            ) {
+                for point in points_on_path(&points) {
+                    occupied.entry(point).or_insert(net.id);
+                }
+                wires.push(SchematicWire {
+                    id: format!("W{wire_counter:04}"),
+                    net: net.id,
+                    start: WireEndpoint::pin(start_ref),
+                    end: WireEndpoint::pin(end_ref),
+                    points,
+                });
+                wire_counter += 1;
+                continue;
+            }
             let middle = orthogonal_route(start_escape, end_escape, &blocked, &occupied, net.id)
                 .or_else(|| {
                     route_grid(
@@ -1895,14 +2715,30 @@ fn route_schematic(
             .filter(|pin| pin_flow(circuit, pin) == Some(PinFlow::Output))
             .map(|pin| anchors[pin].1)
             .collect();
+        let mut pin_points: Vec<_> = net.pins.iter().map(|pin| anchors[pin].0).collect();
+        let aligned_pin_hub = if pin_points.iter().all(|point| point.x == pin_points[0].x) {
+            pin_points.sort_by_key(|point| point.y);
+            Some(pin_points[pin_points.len() / 2])
+        } else if pin_points.iter().all(|point| point.y == pin_points[0].y) {
+            pin_points.sort_by_key(|point| point.x);
+            Some(pin_points[pin_points.len() / 2])
+        } else {
+            None
+        };
         let candidate = if driver_escapes.len() == 1 {
             driver_escapes[0]
+        } else if let Some(aligned) = aligned_pin_hub {
+            aligned
         } else {
             Point::new(xs[xs.len() / 2], ys[ys.len() / 2])
         };
-        let hub = nearest_open_hub(candidate, bounds, &blocked).ok_or_else(|| SchematicError {
-            message: format!("could not place junction for net '{}'", net.name),
-        })?;
+        let hub = if aligned_pin_hub == Some(candidate) {
+            candidate
+        } else {
+            nearest_open_hub(candidate, bounds, &blocked).ok_or_else(|| SchematicError {
+                message: format!("could not place junction for net '{}'", net.name),
+            })?
+        };
         let junction_id = format!("J{junction_counter:04}");
         junction_counter += 1;
         junctions.push(Junction {
@@ -1920,6 +2756,37 @@ fn route_schematic(
         });
         for pin in &routed_pins {
             let (pin_point, escape) = anchors[pin];
+            if aligned_pin_hub == Some(hub) && (pin_point.x == hub.x || pin_point.y == hub.y) {
+                let points = compress_path(vec![pin_point, hub]);
+                for point in points_on_path(&points) {
+                    occupied.entry(point).or_insert(net.id);
+                }
+                wires.push(SchematicWire {
+                    id: format!("W{wire_counter:04}"),
+                    net: net.id,
+                    start: WireEndpoint::pin(pin),
+                    end: WireEndpoint::Junction {
+                        id: junction_id.clone(),
+                    },
+                    points,
+                });
+                wire_counter += 1;
+                continue;
+            }
+            if pin_point == hub {
+                wires.push(SchematicWire {
+                    id: format!("W{wire_counter:04}"),
+                    net: net.id,
+                    start: WireEndpoint::pin(pin),
+                    end: WireEndpoint::Junction {
+                        id: junction_id.clone(),
+                    },
+                    points: vec![pin_point],
+                });
+                occupied.entry(pin_point).or_insert(net.id);
+                wire_counter += 1;
+                continue;
+            }
             let middle = orthogonal_route(escape, hub, &blocked, &occupied, net.id)
                 .or_else(|| route_grid(escape, hub, bounds, &blocked, &occupied, net.id))
                 .ok_or_else(|| {
@@ -2058,6 +2925,7 @@ struct QualityInput<'a> {
     graph: &'a NetlistGraph,
     supplies: &'a BTreeSet<NetId>,
     components: &'a [SchematicComponent],
+    texts: &'a [SchematicText],
     nets: &'a [SchematicNet],
     wires: &'a [SchematicWire],
     labels: &'a [NetLabel],
@@ -2071,6 +2939,7 @@ fn quality_report(input: QualityInput<'_>) -> QualityReport {
         graph,
         supplies,
         components,
+        texts,
         nets,
         wires,
         labels,
@@ -2095,7 +2964,21 @@ fn quality_report(input: QualityInput<'_>) -> QualityReport {
             .collect();
         for point in points_on_path(&wire.points) {
             for component in components {
-                if !endpoint_components.contains(&component.id) && component.bounds.contains(point)
+                let lands_on_same_net_pin = component
+                    .pins
+                    .iter()
+                    .any(|pin| pin.point == point && pin.net == Some(wire.net));
+                let follows_same_net_component_edge =
+                    component.pins.iter().any(|pin| pin.net == Some(wire.net))
+                        && component.bounds.contains(point)
+                        && !(point.x > component.bounds.min.x
+                            && point.x < component.bounds.max.x
+                            && point.y > component.bounds.min.y
+                            && point.y < component.bounds.max.y);
+                if !endpoint_components.contains(&component.id)
+                    && !lands_on_same_net_pin
+                    && !follows_same_net_component_edge
+                    && component.bounds.contains(point)
                 {
                     wire_symbol_hits.insert((wire.id.clone(), component.id.clone()));
                 }
@@ -2105,26 +2988,104 @@ fn quality_report(input: QualityInput<'_>) -> QualityReport {
 
     let mut label_symbol_hits = BTreeSet::new();
     for label in labels {
-        let character_count = i32::try_from(label.text.chars().count()).unwrap_or(i32::MAX - 2);
-        let width = (character_count + 2) / 3;
-        let label_bounds = Rect {
-            min: label.point.offset(-1, -1),
-            max: label.point.offset(width.max(1), 1),
-        };
+        let label_bounds = semantic_label_bounds(label);
         for component in components {
             if component.id != label.attached_to.component
-                && label_bounds.overlaps(component.bounds)
+                && label_bounds.overlaps_interior(component.bounds)
             {
                 label_symbol_hits.insert((label.id.clone(), component.id.clone()));
             }
         }
     }
 
+    let component_by_id: BTreeMap<_, _> = components
+        .iter()
+        .map(|component| (component.id.as_str(), component))
+        .collect();
+    let detached_semantic_labels = labels
+        .iter()
+        .filter(|label| {
+            component_by_id
+                .get(label.attached_to.component.as_str())
+                .and_then(|component| {
+                    component
+                        .pins
+                        .iter()
+                        .find(|pin| pin.name == label.attached_to.pin)
+                })
+                .is_none_or(|pin| pin.point != label.point || pin.side != label.side)
+        })
+        .count();
+
+    let mut text_symbol_hits = BTreeSet::new();
+    for text in texts {
+        for component in components {
+            if text.bounds.overlaps_interior(component.bounds) {
+                text_symbol_hits.insert((text.id.clone(), component.id.clone()));
+            }
+        }
+    }
+    let mut text_wire_hits = BTreeSet::new();
+    for text in texts {
+        for wire in wires {
+            if path_crosses_text_interior(text.bounds, wire) {
+                text_wire_hits.insert((text.id.clone(), wire.id.clone()));
+            }
+        }
+    }
+    let mut text_text_hits = BTreeSet::new();
+    for (index, left) in texts.iter().enumerate() {
+        for right in &texts[index + 1..] {
+            if left.bounds.overlaps_interior(right.bounds) {
+                text_text_hits.insert((left.id.clone(), right.id.clone()));
+            }
+        }
+    }
+    let mut text_label_hits = BTreeSet::new();
+    for text in texts {
+        for label in labels {
+            if text.bounds.overlaps_interior(semantic_label_bounds(label)) {
+                text_label_hits.insert((text.id.clone(), label.id.clone()));
+            }
+        }
+    }
+    let detached_component_texts = texts
+        .iter()
+        .filter(|text| {
+            component_by_id
+                .get(text.component.as_str())
+                .is_none_or(|component| rect_manhattan_gap(text.bounds, component.bounds) > 3)
+        })
+        .count();
+    let component_text_pair_violations = components
+        .iter()
+        .filter(|component| {
+            let reference = texts
+                .iter()
+                .find(|text| text.component == component.id && text.role == TextRole::Reference);
+            let secondary = texts.iter().find(|text| {
+                text.component == component.id
+                    && matches!(text.role, TextRole::Value | TextRole::Model)
+            });
+            reference
+                .zip(secondary)
+                .is_some_and(|(reference, secondary)| {
+                    text_pair_style_penalty(
+                        component,
+                        reference.bounds,
+                        reference.point,
+                        secondary.bounds,
+                        secondary.point,
+                    ) >= 5_000
+                })
+        })
+        .count();
+
     let bends = wires
         .iter()
         .map(|wire| wire.points.len().saturating_sub(2))
         .sum();
-    let wire_length = wires
+    let wire_length: usize = wires
         .iter()
         .flat_map(|wire| wire.points.windows(2))
         .map(|pair| {
@@ -2132,6 +3093,41 @@ fn quality_report(input: QualityInput<'_>) -> QualityReport {
                 .unwrap_or(usize::MAX)
         })
         .sum();
+    let direct_wire_length: usize = wires
+        .iter()
+        .filter_map(|wire| wire.points.first().zip(wire.points.last()))
+        .map(|(start, end)| {
+            usize::try_from((end.x - start.x).abs() + (end.y - start.y).abs()).unwrap_or(usize::MAX)
+        })
+        .sum();
+    let avoidable_wire_detour = wire_length.saturating_sub(direct_wire_length);
+    let wire_detour_per_mille = avoidable_wire_detour
+        .saturating_mul(1_000)
+        .checked_div(direct_wire_length)
+        .unwrap_or(0);
+    let aligned_endpoint_wires = wires
+        .iter()
+        .filter(|wire| {
+            wire.points
+                .first()
+                .zip(wire.points.last())
+                .is_some_and(|(start, end)| start.x == end.x || start.y == end.y)
+        })
+        .count();
+    let direct_aligned_wires = wires
+        .iter()
+        .filter(|wire| {
+            wire.points
+                .first()
+                .zip(wire.points.last())
+                .is_some_and(|(start, end)| start.x == end.x || start.y == end.y)
+                && wire.points.len() <= 2
+        })
+        .count();
+    let aligned_wire_coverage_per_mille = direct_aligned_wires
+        .saturating_mul(1_000)
+        .checked_div(aligned_endpoint_wires)
+        .unwrap_or(1_000);
     let wire_pin_refs: BTreeSet<_> = wires
         .iter()
         .flat_map(|wire| [&wire.start, &wire.end])
@@ -2248,6 +3244,45 @@ fn quality_report(input: QualityInput<'_>) -> QualityReport {
             label_symbol_hits.len(),
         ));
     }
+    if detached_semantic_labels > 0 {
+        issues.push(format!(
+            "{detached_semantic_labels} semantic label(s) detached from their pin anchor"
+        ));
+    }
+    if !text_symbol_hits.is_empty() {
+        issues.push(format!(
+            "{} component-text to symbol collision(s)",
+            text_symbol_hits.len()
+        ));
+    }
+    if !text_wire_hits.is_empty() {
+        issues.push(format!(
+            "{} component-text to wire collision(s)",
+            text_wire_hits.len()
+        ));
+    }
+    if !text_text_hits.is_empty() {
+        issues.push(format!(
+            "{} component-text collision(s)",
+            text_text_hits.len()
+        ));
+    }
+    if !text_label_hits.is_empty() {
+        issues.push(format!(
+            "{} component-text to net-label collision(s)",
+            text_label_hits.len()
+        ));
+    }
+    if detached_component_texts > 0 {
+        issues.push(format!(
+            "{detached_component_texts} component text field(s) detached from their symbol"
+        ));
+    }
+    if component_text_pair_violations > 0 {
+        issues.push(format!(
+            "{component_text_pair_violations} component reference/value pair style violation(s)"
+        ));
+    }
     let crossing_limit = (components.len() / 3).min(2);
     if crossings.len() > crossing_limit {
         issues.push(format!(
@@ -2272,6 +3307,13 @@ fn quality_report(input: QualityInput<'_>) -> QualityReport {
         passed: symbol_collisions == 0
             && wire_symbol_hits.is_empty()
             && label_symbol_hits.is_empty()
+            && detached_semantic_labels == 0
+            && text_symbol_hits.is_empty()
+            && text_wire_hits.is_empty()
+            && text_text_hits.is_empty()
+            && text_label_hits.is_empty()
+            && detached_component_texts == 0
+            && component_text_pair_violations == 0
             && crossings.len() <= crossing_limit
             && local_signal_label_pins == 0
             && explicit_wire_coverage_per_mille == 1_000
@@ -2279,10 +3321,22 @@ fn quality_report(input: QualityInput<'_>) -> QualityReport {
         symbol_collisions,
         wire_symbol_collisions: wire_symbol_hits.len(),
         label_symbol_collisions: label_symbol_hits.len(),
+        detached_semantic_labels,
+        text_symbol_collisions: text_symbol_hits.len(),
+        text_wire_collisions: text_wire_hits.len(),
+        text_text_collisions: text_text_hits.len(),
+        text_label_collisions: text_label_hits.len(),
+        detached_component_texts,
+        component_text_pair_violations,
         crossings: crossings.len(),
         crossing_limit,
         bends,
         wire_length,
+        avoidable_wire_detour,
+        wire_detour_per_mille,
+        aligned_endpoint_wires,
+        direct_aligned_wires,
+        aligned_wire_coverage_per_mille,
         local_signal_pins,
         wired_local_signal_pins,
         explicit_wire_coverage_per_mille,
@@ -2297,8 +3351,65 @@ fn quality_report(input: QualityInput<'_>) -> QualityReport {
     }
 }
 
+fn semantic_label_bounds(label: &NetLabel) -> Rect {
+    let text_half_width = i32::try_from(label.text.chars().count())
+        .unwrap_or(i32::MAX / 2)
+        .saturating_add(5)
+        / 6;
+    match (label.kind, label.side) {
+        (NetKind::Ground, PinSide::Left) => Rect {
+            min: label.point.offset(-3, 0),
+            max: label.point.offset(0, 2),
+        },
+        (NetKind::Ground, PinSide::Right) => Rect {
+            min: label.point.offset(0, 0),
+            max: label.point.offset(3, 2),
+        },
+        (NetKind::Ground, PinSide::Top) => Rect {
+            min: label.point.offset(-1, -2),
+            max: label.point.offset(1, 0),
+        },
+        (NetKind::Ground, PinSide::Bottom) => Rect {
+            min: label.point.offset(-1, 0),
+            max: label.point.offset(1, 2),
+        },
+        (NetKind::Supply, _)
+            if !matches!(
+                label.text.to_ascii_uppercase().as_str(),
+                "VEE" | "VSS" | "-V"
+            ) =>
+        {
+            Rect {
+                min: label.point.offset(-text_half_width, -2),
+                max: label.point.offset(text_half_width, 0),
+            }
+        }
+        (NetKind::Supply, _) => Rect {
+            min: label.point.offset(-text_half_width, 0),
+            max: label.point.offset(text_half_width, 2),
+        },
+        (NetKind::Signal, PinSide::Top) => Rect {
+            min: label.point.offset(0, -2),
+            max: label.point.offset(text_half_width * 2 + 2, 0),
+        },
+        (NetKind::Signal, PinSide::Bottom) => Rect {
+            min: label.point.offset(0, 0),
+            max: label.point.offset(text_half_width * 2 + 2, 2),
+        },
+        (NetKind::Signal, PinSide::Left) => Rect {
+            min: label.point.offset(-text_half_width * 2 - 2, -1),
+            max: label.point.offset(0, 1),
+        },
+        (NetKind::Signal, PinSide::Right) => Rect {
+            min: label.point.offset(0, -1),
+            max: label.point.offset(text_half_width * 2 + 2, 1),
+        },
+    }
+}
+
 fn schematic_bounds(
     components: &[SchematicComponent],
+    texts: &[SchematicText],
     wires: &[SchematicWire],
     labels: &[NetLabel],
 ) -> Rect {
@@ -2307,10 +3418,18 @@ fn schematic_bounds(
         points.push(component.bounds.min);
         points.push(component.bounds.max);
     }
+    for text in texts {
+        points.push(text.bounds.min);
+        points.push(text.bounds.max);
+    }
     for wire in wires {
         points.extend(wire.points.iter().copied());
     }
-    points.extend(labels.iter().map(|label| label.point));
+    for label in labels {
+        let bounds = semantic_label_bounds(label);
+        points.push(bounds.min);
+        points.push(bounds.max);
+    }
     Rect {
         min: Point::new(
             points.iter().map(|point| point.x).min().unwrap_or(0) - 2,
@@ -2328,7 +3447,10 @@ pub fn generate_schematic(circuit: &CircuitIR) -> Result<Schematic, SchematicErr
     let supplies = supply_nets(circuit, &graph);
     let components = place_components(circuit, &graph, &supplies);
     let nets = build_nets(circuit, &graph, &supplies);
-    let (wires, junctions, crossings, labels) = route_schematic(circuit, &components, &nets)?;
+    let labels = build_semantic_labels(circuit, &components, &nets)?;
+    let (wires, junctions, crossings, labels) =
+        route_schematic(circuit, &components, &nets, labels)?;
+    let texts = place_component_texts(&components, &labels, &wires);
     let connectivity = connectivity_report(&graph, &wires, &labels);
     if !connectivity.verified {
         return Err(SchematicError {
@@ -2338,12 +3460,13 @@ pub fn generate_schematic(circuit: &CircuitIR) -> Result<Schematic, SchematicErr
             ),
         });
     }
-    let bounds = schematic_bounds(&components, &wires, &labels);
+    let bounds = schematic_bounds(&components, &texts, &wires, &labels);
     let quality = quality_report(QualityInput {
         circuit,
         graph: &graph,
         supplies: &supplies,
         components: &components,
+        texts: &texts,
         nets: &nets,
         wires: &wires,
         labels: &labels,
@@ -2353,6 +3476,7 @@ pub fn generate_schematic(circuit: &CircuitIR) -> Result<Schematic, SchematicErr
     Ok(Schematic {
         schema_version: SCHEMATIC_SCHEMA_VERSION.to_string(),
         components,
+        texts,
         nets,
         wires,
         junctions,

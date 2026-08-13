@@ -1,0 +1,5 @@
+source V1 5V
+current_source I1 1A
+resistor R1 1k
+connect V1.plus, I1.plus to R1.p1
+connect V1.minus, I1.minus to R1.p2

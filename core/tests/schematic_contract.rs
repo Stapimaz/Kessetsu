@@ -1,7 +1,7 @@
 use kessetsu_core::compiler::{CompileOptions, compile_source};
 use kessetsu_core::component::{PinFlow, component_definition};
 use kessetsu_core::ir::{BJTPolarity, ComponentKind, FETPolarity};
-use kessetsu_core::schematic::{SCHEMATIC_SCHEMA_VERSION, generate_schematic};
+use kessetsu_core::schematic::{SCHEMATIC_SCHEMA_VERSION, TextRole, generate_schematic};
 use kessetsu_core::{parse_program, schematic_svg};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
@@ -159,6 +159,190 @@ fn high_fanout_and_supply_nets_use_semantic_labels() {
 }
 
 #[test]
+fn semantic_labels_are_anchored_to_the_attached_pin() {
+    for (name, source) in CORPUS {
+        let schematic = schematic(source);
+        for label in &schematic.labels {
+            let component = schematic
+                .components
+                .iter()
+                .find(|component| component.id == label.attached_to.component)
+                .unwrap_or_else(|| panic!("{name}: missing component for {}", label.id));
+            let pin = component
+                .pins
+                .iter()
+                .find(|pin| pin.name == label.attached_to.pin)
+                .unwrap_or_else(|| panic!("{name}: missing pin for {}", label.id));
+            assert_eq!(
+                label.point, pin.point,
+                "{name}: {} is visually detached",
+                label.id
+            );
+            assert_eq!(
+                label.side, pin.side,
+                "{name}: {} faces the wrong way",
+                label.id
+            );
+        }
+        assert_eq!(
+            schematic.quality.detached_semantic_labels, 0,
+            "{name}: quality gate missed a detached semantic label"
+        );
+    }
+}
+
+#[test]
+fn component_text_is_owned_by_the_schematic_contract_and_stays_collision_free() {
+    for (name, source) in CORPUS {
+        let schematic = schematic(source);
+        for component in &schematic.components {
+            let references = schematic
+                .texts
+                .iter()
+                .filter(|text| text.component == component.id && text.role == TextRole::Reference)
+                .count();
+            assert_eq!(references, 1, "{name}: {} reference", component.id);
+            if component
+                .value
+                .as_deref()
+                .is_some_and(|value| !value.is_empty())
+            {
+                assert!(
+                    schematic.texts.iter().any(|text| {
+                        text.component == component.id && text.role == TextRole::Value
+                    }),
+                    "{name}: {} value is missing",
+                    component.id
+                );
+            }
+            if matches!(
+                component.symbol,
+                kessetsu_core::component::CatalogSymbol::Resistor
+                    | kessetsu_core::component::CatalogSymbol::Capacitor
+                    | kessetsu_core::component::CatalogSymbol::Inductor
+                    | kessetsu_core::component::CatalogSymbol::Diode
+            ) && matches!(
+                component.orientation,
+                kessetsu_core::schematic::Orientation::Right
+                    | kessetsu_core::schematic::Orientation::Left
+            ) && let (Some(reference), Some(value)) = (
+                schematic.texts.iter().find(|text| {
+                    text.component == component.id && text.role == TextRole::Reference
+                }),
+                schematic
+                    .texts
+                    .iter()
+                    .find(|text| text.component == component.id && text.role == TextRole::Value),
+            ) {
+                assert_ne!(
+                    reference.point.y, value.point.y,
+                    "{name}: {} reference/value share a text row",
+                    component.id
+                );
+            }
+        }
+        assert_eq!(schematic.quality.text_symbol_collisions, 0, "{name}");
+        assert_eq!(schematic.quality.text_wire_collisions, 0, "{name}");
+        assert_eq!(schematic.quality.text_text_collisions, 0, "{name}");
+        assert_eq!(schematic.quality.text_label_collisions, 0, "{name}");
+        assert_eq!(schematic.quality.detached_component_texts, 0, "{name}");
+        assert_eq!(
+            schematic.quality.component_text_pair_violations, 0,
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn compact_passive_chains_use_direct_aligned_connections() {
+    for (name, source, endpoints) in [
+        ("minimal", CORPUS[0].1, ("V1", "R1")),
+        ("rc_filter", CORPUS[1].1, ("R1", "C1")),
+    ] {
+        let schematic = schematic(source);
+        let wire = schematic
+            .wires
+            .iter()
+            .find(|wire| {
+                let serialized = serde_json::to_string(&[&wire.start, &wire.end]).unwrap();
+                serialized.contains(endpoints.0) && serialized.contains(endpoints.1)
+            })
+            .unwrap_or_else(|| panic!("{name}: missing direct connection"));
+        assert_eq!(wire.points.len(), 2, "{name}: {:?}", wire.points);
+        let start = wire.points[0];
+        let end = wire.points[1];
+        assert!(
+            start.x == end.x || start.y == end.y,
+            "{name}: {:?}",
+            wire.points
+        );
+        assert_eq!(
+            schematic.quality.aligned_wire_coverage_per_mille, 1_000,
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn dual_supply_sources_form_a_compact_power_block() {
+    let schematic = schematic(CORPUS[3].1);
+    let vp = schematic
+        .components
+        .iter()
+        .find(|component| component.id == "VP")
+        .unwrap();
+    let vn = schematic
+        .components
+        .iter()
+        .find(|component| component.id == "VN")
+        .unwrap();
+    assert_eq!(vp.bounds.min.y, vn.bounds.min.y);
+    assert!(vp.bounds.max.x < vn.bounds.min.x || vn.bounds.max.x < vp.bounds.min.x);
+}
+
+#[test]
+fn small_parallel_networks_use_shared_horizontal_rails() {
+    let schematic = schematic(include_str!("fixtures/schematic/parallel_branches.kess"));
+    assert!(schematic.connectivity.verified);
+    assert!(schematic.quality.passed, "{:?}", schematic.quality.issues);
+    let top_pins: Vec<_> = schematic
+        .components
+        .iter()
+        .map(|component| component.pins.iter().map(|pin| pin.point.y).min().unwrap())
+        .collect();
+    let bottom_pins: Vec<_> = schematic
+        .components
+        .iter()
+        .map(|component| component.pins.iter().map(|pin| pin.point.y).max().unwrap())
+        .collect();
+    assert!(top_pins.windows(2).all(|pair| pair[0] == pair[1]));
+    assert!(bottom_pins.windows(2).all(|pair| pair[0] == pair[1]));
+}
+
+#[test]
+fn grounded_output_loads_align_below_their_active_driver() {
+    let schematic = schematic(include_str!("fixtures/schematic/opamp_output_load.kess"));
+    let output_x = schematic
+        .components
+        .iter()
+        .find(|component| component.id == "U1")
+        .and_then(|component| component.pins.iter().find(|pin| pin.name == "out"))
+        .map(|pin| pin.point.x)
+        .unwrap();
+    let load_x = schematic
+        .components
+        .iter()
+        .find(|component| component.id == "R1")
+        .and_then(|component| component.pins.iter().find(|pin| pin.name == "p1"))
+        .map(|pin| pin.point.x)
+        .unwrap();
+
+    assert_eq!(load_x, output_x);
+    assert!(schematic.connectivity.verified);
+    assert!(schematic.quality.passed, "{:?}", schematic.quality.issues);
+}
+
+#[test]
 fn direct_generator_accepts_only_typed_ir() {
     let source = include_str!("fixtures/valid/minimal.kess");
     let program = parse_program(source).unwrap().flatten().unwrap();
@@ -278,32 +462,32 @@ fn svg_visual_golden_hashes_are_cross_platform_stable() {
         (
             "minimal",
             CORPUS[0].1,
-            "66904cc17218ad5714e5af6304b8ea9ad15e4a1f7a52d25339701e9f278e2011",
+            "8f554f9372959461ca23e8a582abf8fc311f5a501d107f29cab6427760582f48",
         ),
         (
             "rc_filter",
             CORPUS[1].1,
-            "052e96d7edebb6987f7fe2f2e4107db98136574a3148ac9702f9dd03160dcc69",
+            "7ae4525552caba93da2563a7a6c086c6fdd09a83de78eb7fab5d8402e87f04a2",
         ),
         (
             "wheatstone",
             CORPUS[2].1,
-            "fff5819becaec0151ac506b209547b8ad75088a5c3be8ab19b9f13f5d027deef",
+            "e6b3fa2ec29f6243568f796da4fc9238235e677a3266dfd84154b3be49509f83",
         ),
         (
             "gain_stage",
             CORPUS[3].1,
-            "cbeb215f22d0c760ff59af9e09c1fb71f2bd9a62ea6d35878ff202f15f8d97fa",
+            "d090e8e9b419227e780e7053aad08a335757530731ff41829bd1b6aa5b15fe67",
         ),
         (
             "high_fanout",
             CORPUS[4].1,
-            "b280f9d1473e503bfad37850ef2e4fdcc9147e3570939e389f83d6cf1e236c21",
+            "a8a048e75cdfb2fc64776d9d2b90215ed77bb1962dfe250608e6505c3d37832d",
         ),
         (
             "power_amplifier",
             CORPUS[5].1,
-            "7e86ad04ce95f77e79002df4a03b6c8ef5fac2b790563686bdb1c41ceff756c3",
+            "bba5ca50ccd3eee2c85ed0e668faf1d823ba84e087f9bbdff88fd08369827846",
         ),
     ] {
         let actual = svg_hash(source);
