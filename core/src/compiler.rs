@@ -348,17 +348,31 @@ pub fn compile_source(source: &str, options: CompileOptions) -> CompileReport {
             }
         };
         report.schematic_svg = Some(crate::schematic_svg::render_svg(&schematic));
-        report.schematic = Some(schematic);
-
-        // Transitional compatibility outputs. Exporters migrate to Schematic IR
-        // in Phase 4.5 and must not use this legacy shape for new behavior.
-        let layout = crate::layout::generate_layout(&circuit);
         if options.generate_kicad {
-            report.kicad_sch = Some(crate::kicad::generate_kicad_sch(&layout));
+            match crate::kicad::generate_kicad_sch(&schematic) {
+                Ok(kicad) => report.kicad_sch = Some(kicad),
+                Err(error) => {
+                    report.diagnostics.push(Diagnostic {
+                        code: error.code,
+                        severity: DiagnosticSeverity::Error,
+                        stage: DiagnosticStage::Schematic,
+                        message: error.message,
+                        component: None,
+                        pin: None,
+                        field: None,
+                        line: None,
+                        column: None,
+                    });
+                    return report;
+                }
+            }
         }
         if options.generate_layout {
-            report.layout = Some(layout);
+            // Legacy debug view only; all user-facing exporters consume the
+            // canonical Schematic IR above.
+            report.layout = Some(crate::layout::generate_layout(&circuit));
         }
+        report.schematic = Some(schematic);
     }
 
     report

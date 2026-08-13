@@ -196,14 +196,23 @@ fn component_markup(component: &SchematicComponent) -> String {
 }
 
 pub fn render_svg(schematic: &Schematic) -> String {
+    render_svg_with_background(schematic, true)
+}
+
+pub fn render_svg_with_background(schematic: &Schematic, white_background: bool) -> String {
     let min_x = schematic.bounds.min.x * SCALE;
     let min_y = schematic.bounds.min.y * SCALE;
     let width = (schematic.bounds.max.x - schematic.bounds.min.x) * SCALE;
     let height = (schematic.bounds.max.y - schematic.bounds.min.y) * SCALE;
     let mut svg = format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" role=\"img\" aria-label=\"NetLang schematic\" data-schema=\"{}\" viewBox=\"{min_x} {min_y} {width} {height}\"><style>.sheet{{fill:#fff}}.wire{{fill:none;stroke:#2563eb;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}}.junction{{fill:#2563eb}}.reference{{font:600 14px ui-monospace,SFMono-Regular,Consolas,monospace;fill:#111827}}.value{{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;fill:#334155}}.net-label{{font:600 15px ui-monospace,SFMono-Regular,Consolas,monospace;fill:#1e3a8a}}</style><rect class=\"sheet\" x=\"{min_x}\" y=\"{min_y}\" width=\"{width}\" height=\"{height}\"/>",
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" role=\"img\" aria-label=\"NetLang schematic\" data-schema=\"{}\" width=\"{width}\" height=\"{height}\" viewBox=\"{min_x} {min_y} {width} {height}\"><style>.sheet{{fill:#fff}}.wire{{fill:none;stroke:#2563eb;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}}.junction{{fill:#2563eb}}.reference{{font:600 14px 'Roboto Mono',ui-monospace,SFMono-Regular,Consolas,monospace;fill:#111827}}.value{{font:12px 'Roboto Mono',ui-monospace,SFMono-Regular,Consolas,monospace;fill:#334155}}.net-label{{font:600 15px 'Roboto Mono',ui-monospace,SFMono-Regular,Consolas,monospace;fill:#1e3a8a}}</style>",
         escape_xml(&schematic.schema_version)
     );
+    if white_background {
+        svg.push_str(&format!(
+            "<rect class=\"sheet\" x=\"{min_x}\" y=\"{min_y}\" width=\"{width}\" height=\"{height}\"/>"
+        ));
+    }
 
     for wire in &schematic.wires {
         let points = wire

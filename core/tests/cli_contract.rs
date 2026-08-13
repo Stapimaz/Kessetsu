@@ -287,21 +287,42 @@ fn output_policy_requires_force_and_never_overwrites_the_source() {
 }
 
 #[test]
-fn render_stub_is_fail_closed_in_human_and_json_modes() {
-    let workspace = TestWorkspace::new("render-stub");
+fn render_and_export_emit_versioned_artifacts_with_safe_overwrite() {
+    let workspace = TestWorkspace::new("render-export");
     let source = workspace.write("circuit.nl", &read_fixture("valid/minimal.nl"));
     let source_arg = path_argument(&source);
+    let png = workspace.path().join("circuit.png");
+    let png_arg = path_argument(&png);
 
-    let human = workspace.run_cli(&["render", &source_arg]);
-    assert_eq!(human.status.code(), Some(2));
-    assert!(String::from_utf8_lossy(&human.stderr).contains("NL-F001"));
+    let human = workspace.run_cli(&["render", &source_arg, "-o", &png_arg]);
+    assert_eq!(human.status.code(), Some(0));
+    assert!(png.is_file());
+    assert_eq!(&fs::read(&png).unwrap()[..8], b"\x89PNG\r\n\x1a\n");
 
-    let json = workspace.run_cli(&["render", &source_arg, "--format", "json"]);
-    assert_eq!(json.status.code(), Some(2));
+    let refused = workspace.run_cli(&["render", &source_arg, "-o", &png_arg, "--format", "json"]);
+    assert_eq!(refused.status.code(), Some(2));
+    let refused: Value = serde_json::from_slice(&refused.stdout).unwrap();
+    assert_eq!(refused["diagnostics"][0]["code"], "NL-I003");
+
+    let kicad = workspace.path().join("circuit.kicad_sch");
+    let kicad_arg = path_argument(&kicad);
+    let json = workspace.run_cli(&[
+        "export",
+        &source_arg,
+        "--target",
+        "kicad",
+        "-o",
+        &kicad_arg,
+        "--format",
+        "json",
+    ]);
+    assert_eq!(json.status.code(), Some(0));
     assert!(json.stderr.is_empty());
     let value: Value = serde_json::from_slice(&json.stdout).expect("stdout should be JSON only");
-    assert_eq!(value["status"], "error");
-    assert_eq!(value["diagnostics"][0]["code"], "NL-F001");
+    assert_eq!(value["domain_versions"]["export"], "netlang.export.v1");
+    assert_eq!(value["artifacts"][0]["schema_version"], "netlang.export.v1");
+    assert_eq!(value["artifacts"][0]["connectivity_verified"], true);
+    assert_eq!(value["artifacts"][0]["sha256"].as_str().unwrap().len(), 64);
 }
 
 #[test]

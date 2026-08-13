@@ -1,30 +1,73 @@
 import { Download, FileCode2 } from 'lucide-react';
-import type { ModelManifest } from '../domain';
+import { useState } from 'react';
+import type { ExportArtifact, ExportDescriptor, ExportFormat, ModelManifest } from '../domain';
 
 interface Props {
-  svg: string;
-  kicad: string;
   spice: string;
   models: ModelManifest | null;
+  enabled: boolean;
+  capabilities: ExportDescriptor[];
+  message: string;
+  onExport: (format: ExportFormat) => ExportArtifact;
 }
 
-function downloadText(filename: string, content: string, mimeType: string) {
-  const blob = new Blob([content], { type: mimeType });
+function downloadArtifact(artifact: ExportArtifact) {
+  const blob = new Blob([new Uint8Array(artifact.bytes)], { type: artifact.mime_type });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = filename;
+  anchor.download = `circuit.${artifact.extension}`;
   anchor.click();
   URL.revokeObjectURL(url);
 }
 
-export function ArtifactBar({ svg, kicad, spice, models }: Props) {
+export function ArtifactBar({ spice, models, enabled, capabilities, message, onExport }: Props) {
+  const [error, setError] = useState('');
+  const exportOne = (format: ExportFormat) => {
+    try {
+      setError('');
+      downloadArtifact(onExport(format));
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  };
+
   return (
     <aside className="artifact-bar" aria-label="Exports">
       <div className="header-title"><FileCode2 size={16} /><strong>Export</strong></div>
-      <button disabled={!svg} onClick={() => downloadText('circuit.svg', svg, 'image/svg+xml')}><Download size={13} /> SVG</button>
-      <button disabled={!kicad} onClick={() => downloadText('circuit.kicad_sch', kicad, 'text/plain')}><Download size={13} /> KiCad</button>
-      <button disabled={!spice} onClick={() => downloadText('circuit.spice', spice, 'text/plain')}><Download size={13} /> SPICE</button>
+      <div className="export-buttons" data-testid="export-capabilities">
+        {capabilities.map((descriptor) => (
+          <button
+            key={descriptor.format}
+            disabled={!enabled}
+            onClick={() => exportOne(descriptor.format)}
+            title={`${descriptor.capability.editable ? 'Editable' : 'View-only'} · ${descriptor.capability.preserves_connectivity ? 'connectivity-safe' : 'visual only'}`}
+            data-export-format={descriptor.format}
+          >
+            <Download size={13} /> {descriptor.label}
+          </button>
+        ))}
+      </div>
+      <details className="export-details">
+        <summary>Format details</summary>
+        <div className="export-popover">
+          {capabilities.map((descriptor) => (
+            <article key={descriptor.format}>
+              <strong>{descriptor.label}</strong>
+              <span>
+                {descriptor.capability.editable ? 'editable' : 'view-only'} ·{' '}
+                {descriptor.capability.machine_readable ? 'machine-readable' : 'visual'} ·{' '}
+                {descriptor.capability.preserves_connectivity ? 'connectivity preserved' : 'visual projection'}
+              </span>
+              <small>
+                models {descriptor.capability.preserves_models ? 'preserved' : 'not represented'} · analyses{' '}
+                {descriptor.capability.preserves_analysis ? 'preserved' : 'not represented'}
+              </small>
+            </article>
+          ))}
+        </div>
+      </details>
+      {(error || message) && <span className={error ? 'export-status export-error' : 'export-status'} role="status">{error || message}</span>}
       <details className="model-details" data-testid="model-manifest" data-manifest={models ? JSON.stringify(models) : ''}>
         <summary>Models ({models?.models.length ?? 0})</summary>
         <div className="model-popover">

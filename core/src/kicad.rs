@@ -1,85 +1,254 @@
-use crate::layout::LayoutResult;
+use crate::exporter::ExportError;
+use crate::schematic::{Point, Schematic, SchematicComponent};
+use sha2::{Digest, Sha256};
 
-/// Generates a KiCad 6.0/7.0/8.0 compatible schematic file (.kicad_sch)
-/// This is a simplified S-Expression generator that allows KiCad to open our NetLang schematics!
-pub fn generate_kicad_sch(layout: &LayoutResult) -> String {
-    let mut out = String::new();
-    let uuid = "00000000-0000-0000-0000-000000000000"; // Mock UUID for simplicity
+const GRID_MM: f64 = 2.54;
+const PAGE_MARGIN_MM: f64 = 25.4;
 
-    // Header
-    out.push_str("(kicad_sch (version 20211123) (generator netlang)\n");
-    out.push_str("  (uuid \"00000000-0000-0000-0000-000000000000\")\n");
-    out.push_str("  (paper \"A4\")\n");
+fn uuid(seed: &str) -> String {
+    let hex = format!("{:x}", Sha256::digest(seed.as_bytes()));
+    format!(
+        "{}-{}-{}-{}-{}",
+        &hex[0..8],
+        &hex[8..12],
+        &hex[12..16],
+        &hex[16..20],
+        &hex[20..32]
+    )
+}
 
-    let scale = 2.54; // Convert grid coordinates to millimeters (standard 100mil grid)
-    let offset_x = 50.0;
-    let offset_y = 50.0;
+fn quoted(value: &str) -> String {
+    format!(
+        "\"{}\"",
+        value
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\n', "\\n")
+            .replace('\r', "\\r")
+    )
+}
 
-    // Components
-    for (name, comp) in &layout.components {
-        let cx = (comp.x as f64) * scale + offset_x;
-        let cy = (comp.y as f64) * scale + offset_y;
+fn coordinate(value: f64) -> String {
+    let rendered = format!("{value:.4}");
+    rendered
+        .trim_end_matches('0')
+        .trim_end_matches('.')
+        .to_string()
+}
 
-        let lib_id = match comp.comp_type.as_str() {
-            "Resistor" => "Device:R",
-            "Capacitor" => "Device:C",
-            "Inductor" => "Device:L",
-            "Diode" => "Device:D",
-            "Source" => "Simulation_SPICE:VDC",
-            "CurrentSource" => "Simulation_SPICE:IDC",
-            "Transistor" => "Device:Q_NPN_CBE", // Simplified
-            "Mosfet" => "Device:Q_NMOS_DGS",
-            "OpAmp" => "Amplifier_Operational:LM741",
-            _ => "Device:R", // Fallback
-        };
+fn point(schematic: &Schematic, value: Point) -> (String, String) {
+    (
+        coordinate((value.x - schematic.bounds.min.x) as f64 * GRID_MM + PAGE_MARGIN_MM),
+        coordinate((value.y - schematic.bounds.min.y) as f64 * GRID_MM + PAGE_MARGIN_MM),
+    )
+}
 
-        let rot = match comp.rotation {
-            0 => 0,
-            1 => 90,
-            2 => 180,
-            3 => 270,
-            _ => 0,
-        };
+fn local_point(component: &SchematicComponent, value: Point) -> (String, String) {
+    (
+        coordinate((value.x - component.origin.x) as f64 * GRID_MM),
+        coordinate(-(value.y - component.origin.y) as f64 * GRID_MM),
+    )
+}
 
+fn property(name: &str, value: &str, x: &str, y: &str, hidden: bool) -> String {
+    format!(
+        "      (property {} {} (at {x} {y} 0) (effects (font (size 1.27 1.27)){}))\n",
+        quoted(name),
+        quoted(value),
+        if hidden { " (hide yes)" } else { "" }
+    )
+}
+
+fn library_symbol(component: &SchematicComponent) -> String {
+    let name = format!("NetLang:NL_{}", component.id);
+    let child_name = format!("NL_{}_0_1", component.id);
+    let pin_child_name = format!("NL_{}_1_1", component.id);
+    let min_x = coordinate((component.bounds.min.x - component.origin.x) as f64 * GRID_MM);
+    let min_y = coordinate(-(component.bounds.max.y - component.origin.y) as f64 * GRID_MM);
+    let max_x = coordinate((component.bounds.max.x - component.origin.x) as f64 * GRID_MM);
+    let max_y = coordinate(-(component.bounds.min.y - component.origin.y) as f64 * GRID_MM);
+    let prefix = component
+        .reference
+        .chars()
+        .take_while(|character| character.is_ascii_alphabetic() || *character == '#')
+        .collect::<String>();
+    let mut out = format!(
+        "    (symbol {}\n      (pin_names (offset 0))\n      (exclude_from_sim no)\n      (in_bom yes)\n      (on_board yes)\n",
+        quoted(&name)
+    );
+    out.push_str(&property("Reference", &prefix, "0", "-2.54", false));
+    out.push_str(&property("Value", "NetLang", "0", "2.54", false));
+    out.push_str(&property("Footprint", "", "0", "0", true));
+    out.push_str(&property("Datasheet", "", "0", "0", true));
+    out.push_str(&property(
+        "Description",
+        "Portable symbol generated from canonical NetLang Schematic IR",
+        "0",
+        "0",
+        true,
+    ));
+    out.push_str(&format!(
+        "      (symbol {}\n        (rectangle (start {min_x} {min_y}) (end {max_x} {max_y}) (stroke (width 0.254) (type default)) (fill (type background)))\n      )\n",
+        quoted(&child_name)
+    ));
+    out.push_str(&format!("      (symbol {}\n", quoted(&pin_child_name)));
+    for (index, pin) in component.pins.iter().enumerate() {
+        let (x, y) = local_point(component, pin.point);
         out.push_str(&format!(
-            "  (symbol (lib_id \"{}\") (at {} {} {}) (unit 1)\n",
-            lib_id, cx, cy, rot
+            "        (pin passive line (at {x} {y} 0) (length 0) (name {} (effects (font (size 1.27 1.27)))) (number {} (effects (font (size 1.27 1.27)))))\n",
+            quoted(&pin.name),
+            quoted(&(index + 1).to_string())
         ));
-        out.push_str(&format!("    (uuid \"{}\")\n", uuid));
-        out.push_str(&format!(
-            "    (property \"Reference\" \"{}\" (at {} {} 0)\n",
-            name,
-            cx,
-            cy - 2.54
-        ));
-        out.push_str("      (effects (font (size 1.27 1.27)))\n    )\n");
-        out.push_str("  )\n");
     }
-
-    // Wires
-    for wire in &layout.wires {
-        if wire.points.len() < 2 {
-            continue;
-        }
-        for i in 0..(wire.points.len() - 1) {
-            let p1 = wire.points[i];
-            let p2 = wire.points[i + 1];
-            let x1 = (p1.0 as f64) * scale + offset_x;
-            let y1 = (p1.1 as f64) * scale + offset_y;
-            let x2 = (p2.0 as f64) * scale + offset_x;
-            let y2 = (p2.1 as f64) * scale + offset_y;
-
-            out.push_str(&format!(
-                "  (wire (pts (xy {} {}) (xy {} {}))\n",
-                x1, y1, x2, y2
-            ));
-            out.push_str("    (stroke (width 0) (type default))\n");
-            out.push_str(&format!("    (uuid \"{}\")\n", uuid));
-            out.push_str("  )\n");
-        }
-    }
-
-    // Footer
-    out.push_str(")\n");
+    out.push_str("      )\n      (embedded_fonts no)\n    )\n");
     out
+}
+
+fn instance(schematic: &Schematic, component: &SchematicComponent, root_uuid: &str) -> String {
+    let (x, y) = point(schematic, component.origin);
+    let instance_uuid = uuid(&format!("kicad:component:{}", component.id));
+    let lib_id = format!("NetLang:NL_{}", component.id);
+    let value = component
+        .value
+        .as_deref()
+        .or(component.model.as_deref())
+        .unwrap_or("NetLang");
+    let mut out = format!(
+        "  (symbol (lib_id {}) (at {x} {y} 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid {})\n",
+        quoted(&lib_id),
+        quoted(&instance_uuid)
+    );
+    out.push_str(&property(
+        "Reference",
+        &component.reference,
+        &x,
+        &coordinate(y.parse::<f64>().unwrap_or_default() - 3.81),
+        false,
+    ));
+    out.push_str(&property(
+        "Value",
+        value,
+        &x,
+        &coordinate(y.parse::<f64>().unwrap_or_default() + 3.81),
+        false,
+    ));
+    out.push_str(&property("Footprint", "", &x, &y, true));
+    out.push_str(&property("Datasheet", "", &x, &y, true));
+    out.push_str(&property(
+        "Description",
+        "Generated by NetLang",
+        &x,
+        &y,
+        true,
+    ));
+    if let Some(model) = &component.model {
+        out.push_str(&property("NetLang_Model", model, &x, &y, true));
+    }
+    for (index, _) in component.pins.iter().enumerate() {
+        out.push_str(&format!(
+            "    (pin {} (uuid {}))\n",
+            quoted(&(index + 1).to_string()),
+            quoted(&uuid(&format!("kicad:pin:{}:{index}", component.id)))
+        ));
+    }
+    out.push_str(&format!(
+        "    (instances (project {} (path {} (reference {}) (unit 1))))\n  )\n",
+        quoted("NetLang"),
+        quoted(&format!("/{root_uuid}")),
+        quoted(&component.reference)
+    ));
+    out
+}
+
+/// Generates a self-contained KiCad 9/10 s-expression schematic exclusively
+/// from verified Schematic IR. Per-instance embedded symbols keep the file
+/// portable and put every KiCad pin exactly on its canonical graph anchor.
+pub fn generate_kicad_sch(schematic: &Schematic) -> Result<String, ExportError> {
+    if !schematic.connectivity.verified {
+        return Err(ExportError {
+            code: "NL-X003".to_string(),
+            message: "canonical connectivity proof failed; KiCad export stopped".to_string(),
+            diagnostics: Vec::new(),
+        });
+    }
+    if schematic
+        .components
+        .iter()
+        .any(|component| component.pins.is_empty())
+    {
+        return Err(ExportError {
+            code: "NL-X012".to_string(),
+            message: "KiCad exporter cannot represent a component without typed pins".to_string(),
+            diagnostics: Vec::new(),
+        });
+    }
+
+    let schematic_json = serde_json::to_vec(schematic).unwrap_or_default();
+    let root_uuid = uuid(&format!("kicad:root:{:x}", Sha256::digest(&schematic_json)));
+    let mut out = format!(
+        "(kicad_sch\n  (version 20241209)\n  (generator {})\n  (generator_version {})\n  (uuid {})\n  (paper {})\n  (title_block (title {}) (comment 1 {}))\n  (lib_symbols\n",
+        quoted("netlang"),
+        quoted(env!("CARGO_PKG_VERSION")),
+        quoted(&root_uuid),
+        quoted("A4"),
+        quoted("NetLang Schematic"),
+        quoted(&format!(
+            "{} / {}",
+            crate::schematic::SCHEMATIC_SCHEMA_VERSION,
+            crate::exporter::EXPORT_SCHEMA_VERSION
+        ))
+    );
+    for component in &schematic.components {
+        out.push_str(&library_symbol(component));
+    }
+    out.push_str("  )\n");
+
+    for junction in &schematic.junctions {
+        let (x, y) = point(schematic, junction.point);
+        out.push_str(&format!(
+            "  (junction (at {x} {y}) (diameter 0) (color 0 0 0 0) (uuid {}))\n",
+            quoted(&uuid(&format!("kicad:junction:{}", junction.id)))
+        ));
+    }
+    for wire in &schematic.wires {
+        for (segment, pair) in wire.points.windows(2).enumerate() {
+            let (x1, y1) = point(schematic, pair[0]);
+            let (x2, y2) = point(schematic, pair[1]);
+            out.push_str(&format!(
+                "  (wire (pts (xy {x1} {y1}) (xy {x2} {y2})) (stroke (width 0) (type default)) (uuid {}))\n",
+                quoted(&uuid(&format!("kicad:wire:{}:{segment}", wire.id)))
+            ));
+        }
+    }
+    for label in &schematic.labels {
+        let attached = schematic
+            .components
+            .iter()
+            .find(|component| component.id == label.attached_to.component)
+            .and_then(|component| {
+                component
+                    .pins
+                    .iter()
+                    .find(|pin| pin.name == label.attached_to.pin)
+            })
+            .ok_or_else(|| ExportError {
+                code: "NL-X018".to_string(),
+                message: format!(
+                    "KiCad net label '{}' has no canonical attachment {}.{}",
+                    label.text, label.attached_to.component, label.attached_to.pin
+                ),
+                diagnostics: Vec::new(),
+            })?;
+        let (x, y) = point(schematic, attached.point);
+        out.push_str(&format!(
+            "  (label {} (at {x} {y} 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid {}))\n",
+            quoted(&label.text),
+            quoted(&uuid(&format!("kicad:label:{}", label.id)))
+        ));
+    }
+    for component in &schematic.components {
+        out.push_str(&instance(schematic, component, &root_uuid));
+    }
+    out.push_str("  (sheet_instances (path \"/\" (page \"1\")))\n)\n");
+    Ok(out)
 }

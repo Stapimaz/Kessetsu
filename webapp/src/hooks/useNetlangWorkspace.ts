@@ -3,12 +3,15 @@ import init, {
   compile_netlang,
   compile_schema_version,
   evaluate_browser_simulation,
+  export_netlang,
+  export_schema_version,
   prepare_browser_simulation,
+  supported_export_capabilities,
 } from 'netlang-core';
 import rcFilter from '../../../core/tests/fixtures/benchmarks/rc_filter.nl?raw';
 import gainStage from '../../../core/tests/fixtures/benchmarks/gain_stage.nl?raw';
 import powerAmplifier from '../../../core/tests/fixtures/benchmarks/power_amplifier.nl?raw';
-import type { CompileReport, WorkspaceState } from '../domain';
+import type { CompileReport, ExportArtifact, ExportFormat, WorkspaceState } from '../domain';
 import { BrowserSimulationRunner, SimulationCancelledError } from '../simulation/browserRunner';
 import type { BrowserEvaluation, BrowserSimulationPlan } from '../simulation/types';
 
@@ -35,6 +38,8 @@ const initialState: WorkspaceState = {
   kicadSch: '',
   spiceNetlist: '',
   modelManifest: null,
+  exportCapabilities: [],
+  exportMessage: '',
   simulationState: 'idle',
   simulationMessage: 'Run ile simülasyonu başlatın',
   evaluation: null,
@@ -47,7 +52,15 @@ export function useNetlangWorkspace() {
   useEffect(() => {
     let mounted = true;
     void init()
-      .then(() => mounted && setState((current) => ({ ...current, wasmLoaded: true })))
+      .then(() => {
+        if (!mounted) return;
+        const capabilities = supported_export_capabilities();
+        setState((current) => ({
+          ...current,
+          wasmLoaded: true,
+          exportCapabilities: capabilities as WorkspaceState['exportCapabilities'],
+        }));
+      })
       .catch((error: unknown) => mounted && setState((current) => ({ ...current, wasmError: errorMessage(error) })));
     const runner = new BrowserSimulationRunner();
     runnerRef.current = runner;
@@ -104,6 +117,7 @@ export function useNetlangWorkspace() {
       simulationState: 'idle',
       simulationMessage: 'Kaynak değişti; Run ile yeniden simüle edin',
       evaluation: null,
+      exportMessage: '',
     }));
   }, []);
 
@@ -140,5 +154,22 @@ export function useNetlangWorkspace() {
     setState((current) => ({ ...current, simulationState: 'cancelled', simulationMessage: 'Simülasyon iptal edildi' }));
   }, []);
 
-  return { state, setCode, loadExample, compile, run, cancel };
+  const createExport = useCallback((format: ExportFormat, scale = 2, transparent = false): ExportArtifact => {
+    if (!state.wasmLoaded || !state.compileSucceeded) {
+      throw new Error('Compile and connectivity verification must succeed before export');
+    }
+    const artifact = export_netlang(state.code, format, scale, transparent) as ExportArtifact;
+    if (artifact.schema_version !== export_schema_version()) {
+      throw new Error(`Unsupported export schema: ${artifact.schema_version}`);
+    }
+    setState((current) => ({
+      ...current,
+      exportMessage: artifact.losses.length > 0
+        ? `${artifact.label}: ${artifact.losses.join(' ')}`
+        : `${artifact.label}: connectivity verified · ${artifact.sha256.slice(0, 12)}`,
+    }));
+    return artifact;
+  }, [state.code, state.compileSucceeded, state.wasmLoaded]);
+
+  return { state, setCode, loadExample, compile, run, cancel, createExport };
 }

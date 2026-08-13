@@ -850,24 +850,24 @@ Mevcut Web/layout kodu tamamen boş değildir ve kanıt görmeden silinmeyecekti
 
 ### 4.5 — Profesyonel render ve EDA export
 
-- [ ] Core içinde versioned exporter adapter/capability sözleşmesi tanımla; Web, CLI veya her exporter kendi devre/layout semantiğini yeniden kurmasın.
-- [ ] İlk yayın format matrisini kullanım amacı, format açıklığı, lisans, bağlantı fidelity'si, hedef uygulama doğrulanabilirliği ve bakım maliyetiyle kaydet.
-- [ ] İlk sınıf görsel çıktılar olarak SVG, PNG ve PDF'i yalnız canonical Schematic IR üzerinden üret.
-- [ ] Makine-okunabilir/değişimsiz çıktılar olarak canonical SPICE ve versioned Schematic IR JSON'u CLI/Web artifact'i yap.
-- [ ] İlk sınıf düzenlenebilir EDA çıktıları olarak KiCad schematic ve LTspice schematic üret.
-- [ ] Qucs-S, CircuitJS, EasyEDA/EDIF ve güncel kullanım araştırmasında değerli bulunan diğer açık/erişilebilir hedefleri capability matrisiyle değerlendir; doğrulanamayan formatı yalnız dosya üretiyor diye desteklenmiş sayma.
-- [ ] Aynı sembol/geometri/font ölçüm sözleşmesini browser ve native render'da paylaş.
-- [ ] SVG export'ta semantic text, deterministic viewBox ve theme-independent okunabilir stil üret.
-- [ ] PNG export için açık çözünürlük/scale/background seçenekleri ve görsel parity testi ekle.
-- [ ] PDF export'ta sayfa boyutu, orientation, margin, vector text ve multi-page politikasını tanımla.
-- [ ] `netlang render circuit.nl -o circuit.svg|png|pdf` komutunu güvenli overwrite ve structured diagnostic sözleşmesiyle uygula.
-- [ ] `netlang export circuit.nl --format <target> --output <path>` komutuyla bütün düzenlenebilir/makine-okunabilir hedefleri aynı structured artifact sözleşmesinden sun.
-- [ ] CLI JSON'da exporter schema/version, artifact path/hash, connectivity verification ve warning/loss report alanlarını taşı.
-- [ ] KiCad schematic export'ta symbol, pin, wire, junction, label ve model/value alanlarını connectivity fixture'larıyla doğrula.
-- [ ] LTspice schematic export adaptörü ve aynı bağlantı fixture'larını oluştur.
-- [ ] KiCad/LTspice dosyalarının desteklenen hedef uygulama sürümlerinde gerçekten açıldığını release smoke testine ekle.
-- [ ] Desteklenen her Core/CLI export'unu Web Hub'da aynı capability/loss bilgisiyle tek ve anlaşılır export alanında sun.
-- [ ] Unsupported exporter özelliğini sessiz veri kaybı yerine structured fail-closed diagnostic yap.
+- [x] Core içinde versioned exporter adapter/capability sözleşmesi tanımla; Web, CLI veya her exporter kendi devre/layout semantiğini yeniden kurmasın. _`netlang.export.v1`; `exporter.rs` yalnız verified Schematic IR/typed IR artefaktlarını dağıtır._
+- [x] İlk yayın format matrisini kullanım amacı, format açıklığı, lisans, bağlantı fidelity'si, hedef uygulama doğrulanabilirliği ve bakım maliyetiyle kaydet. _`docs/export_formats.md` kaynaklı karar matrisi._
+- [x] İlk sınıf görsel çıktılar olarak SVG, PNG ve PDF'i yalnız canonical Schematic IR üzerinden üret. _PNG resvg, PDF svg2pdf; ikisi canonical SVG projection'ını kullanır._
+- [x] Makine-okunabilir/değişimsiz çıktılar olarak canonical SPICE ve versioned Schematic IR JSON'u CLI/Web artifact'i yap. _Web/native exact-byte E2E parity._
+- [x] İlk sınıf düzenlenebilir EDA çıktıları olarak KiCad schematic ve LTspice schematic üret. _Portable embedded KiCad symbols ve gerçek bundled-symbol LTspice ASC._
+- [x] Qucs-S, CircuitJS, EasyEDA/EDIF ve güncel kullanım araştırmasında değerli bulunan diğer açık/erişilebilir hedefleri capability matrisiyle değerlendir; doğrulanamayan formatı yalnız dosya üretiyor diye desteklenmiş sayma. _İlk yayın dışında bırakma gerekçeleri ve resmi format kaynakları kaydedildi._
+- [x] Aynı sembol/geometri/font ölçüm sözleşmesini browser ve native render'da paylaş. _Tek Rust/WASM exporter ve repo-içi OFL Roboto Mono._
+- [x] SVG export'ta semantic text, deterministic viewBox ve theme-independent okunabilir stil üret. _Boyut/viewBox açık; white/transparent projection; golden hash corpus._
+- [x] PNG export için açık çözünürlük/scale/background seçenekleri ve görsel parity testi ekle. _0.25–8 scale, white/transparent; browser/native byte equality._
+- [x] PDF export'ta sayfa boyutu, orientation, margin, vector text ve multi-page politikasını tanımla. _Tek sayfa content media-box, doğal orientation, Schematic IR margin, deterministic vector glyph; parçalama yok._
+- [x] `netlang render circuit.nl -o circuit.svg|png|pdf` komutunu güvenli overwrite ve structured diagnostic sözleşmesiyle uygula. _Extension allowlist, source overwrite koruması, `--force`, `NL-X/NL-I`._
+- [x] `netlang export circuit.nl --target <target> --output <path>` komutuyla bütün düzenlenebilir/makine-okunabilir hedefleri aynı structured artifact sözleşmesinden sun. _Global JSON `--format` ile çakışmaması için hedef bayrağı bilinçli olarak `--target`._
+- [x] CLI JSON'da exporter schema/version, artifact path/hash, connectivity verification ve warning/loss report alanlarını taşı. _`JsonArtifact` additive contract._
+- [x] KiCad schematic export'ta symbol, pin, wire, junction, label ve model/value alanlarını connectivity fixture'larıyla doğrula. _RC/gain/power Core corpus ve KiCad XML netlist references._
+- [x] LTspice schematic export adaptörü ve aynı bağlantı fixture'larını oluştur. _Gerçek `.asy` pin koordinatlarına remap, model/analysis directive ve üç benchmark corpus._
+- [x] KiCad/LTspice dosyalarının desteklenen hedef uygulama sürümlerinde gerçekten açıldığını release smoke testine ekle. _`verify-eda-exports.ps1`: KiCad 10.0.0 ve LTspice 24.1.9 üç benchmark PASS._
+- [x] Desteklenen her Core/CLI export'unu Web Hub'da aynı capability/loss bilgisiyle tek ve anlaşılır export alanında sun. _Yedi Core-advertised format, capability details ve per-artifact status._
+- [x] Unsupported exporter özelliğini sessiz veri kaybı yerine structured fail-closed diagnostic yap. _`NL-X003/NL-X013` unverified connectivity ve unsupported symbol tests._
 
 **4.5 kabul kriteri:** Her ilan edilen format Core ve CLI'dan üretilebilir; Web aynı motorun ince arayüzüdür. Görsel çıktılar okunabilir, makine çıktıları sürümlü/deterministik, düzenlenebilir EDA çıktıları canonical graph ile bağlantısal olarak eşdeğer ve hedef uygulamada doğrulanmış biçimde açılır. Lossy dönüşüm sessiz yapılmaz.
 

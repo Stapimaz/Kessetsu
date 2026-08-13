@@ -173,14 +173,15 @@ fn shared_web_default_example_compiles_every_browser_output() {
 }
 
 #[test]
-fn kicad_export_maps_voltage_and_current_sources_explicitly() {
+fn kicad_export_embeds_typed_source_symbols_and_pins() {
     let source = "source V1 5V\ncurrent_source I1 1A\nresistor R1 1k\nconnect V1.plus, I1.plus to R1.p1\nconnect V1.minus, I1.minus to R1.p2\n";
     let report = compile_source(source, CompileOptions::all_outputs());
     let kicad = report
         .kicad_sch
         .expect("valid source circuit should produce KiCad output");
 
-    assert!(kicad.contains("Simulation_SPICE:VDC"));
-    assert!(kicad.contains("Simulation_SPICE:IDC"));
-    assert!(!kicad.contains("Device:Battery"));
+    assert!(kicad.contains("NetLang:NL_V1"));
+    assert!(kicad.contains("NetLang:NL_I1"));
+    assert!(kicad.contains("(name \"plus\""));
+    assert!(kicad.contains("(name \"minus\""));
 }

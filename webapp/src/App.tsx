@@ -7,7 +7,7 @@ import { SchematicPanel } from './components/SchematicPanel';
 import { useNetlangWorkspace } from './hooks/useNetlangWorkspace';
 
 function App() {
-  const { state, setCode, loadExample, compile, run, cancel } = useNetlangWorkspace();
+  const { state, setCode, loadExample, compile, run, cancel, createExport } = useNetlangWorkspace();
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   useEffect(() => {
@@ -43,7 +43,14 @@ function App() {
           onCancel={cancel}
         />
       </div>
-      <ArtifactBar svg={state.schematicSvg} kicad={state.kicadSch} spice={state.spiceNetlist} models={state.modelManifest} />
+      <ArtifactBar
+        spice={state.spiceNetlist}
+        models={state.modelManifest}
+        enabled={state.compileSucceeded}
+        capabilities={state.exportCapabilities}
+        message={state.exportMessage}
+        onExport={createExport}
+      />
     </main>
   );
 }

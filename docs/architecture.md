@@ -269,10 +269,10 @@ Derleme/ERC/SPICE üretimi için internet gerektirmeyen Rust CLI'dır. Repositor
 ### 3. NetLang Web Hub (İnsanlar İçin Vitrin ve Oyun Alanı)
 Kullanıcıların kayıtsız, indirmesiz kullanabildiği; Rust çekirdeğini WASM ile tarayıcıda çalıştıran arayüz.
 
-- **Mevcut playground:** Kod yaz → WASM compile/ERC + SPICE metni + deneysel SVG/KiCad çıktısı.
-- **Planlanan simülasyon:** Browser içinde güvenilir simulator runtime ve structured plot/result modeli henüz uygulanmadı.
+- **Mevcut workspace:** Kod yaz → debounced WASM compile/ERC → canonical şema → dedicated worker içinde Ngspice simulation → typed plot/measurement/assertion sonuçları.
+- **Mevcut export:** Core'un `netlang.export.v1` capability sözleşmesi üzerinden SVG, PNG, PDF, Schematic JSON, SPICE, KiCad ve LTspice; Web exporter semantiğini yeniden kurmaz.
 - **Planlanan paylaşım:** URL-embedded circuit ve kalıcı paylaşım akışı ürün hedefidir; mevcut Web arayüzünde yoktur.
 
 **Güvenlik notu:** Web playground'da kullanıcı girdisi doğrudan SPICE string olarak netlist'e eklenmez. Tüm girdiler IR üzerinden typed olarak işlenir. Raw SPICE erişimi (ileride `unsafe spice_raw {}`) web sürümünde varsayılan olarak kapalıdır.
 
-**ÖZETLE:** NetLang bir "çizim programı" değil, bir devre derleyicisi ve doğrulama altyapısıdır. Bugünkü ürün CLI'da agent-oriented compile/test geri bildirimi ve Web'de WASM compile/şema playground'u sunar. Güvenilir cross-platform simulator, profesyonel EDA round-trip ve URL tabanlı paylaşım tamamlanması gereken ürün hedefleridir.
+**ÖZETLE:** NetLang bir "çizim programı" değil, bir devre derleyicisi ve doğrulama altyapısıdır. Bugünkü ürün CLI'da agent-oriented compile/test/export geri bildirimi ve Web'de aynı Core'a bağlı compile/simulation/measurement/schematic/export workspace'i sunar. URL tabanlı paylaşım ile cross-platform release paketleme sıradaki ürün kapılarıdır.

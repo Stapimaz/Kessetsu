@@ -3,6 +3,10 @@ use netlang_core::compiler::{
     COMPILE_SCHEMA_VERSION, CompileOptions, CompileReport, Diagnostic, DiagnosticSeverity,
     DiagnosticStage, compile_source,
 };
+use netlang_core::exporter::{
+    EXPORT_SCHEMA_VERSION, ExportArtifact, ExportCapability, ExportFormat, ExportOptions,
+    RenderBackground, export_report,
+};
 use netlang_core::measurement::MEASUREMENT_SCHEMA_VERSION;
 use netlang_core::sim_result::{
     ASSERTION_SCHEMA_VERSION, AssertionReport, AssertionResult, AssertionStatus, AssertionSummary,
@@ -51,8 +55,48 @@ enum Commands {
     Simulate(OutputCommand),
     /// Parse, ERC, generate a netlist, simulate, and evaluate assertions
     Test(OutputCommand),
-    /// Reserved for the Phase 4 SVG schematic renderer
-    Render { file: PathBuf },
+    /// Render the canonical schematic to SVG, PNG, or PDF
+    Render(RenderCommand),
+    /// Export a machine-readable or editable circuit artifact
+    Export(ExportCommand),
+}
+
+#[derive(Args)]
+struct RenderCommand {
+    file: PathBuf,
+
+    /// Output path; extension selects svg, png, or pdf
+    #[arg(short, long)]
+    output: Option<PathBuf>,
+
+    /// Raster scale for PNG output (0.25 through 8)
+    #[arg(long, default_value_t = 2.0)]
+    scale: f32,
+
+    /// PNG/SVG page background
+    #[arg(long, value_enum, default_value_t = Background::White)]
+    background: Background,
+
+    /// Allow overwriting an existing output file
+    #[arg(long)]
+    force: bool,
+}
+
+#[derive(Args)]
+struct ExportCommand {
+    file: PathBuf,
+
+    /// Export target
+    #[arg(long, value_enum)]
+    target: ExportTarget,
+
+    /// Output path; defaults to the source basename and target extension
+    #[arg(short, long)]
+    output: Option<PathBuf>,
+
+    /// Allow overwriting an existing output file
+    #[arg(long)]
+    force: bool,
 }
 
 #[derive(Args)]
@@ -72,6 +116,42 @@ struct OutputCommand {
 enum Format {
     Human,
     Json,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+enum ExportTarget {
+    SchematicJson,
+    Spice,
+    Kicad,
+    Ltspice,
+}
+
+impl From<ExportTarget> for ExportFormat {
+    fn from(value: ExportTarget) -> Self {
+        match value {
+            ExportTarget::SchematicJson => Self::SchematicJson,
+            ExportTarget::Spice => Self::Spice,
+            ExportTarget::Kicad => Self::Kicad,
+            ExportTarget::Ltspice => Self::Ltspice,
+        }
+    }
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+enum Background {
+    White,
+    Transparent,
+}
+
+impl From<Background> for RenderBackground {
+    fn from(value: Background) -> Self {
+        match value {
+            Background::White => Self::White,
+            Background::Transparent => Self::Transparent,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq, PartialOrd, Ord)]
@@ -107,6 +187,7 @@ struct DomainVersions {
     simulation: Option<&'static str>,
     measurement: Option<&'static str>,
     assertion: Option<&'static str>,
+    export: Option<&'static str>,
 }
 
 #[derive(Serialize)]
@@ -143,6 +224,24 @@ struct JsonSummary {
 struct JsonArtifact {
     kind: String,
     path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    schema_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    exporter: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    exporter_version: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sha256: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    byte_length: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    connectivity_verified: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    capability: Option<ExportCapability>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    warnings: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    losses: Vec<String>,
 }
 
 fn main() {
@@ -160,28 +259,6 @@ fn run(cli: Cli) -> i32 {
             format!(
                 "Unsupported CLI schema '{}'; expected '{}'.",
                 cli.schema_version, CLI_SCHEMA_VERSION
-            ),
-        );
-        emit(
-            &cli.format,
-            command,
-            &includes,
-            "error",
-            CompileReport::failure(diagnostic),
-            None,
-            None,
-            None,
-        );
-        return 2;
-    }
-
-    if let Commands::Render { file } = &cli.command {
-        let diagnostic = diagnostic(
-            "NL-F001",
-            DiagnosticStage::Cli,
-            format!(
-                "Render is not implemented yet; no output was produced for '{}'.",
-                file.display()
             ),
         );
         emit(
@@ -226,10 +303,11 @@ fn run(cli: Cli) -> i32 {
     };
 
     let needs_spice = !matches!(cli.command, Commands::Check { .. });
+    let needs_schematic = matches!(cli.command, Commands::Render(_) | Commands::Export(_));
     let options = CompileOptions {
         include_ast: includes.contains(&Include::Ast),
         generate_spice: needs_spice,
-        generate_layout: false,
+        generate_layout: needs_schematic,
         generate_kicad: false,
     };
     let mut report = compile_source(&source, options);
@@ -266,6 +344,57 @@ fn run(cli: Cli) -> i32 {
             );
         }
         return 0;
+    }
+
+    if let Commands::Render(render) = &cli.command {
+        let render_format = match render_format(render) {
+            Ok(format) => format,
+            Err(message) => {
+                report
+                    .diagnostics
+                    .push(diagnostic("NL-X017", DiagnosticStage::Cli, message));
+                emit(
+                    &cli.format,
+                    command,
+                    &includes,
+                    "error",
+                    report,
+                    None,
+                    None,
+                    None,
+                );
+                return 2;
+            }
+        };
+        return run_artifact_command(
+            &cli.format,
+            command,
+            &includes,
+            source_path,
+            source_is_stdin,
+            report,
+            render_format,
+            render.output.clone(),
+            render.force,
+            ExportOptions {
+                scale: render.scale,
+                background: render.background.into(),
+            },
+        );
+    }
+    if let Commands::Export(export) = &cli.command {
+        return run_artifact_command(
+            &cli.format,
+            command,
+            &includes,
+            source_path,
+            source_is_stdin,
+            report,
+            export.target.into(),
+            export.output.clone(),
+            export.force,
+            ExportOptions::default(),
+        );
     }
 
     let output_command = output_command(&cli.command)
@@ -376,7 +505,8 @@ fn command_name(command: &Commands) -> &'static str {
         Commands::Compile(_) => "compile",
         Commands::Simulate(_) => "simulate",
         Commands::Test(_) => "test",
-        Commands::Render { .. } => "render",
+        Commands::Render(_) => "render",
+        Commands::Export(_) => "export",
     }
 }
 
@@ -392,7 +522,9 @@ fn read_source(source_path: &Path) -> io::Result<String> {
 
 fn command_path(command: &Commands) -> &Path {
     match command {
-        Commands::Check { file } | Commands::Render { file } => file,
+        Commands::Check { file } => file,
+        Commands::Render(command) => &command.file,
+        Commands::Export(command) => &command.file,
         Commands::Compile(command) | Commands::Simulate(command) | Commands::Test(command) => {
             &command.file
         }
@@ -404,7 +536,214 @@ fn output_command(command: &Commands) -> Option<&OutputCommand> {
         Commands::Compile(command) | Commands::Simulate(command) | Commands::Test(command) => {
             Some(command)
         }
-        Commands::Check { .. } | Commands::Render { .. } => None,
+        Commands::Check { .. } | Commands::Render(_) | Commands::Export(_) => None,
+    }
+}
+
+fn render_format(command: &RenderCommand) -> Result<ExportFormat, String> {
+    let extension = command
+        .output
+        .as_ref()
+        .and_then(|path| path.extension())
+        .and_then(|extension| extension.to_str())
+        .unwrap_or("svg")
+        .to_ascii_lowercase();
+    match extension.as_str() {
+        "svg" => Ok(ExportFormat::Svg),
+        "png" => Ok(ExportFormat::Png),
+        "pdf" => Ok(ExportFormat::Pdf),
+        _ => Err(format!(
+            "render output extension '.{extension}' is unsupported; expected .svg, .png, or .pdf"
+        )),
+    }
+}
+
+fn artifact_output_path(
+    source_path: &Path,
+    source_is_stdin: bool,
+    requested: Option<PathBuf>,
+    format: ExportFormat,
+) -> Result<PathBuf, String> {
+    if let Some(path) = requested {
+        return Ok(path);
+    }
+    if source_is_stdin {
+        return Err("--output is required when source is read from stdin".to_string());
+    }
+    Ok(source_path.with_extension(format.extension()))
+}
+
+fn write_artifact(
+    source_path: &Path,
+    output_path: &Path,
+    bytes: &[u8],
+    force: bool,
+) -> Result<(), Box<Diagnostic>> {
+    if paths_refer_to_same_file(source_path, output_path) {
+        return Err(Box::new(diagnostic(
+            "NL-I002",
+            DiagnosticStage::Io,
+            format!(
+                "Refusing to overwrite source file '{}' with a generated artifact.",
+                source_path.display()
+            ),
+        )));
+    }
+    if output_path.exists() && !force {
+        return Err(Box::new(diagnostic(
+            "NL-I003",
+            DiagnosticStage::Io,
+            format!(
+                "Output file '{}' already exists; pass --force to overwrite it.",
+                output_path.display()
+            ),
+        )));
+    }
+    fs::write(output_path, bytes).map_err(|error| {
+        Box::new(diagnostic(
+            "NL-I004",
+            DiagnosticStage::Io,
+            format!(
+                "Could not write artifact to '{}': {error}",
+                output_path.display()
+            ),
+        ))
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_artifact_command(
+    output_format: &Format,
+    command: &'static str,
+    includes: &BTreeSet<Include>,
+    source_path: &Path,
+    source_is_stdin: bool,
+    mut report: CompileReport,
+    artifact_format: ExportFormat,
+    requested_path: Option<PathBuf>,
+    force: bool,
+    options: ExportOptions,
+) -> i32 {
+    let output_path = match artifact_output_path(
+        source_path,
+        source_is_stdin,
+        requested_path,
+        artifact_format,
+    ) {
+        Ok(path) => path,
+        Err(message) => {
+            report
+                .diagnostics
+                .push(diagnostic("NL-I006", DiagnosticStage::Io, message));
+            emit(
+                output_format,
+                command,
+                includes,
+                "error",
+                report,
+                None,
+                None,
+                None,
+            );
+            return 2;
+        }
+    };
+    let artifact = match export_report(&report, artifact_format, options) {
+        Ok(artifact) => artifact,
+        Err(error) => {
+            report.diagnostics.extend(error.diagnostics);
+            report.diagnostics.push(diagnostic(
+                &error.code,
+                DiagnosticStage::Schematic,
+                error.message,
+            ));
+            emit(
+                output_format,
+                command,
+                includes,
+                "error",
+                report,
+                None,
+                None,
+                None,
+            );
+            return 2;
+        }
+    };
+    if let Err(diagnostic) = write_artifact(source_path, &output_path, &artifact.bytes, force) {
+        report.diagnostics.push(*diagnostic);
+        emit(
+            output_format,
+            command,
+            includes,
+            "error",
+            report,
+            None,
+            None,
+            None,
+        );
+        return 2;
+    }
+
+    if *output_format == Format::Human {
+        emit_human_diagnostics(&report);
+        println!(
+            "[SUCCESS] {} artifact generated: {}",
+            artifact.format.id(),
+            output_path.display()
+        );
+        for warning in &artifact.warnings {
+            println!("[WARNING] {warning}");
+        }
+        for loss in &artifact.losses {
+            println!("[LOSS] {loss}");
+        }
+    } else {
+        let mut output = build_json_output(command, includes, "success", &report, None, None, None);
+        output.domain_versions.export = Some(EXPORT_SCHEMA_VERSION);
+        output.artifacts.push(json_export_artifact(
+            &artifact,
+            output_path.to_string_lossy().into_owned(),
+        ));
+        match serde_json::to_string_pretty(&output) {
+            Ok(json) => println!("{json}"),
+            Err(error) => {
+                eprintln!("[ERROR] Could not serialize {CLI_SCHEMA_VERSION} JSON output: {error}")
+            }
+        }
+    }
+    0
+}
+
+fn json_export_artifact(artifact: &ExportArtifact, path: String) -> JsonArtifact {
+    JsonArtifact {
+        kind: artifact.format.id().to_string(),
+        path,
+        schema_version: Some(artifact.schema_version.clone()),
+        exporter: Some(artifact.exporter.clone()),
+        exporter_version: Some(artifact.exporter_version),
+        sha256: Some(artifact.sha256.clone()),
+        byte_length: Some(artifact.byte_length),
+        connectivity_verified: Some(artifact.connectivity_verified),
+        capability: Some(artifact.capability),
+        warnings: artifact.warnings.clone(),
+        losses: artifact.losses.clone(),
+    }
+}
+
+fn plain_json_artifact(kind: impl Into<String>, path: impl Into<String>) -> JsonArtifact {
+    JsonArtifact {
+        kind: kind.into(),
+        path: path.into(),
+        schema_version: None,
+        exporter: None,
+        exporter_version: None,
+        sha256: None,
+        byte_length: None,
+        connectivity_verified: None,
+        capability: None,
+        warnings: Vec::new(),
+        losses: Vec::new(),
     }
 }
 
@@ -814,22 +1153,18 @@ fn build_json_output(
     });
     let mut artifacts = spice_file
         .into_iter()
-        .map(|path| JsonArtifact {
-            kind: "spice_netlist".to_string(),
-            path,
-        })
+        .map(|path| plain_json_artifact("spice_netlist", path))
         .collect::<Vec<_>>();
     if let Some(path) = model_lock_file {
-        artifacts.push(JsonArtifact {
-            kind: "model_lock".to_string(),
-            path,
-        });
+        artifacts.push(plain_json_artifact("model_lock", path));
     }
     if let Some(simulation) = simulation {
-        artifacts.extend(simulation.artifacts.iter().map(|artifact| JsonArtifact {
-            kind: artifact.kind.clone(),
-            path: artifact.path.clone(),
-        }));
+        artifacts.extend(
+            simulation
+                .artifacts
+                .iter()
+                .map(|artifact| plain_json_artifact(&artifact.kind, &artifact.path)),
+        );
     }
 
     JsonOutput {
@@ -841,6 +1176,7 @@ fn build_json_output(
             simulation: simulation.map(|_| SIMULATION_SCHEMA_VERSION),
             measurement: simulation.map(|_| MEASUREMENT_SCHEMA_VERSION),
             assertion: assertions.as_ref().map(|_| ASSERTION_SCHEMA_VERSION),
+            export: None,
         },
         diagnostics,
         summary,

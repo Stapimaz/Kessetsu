@@ -1,9 +1,14 @@
 use crate::compiler::{COMPILE_SCHEMA_VERSION, CompileOptions, compile_source};
+use crate::exporter::{
+    EXPORT_SCHEMA_VERSION, ExportFormat, ExportOptions, RenderBackground, export_capabilities,
+    export_report,
+};
 use crate::graph::{NetlistGraph, generate_browser_analysis_netlist};
 use crate::ir::Analysis;
 use crate::sim_result::{AssertionReport, evaluate_assertions};
 use crate::simulation::{SIMULATION_SCHEMA_VERSION, SimulationResult};
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 use wasm_bindgen::prelude::*;
 
 fn to_json_compatible<T: Serialize>(value: &T, context: &str) -> Result<JsValue, JsValue> {
@@ -26,6 +31,52 @@ pub fn compile_netlang(input: &str) -> Result<JsValue, JsValue> {
 #[wasm_bindgen]
 pub fn compile_schema_version() -> String {
     COMPILE_SCHEMA_VERSION.to_string()
+}
+
+/// Generates the same versioned artifact contract used by the native CLI.
+/// Binary payloads are serialized as byte arrays and should be downloaded as
+/// `Uint8Array` by the browser adapter.
+#[wasm_bindgen]
+pub fn export_netlang(
+    input: &str,
+    format: &str,
+    scale: f32,
+    transparent: bool,
+) -> Result<JsValue, JsValue> {
+    let format = ExportFormat::from_str(format).map_err(|error| JsValue::from_str(&error))?;
+    let report = compile_source(
+        input,
+        CompileOptions {
+            include_ast: false,
+            generate_spice: true,
+            generate_layout: true,
+            generate_kicad: false,
+        },
+    );
+    let artifact = export_report(
+        &report,
+        format,
+        ExportOptions {
+            scale,
+            background: if transparent {
+                RenderBackground::Transparent
+            } else {
+                RenderBackground::White
+            },
+        },
+    )
+    .map_err(|error| JsValue::from_str(&format!("{}: {}", error.code, error.message)))?;
+    to_json_compatible(&artifact, "export artifact")
+}
+
+#[wasm_bindgen]
+pub fn export_schema_version() -> String {
+    EXPORT_SCHEMA_VERSION.to_string()
+}
+
+#[wasm_bindgen]
+pub fn supported_export_capabilities() -> Result<JsValue, JsValue> {
+    to_json_compatible(&export_capabilities(), "export capabilities")
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
