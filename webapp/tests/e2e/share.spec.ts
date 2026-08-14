@@ -21,7 +21,10 @@ test('opens the final power-amplifier source from a versioned URL and runs the f
   await expect(summary).toHaveAttribute('data-state', 'succeeded', { timeout: 100_000 });
   await expect(summary.locator('.assertion-pass')).toHaveCount(12);
   await expect(summary.locator('.assertion-fail, .assertion-error, .assertion-skipped')).toHaveCount(0);
-  await page.screenshot({ path: 'test-results/power-amplifier-result.png', fullPage: true });
+  const screenshotPath = process.env.KESSETSU_UPDATE_DOCS_ASSETS
+    ? '../docs/assets/web-hub-power-amplifier.png'
+    : 'test-results/power-amplifier-result.png';
+  await page.screenshot({ path: screenshotPath, fullPage: true });
 
   const downloadPromise = page.waitForEvent('download');
   await page.locator('[data-export-format="svg"]').click();

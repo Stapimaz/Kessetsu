@@ -1,38 +1,37 @@
-# ADR 0001 — Faz 4 Şema ve Web Mimarisi
+# ADR 0001 — Phase 4 Schematic and Web Architecture
 
-- Durum: Kabul edildi
-- Tarih: 2026-08-13
-- Kapsam: Web shell, SVG renderer, Schematic IR ve layout
+- Status: Accepted
+- Date: 2026-08-13
+- Scope: Web shell, SVG renderer, Schematic IR, and layout
 
-## Bağlam
+## Context
 
-Faz 4 başlangıcındaki Web uygulaması gerçek WASM compile/ERC, deneysel SVG şema ve KiCad/SPICE indirme davranışlarına sahipti. Bununla birlikte bütün UI ve renderer `App.tsx` içinde, symbol geometrileri TypeScript'te tekrar tanımlı ve layout çıktısı `HashMap<component, position> + net_id/polyline` biçimindeydi. Bu veri pin endpoint, junction, bağlantısız crossing, net label, sürüm veya connectivity proof taşımıyordu.
+At the beginning of Phase 4, the Web application already provided real WASM compilation/ERC, an experimental SVG schematic, and KiCad/SPICE downloads. However, the entire UI and renderer lived in `App.tsx`, symbol geometries were duplicated in TypeScript, and layout output had the form `HashMap<component, position> + net_id/polyline`. That data contained no pin endpoints, junctions, unconnected crossings, net labels, version, or connectivity proof.
 
-Altı devrelik characterization corpus'u `layout_characterization` testiyle sabitlendi: minimal source/resistor, RC low-pass, Wheatstone bridge, op-amp gain stage, yüksek fan-out ve dört katlı 8 Ω power amplifier. Legacy layout'un bütün component ve bağlı netleri en azından bir polyline ile kapsadığı korunuyor; fakat yalnız bu, görsel geometrinin canonical graph ile eşdeğerliğini kanıtlamıyor.
+A six-circuit characterization corpus was locked by the `layout_characterization` test: minimal source/resistor, RC low-pass, Wheatstone bridge, op-amp gain stage, high fan-out, and a four-stage 8 Ω power amplifier. The legacy layout's coverage of every component and connected net by at least one polyline was preserved, but that alone did not prove equivalence between visual geometry and the canonical graph.
 
-Gerçek Chromium smoke testi iki görünmeyen entegrasyon hatasını ortaya çıkardı: Web'in `kessetsu.compile.v1` bekleyip Core'un `v2` üretmesi ve Monaco'nun CDN yüklemesinin ağsız/CSP ortamında hata vermesi. Compile sürümü artık WASM build'inden okunuyor; Monaco ve worker uygulamayla birlikte paketleniyor.
+A real Chromium smoke test exposed two otherwise hidden integration failures: Web expected `kessetsu.compile.v1` while Core produced `v2`, and Monaco's CDN loading failed in offline/CSP environments. The compile version is now read from the WASM build, while Monaco and its worker are bundled with the application.
 
-## Karar
+## Decision
 
-| Katman | Karar | Gerekçe |
+| Layer | Decision | Rationale |
 |---|---|---|
-| Web shell | Refactor et | Çalışan WASM compile, editör ve temel panel davranışını koru; state/runtime/render/export sorumluluklarını ayrı modüllere böl. |
-| React SVG renderer | Değiştir | Ayrı TypeScript symbol geometrisi drift kaynağıdır. Web yalnız Core'un versioned Schematic IR/SVG çıktısını sunacak ve etkileşim katmanı ekleyecek. |
-| Legacy `LayoutResult` veri şekli | Değiştir | Typed endpoint, junction, crossing, label, ordering ve connectivity proof taşımadığı için public sözleşme olamaz. Yerine `kessetsu.schematic.v1` gelir. |
-| Chain layout heuristic | Refactor et, corpus geçmezse değiştir | Basit rail/chain yerleşimi başlangıç heuristic'i olarak değerlidir. Deterministik layered placement, explicit net label ve orthogonal routing ile çevrelenecek; kalite raporu corpus kapısını geçmezse eski heuristic korunmayacak. |
+| Web shell | Refactor | Preserve working WASM compilation, editor, and basic panel behavior; split state, runtime, rendering, and export responsibilities into separate modules. |
+| React SVG renderer | Replace | Separate TypeScript symbol geometry causes drift. Web will present only Core's versioned Schematic IR/SVG output and add an interaction layer. |
+| Legacy `LayoutResult` data shape | Replace | It cannot be a public contract because it lacks typed endpoints, junctions, crossings, labels, ordering, and connectivity proof. `kessetsu.schematic.v1` replaces it. |
+| Chain-layout heuristic | Refactor; replace if it fails the corpus | Simple rail/chain placement is a useful starting heuristic. It will be surrounded by deterministic layered placement, explicit net-label policy, and orthogonal routing; the old heuristic will not be retained if the quality report fails the corpus gate. |
 
-Canonical sahiplik şudur: Circuit IR elektriksel gerçeğin, Schematic IR çizim/topoloji gerçeğinin sahibidir. Symbol/pin kataloğu Rust Core'dadır. Renderer ve exporter'lar Schematic IR tüketir; kendi pin listesi, connectivity veya layout algoritması kuramaz. Web state'i hiçbir zaman canonical artifact değildir.
+Canonical ownership is as follows: Circuit IR owns electrical truth, and Schematic IR owns drawing/topology truth. The symbol/pin catalog belongs to Rust Core. Renderers and exporters consume Schematic IR and may not define their own pin lists, connectivity, or layout algorithms. Web state is never a canonical artifact.
 
-## İlk dikey ve ana eval
+## First vertical path and primary eval
 
-- İlk dikey ürün yolu: `rc_filter.kess` → compile/ERC → şema → AC simulation → cutoff/assertions → export.
-- Ana vizyon/eval yolu: `power_amplifier.kess` → 8 Ω yükte output power, gain, THD, clipping, device stress ve dissipation.
+- First vertical product path: `rc_filter.kess` → compile/ERC → schematic → AC simulation → cutoff/assertions → export.
+- Primary vision/eval path: `power_amplifier.kess` → output power into 8 Ω, gain, THD, clipping, device stress, and dissipation.
 
-Bu iki devre birbirinin alternatifi değildir: RC entegrasyon sözleşmesini küçük yüzeyde kanıtlar, power amplifier ürünün gerçek mühendislik değerini sınar.
+These circuits are not alternatives: RC proves the integration contract on a small surface, while the power amplifier tests the product's real engineering value.
 
-## Sonuçlar
+## Consequences
 
-- Legacy layout alanı yalnız migration süresince compatibility verisidir; yeni backend eklemek için kullanılmaz.
-- Görsel kalite “güzel görünüyor” onayıyla kapanmaz. Connectivity, collision, crossing, bend ve determinism raporları otomatik kapıdır.
-- Web'de çalışan ama CLI/Core'da karşılığı olmayan export biçimi eklenmez.
-
+- The legacy layout field is compatibility data only during migration and is not used to add new backends.
+- Visual quality is not accepted merely because it “looks good.” Connectivity, collision, crossing, bend, and determinism reports are automated gates.
+- No export format may exist only in Web without a corresponding CLI/Core implementation.

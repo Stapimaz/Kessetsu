@@ -1,64 +1,64 @@
-# Kessetsu Kimlik Migrasyonu
+# Kessetsu Identity Migration
 
-Bu belge, yayınlanmamış projenin geçici kimliğinden Kessetsu'ya tek seferlik ve temiz biçimde taşınması için uygulanacak sözleşmedir. Migrasyon tamamlanana kadar Faz 4'ün diğer işleri bekler; yarım bir marka geçişi release edilemez.
+This document is the contract for a one-time clean migration from the unpublished project's temporary identity to Kessetsu. Other Phase 4 work waits until the migration is complete; a partial brand migration cannot be released.
 
-## Kesinleşen kimlik
+## Final identity
 
-| Yüzey | Yeni kimlik |
+| Surface | New identity |
 |---|---|
-| Ürün ve repository adı | `Kessetsu` |
-| CLI executable ve komut | `kess` |
-| Devre kaynak uzantısı | `.kess` |
+| Product and repository name | `Kessetsu` |
+| CLI executable and command | `kess` |
+| Circuit source extension | `.kess` |
 | Rust package | `kessetsu-core` |
 | Rust crate/import | `kessetsu_core` |
 | Rust CLI source | `core/src/bin/kess.rs` |
 | Parser grammar | `core/src/kessetsu.pest` |
 | Versioned schema namespace | `kessetsu.*` |
 | Diagnostic prefix | `KES-*` |
-| Builtin model prefix | `KESSETSU_*` |
+| Built-in model prefix | `KESSETSU_*` |
 | Environment prefix | `KESSETSU_*` |
 | Model lockfile | `kessetsu.lock` |
 | Website/domain | `kessetsu.com` |
 
-## Migrasyon politikası
+## Migration policy
 
-- Proje henüz public olmadığı için eski ürün adı, kaynak uzantısı, schema kimlikleri, diagnostic kodları veya environment değişkenleri için compatibility alias bırakılmaz.
-- Değişiklik basit bir görünen-metin değişimi değildir. Dosya yolları, paket/binary adları, serialization sözleşmeleri, fixtures, goldens, workflow'lar, release artifact'leri ve dokümantasyon birlikte taşınır.
-- Circuit IR, deterministic node naming, ERC ve exporter mimarisi değişmez; yalnız proje kimliği ve ona bağlı public contract adları taşınır.
-- Git geçmişi yeniden yazılmaz. Eski kimliğin geçmiş commitlerde bulunması aktif ürün yüzeyinde kalıntı sayılmaz.
-- Repository adı ve yerel kök klasör adı, içerik migrasyonu doğrulandıktan sonra ayrı dış adım olarak değiştirilir.
+- Because the project is not yet public, no compatibility aliases remain for the former product name, source extension, schema identities, diagnostic codes, or environment variables.
+- This is not a visible-text-only change. File paths, package and binary names, serialization contracts, fixtures, goldens, workflows, release artifacts, and documentation move together.
+- Circuit IR, deterministic node naming, ERC, and exporter architecture remain unchanged; only project identity and dependent public-contract names move.
+- Git history is not rewritten. The former identity in historical commits is not considered residue on an active product surface.
+- The repository name and local root-folder name are changed as separate external steps after the content migration is verified.
 
-## Uygulama ve kabul listesi
+## Implementation and acceptance checklist
 
-- [x] Tracked kaynak/fixture dosyalarını `.kess` olarak taşı ve bütün referansları güncelle.
-- [x] CLI binary, Rust package/crate ve parser grammar kimliklerini taşı.
-- [x] Schema, diagnostic, builtin model, lockfile ve environment kimliklerini taşı.
-- [x] Web Hub/WASM isimleri, kullanıcı metinleri, paylaşım ve export sözleşmelerini taşı.
-- [x] README, mimari, referanslar, lisans/notice metinleri ve diğer belgeleri taşı.
-- [x] GitHub Actions, Pages, release artifact'leri, scriptler ve repository URL'lerini taşı.
-- [x] Generated/golden dosyaları canonical üreticilerle yeniden oluştur.
-- [x] Case-insensitive audit'te aktif tracked tree içinde eski ürün adı, eski crate adı, eski environment/model prefix'i veya eski kaynak uzantısı kalmadığını doğrula.
-- [x] `kess --help`, representative `.kess` compile/simulate/render/export ve JSON schema/diagnostic yollarını doğrula.
-- [x] Canonical `scripts/verify.ps1` kalite kapısını geçir.
-- [x] Roadmap ve bu belgeyi doğrulama kanıtlarıyla kapat.
-- [x] GitHub repository adını `Kessetsu` yap ve origin fetch/push URL'lerini doğrula.
-- [ ] VS Code/Codex oturumu kapandıktan sonra yerel kök klasörü `Kessetsu` olarak yeniden adlandır.
+- [x] Rename tracked source and fixture files to `.kess` and update every reference.
+- [x] Migrate the CLI binary, Rust package/crate, and parser grammar identities.
+- [x] Migrate schema, diagnostic, built-in model, lockfile, and environment identities.
+- [x] Migrate Web Hub/WASM names, user-facing text, sharing, and export contracts.
+- [x] Migrate README, architecture, references, license/notice text, and other documentation.
+- [x] Migrate GitHub Actions, Pages, release artifacts, scripts, and repository URLs.
+- [x] Regenerate generated/golden files through canonical producers.
+- [x] Verify with a case-insensitive audit that the active tracked tree contains no former product name, crate name, environment/model prefix, or source extension.
+- [x] Verify `kess --help`, representative `.kess` compile/simulate/render/export paths, and JSON schema/diagnostic paths.
+- [x] Pass the canonical `scripts/verify.ps1` quality gate.
+- [x] Close the roadmap and this document with verification evidence.
+- [x] Rename the GitHub repository to `Kessetsu` and verify origin fetch/push URLs.
+- [ ] Rename the local root folder to `Kessetsu` after the VS Code/Codex session is closed.
 
-## Bilinçli olarak bu migrasyonun dışında kalanlar
+## Deliberately outside this migration
 
-- Domain DNS, production Web Hub deployment ve public yayın açılışı.
-- Marka tescili veya hukuki uygunluk görüşü.
-- Git geçmişindeki eski commit içeriklerinin silinmesi.
-- Devre dili semantiğinde, simulation davranışında veya schematic layout algoritmasında özellik değişikliği.
+- Domain DNS, production Web Hub deployment, and public launch.
+- Trademark registration or a legal clearance opinion.
+- Removing old identity references from historical Git commits.
+- Feature changes to circuit-language semantics, simulation behavior, or the schematic-layout algorithm.
 
-## Doğrulama kanıtı
+## Verification evidence
 
-2026-08-14 doğrulaması:
+Verification on 2026-08-14:
 
-- Case-insensitive full-tree audit, Git geçmişi ve üçüncü taraf dependency klasörü dışında eski ürün adı, eski crate/model/environment/diagnostic önekleri, eski executable kimliği veya eski kaynak uzantısı bulmadı.
-- `kess --help` doğru binary/ürün kimliğini; RC hedefli smoke `kessetsu.cli.v1`, `kessetsu.compile.v3`, `kessetsu.simulation.v1` sözleşmelerini ve 5/5 assertion sonucunu doğruladı. SVG ve KiCad artifact'leri `.kess` kaynağından üretildi.
-- Şematik corpus canonical Kessetsu üreticisiyle yeniden oluşturuldu; schema değişiminin etkilediği altı deterministic SVG golden hash'i yeni byte çıktılarıyla güncellendi ve connectivity/quality kapıları geçti.
-- Temiz cache sonrası canonical `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify.ps1` tamamen PASS: Rust fmt/Clippy/test/release, WASM, Web lint + 10 unit + production build, runtime/deployment audit, 11 Chromium E2E, dependency/license/security audit, replayable agent eval, paketlenmiş Windows `kess.exe` üzerinde gerçek Ngspice 12/12 smoke ve RC/gain/power KiCad+LTspice smoke.
-- Eski isimli ignored release/WASM/Web-test artifact'leri silindi; Rust build cache'i temizlenip yalnız yeni kimlikle baştan üretildi.
-- Commit `79c7632` private `main` branch'ine pushlandı; GitHub repository `Stapimaz/Kessetsu` olarak yeniden adlandırıldı, origin fetch/push URL'leri ve remote `main` commit'i doğrulandı.
-- Kalan yerel adım yalnız VS Code/Codex oturum kökü olan klasörü oturum kapandıktan sonra `Kessetsu` yapmak; tracked ürün veya release içeriğini etkilemez.
+- A case-insensitive full-tree audit found no former product name, crate/model/environment/diagnostic prefix, executable identity, or source extension outside Git history and third-party dependency directories.
+- `kess --help` verified the correct binary/product identity. An RC-focused smoke verified `kessetsu.cli.v1`, `kessetsu.compile.v3`, and `kessetsu.simulation.v1`, plus 5/5 assertion results. SVG and KiCad artifacts were generated from `.kess` source.
+- The schematic corpus was regenerated through the canonical Kessetsu producer. Six deterministic SVG golden hashes affected by the schema change were updated from the new bytes, and connectivity/quality gates passed.
+- After a clean cache, canonical `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify.ps1` passed completely: Rust formatting/Clippy/tests/release, WASM, Web lint plus 10 unit tests and production build, runtime/deployment audit, 11 Chromium E2E tests, dependency/license/security audit, replayable agent eval, real Ngspice 12/12 smoke using the packaged Windows `kess.exe`, and RC/gain/power KiCad plus LTspice smoke tests.
+- Ignored release/WASM/Web-test artifacts with the former name were removed. The Rust build cache was rebuilt from scratch using only the new identity.
+- Commit `79c7632` was pushed to the private `main` branch. The GitHub repository was renamed to `Stapimaz/Kessetsu`, and origin fetch/push URLs plus the remote `main` commit were verified.
+- The only remaining local step is renaming the VS Code/Codex session root folder to `Kessetsu` after closing the session; it does not affect tracked product or release content.

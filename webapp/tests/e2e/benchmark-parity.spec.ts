@@ -11,7 +11,7 @@ const cases = [
 test('keeps gain-stage and power-amplifier native/browser decisions, SPICE and models in parity', async ({ page }) => {
   test.setTimeout(240_000);
   const binary = resolve('../core/target/release', process.platform === 'win32' ? 'kess.exe' : 'kess');
-  await page.goto('/');
+  await page.goto('/#editor');
 
   for (const benchmark of cases) {
     const fixturePath = resolve(`../core/tests/fixtures/benchmarks/${benchmark.fixture}`);

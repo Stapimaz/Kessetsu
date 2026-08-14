@@ -9,7 +9,7 @@ async function replaceSource(page: import('@playwright/test').Page, source: stri
 test('supports edit, inline diagnostic navigation, fix, simulation, assertion and schematic update', async ({ page }) => {
   test.setTimeout(120_000);
   page.on('pageerror', (error) => console.log(`[workspace:error] ${error.stack ?? error.message}`));
-  await page.goto('/');
+  await page.goto('/#editor');
   await expect(page.getByTestId('compile-success')).toBeVisible();
   await replaceSource(page, 'resistor R1 nope\n');
   const diagnostic = page.getByRole('button', { name: /KES-C001/ });
@@ -28,12 +28,15 @@ test('supports edit, inline diagnostic navigation, fix, simulation, assertion an
   await results.getByRole('tab', { name: 'ac' }).click();
   await expect(results.locator('.result-plot')).toHaveCount(2);
   if (process.env.KESSETSU_E2E_SCREENSHOTS) {
-    await page.screenshot({ path: 'test-results/web-workspace.png', fullPage: true });
+    const path = process.env.KESSETSU_UPDATE_DOCS_ASSETS
+      ? '../docs/assets/web-hub-workspace.png'
+      : 'test-results/web-workspace.png';
+    await page.screenshot({ path, fullPage: true });
   }
 });
 
 test('offers corresponding source and license from the interactive Web Hub', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/#editor');
   const sourceLink = page.getByRole('link', { name: /source code and AGPL license/i });
   await expect(sourceLink).toHaveAttribute('href', 'https://github.com/Stapimaz/Kessetsu');
   await expect(sourceLink).toContainText('AGPLv3');
@@ -44,13 +47,13 @@ test('offers corresponding source and license from the interactive Web Hub', asy
 
 test('exposes keyboard controls and a usable mobile workspace', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
+  await page.goto('/#editor');
   await expect(page.getByLabel('Kessetsu source editor')).toBeVisible();
   await expect(page.getByLabel('Canonical schematic')).toBeVisible();
   await expect(page.getByLabel('Simulation results')).toBeVisible();
   await page.getByLabel('Canonical schematic').locator('.schematic-surface').focus();
   await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('button', { name: 'Run' })).toBeEnabled();
-  await page.getByRole('button', { name: 'Tema değiştir' }).click();
+  await page.getByRole('button', { name: 'Change theme' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 });

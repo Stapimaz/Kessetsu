@@ -1,74 +1,75 @@
 # Kessetsu Ngspice runtime
 
-Bu dizin Kessetsu'nun yerel Windows simülasyonu için kullandığı, bilinçli olarak
-küçültülmüş Ngspice çalışma zamanı paketidir. Ngspice kaynak/test dağıtımı
-değildir.
+This directory contains the deliberately minimized Ngspice runtime package used
+for native Kessetsu simulation on Windows. It is not an Ngspice source or test
+distribution.
 
-## Sürüm ve kaynak
+## Version and source
 
-- Sürüm: **ngspice-46**, Windows x86-64 konsol derlemesi
-- Binary'nin raporladığı oluşturma tarihi: 29 Mart 2026
-- Resmî indirme sayfası: <https://ngspice.sourceforge.io/download.html>
-- Resmî dokümantasyon: <https://ngspice.sourceforge.io/docs.html>
-- Resmî geliştirme ve lisans özeti: <https://ngspice.sourceforge.io/devel.html>
+- Version: **ngspice-46**, Windows x86-64 console build
+- Build date reported by the binary: March 29, 2026
+- Official download page: <https://ngspice.sourceforge.io/download.html>
+- Official documentation: <https://ngspice.sourceforge.io/docs.html>
+- Official development and license overview: <https://ngspice.sourceforge.io/devel.html>
 
-Sürüm, `bin/ngspice_con.exe --version` çıktısıyla doğrulanır. Kessetsu önce
-`KESSETSU_NGSPICE` ile verilen açık executable yolunu, ardından repository/release
-Windows sidecar konumlarını ve son olarak platforma göre `ngspice_con.exe` veya
-`ngspice` sistem fallback'ini dener. İlk release'in Linux/macOS paketleri sistem
-paket yöneticisinden kurulan, version-probed `ngspice` kullanır; kesin matris ve
-smoke sözleşmesi [release belgesindedir](../../../docs/release.md).
+The version is verified through `bin/ngspice_con.exe --version`. Kessetsu first
+tries the explicit executable path in `KESSETSU_NGSPICE`, then repository/release
+Windows sidecar locations, and finally the platform-appropriate system fallback
+of `ngspice_con.exe` or `ngspice`. First-release Linux/macOS packages use a
+version-probed `ngspice` installed by the system package manager; the exact
+matrix and smoke contract are in the [release document](../../../docs/release.md).
 
-## Takip edilen runtime profili
+## Tracked runtime profile
 
-| Dosya | Amaç |
+| File | Purpose |
 | --- | --- |
-| `bin/ngspice_con.exe` | Kessetsu'nun batch modunda çağırdığı konsol simulator |
-| `bin/libomp140.x86_64.dll` | Bu Windows binary'sinin OpenMP çalışma zamanı |
-| `share/ngspice/scripts/spinit` | Deterministik, minimal başlangıç ayarları |
-| `docs/COPYING` | Upstream lisans metinleri ve istisnaları |
-| `docs/AUTHORS` | Upstream attribution kaydı |
-| `docs/README` | Upstream proje ve kaynak bilgisi |
+| `bin/ngspice_con.exe` | Console simulator invoked by Kessetsu in batch mode |
+| `bin/libomp140.x86_64.dll` | OpenMP runtime for this Windows binary |
+| `share/ngspice/scripts/spinit` | Deterministic minimal startup settings |
+| `docs/COPYING` | Upstream license texts and exceptions |
+| `docs/AUTHORS` | Upstream attribution record |
+| `docs/README` | Upstream project and source information |
 
-GUI executable, upstream örnek/test ağacı, PDF manual, geliştirme notları,
-XSPICE `.cm` code model'leri ve OpenVAF/OSDI model kütüphaneleri Kessetsu'nun
-mevcut analog runtime profilinin parçası değildir. `spinit` bu eksik opsiyonel
-kütüphaneleri yüklemeye çalışmayacak şekilde açıkça yapılandırılmıştır. Bu
-özelliklerden biri ürün kapsamına alındığında, fixture ve dağıtım incelemesiyle
-ayrı bir runtime profili tanımlanmalıdır.
+The GUI executable, upstream example/test tree, PDF manual, development notes,
+XSPICE `.cm` code models, and OpenVAF/OSDI model libraries are not part of
+Kessetsu's current analog runtime profile. `spinit` is explicitly configured not
+to load those absent optional libraries. If any such feature enters product
+scope, it requires a separate runtime profile backed by fixture and distribution
+review.
 
-## Doğrulama kapsamı
+## Verification scope
 
-8 Ağustos 2026 tarihinde aşağıdakiler doğrulandı:
+The following was verified on August 8, 2026:
 
-1. Yalnız yukarıdaki runtime dosyalarını içeren temiz bir geçici dizinde
-   `ngspice_con.exe --version` sürüm 46 raporladı.
-2. `examples/test_features.kess` kaynağından üretilen SPICE netlist batch modunda
-   exit code 0 ile çalıştı.
-3. Ölçüm çıktısı `max_v_my_signal = 6.20001e-08` değerini üretti ve eksik init,
-   code-model veya OSDI dosyası hatası vermedi.
+1. In a clean temporary directory containing only the runtime files above,
+   `ngspice_con.exe --version` reported version 46.
+2. The SPICE netlist generated from `examples/test_features.kess` ran in batch
+   mode with exit code 0.
+3. Measurement output produced `max_v_my_signal = 6.20001e-08` with no missing
+   initialization, code-model, or OSDI-file errors.
 
-Bu smoke doğrulaması desteklenen bütün Ngspice özelliklerini garanti etmez.
-Canonical integration fixture'ları OP, transient, AC ve DC davranışını; RC,
-gain-stage ve power-amplifier benchmark'ları gerçek simülasyonla ayrıca kilitler.
+This smoke verification does not guarantee every supported Ngspice feature.
+Canonical integration fixtures additionally lock OP, transient, AC, and DC
+behavior, while RC, gain-stage, and power-amplifier benchmarks use real
+simulation.
 
-## Lisans ve dağıtım kapısı
+## License and distribution gate
 
-`docs/COPYING`, upstream paketin Modified BSD temel lisansını ve KLU, OSDI,
-XSPICE gibi bileşenlere ait istisnaları birlikte içerir. Dağıtılan binary
-`--version` çıktısında KLU solver ile derlendiğini bildirir; bu nedenle yalnız
-ana proje lisansına bakılarak dağıtım kararı verilmemelidir. Lisans dosyası ve
-attribution kayıtları binary ile birlikte korunmalıdır.
+`docs/COPYING` contains both the upstream package's base Modified BSD license and
+exceptions for components such as KLU, OSDI, and XSPICE. The distributed binary
+reports in `--version` output that it was built with the KLU solver, so a
+distribution decision must not rely only on the main project license. License
+and attribution records must remain with the binary.
 
-Bu belge hukuki görüş değildir. Release paketi bu dizinin tam notice envanterini,
-binary provenance'ini ve SHA-256 kayıtlarını korur; dependency/license audit'i
-release kapısında ayrıca çalışır.
+This document is not legal advice. The release package preserves this directory's
+complete notice inventory, binary provenance, and SHA-256 records; the release
+gate also runs a dependency/license audit.
 
-## Yükseltme prosedürü
+## Upgrade procedure
 
-1. Binary'yi yalnız resmî Ngspice indirme sayfasından al.
-2. `--version` çıktısını ve hedef mimariyi kaydet.
-3. `docs/COPYING`, `docs/AUTHORS` ve upstream README'yi aynı dağıtımdan yenile.
-4. Minimal dosya setini temiz geçici dizinde doğrula.
-5. Phase 3 simulator integration fixture'larını çalıştır.
-6. Bu belgeyi ve roadmap kanıtını güncelle.
+1. Obtain the binary only from the official Ngspice download page.
+2. Record `--version` output and target architecture.
+3. Refresh `docs/COPYING`, `docs/AUTHORS`, and the upstream README from the same distribution.
+4. Verify the minimal file set in a clean temporary directory.
+5. Run the Phase 3 simulator-integration fixtures.
+6. Update this document and the roadmap evidence.

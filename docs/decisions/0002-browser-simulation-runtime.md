@@ -1,51 +1,51 @@
 # ADR 0002 — Browser Simulation Runtime
 
-- Durum: Kabul edildi
-- Tarih: 2026-08-13
-- İlk yayın kararı: Ngspice WASM, Web Worker içinde
+- Status: Accepted
+- Date: 2026-08-13
+- First-release decision: Ngspice WASM inside a Web Worker
 
-## Değerlendirilen yollar
+## Options considered
 
-| Ölçüt | `eecircuit-engine` 1.7.0 | Kendi Ngspice/Emscripten build'i | Service-backed native Ngspice |
+| Criterion | `eecircuit-engine` 1.7.0 | Self-built Ngspice/Emscripten | Service-backed native Ngspice |
 |---|---|---|---|
-| Motor | Ngspice WASM wrapper | Ngspice WASM | Native Ngspice |
-| Yerel artifact | npm paketi 40,693,211 byte unpacked; ana ESM bundle yaklaşık 20.4 MB | Build seçeneklerine bağlı | Browser artifact'i küçük; server/container gerekir |
-| Startup | İlk worker/WASM parse maliyeti; ölçüm 4.2 parity testinde kapı | Benzer, ayrıca build zinciri sahipliği | Network + cold start |
-| Cancellation | Worker terminate/restart ile sert sınır | Worker terminate/restart ile sert sınır | HTTP abort tek başına server işini durdurmaz; server cancellation gerekir |
-| Model desteği | Ngspice netlist/model semantiği; Kessetsu security/parity corpus'uyla doğrulanacak | Build flags'e bağlı | Native ile en geniş ve mevcut parity |
-| Offline/privacy | Evet; circuit browser dışına çıkmaz | Evet | Hayır; source/netlist server'a gider |
-| Deployment | Static asset + worker MIME/cache | Static asset + worker MIME/cache; ayrıca reproducible Emscripten build | Stateful/isolated execution service, queue ve abuse kontrolü |
-| Supply-chain | Exact npm version/integrity + upstream source/license | Kaynak commit, toolchain ve build recipe tamamıyla bize ait | OS/container Ngspice provenance |
+| Engine | Ngspice WASM wrapper | Ngspice WASM | Native Ngspice |
+| Local artifact | npm package: 40,693,211 bytes unpacked; main ESM bundle approximately 20.4 MB | Depends on build options | Small browser artifact; requires server/container |
+| Startup | Initial worker/WASM parse cost; measured as a gate in the 4.2 parity test | Similar, plus ownership of the build chain | Network plus cold start |
+| Cancellation | Hard boundary through worker termination/restart | Hard boundary through worker termination/restart | HTTP abort alone does not stop server work; server-side cancellation is required |
+| Model support | Ngspice netlist/model semantics, to be verified with the Kessetsu security/parity corpus | Depends on build flags | Broadest support and current parity with native |
+| Offline/privacy | Yes; the circuit never leaves the browser | Yes | No; source/netlist is sent to a server |
+| Deployment | Static asset plus worker MIME/cache | Static asset plus worker MIME/cache, and a reproducible Emscripten build | Stateful/isolated execution service, queue, and abuse controls |
+| Supply chain | Exact npm version/integrity plus upstream source/license | We own the source commit, toolchain, and build recipe completely | OS/container Ngspice provenance |
 
-## Karar ve gerekçe
+## Decision and rationale
 
-İlk public Web Hub, `eecircuit-engine` **1.7.0 exact** paketini yalnız Web Worker içinde çalıştıracak. Paket aktif EEcircuit projesinde gerçek browser simulation için kullanılıyor ve wrapper MIT lisanslı. Ngspice kodunun büyük kısmı modified BSD lisanslıdır; dağıtılan artifact için transitive license notice ve exact hash ayrıca tutulacaktır.
+The first public Web Hub will run the exact `eecircuit-engine` **1.7.0** package only inside a Web Worker. The package is used for real browser simulation by the active EEcircuit project, and its wrapper is MIT-licensed. Most Ngspice code uses a modified BSD license; transitive license notices and an exact hash are retained separately for the distributed artifact.
 
-Bu seçim kalıcı domain bağımlılığı değildir. Worker adaptörü yalnız canonical SPICE ve typed request alır, ham engine sonucunu `kessetsu.simulation.v1` şekline çevirir. Measurement/assertion WASM Core içinde aynı typed dataset üzerinde çalışır. UI `eecircuit-engine` tiplerini görmez. İleride self-built runtime veya service adapter'a geçiş bu sınırın arkasında kalır.
+This choice is not a permanent domain dependency. The worker adapter accepts only canonical SPICE and a typed request, then converts raw engine output to `kessetsu.simulation.v1`. Measurement/assertion evaluation runs in WASM Core over that same typed dataset. The UI never sees `eecircuit-engine` types. A later move to a self-built runtime or service adapter remains behind this boundary.
 
-Service-backed yol ilk yayın için reddedildi: zero-friction hedefini karşılasa da circuit verisini ağ üzerinden taşır, ayrı güvenli process servisi ve operasyon yüzeyi yaratır. Native parity sorunu yaşanırsa sessiz fallback yapılmayacak; Web structured unsupported/runtime diagnostic gösterecek.
+The service-backed path was rejected for the first release. Although it can meet the zero-friction goal, it sends circuit data over the network and creates a separate secure-process service and operational surface. If native parity fails, there will be no silent fallback; Web will show a structured unsupported/runtime diagnostic.
 
-Wokwi'nin `ngspice-wasm` build recipe'si teknik feasibility kanıtıdır fakat repo tek commitli, release artifact/API sözleşmesi sunmuyor ve son source push'u 2022'de. İlk yayın runtime bağımlılığı olarak seçilmedi. Uzun vadede supply-chain kontrolü gerekirse aynı adapter arkasında reproducible self-build adayıdır.
+Wokwi's `ngspice-wasm` build recipe demonstrates technical feasibility, but its repository has one commit, offers no release artifact/API contract, and last received a source push in 2022. It was not selected as the first-release runtime dependency. If long-term supply-chain control becomes necessary, it remains a reproducible self-build candidate behind the same adapter.
 
-## Zorunlu kabul kapıları
+## Mandatory acceptance gates
 
-1. Worker ana thread'i bloke etmez; timeout/cancel worker'ı terminate edip temiz instance başlatır.
-2. Runtime init çıktısından simulator provenance görünür olur; package version ve asset SHA-256 kaydedilir.
-3. RC, gain-stage ve power-amplifier canonical netlist'leri native/Web aynı PASS/FAIL kararını tanımlı toleransta verir.
-4. Raw log debug opt-in'dir; büyük dataset iki kez UI state'e kopyalanmaz.
-5. Runtime/model license notice public artifact ile dağıtılır.
+1. The worker does not block the main thread; timeout/cancel terminates it and starts a clean instance.
+2. Simulator provenance is visible from runtime initialization output; package version and asset SHA-256 are recorded.
+3. RC, gain-stage, and power-amplifier canonical netlists produce the same native/Web PASS/FAIL decisions within declared tolerances.
+4. Raw-log debugging is opt-in; large datasets are not copied twice into UI state.
+5. Runtime/model license notices are distributed with the public artifact.
 
-## Artifact güncelleme ve cache politikası
+## Artifact update and cache policy
 
-- Runtime bağımlılığı floating range değil exact `eecircuit-engine@1.7.0` olarak kilitlidir. Güncelleme yalnız package integrity, ESM SHA-256, browser parity ve lisans inventory'si birlikte gözden geçirilerek yapılır.
-- `runtime-manifest.json` package integrity yanında dağıtılan 20,424,332 byte ESM kaynağının SHA-256 değerini taşır. Hash değişimi sürüm değişmeden gerçekleşirse supply-chain drift kabul edilir ve build durdurulur.
-- Production'da content-hash taşıyan JS/WASM/Worker asset'leri `public,max-age=31536000,immutable`; HTML, runtime manifest ve notice dosyaları `no-cache` ile sunulur. Yeni runtime eski hashed asset'i yerinde değiştirmez.
-- Vite release build'i EEcircuit MIT metni ile tam Ngspice licensing inventory'sini `dist/licenses/` altına kopyalar.
+- The runtime dependency is pinned to exact `eecircuit-engine@1.7.0`, not a floating range. Updates require joint review of package integrity, ESM SHA-256, browser parity, and license inventory.
+- `runtime-manifest.json` records both package integrity and the SHA-256 of the distributed 20,424,332-byte ESM source. A hash change without a version change is supply-chain drift and stops the build.
+- In production, content-hashed JS/WASM/Worker assets use `public,max-age=31536000,immutable`; HTML, the runtime manifest, and notice files use `no-cache`. A new runtime never replaces an old hashed asset in place.
+- The Vite release build copies the EEcircuit MIT text and complete Ngspice licensing inventory into `dist/licenses/`.
 
-## Kaynaklar
+## Sources
 
-- [Ngspice FAQ ve shared-library/lisans bilgisi](https://ngspice.sourceforge.io/faq.html)
-- [Ngspice geliştirici ve lisans bilgisi](https://ngspice.sourceforge.io/devel.html)
-- [EEcircuit browser uygulaması](https://github.com/eelab-dev/EEcircuit)
-- [`eecircuit-engine` kaynak reposu](https://github.com/eelab-dev/EEcircuit-engine)
+- [Ngspice FAQ and shared-library/license information](https://ngspice.sourceforge.io/faq.html)
+- [Ngspice developer and license information](https://ngspice.sourceforge.io/devel.html)
+- [EEcircuit browser application](https://github.com/eelab-dev/EEcircuit)
+- [`eecircuit-engine` source repository](https://github.com/eelab-dev/EEcircuit-engine)
 - [Wokwi Ngspice WASM build recipe](https://github.com/wokwi/ngspice-wasm)

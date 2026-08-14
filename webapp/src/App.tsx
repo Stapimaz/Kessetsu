@@ -1,72 +1,33 @@
-import { Moon, Share2, Sun } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { ArtifactBar } from './components/ArtifactBar';
-import { EditorPanel } from './components/EditorPanel';
-import { ResultsPanel } from './components/ResultsPanel';
-import { SchematicPanel } from './components/SchematicPanel';
-import { useKessetsuWorkspace } from './hooks/useKessetsuWorkspace';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { LandingPage } from './components/LandingPage';
+
+const WorkspaceApp = lazy(async () => {
+  const module = await import('./components/WorkspaceApp');
+  return { default: module.WorkspaceApp };
+});
+
+type AppView = 'landing' | 'workspace';
+
+function viewFromLocation(): AppView {
+  const hash = globalThis.location.hash;
+  return hash === '#editor' || hash.startsWith('#kessetsu=') ? 'workspace' : 'landing';
+}
 
 function App() {
-  const { state, setCode, loadExample, compile, run, cancel, createExport, share } = useKessetsuWorkspace();
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [view, setView] = useState<AppView>(viewFromLocation);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-  }, [theme]);
+    const updateView = () => setView(viewFromLocation());
+    globalThis.addEventListener('hashchange', updateView);
+    return () => globalThis.removeEventListener('hashchange', updateView);
+  }, []);
+
+  if (view === 'landing') return <LandingPage />;
 
   return (
-    <main className="app-shell">
-      <header className="product-header">
-        <div><span className="wordmark">KESSETSU</span><span className="tagline">Circuit engineering, executable.</span></div>
-        <div className="product-actions">
-          <span className="share-status" role="status">{state.shareMessage}</span>
-          <a
-            className="license-link"
-            href="https://github.com/Stapimaz/Kessetsu"
-            target="_blank"
-            rel="noreferrer"
-            aria-label="Kessetsu source code and AGPL license; provided without warranty"
-          >
-            Source · AGPLv3
-          </a>
-          <button className="share-button" onClick={() => void share()} disabled={!state.compileSucceeded} aria-label="Share circuit">
-            <Share2 size={15} /> Share
-          </button>
-          <button className="theme-button" onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} aria-label="Tema değiştir">
-            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
-        </div>
-      </header>
-      {state.wasmError && <div className="global-error" role="alert">Core başlatılamadı: {state.wasmError}</div>}
-      <div className="workspace-grid">
-        <EditorPanel
-          code={state.code}
-          diagnostics={state.diagnostics}
-          wasmLoaded={state.wasmLoaded}
-          compileSucceeded={state.compileSucceeded}
-          onCodeChange={setCode}
-          onCompile={compile}
-          onExample={loadExample}
-        />
-        <SchematicPanel schematic={state.schematic} svg={state.schematicSvg} />
-        <ResultsPanel
-          state={state.simulationState}
-          message={state.simulationMessage}
-          evaluation={state.evaluation}
-          canRun={state.compileSucceeded}
-          onRun={() => void run()}
-          onCancel={cancel}
-        />
-      </div>
-      <ArtifactBar
-        spice={state.spiceNetlist}
-        models={state.modelManifest}
-        enabled={state.compileSucceeded}
-        capabilities={state.exportCapabilities}
-        message={state.exportMessage}
-        onExport={createExport}
-      />
-    </main>
+    <Suspense fallback={<div className="workspace-loading" role="status">Loading Kessetsu Core…</div>}>
+      <WorkspaceApp />
+    </Suspense>
   );
 }
 

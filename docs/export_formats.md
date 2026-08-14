@@ -1,46 +1,46 @@
-# Export Sözleşmesi ve Format Matrisi
+# Export Contract and Format Matrix
 
-Kessetsu'nun export katmanı Web'e veya CLI'a ait değildir. Bütün çıktılar typed Circuit IR'den üretilen ve bağlantısı doğrulanan `kessetsu.schematic.v1` üzerinden `kessetsu.export.v1` sözleşmesiyle hazırlanır. CLI ve Web yalnız bu ortak Core API'sini çağırır.
+Kessetsu's export layer belongs to neither Web nor CLI. Every output is produced through the `kessetsu.export.v1` contract from connectivity-verified `kessetsu.schematic.v1`, which itself derives from typed Circuit IR. CLI and Web call only this shared Core API.
 
-Her artifact şu kanıtları taşır: exporter adı/sürümü, MIME ve uzantı, byte uzunluğu, SHA-256, `connectivity_verified`, capability alanları, warning listesi ve bilinen semantik kayıplar. Desteklenmeyen topoloji veya sembol sessizce yaklaşık çizilmez; `KES-Xxxx` diagnostic ile export durur.
+Every artifact reports the exporter name/version, MIME type and extension, byte length, SHA-256, `connectivity_verified`, capability fields, warnings, and known semantic losses. Unsupported topology or symbol geometry is never approximated silently; a `KES-Xxxx` diagnostic stops the export.
 
-## İlk yayın formatları
+## First-release formats
 
-| Format | Amaç | Connectivity | Model | Analysis | Doğrulama / açık kayıp |
+| Format | Purpose | Connectivity | Model | Analysis | Verification / explicit loss |
 |---|---|---:|---:|---:|---|
-| SVG | Ölçeklenebilir görsel, doküman ve Web | Evet | Hayır | Hayır | Semantic text, sabit `viewBox`, açık renk stili |
-| PNG | Sunum, rapor, hızlı paylaşım | Görsel izdüşüm | Hayır | Hayır | Pure-Rust canonical SVG raster; `0.25..8` scale, beyaz/transparan arka plan |
-| PDF | Baskı ve vektör doküman | Görsel izdüşüm | Hayır | Hayır | Tek sayfa, içerik sınırı, auto orientation, Schematic IR margin'i, deterministic vector glyphs; multi-page yok |
-| Schematic IR JSON | Kayıpsız makine alışverişi | Evet | Evet | Hayır | `kessetsu.schematic.v1`, deterministic pretty JSON |
-| SPICE | Simülasyon ve otomasyon | Evet | Evet | Evet | Canonical Ngspice netlist |
-| KiCad `.kicad_sch` | Düzenlemeye devam etme | Evet | Metadata | Hayır | KiCad 10 parser/netlist/ERC smoke; portable embedded symbols symbol-table warning üretebilir |
-| LTspice `.asc` | Düzenleme ve LTspice simülasyonu | Evet | Evet | Evet | LTspice 24.1.9 gerçek `-netlist` smoke; assertions `.kess` kaynağında kalır |
+| SVG | Scalable visual, documentation, and Web | Yes | No | No | Semantic text, fixed `viewBox`, light export style |
+| PNG | Presentations, reports, and quick sharing | Visual projection | No | No | Pure-Rust canonical SVG raster; `0.25..8` scale, white or transparent background |
+| PDF | Printing and vector documents | Visual projection | No | No | One page, content bounds, automatic orientation, Schematic IR margin, deterministic vector glyphs; no multi-page output |
+| Schematic IR JSON | Lossless machine interchange | Yes | Yes | No | `kessetsu.schematic.v1`, deterministic pretty JSON |
+| SPICE | Simulation and automation | Yes | Yes | Yes | Canonical Ngspice netlist |
+| KiCad `.kicad_sch` | Continued editing | Yes | Metadata | No | KiCad 10 parser/netlist/ERC smoke; portable embedded symbols may produce a symbol-table warning |
+| LTspice `.asc` | Editing and LTspice simulation | Yes | Yes | Yes | Real LTspice 24.1.9 `-netlist` smoke; assertions remain in the `.kess` source |
 
-PDF politikası bilerek tek sayfadır: elektronik şema bölünerek basılırsa bağlantı takibi kötüleşir. Çok büyük şemada Core önce okunabilir Schematic IR üretmek zorundadır; exporter keyfî sayfa kırılımı icat etmez. İlk sürüm A4/Letter çerçevesi yerine canonical içerik boyutunda media box kullanır; böylece boş alan taşınmaz ve orientation içerikten doğal olarak çıkar.
+The PDF policy is deliberately single-page because splitting an electronic schematic makes connectivity harder to follow. For a very large circuit, Core must first produce readable Schematic IR; the exporter does not invent arbitrary page breaks. The first release uses a canonical content-sized media box rather than an A4/Letter frame, avoiding unused space and deriving orientation naturally from the content.
 
-Raster ve vektör font ölçümü sistem fontuna bırakılmaz. Repo içindeki SIL OFL 1.1 lisanslı Roboto Mono, native ve WASM render sırasında aynı biçimde yüklenir. SVG'deki semantic text tarayıcıda seçilebilir kalır; PNG piksel çıktısıdır, PDF ise platforma bağlı font-subset kimliği üretmemesi için glyph'leri deterministic vektör path'e çevirir.
+Raster and vector font measurement does not depend on system fonts. The repository's SIL OFL 1.1-licensed Roboto Mono is loaded identically for native and WASM rendering. Semantic SVG text remains selectable in the browser; PNG is raster output, while PDF converts glyphs to deterministic vector paths to avoid platform-dependent font-subset identifiers.
 
-## EDA doğrulama
+## EDA verification
 
-`scripts/verify-eda-exports.ps1 -RequireApplications`, RC filter, gain-stage ve power-amplifier fixture'larını Core/CLI'dan üretir. Sonra:
+`scripts/verify-eda-exports.ps1 -RequireApplications` generates the RC-filter, gain-stage, and power-amplifier fixtures through Core/CLI. It then:
 
-- KiCad 10 ile dosyayı parse eder, KiCad XML netlist üretir, ERC çalıştırır ve bütün component reference'larının kaldığını doğrular.
-- LTspice 24.1.9 ile `.asc` dosyasını `-netlist` yolundan gerçekten açar; oluşan `.net` içinde bütün component reference'larını ve tamamlanmış `.end` kaydını doğrular.
+- parses each file with KiCad 10, generates a KiCad XML netlist, runs ERC, and verifies that every component reference remains present;
+- opens each `.asc` through LTspice 24.1.9's real `-netlist` path and verifies every component reference plus a complete `.end` record in the resulting `.net` file.
 
-Uygulamalar bulunmuyorsa normal yerel doğrulama bunu açıkça `skipped` raporlar; release makinesinde `-RequireApplications` zorunludur. Core unit testleri ayrıca bütün formatların byte-determinism, signature, schema, hash ve connectivity sözleşmesini platformdan bağımsız kontrol eder.
+When the applications are unavailable, normal local verification reports the check explicitly as `skipped`; `-RequireApplications` is mandatory on the release machine. Core unit tests independently verify byte determinism, signatures, schemas, hashes, and connectivity contracts for every format.
 
-KiCad modern s-expression şema formatını ve `.kicad_sch` uzantısını resmi olarak belgeler: <https://dev-docs.kicad.org/en/file-formats/sexpr-schematic/>. LTspice `.asc` şema ve `.net/.cir/.sp` netlist dosyalarını uygulama formatları olarak tanımlar: <https://ltspicehelpmanual.azurewebsites.net/introduction1.htm>.
+KiCad officially documents its modern s-expression schematic format and `.kicad_sch` extension: <https://dev-docs.kicad.org/en/file-formats/sexpr-schematic/>. LTspice defines `.asc` schematics and `.net/.cir/.sp` netlists as application formats: <https://ltspicehelpmanual.azurewebsites.net/introduction1.htm>.
 
-## Değerlendirilen fakat ilk yayına alınmayan hedefler
+## Evaluated targets not included in the first release
 
-| Hedef | Karar | Gerekçe |
+| Target | Decision | Rationale |
 |---|---|---|
-| Qucs-S `.sch` | Faz 5+ adapter adayı | Qucs-S şemayı proje girdisi olarak belgeliyor ancak bu sürümde kurulu hedef uygulamayla round-trip kanıtı yok: <https://qucs-s-help.readthedocs.io/en/latest/overview/understanding-file-structure.html> |
-| CircuitJS | Faz 5+ adapter adayı | Açık metin/URL devre aktarımı var; bileşen ve analog model semantiği Kessetsu kapsamıyla bire bir değil. Resmi kaynak: <https://github.com/sharpie7/circuitjs1> |
-| EasyEDA JSON | Faz 5+ adapter adayı | Format açık ve belgeli olsa da sıkıştırılmış primitive sözleşmesi/editör sürümü bakım maliyeti yüksek; gerçek import smoke olmadan destek ilan edilmiyor: <https://docs.easyeda.com/en/DocumentFormat/EasyEDA-Document-Format/> |
-| EDIF | İlk yayın dışında | Genel değişim standardı olsa da hedef uygulama ve analog schematic davranışı üzerinde doğrulanmış, düşük-kayıplı bir akış yok |
+| Qucs-S `.sch` | Phase 5+ adapter candidate | Qucs-S documents schematics as project input, but this release has no round-trip evidence with an installed target application: <https://qucs-s-help.readthedocs.io/en/latest/overview/understanding-file-structure.html> |
+| CircuitJS | Phase 5+ adapter candidate | It supports plain-text/URL circuit transfer, but its component and analog-model semantics do not map one-to-one to Kessetsu's scope. Official source: <https://github.com/sharpie7/circuitjs1> |
+| EasyEDA JSON | Phase 5+ adapter candidate | The format is open and documented, but its compressed primitive contract and editor-version maintenance cost are high; support is not advertised without a real import smoke test: <https://docs.easyeda.com/en/DocumentFormat/EasyEDA-Document-Format/> |
+| EDIF | Outside the first release | Although it is a general interchange standard, there is no verified low-loss flow for a target application and analog schematic behavior |
 
-Bu kararlar format sayısını küçük tutmak için değil, “download düğmesi var” ile “mühendislik verisi taşındı” arasındaki farkı korumak içindir. Yeni adapter ancak canonical graph bağlantı fixture'ı ve hedef uygulama smoke testiyle desteklenen formata yükselir.
+These decisions do not exist merely to keep the format count small. They preserve the distinction between “a download button exists” and “engineering data was transferred.” A new adapter becomes a supported format only with a canonical graph-connectivity fixture and target-application smoke test.
 
 ## CLI
 
@@ -55,4 +55,4 @@ kess export circuit.kess --target kicad --output circuit.kicad_sch
 kess export circuit.kess --target ltspice --output circuit.asc
 ```
 
-Var olan hedefi değiştirmek için açıkça `--force` gerekir. Kaynak dosyanın üstüne yazma her durumda reddedilir. `--format json` kullanıldığında çıktı dosyasının kendisi stdout'a karıştırılmaz; agent yalnız structured artifact metadata ve diagnostics görür.
+Replacing an existing target requires explicit `--force`. Overwriting the source file is always rejected. With `--format json`, artifact bytes are never mixed into stdout; an agent sees only structured artifact metadata and diagnostics.

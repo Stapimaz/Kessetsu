@@ -1,25 +1,24 @@
-# Kessetsu Yapay Zeka Kuralları (Agent Rules)
+# Kessetsu AI Agent Rules
 
-Merhaba, bu projeye atanan yeni bir Yapay Zeka Ajanısın (veya eski oturumun devamısın).
-Bu proje "Kessetsu" adında, hem SPICE tabanlı donanım simülasyonu yapabilen hem de otomatik şematik (Layout) çizebilen özel bir devre mühendisliği platformudur.
+You are an AI agent assigned to Kessetsu, or continuing an earlier session. Kessetsu is a circuit-engineering platform with SPICE-based simulation and automatic schematic layout.
 
-## İlk Adımlar (Zorunlu)
+## Required first steps
 
-1. **Önce Anayasayı Oku:** `docs/architecture.md` dosyasını okuyup proje bağlamını hafızana al.
-2. **Sonra Yol Haritasını Oku:** `docs/ROADMAP.md` dosyasından mevcut geliştirme fazını ve yapılacak görevleri kontrol et.
-3. **Faz atlama YASAKTIR.** Önceki fazın tüm görevleri tamamlanmadan sonraki faza geçilmez.
+1. **Read the constitution first:** read `docs/architecture.md` completely and retain the project context.
+2. **Read the roadmap next:** inspect `docs/ROADMAP.md` for the current development phase and ordered tasks.
+3. **Do not skip phases.** A later phase must not begin until every task and acceptance gate in the preceding phase is complete.
 
-## Kırmızı Çizgiler (KESİNLİKLE Uyulacak Kurallar)
+## Non-negotiable rules
 
-1. **SPICE Düğüm Algoritması (Node Naming):** `graph.rs` içindeki düğüm isimlendirme algoritması deterministik kalmalıdır. User-named netler canonical kurallara göre otomatik adların önüne geçer; belirsizlikler diagnostic üretir.
-2. **Orientasyon (Yönlendirme) Algoritması:** `layout.rs` dosyasındaki layout motoru yön farkındalığına sahiptir. Yeni bileşen eklerken `core/src/component.rs` içindeki ortak component kataloğunun pin koordinatlarına ve signal/through metadata'sına uy.
-3. **IR Tek Gerçek Kaynak:** Tüm backend'ler (SPICE, Layout, ERC, JSON) yalnızca Circuit IR (`ir.rs`) üzerinden çalışır. AST'den doğrudan backend çıktısı üretme.
-4. **ERC, DRC Değil:** Schematic seviyesindeki kontroller **ERC** (Electrical Rules Check) olarak adlandırılır. `erc.rs` modülünü kullan.
-5. **Kalite Kapısı:** Değişiklikleri tamamlamadan önce kökten `powershell -ExecutionPolicy Bypass -File scripts/verify.ps1` çalıştır. İterasyon sırasında yalnız gerektiğinde `-SkipNpmInstall` kullan; final doğrulama canonical tam komutla yapılır.
-6. **Geriye Uyumluluk:** Yeni syntax eklerken mevcut `examples/*.kess` dosyaları kırılmamalıdır.
+1. **SPICE node naming:** keep the node-naming algorithm in `graph.rs` deterministic. User-named nets take precedence over automatic names according to the canonical rules; ambiguities produce diagnostics.
+2. **Orientation and routing:** the layout engine in `layout.rs` is orientation-aware. When adding a component, follow the shared component catalog in `core/src/component.rs`, including pin coordinates and signal/through metadata.
+3. **IR is the single source of truth:** every backend (SPICE, layout, ERC, JSON) consumes Circuit IR from `ir.rs`. Never generate backend output directly from the AST.
+4. **ERC, not DRC:** schematic-level checks are called **ERC** (Electrical Rules Check) and belong in `erc.rs`.
+5. **Quality gate:** before completing a change, run `powershell -ExecutionPolicy Bypass -File scripts/verify.ps1` from the repository root. Use `-SkipNpmInstall` only when appropriate during iteration; final verification uses the full canonical command.
+6. **Backward compatibility:** new syntax must not break existing `examples/*.kess` files.
 
-## Görev Takibi
+## Work tracking
 
-Yaptığın her değişiklikten sonra `docs/ROADMAP.md`'deki ilgili checkbox'ı `[x]` olarak işaretle.
+After each completed change, mark the corresponding checkbox in `docs/ROADMAP.md` as `[x]`.
 
-Bu kurallara uyarak Kessetsu'nun mimarisini koruyabilirsin. Başarılar!
+Following these rules preserves Kessetsu's architecture and auditable development history.

@@ -1,7 +1,7 @@
 # Contributing to Kessetsu
 
-Hata raporları, güvenlik dışı sorunlar ve tasarım tartışmaları GitHub Issues üzerinden kabul edilir. Güvenlik bildirimleri için [SECURITY.md](SECURITY.md) izlenmelidir.
+Bug reports, non-security issues, and design discussions are accepted through GitHub Issues. Follow [SECURITY.md](SECURITY.md) for vulnerability reports.
 
-Kessetsu, AGPL-3.0-only ve ayrı ticari lisans modeliyle yayınlanır. Bu nedenle üçüncü taraf kod katkıları için ticari yeniden lisanslama hakkını açıkça düzenleyen bir contributor agreement süreci gereklidir. Bu süreç yayımlanana kadar dışarıdan gelen kod pull request'leri merge edilmeyecektir; bir pull request açılması tek başına repository sahibine AGPL dışı yeniden lisanslama hakkı vermez.
+Kessetsu uses the AGPL-3.0-only license together with a separate commercial-license model. Third-party code contributions therefore require a contributor-agreement process that explicitly covers commercial relicensing rights. External code pull requests will not be merged until that process is published; opening a pull request does not by itself grant the repository owner any right to relicense the contribution outside the AGPL.
 
-Dokümantasyon düzeltmeleri veya kod katkısı hazırlamadan önce bir issue açarak kapsamı konuşun. Mevcut mimari kurallar [architecture](docs/architecture.md), aktif iş sırası ise [roadmap](docs/ROADMAP.md) içinde tutulur.
+Open an issue to discuss scope before preparing documentation or code changes. The [architecture](docs/architecture.md) contains the current design rules, the [roadmap](docs/ROADMAP.md) contains the active work order, and the [documentation index](docs/README.md) explains document ownership and lifecycle.

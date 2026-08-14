@@ -19,7 +19,7 @@ test('runs the canonical RC filter in a worker and evaluates Core assertions', a
   page.on('pageerror', (error) => console.log(`[browser:error] ${error.message}`));
   page.on('requestfailed', (request) => console.log(`[browser:requestfailed] ${request.url()} ${request.failure()?.errorText}`));
   page.on('worker', (worker) => console.log(`[browser:worker] ${worker.url()}`));
-  await page.goto('/');
+  await page.goto('/#editor');
   await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('.view-lines')).toContainText('Canonical first-order RC low-pass');
 
@@ -54,7 +54,7 @@ test('normalizes OP, transient, AC and DC sweep results and restarts after cance
     new URL('../../../core/tests/fixtures/benchmarks/browser_analysis_matrix.kess', import.meta.url),
     'utf8',
   );
-  await page.goto('/');
+  await page.goto('/#editor');
   await replaceSource(page, source);
 
   await page.getByRole('button', { name: 'Run' }).click();

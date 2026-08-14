@@ -32,7 +32,7 @@ simulate op
 
 test('keeps exact packages reproducible and rejects model directive injection in Web', async ({ page }) => {
   const binary = resolve('../core/target/release', process.platform === 'win32' ? 'kess.exe' : 'kess');
-  await page.goto('/');
+  await page.goto('/#editor');
   await replaceSource(page, packageCircuit);
   await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('model-manifest')).toHaveAttribute(

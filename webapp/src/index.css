@@ -31,7 +31,8 @@
 body { margin: 0; min-width: 320px; min-height: 100vh; color: var(--text); background: var(--page); }
 button, select { font: inherit; }
 button { color: inherit; }
-button:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:focus-visible, select:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.workspace-loading { min-height: 100vh; display: grid; place-items: center; color: var(--muted); background: var(--page); font: 13px ui-monospace, monospace; }
 
 .app-shell { height: 100vh; display: grid; grid-template-rows: 48px minmax(0, 1fr) 46px; overflow: hidden; }
 .product-header, .artifact-bar, .workspace-header { display: flex; align-items: center; }
@@ -42,7 +43,7 @@ button:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 
 .license-link:hover { color: var(--accent); text-decoration: underline; }
 .share-button { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel-raised); cursor: pointer; }
 .share-button:disabled { cursor: not-allowed; opacity: .45; }
-.wordmark { font-weight: 850; letter-spacing: .16em; color: var(--accent); }
+.wordmark { font-weight: 850; letter-spacing: .16em; color: var(--accent); text-decoration: none; }
 .tagline { margin-left: 14px; color: var(--muted); font-size: 12px; }
 .theme-button, .icon-actions button { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel-raised); cursor: pointer; }
 

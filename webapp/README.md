@@ -1,16 +1,18 @@
 # Kessetsu Web App
 
-Tarayıcı arayüzü React, TypeScript, Vite ve `kessetsu-core` WASM paketiyle çalışır. Derleme mantığı Web içinde tekrar edilmez; `compile_kessetsu` üzerinden canonical `kessetsu.compile.v1` raporu tüketilir.
+The browser interface uses React, TypeScript, Vite, and the `kessetsu-core` WASM package. Compilation logic is not duplicated in the Web layer: it consumes the canonical `kessetsu.compile.v3` report through `compile_kessetsu`.
 
-## Yerel geliştirme
+The site root is a lightweight product landing page. `#editor` opens the full Web Hub, while versioned `#kessetsu=...` share fragments bypass the landing page and open the shared circuit directly. The workspace is loaded as a separate bundle so landing-page design changes do not couple to Monaco, WASM, simulation, or export behavior.
 
-Repository kökünden tam doğrulama:
+## Local development
+
+Full verification from the repository root:
 
 ```powershell
 ./scripts/verify.ps1
 ```
 
-Yalnız Web geliştirme akışı:
+Web-only development loop:
 
 ```bash
 cd webapp
@@ -19,4 +21,4 @@ npm run build
 npm run dev
 ```
 
-`npm run build`, önce Rust çekirdeğini `core/pkg` altına WASM olarak üretir, ardından TypeScript ve Vite production build çalıştırır. Editördeki default devre repository kökündeki `examples/demo_circuit.kess` dosyasıdır; ayrı bir Web-only dil örneği tutulmaz.
+`npm run build` first compiles the Rust Core to WASM under `core/pkg`, then runs the TypeScript and Vite production build. The editor's default circuit comes from `examples/demo_circuit.kess` at the repository root; no separate Web-only language example is maintained.

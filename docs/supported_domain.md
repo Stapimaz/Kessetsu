@@ -1,46 +1,46 @@
-# Kessetsu İlk Public Sürüm Destek Matrisi
+# Kessetsu First-Release Support Matrix
 
-Bu belge Faz 4 için ilan edilen elektriksel kapsamı dondurur. “Destekleniyor”, syntax'ın parse edilmesinden fazlasıdır: typed IR, canonical SPICE, ERC ve ilgili native/Web doğrulama kapılarının bulunması demektir. Tabloda olmayan özellikler fail-closed diagnostic üretmeli; yaklaşık destek varmış gibi sunulmamalıdır.
+This document freezes the electrical scope advertised for Phase 4. “Supported” means more than parsing syntax: typed IR, canonical SPICE, ERC, and the relevant native/Web verification gates must all exist. Features outside this matrix must produce fail-closed diagnostics and must not be presented as approximately supported.
 
-## Component ve source kapsamı
+## Component and source scope
 
-| Aile | Destek | Canonical pinler | Sınır |
+| Family | Support | Canonical pins | Boundary |
 |---|---|---|---|
-| Resistor, capacitor, inductor | Destekleniyor | `p1`, `p2` | İdeal lumped eleman; tolerance/temperature/parasitic modeli yok |
-| Diode | Destekleniyor | `p1`, `p2` | Builtin veya typed whitelist model |
-| BJT NPN/PNP | Destekleniyor | `c`, `b`, `e` | Üç terminalli model; substrate/thermal pin yok |
-| MOSFET NMOS/PMOS | Destekleniyor | `d`, `g`, `s` | Üç terminalli model; body ayrı pin değil |
-| Op-amp | Destekleniyor | `in_p`, `in_n`, `vcc`, `vee`, `out` | Güvenli canonical subcircuit template; arbitrary subcircuit yok |
-| Voltage/current source | Destekleniyor | `plus`, `minus` | DC, `sine`, `pulse`, `ac`, `sine_ac` typed waveform'ları |
-| Module port | Flattening iç öğesi | Module tanımına bağlı | Public fiziksel component değildir |
+| Resistor, capacitor, inductor | Supported | `p1`, `p2` | Ideal lumped element; no tolerance, temperature, or parasitic model |
+| Diode | Supported | `p1`, `p2` | Built-in or typed allowlisted model |
+| BJT NPN/PNP | Supported | `c`, `b`, `e` | Three-terminal model; no substrate or thermal pin |
+| MOSFET NMOS/PMOS | Supported | `d`, `g`, `s` | Three-terminal model; body is not a separate pin |
+| Op-amp | Supported | `in_p`, `in_n`, `vcc`, `vee`, `out` | Safe canonical subcircuit template; no arbitrary subcircuits |
+| Voltage/current source | Supported | `plus`, `minus` | Typed DC, `sine`, `pulse`, `ac`, and `sine_ac` waveforms |
+| Module port | Flattening-only element | Defined by the module | Not a public physical component |
 
-## Model kapsamı
+## Model scope
 
-- Builtin: `2N3904`, `2N3906`, `2N2222`, `KESSETSU_POWER_NPN_V1`, `KESSETSU_POWER_PNP_V1`, `1N4148`, `1N4007`, `IRF540`, `KESSETSU_PMOS_V1`, `KESSETSU_OPAMP_V1`.
-- Verified generic PMOS: `KESSETSU_PMOS_V1@1.0.1`; portable Ngspice `MOS1` DC modeli, üretici/datasheet veya parasitic model iddiası yok.
-- User model: typed diode/BJT/MOSFET parametre whitelist'i.
-- User subcircuit: yalnız typed op-amp template'i.
-- Package import: exact ad+sürüm, content hash, lisans ve simulator capability içeren `kessetsu.models.v1`/`kessetsu.lock.v1`.
-- Desteklenmez: raw `.include`, `.model`, `.subckt`, `.control`; floating package version; arbitrary vendor script/model injection.
+- Built-ins: `2N3904`, `2N3906`, `2N2222`, `KESSETSU_POWER_NPN_V1`, `KESSETSU_POWER_PNP_V1`, `1N4148`, `1N4007`, `IRF540`, `KESSETSU_PMOS_V1`, and `KESSETSU_OPAMP_V1`.
+- Verified generic PMOS: `KESSETSU_PMOS_V1@1.0.1`, a portable Ngspice `MOS1` DC model with no manufacturer, datasheet, or parasitic-model claim.
+- User models: typed diode/BJT/MOSFET parameter allowlists.
+- User subcircuits: the typed op-amp template only.
+- Package imports: `kessetsu.models.v1`/`kessetsu.lock.v1` with an exact name and version, content hash, license, and simulator capability.
+- Unsupported: raw `.include`, `.model`, `.subckt`, or `.control`; floating package versions; arbitrary vendor script/model injection.
 
-## Analysis, dataset ve ölçüm kapsamı
+## Analysis, dataset, and measurement scope
 
-| Alan | Destekleniyor | Açık sınır |
+| Area | Supported | Explicit boundary |
 |---|---|---|
-| Analysis | OP, transient, AC decade/linear/octave, independent voltage/current DC sweep | Noise, Monte Carlo, sensitivity, temperature sweep yok |
-| Dataset | OP scalar; transient/DC real series; AC complex series | Simulator raw format public sözleşme değildir |
-| Primitive | `V(net/device)`, `I(device)`, `P(device)` | Safe op-amp internal/output branch current fail-closed |
-| Reduction | `value`, `min`, `max`, absolute `peak`, `average`, `rms` | Kompleks AC üzerinde real reduction yok |
-| Derived | gain, bandwidth/cutoff, frequency, phase, output power, efficiency, THD, clipping, dissipation | Yalnız belgelenmiş analysis/signal koşullarında |
-| Assertion | `<`, `>`, `==`, `<=`, `>=`; PASS/FAIL/ERROR/SKIPPED | Eksik data asla `0`/PASS sayılmaz |
+| Analysis | OP, transient, AC decade/linear/octave, independent voltage/current DC sweep | No noise, Monte Carlo, sensitivity, or temperature sweep |
+| Dataset | OP scalar; transient/DC real series; AC complex series | Simulator raw format is not a public contract |
+| Primitive | `V(net/device)`, `I(device)`, `P(device)` | Safe op-amp internal/output branch current fails closed |
+| Reduction | `value`, `min`, `max`, absolute `peak`, `average`, `rms` | No real reduction over complex AC data |
+| Derived | gain, bandwidth/cutoff, frequency, phase, output power, efficiency, THD, clipping, dissipation | Only under documented analysis and signal conditions |
+| Assertion | `<`, `>`, `==`, `<=`, `>=`; PASS/FAIL/ERROR/SKIPPED | Missing data is never treated as `0` or PASS |
 
-## İlk yayın doğrulama devreleri
+## First-release verification circuits
 
-- RC low-pass: ilk dikey Web/CLI parity yolu.
-- Op-amp gain stage: feedback, AC bandwidth ve transient clipping.
-- Dört katlı 8 Ω power amplifier: ana ürün eval'i; gain, yaklaşık 2 W output, THD, clipping, stress ve dissipation.
-- Şema corpus'u ayrıca minimal, Wheatstone bridge ve yüksek fan-out topolojilerini kapsar.
+- RC low-pass: the first vertical Web/CLI parity path.
+- Op-amp gain stage: feedback, AC bandwidth, and transient clipping.
+- Four-stage 8 Ω power amplifier: the primary product eval for gain, approximately 2 W output, THD, clipping, stress, and dissipation.
+- The schematic corpus also covers minimal, Wheatstone-bridge, and high-fan-out topologies.
 
-## Bilinçli fiziksel sınırlar
+## Deliberate physical boundaries
 
-Kessetsu'nun ilk sürümü schematic-level SPICE mühendislik aracıdır; PCB layout/DRC, transmission-line/EM field çözümü, RF S-parameter workflow'u, digital HDL, thermal/aging/reliability, package/PCB parasitic extraction, EMC/ESD, manufacturing tolerance/Monte Carlo ve datasheet limit database'i sağlamaz. Simülasyon sonucu gerçek laboratuvar ölçümü veya mühendis incelemesinin yerine geçmez. Desteklenen analog/mixed-signal SPICE kapsamı ileride typed domain sözleşmeleriyle genişleyebilir; bugünkü mimari eğitim devreleriyle sınırlı değildir.
+Kessetsu's first release is a schematic-level SPICE engineering tool. It does not provide PCB layout/DRC, transmission-line or EM-field solving, RF S-parameter workflows, digital HDL, thermal/aging/reliability analysis, package/PCB parasitic extraction, EMC/ESD analysis, manufacturing-tolerance Monte Carlo, or a datasheet-limit database. Simulation does not replace laboratory measurement or engineering review. Typed domain contracts may expand the supported analog/mixed-signal SPICE scope later; the architecture is not limited to educational circuits.

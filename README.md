@@ -1,53 +1,53 @@
 # Kessetsu
 
-[Web Hub](https://stapimaz.github.io/Kessetsu/) · [CLI releases](https://github.com/Stapimaz/Kessetsu/releases) · [Tutorial](docs/tutorial.md) · [Supported domain](docs/supported_domain.md)
+[Web Hub](https://stapimaz.github.io/Kessetsu/) · [CLI releases](https://github.com/Stapimaz/Kessetsu/releases) · [Documentation](docs/README.md) · [Tutorial](docs/tutorial.md) · [Supported domain](docs/supported_domain.md)
 
-Kessetsu, devreleri metinle tanımlayıp yazılım gibi derlemek, simüle etmek ve assertion'larla sınamak için geliştirilen agent-driven bir circuit engineering platformudur. CLI'ın human modu insanlara, versioned JSON modu AI ajanları ve otomasyona; zero-friction Web Hub ise tarayıcı kullanıcılarına hizmet eder. Bütün yüzeyler aynı Rust çekirdeğini kullanır; typed Circuit IR, deterministik graph/ERC, SPICE netlist, layout ve EDA çıktıları ortak semantikten üretilir.
+Kessetsu is an agent-driven circuit engineering platform for describing circuits as text, compiling and simulating them like software, and verifying them with engineering assertions. The CLI's human mode serves engineers, its versioned JSON mode serves AI agents and automation, and the zero-friction Web Hub serves browser users. Every surface uses the same Rust Core: typed Circuit IR, deterministic graph/ERC, SPICE netlists, schematics, and EDA outputs all derive from shared semantics.
 
 ```text
 Electrical requirements → Kessetsu source → compile/ERC → simulate/measure/assert → structured feedback
 ```
 
-Proje belirli bir eğitim senaryosu veya devre sınıfıyla sınırlı değildir. Hedef; insanların ve AI ajanlarının ölçülebilir gereksinimlerden başlayıp topoloji, değer ve model seçimlerini güvenilir structured feedback ile iteratif geliştirebilmesidir.
+The project is not limited to a particular educational scenario or circuit class. Its goal is to let people and AI agents start from measurable requirements and iteratively develop topology, value, and model choices using reliable structured feedback.
 
-## Mevcut kapsam
+## Current capabilities
 
-- Rust parser, module flattening ve typed Circuit IR
-- Sürümlü `kessetsu.compile.v3` compile raporu ve `kessetsu.schematic.v1` şema sözleşmesi
-- Deterministik net isimlendirme ve `KES-P/C/E/I/S/F` diagnostic alanları
-- SPICE üretimi, simulator discovery/provenance ve Windows Ngspice sidecar runtime
-- Typed OP/transient/AC/DC simulation sonucu ve PASS/FAIL/ERROR/SKIPPED assertion runtime
-- Compact `kessetsu.cli.v1` JSON, stdin agent döngüsü ve debug `--include` seçimi
-- Typed user/package model-subcircuit çözümleme, provenance manifest'i ve `kessetsu.lock`
-- Human/JSON CLI; güvenli output/overwrite ve exit-code sözleşmesi
-- WASM tabanlı, gerçek browser simulation çalıştıran React Web Hub
-- Canonical, bağlantısı doğrulanmış automatic schematic motoru
-- SVG, PNG, PDF, Schematic JSON, SPICE, KiCad ve LTspice export
-- Sürümlü, sıkıştırılmış ve package-aware paylaşım URL'leri
+- Rust parser, module flattening, and typed Circuit IR
+- Versioned `kessetsu.compile.v3` compile reports and the `kessetsu.schematic.v1` schematic contract
+- Deterministic net naming and `KES-P/C/E/I/S/F` diagnostic namespaces
+- SPICE generation, simulator discovery/provenance, and a Windows Ngspice sidecar runtime
+- Typed OP/transient/AC/DC simulation results and PASS/FAIL/ERROR/SKIPPED assertion evaluation
+- Compact `kessetsu.cli.v1` JSON, stdin-based agent loops, and opt-in debug fields through `--include`
+- Typed user/package model and subcircuit resolution, provenance manifests, and `kessetsu.lock`
+- Human/JSON CLI modes with safe output, overwrite, and exit-code contracts
+- A React Web Hub with WASM Core and real in-browser simulation
+- A canonical, connectivity-verified automatic schematic engine
+- SVG, PNG, PDF, Schematic JSON, SPICE, KiCad, and LTspice exports
+- Versioned, compressed, package-aware share URLs
 
-Güncel görev ve sınırlar için [roadmap](docs/ROADMAP.md), mimari kurallar için [architecture](docs/architecture.md), fiziksel kapsam için [supported domain](docs/supported_domain.md) ve formül/sign convention'lar için [engineering measurements](docs/engineering_measurements.md) esas alınır.
+The [roadmap](docs/ROADMAP.md) defines current work and gates. The [architecture](docs/architecture.md), [supported domain](docs/supported_domain.md), and [engineering measurement contract](docs/engineering_measurements.md) are the normative references for implementation boundaries and formulas.
 
 ## Web Hub
 
-Kessetsu Web Hub, terminal kullanmak istemeyen insanların devreleri CodePen benzeri sade bir çalışma alanında doğrudan tarayıcıdan geliştirebilmesi için tasarlanan ana ürün yüzeyidir. Ayrı bir Web-only motor kullanmaz; CLI ile aynı canonical Rust çekirdeğini WebAssembly üzerinden çalıştırır.
+Kessetsu Web Hub is the primary product surface for people who want to develop circuits directly in a simple, CodePen-like browser workspace. It does not maintain a separate Web-only engine; it runs the same canonical Rust Core as the CLI through WebAssembly.
 
-Mevcut repository build'inde Web Hub şunları yapabiliyor:
+The current repository build can:
 
-- Monaco ile Kessetsu kodunu düzenleme, örnek devre seçme
-- WASM üzerinden canlı compile, ERC ve canonical schematic connectivity doğrulama
-- Web Worker içinde gerçek OP/transient/AC/DC simulation
-- İnteraktif waveform/Bode/DC grafikleri ve assertion sonuçları
-- Canonical şemayı zoom/fit ile inceleme
-- Yedi görsel, makine ve EDA formatını capability/loss bilgisiyle indirme
-- Source ve exact package sürümlerini sıkıştırılmış URL ile paylaşma
+- Edit Kessetsu source in Monaco and switch between example circuits
+- Run live compilation, ERC, and canonical schematic-connectivity verification through WASM
+- Run real OP/transient/AC/DC simulations inside a Web Worker
+- Inspect interactive waveform, Bode, and DC plots plus assertion results
+- Explore the canonical schematic with zoom and fit controls
+- Download seven visual, machine, and EDA formats with capability/loss information
+- Share source and exact package versions in a compressed URL
 
-İlk sürümde Web Hub içinde AI chat yoktur ve bu gizlenen bir eksik değildir: AI/otomasyon yüzeyi CLI'ın stdin + versioned JSON tool contract'ı, insan yüzeyi Web Hub'dır. İkisi de aynı Core'u kullanır. Provider-independent Web AI tasarım yüzeyi sonraki faz için bilinçli olarak ayrılmıştır.
+The first release deliberately has no AI chat inside Web Hub. The CLI's stdin plus versioned JSON tool contract is the AI/automation surface, while Web Hub is the direct human surface; both use the same Core. A provider-independent Web AI design surface is reserved for a later phase.
 
 ![Kessetsu Web Hub RC workspace](docs/assets/web-hub-workspace.png)
 
 ![Power amplifier simulation with 12 passing requirements](docs/assets/web-hub-power-amplifier.png)
 
-## Kısa Kessetsu örneği
+## A small Kessetsu example
 
 ```kessetsu
 net GND
@@ -62,20 +62,20 @@ connect V1.minus, R1.p2 to GND
 simulate op
 ```
 
-Aynı kaynak CLI'dan veya Web Hub'dan compile edildiğinde aynı IR, diagnostic ve SPICE sonucu üretilir.
+Compiling the same source in the CLI or Web Hub produces the same IR, diagnostics, and SPICE result.
 
-## Hızlı başlangıç
+## Quick start
 
-Hazır CLI paketleri [GitHub Releases](https://github.com/Stapimaz/Kessetsu/releases) sayfasında Windows x86-64, Linux x86-64, macOS Intel ve macOS Apple Silicon için SHA-256 dosyalarıyla yayınlanır. Windows paketi doğrulanmış Ngspice sidecar'ını içerir; Linux/macOS'ta `ngspice` sistem paketini kurun veya güvenilen full path'i `KESSETSU_NGSPICE` ile verin. Her paketteki `INSTALL.txt` ve `release-manifest.json` kesin yolu/provenance'i açıklar.
+Ready-to-use CLI packages are published on [GitHub Releases](https://github.com/Stapimaz/Kessetsu/releases) for Windows x86-64, Linux x86-64, macOS Intel, and macOS Apple Silicon, together with SHA-256 files. The Windows package includes a verified Ngspice sidecar. On Linux and macOS, install the system `ngspice` package or provide a trusted absolute path through `KESSETSU_NGSPICE`. Each package includes `INSTALL.txt` and `release-manifest.json` with exact setup and provenance details.
 
-Gereksinimler:
+Requirements:
 
-- Rust `1.97.1` ve `wasm32-unknown-unknown` target
+- Rust `1.97.1` and the `wasm32-unknown-unknown` target
 - `wasm-pack 0.13.1`
-- Node sürümü [`.nvmrc`](.nvmrc) ile eşleşen npm kurulumu
-- Windows yerel simülasyonu için repository'deki sidecar; alternatif simulator yolu için `KESSETSU_NGSPICE`
+- npm with the Node version declared in [`.nvmrc`](.nvmrc)
+- The repository sidecar for native Windows simulation, or `KESSETSU_NGSPICE` for an alternative simulator path
 
-CLI'yi derleyip örnek bir devreyi kontrol etmek:
+Build the CLI and check an example circuit:
 
 ```powershell
 cd core
@@ -84,29 +84,29 @@ cargo run --release -- check ../examples/demo_circuit.kess
 cargo run --release -- compile ../examples/demo_circuit.kess --output ../examples/demo_circuit.spice
 ```
 
-Makine-okunabilir çıktı:
+Machine-readable output:
 
 ```powershell
 cargo run --release -- check ../examples/demo_circuit.kess --format json
 ```
 
-Var olan output dosyaları varsayılan olarak ezilmez; bilinçli overwrite için `--force` gerekir. CLI komutları, JSON alanları ve exit kodları [CLI reference](docs/cli_reference.md) içinde tanımlıdır. İlk devre için [tutorial](docs/tutorial.md), kısa çözümler için [cookbook](docs/cookbook.md), sorunlar için [troubleshooting](docs/troubleshooting.md) ve ürün farkları için [Why Kessetsu?](docs/why_kessetsu.md) ile devam edin.
+Existing output files are not overwritten by default; intentional replacement requires `--force`. The [CLI reference](docs/cli_reference.md) defines commands, JSON fields, and exit codes. Continue with the [tutorial](docs/tutorial.md), [cookbook](docs/cookbook.md), [troubleshooting guide](docs/troubleshooting.md), or [Why Kessetsu?](docs/why_kessetsu.md).
 
-## Build ve doğrulama
+## Build and verification
 
-Repository'nin canonical kalite kapısı:
+Run the repository's canonical quality gate from the root:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify.ps1
 ```
 
-Bu komut dependency kurulumundan sonra Rust fmt, Clippy, test, release build, WASM package, production npm audit, Web lint ve production build adımlarını çalıştırır. Dependency'ler zaten kuruluysa:
+After dependency installation, this runs Rust formatting, Clippy, tests, the release build, WASM packaging, the production npm audit, Web linting, and the production build. If dependencies are already installed:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify.ps1 -SkipNpmInstall
 ```
 
-Ayrı build yüzeyleri:
+Individual build surfaces:
 
 ```powershell
 cd core
@@ -119,26 +119,26 @@ npm.cmd ci
 npm.cmd run build
 ```
 
-`npm run build`, WASM paketini yeniden üretip Web production build'ini tamamlar.
+`npm run build` regenerates the WASM package and completes the Web production build.
 
-## Repository yapısı
+## Repository structure
 
-- `core/`: Rust library, CLI, WASM adaptörü, test corpus'u ve Windows Ngspice runtime
-- `examples/`: canonical `.kess` örnekleri
+- `core/`: Rust library, CLI, WASM adapter, test corpus, and Windows Ngspice runtime
+- `examples/`: canonical `.kess` examples
 - `webapp/`: React/TypeScript zero-friction Web Hub
-- `docs/`: roadmap, architecture, dil/simulation/export sözleşmeleri ve kullanım rehberleri
-- `scripts/verify.ps1`: kök kalite kapısı
+- `docs/`: documentation index, roadmap, architecture, language/simulation/export contracts, and guides
+- `scripts/verify.ps1`: root quality gate
 
-## Önemli sınırlar
+## Important boundaries
 
-- Backend'ler yalnız typed Circuit IR üzerinden çalışır.
-- Generated output fiziksel doğrulama veya mühendis incelemesinin yerine geçmez.
-- Embedded runtime'ın provenance/lisans notları [Ngspice runtime README](core/tools/ngspice/README.md) içinde tutulur.
-- İlk yayın analog/mixed-signal schematic-level kapsamındadır; PCB layout/DRC, RF/EM, thermal/reliability, Monte Carlo ve laboratuvar doğrulaması sağlamaz.
-- Güvenlik bildirimleri [SECURITY.md](SECURITY.md), release/rollback ve telemetry sınırı [release contract](docs/release.md) içinde tanımlıdır.
+- Backends consume typed Circuit IR only.
+- Generated output does not replace physical validation or engineering review.
+- Embedded-runtime provenance and licensing notes live in the [Ngspice runtime README](core/tools/ngspice/README.md).
+- The first release targets schematic-level analog/mixed-signal work; it does not provide PCB layout/DRC, RF/EM, thermal/reliability, Monte Carlo, or laboratory validation.
+- [SECURITY.md](SECURITY.md) defines vulnerability reporting; the [release contract](docs/release.md) defines release, rollback, and telemetry boundaries.
 
-## Lisans
+## License
 
-Kessetsu kaynak kodu [GNU Affero General Public License v3.0 only](LICENSE) (`AGPL-3.0-only`) altında açık kaynak olarak sunulur. AGPL yükümlülükleri olmadan kapalı kaynak servis veya ürün kullanımı için telif hakkı sahibinden ayrı bir [ticari lisans](COMMERCIAL_LICENSE.md) alınabilir.
+Kessetsu source code is available under the [GNU Affero General Public License v3.0 only](LICENSE) (`AGPL-3.0-only`). A separate [commercial license](COMMERCIAL_LICENSE.md) may be obtained from the copyright holder for closed-source service or product use without AGPL obligations.
 
-Kessetsu ile oluşturduğunuz devre kaynakları ve export çıktıları yalnızca Kessetsu kullanıldığı için AGPL kapsamına girmez. Üçüncü taraf bileşenler kendi lisanslarını korur; dağıtım notice'ları release paketleri ve Web build'i içindedir. Katkı politikası için [CONTRIBUTING.md](CONTRIBUTING.md) dosyasına bakın.
+Circuit sources and exported artifacts created with Kessetsu do not become subject to the AGPL merely because Kessetsu produced them. Third-party components retain their own licenses; distribution notices are included in release packages and the Web build. See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution policy.

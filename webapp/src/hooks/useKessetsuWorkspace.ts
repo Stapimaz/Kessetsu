@@ -58,7 +58,8 @@ export function useKessetsuWorkspace() {
       .then(async () => {
         if (!mounted) return;
         const capabilities = supported_export_capabilities();
-        const shared = await decodeShareFragment(globalThis.location.hash, compile_schema_version());
+        const shareFragment = globalThis.location.hash.startsWith('#kessetsu=') ? globalThis.location.hash : '';
+        const shared = await decodeShareFragment(shareFragment, compile_schema_version());
         sharedEnvelopeRef.current = shared;
         setState((current) => ({
           ...current,

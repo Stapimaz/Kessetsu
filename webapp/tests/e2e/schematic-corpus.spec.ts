@@ -19,7 +19,7 @@ const corpus = [
 ] as const;
 
 test('renders the canonical schematic corpus with verified quality', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/#editor');
   await expect(page.locator('.monaco-editor')).toBeVisible();
   const surface = page.getByLabel('Canonical schematic').locator('.schematic-surface');
   const gridButton = page.getByRole('button', { name: 'Toggle schematic grid' });
