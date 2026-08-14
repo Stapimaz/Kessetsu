@@ -214,6 +214,16 @@ fn component_text_is_owned_by_the_schematic_contract_and_stays_collision_free() 
                     text.id,
                     text.offset_eighths
                 );
+                let baseline_x = text.point.x * 8 + text.offset_eighths.x;
+                if text.anchor == kessetsu_core::schematic::TextAnchor::Start
+                    && baseline_x >= component.bounds.max.x * 8
+                {
+                    assert!(
+                        baseline_x >= component.bounds.max.x * 8 + 4,
+                        "{name}: {} right-side text is too close to the symbol",
+                        text.id
+                    );
+                }
             }
             if component
                 .value
@@ -497,32 +507,32 @@ fn svg_visual_golden_hashes_are_cross_platform_stable() {
         (
             "minimal",
             CORPUS[0].1,
-            "6f830225fc4a75b3e9f654c1f8398bb1c8b7fcd7c2e0741571dac267abca3a4b",
+            "4e88a92408d66e596a0cb187be7d5e578cd6b20b9f8bbbc10e499a028885ce46",
         ),
         (
             "rc_filter",
             CORPUS[1].1,
-            "cd714d7005061d27889f342c10cc589b2340be12b4cdaee31b04f72c6c1e25dd",
+            "86700a14bcd4d6c5c720f80e0ade260e21780f59d7ca78f91058a113d9d9f1fc",
         ),
         (
             "wheatstone",
             CORPUS[2].1,
-            "31cfa59c8bd758c47578c8eff5bec4eb5875bac679b3bd0877a7484a43ff30c7",
+            "d3e3dbe738ec0a03596a995593256329f344673e7e752e4e53c02ba174836d10",
         ),
         (
             "gain_stage",
             CORPUS[3].1,
-            "537643881975fd56d4b7b25a5d23052a308afda69b35a5115c019d03736f7668",
+            "98bec5e7f047cdeb983da25d555b9228d884e5512f04484e5496a4b2111bb551",
         ),
         (
             "high_fanout",
             CORPUS[4].1,
-            "bec7c0f842f962e88bd4357b68b56e9bfbfb0a2b31cf25feb0ad4d387393babc",
+            "ee2ba278bfd5fa025bd56d221d5d09904bf2312b2b81aca2f0bc8ba25c3a16b3",
         ),
         (
             "power_amplifier",
             CORPUS[5].1,
-            "dca2efa25df95d1015716dd0b69e7ed1b672a4aa0e35a1481cdd367e3cdd2b27",
+            "e79b2cec7c71615f45babd72930468ea381e585cfdcbd5774caad25e8992c2c8",
         ),
     ] {
         let actual = svg_hash(source);

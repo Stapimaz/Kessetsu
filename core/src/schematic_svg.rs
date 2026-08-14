@@ -34,6 +34,18 @@ fn symbol_width(symbol: CatalogSymbol) -> f32 {
     }
 }
 
+fn bjt_emitter_arrow(pnp: bool) -> [(f32, f32); 3] {
+    if pnp {
+        // The centroid lies on the collector/emitter branch. The tip points
+        // toward the base, as required for a PNP symbol.
+        [(1.20, 0.45), (1.47, 0.14), (1.62, 0.39)]
+    } else {
+        // The centroid lies on the lower branch and the tip points away from
+        // the base, as required for an NPN symbol.
+        [(1.64, 1.80), (1.31, 1.77), (1.45, 1.53)]
+    }
+}
+
 fn symbol_markup(component: &SchematicComponent) -> String {
     let stroke = "stroke=\"#172033\" stroke-width=\"2\" fill=\"none\" stroke-linecap=\"round\" stroke-linejoin=\"round\"";
     match component.symbol {
@@ -113,7 +125,8 @@ fn symbol_markup(component: &SchematicComponent) -> String {
             down = local(0.16)
         ),
         CatalogSymbol::Bjt => {
-            let (branches, arrow) = if component.variant.as_deref() == Some("pnp") {
+            let pnp = component.variant.as_deref() == Some("pnp");
+            let (branches, arrow_points) = if pnp {
                 (
                     format!(
                         "M {base} {upper} L {two} 0 M {base} {lower} L {two} {two}",
@@ -122,15 +135,7 @@ fn symbol_markup(component: &SchematicComponent) -> String {
                         lower = local(1.28),
                         two = local(2.0)
                     ),
-                    format!(
-                        "M {} {} L {} {} L {} {} Z",
-                        local(1.18),
-                        local(0.56),
-                        local(1.62),
-                        local(0.47),
-                        local(1.48),
-                        local(0.23)
-                    ),
+                    bjt_emitter_arrow(true),
                 )
             } else {
                 (
@@ -141,17 +146,18 @@ fn symbol_markup(component: &SchematicComponent) -> String {
                         lower = local(1.28),
                         two = local(2.0)
                     ),
-                    format!(
-                        "M {} {} L {} {} L {} {} Z",
-                        local(1.65),
-                        local(1.65),
-                        local(1.23),
-                        local(1.57),
-                        local(1.37),
-                        local(1.33)
-                    ),
+                    bjt_emitter_arrow(false),
                 )
             };
+            let arrow = format!(
+                "M {} {} L {} {} L {} {} Z",
+                local(arrow_points[0].0),
+                local(arrow_points[0].1),
+                local(arrow_points[1].0),
+                local(arrow_points[1].1),
+                local(arrow_points[2].0),
+                local(arrow_points[2].1)
+            );
             format!(
                 "<path {stroke} d=\"M 0 {one} H {base} M {base} {top} V {bottom} {branches}\"/><path class=\"emitter-arrow\" d=\"{arrow}\" fill=\"#172033\" stroke=\"none\"/>",
                 one = local(1.0),
@@ -416,5 +422,25 @@ mod tests {
         assert!(!supply_points_down("VDD"));
         assert!(supply_points_down("VEE"));
         assert!(supply_points_down("VSS"));
+    }
+
+    #[test]
+    fn bjt_arrow_centroids_sit_on_the_emitter_branches() {
+        for (pnp, start, end) in [
+            (true, (0.72_f32, 0.72_f32), (2.0_f32, 0.0_f32)),
+            (false, (0.72_f32, 1.28_f32), (2.0_f32, 2.0_f32)),
+        ] {
+            let points = bjt_emitter_arrow(pnp);
+            let centroid = (
+                points.iter().map(|point| point.0).sum::<f32>() / 3.0,
+                points.iter().map(|point| point.1).sum::<f32>() / 3.0,
+            );
+            let cross = (end.0 - start.0) * (centroid.1 - start.1)
+                - (end.1 - start.1) * (centroid.0 - start.0);
+            assert!(
+                cross.abs() < 0.02,
+                "arrow centroid is off the emitter branch"
+            );
+        }
     }
 }

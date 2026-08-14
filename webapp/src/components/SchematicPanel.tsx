@@ -43,15 +43,15 @@ function componentAtPointer(
 }
 
 export function SchematicPanel({ schematic, svg }: Props) {
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [view, setView] = useState({ zoom: 1, pan: { x: 0, y: 0 } });
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
   const [gridVisible, setGridVisible] = useState(true);
   const [hoveredComponent, setHoveredComponent] = useState<string | null>(null);
   const [selectedComponent, setSelectedComponent] = useState<string | null>(null);
   const documentRef = useRef<HTMLDivElement>(null);
+  const { zoom, pan } = view;
   const activeComponent = hoveredComponent ?? selectedComponent;
-  const reset = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
+  const reset = () => setView({ zoom: 1, pan: { x: 0, y: 0 } });
 
   useEffect(() => {
     setHoveredComponent(null);
@@ -89,9 +89,9 @@ export function SchematicPanel({ schematic, svg }: Props) {
             aria-pressed={gridVisible}
             onClick={() => setGridVisible((current) => !current)}
           ><Grid3X3 size={14} /></button>
-          <button aria-label="Zoom out" onClick={() => setZoom((current) => Math.max(0.2, current - 0.2))}><Minus size={14} /></button>
+          <button aria-label="Zoom out" onClick={() => setView((current) => ({ ...current, zoom: Math.max(0.2, current.zoom - 0.2) }))}><Minus size={14} /></button>
           <button aria-label="Fit view" onClick={reset}><Maximize2 size={14} /></button>
-          <button aria-label="Zoom in" onClick={() => setZoom((current) => Math.min(4, current + 0.2))}><Plus size={14} /></button>
+          <button aria-label="Zoom in" onClick={() => setView((current) => ({ ...current, zoom: Math.min(4, current.zoom + 0.2) }))}><Plus size={14} /></button>
         </div>
       </header>
       <div
@@ -99,7 +99,22 @@ export function SchematicPanel({ schematic, svg }: Props) {
         tabIndex={0}
         onWheel={(event) => {
           event.preventDefault();
-          setZoom((current) => Math.max(0.2, Math.min(4, current - event.deltaY * 0.002)));
+          const bounds = event.currentTarget.getBoundingClientRect();
+          const anchor = {
+            x: event.clientX - bounds.left - bounds.width / 2,
+            y: event.clientY - bounds.top - bounds.height / 2,
+          };
+          setView((current) => {
+            const nextZoom = Math.max(0.2, Math.min(4, current.zoom * Math.exp(-event.deltaY * 0.0015)));
+            const ratio = nextZoom / current.zoom;
+            return {
+              zoom: nextZoom,
+              pan: {
+                x: anchor.x - (anchor.x - current.pan.x) * ratio,
+                y: anchor.y - (anchor.y - current.pan.y) * ratio,
+              },
+            };
+          });
         }}
         onPointerDown={(event) => {
           event.currentTarget.focus();
@@ -124,17 +139,22 @@ export function SchematicPanel({ schematic, svg }: Props) {
             event.clientX,
             event.clientY,
           ));
-          if (dragStart) setPan({ x: event.clientX - dragStart.x, y: event.clientY - dragStart.y });
+          if (dragStart) {
+            setView((current) => ({
+              ...current,
+              pan: { x: event.clientX - dragStart.x, y: event.clientY - dragStart.y },
+            }));
+          }
         }}
         onPointerUp={() => setDragStart(null)}
         onPointerLeave={() => { setHoveredComponent(null); setDragStart(null); }}
         onKeyDown={(event) => {
           const delta = event.shiftKey ? 40 : 12;
           if (event.key === 'Escape') setSelectedComponent(null);
-          if (event.key === 'ArrowLeft') setPan((current) => ({ ...current, x: current.x - delta }));
-          if (event.key === 'ArrowRight') setPan((current) => ({ ...current, x: current.x + delta }));
-          if (event.key === 'ArrowUp') setPan((current) => ({ ...current, y: current.y - delta }));
-          if (event.key === 'ArrowDown') setPan((current) => ({ ...current, y: current.y + delta }));
+          if (event.key === 'ArrowLeft') setView((current) => ({ ...current, pan: { ...current.pan, x: current.pan.x - delta } }));
+          if (event.key === 'ArrowRight') setView((current) => ({ ...current, pan: { ...current.pan, x: current.pan.x + delta } }));
+          if (event.key === 'ArrowUp') setView((current) => ({ ...current, pan: { ...current.pan, y: current.pan.y - delta } }));
+          if (event.key === 'ArrowDown') setView((current) => ({ ...current, pan: { ...current.pan, y: current.pan.y + delta } }));
         }}
       >
         {svg ? (

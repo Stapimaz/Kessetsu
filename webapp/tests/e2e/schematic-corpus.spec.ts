@@ -81,3 +81,35 @@ test('renders the canonical schematic corpus with verified quality', async ({ pa
     }
   }
 });
+
+test('keeps the schematic point under the mouse fixed while wheel-zooming', async ({ page }) => {
+  await page.goto('/#editor');
+  await expect(page.getByTestId('canonical-schematic')).toHaveAttribute('data-quality', 'pass');
+  const surface = page.getByLabel('Canonical schematic').locator('.schematic-surface');
+  const bounds = await surface.boundingBox();
+  if (!bounds) throw new Error('schematic surface has no bounds');
+  const pointer = {
+    x: bounds.x + bounds.width * 0.76,
+    y: bounds.y + bounds.height * 0.34,
+  };
+  const pointAtPointer = () => surface.evaluate((element, client) => {
+    const svg = element.querySelector('svg');
+    const matrix = svg?.getScreenCTM();
+    if (!svg || !matrix) throw new Error('schematic SVG has no screen transform');
+    const point = svg.createSVGPoint();
+    point.x = client.x;
+    point.y = client.y;
+    const local = point.matrixTransform(matrix.inverse());
+    return { x: local.x, y: local.y };
+  }, pointer);
+
+  const before = await pointAtPointer();
+  await page.mouse.move(pointer.x, pointer.y);
+  await page.mouse.wheel(0, -240);
+  await page.waitForTimeout(150);
+  const after = await pointAtPointer();
+  // CSS/SVG matrix round-tripping can differ by a fraction of one screen
+  // pixel; at the fitted scale 0.75 SVG units remains comfortably subpixel.
+  expect(Math.abs(after.x - before.x)).toBeLessThan(0.75);
+  expect(Math.abs(after.y - before.y)).toBeLessThan(0.75);
+});

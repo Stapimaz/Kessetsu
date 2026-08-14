@@ -1572,6 +1572,10 @@ fn place_component_texts(
 
 const TEXT_SUBGRID: i32 = 8;
 const TEXT_CLEARANCE: i32 = 2;
+// Vertical symbols such as resistors extend slightly beyond their logical
+// component bounds after rotation. Start-anchored text on the right needs a
+// little more room so the first glyph clears that visual overhang.
+const RIGHT_TEXT_CLEARANCE: i32 = 4;
 const TEXT_LINE_GAP: i32 = 0;
 
 #[derive(Debug, Clone, Copy)]
@@ -1696,11 +1700,11 @@ fn pair_fine_candidates(
     ];
     let right = [
         FineTextPlacement {
-            point: Point::new(bounds.max.x + TEXT_CLEARANCE, reference_side),
+            point: Point::new(bounds.max.x + RIGHT_TEXT_CLEARANCE, reference_side),
             anchor: TextAnchor::Start,
         },
         FineTextPlacement {
-            point: Point::new(bounds.max.x + TEXT_CLEARANCE, secondary_side),
+            point: Point::new(bounds.max.x + RIGHT_TEXT_CLEARANCE, secondary_side),
             anchor: TextAnchor::Start,
         },
     ];
@@ -1714,7 +1718,7 @@ fn pair_fine_candidates(
         },
         FineTextPlacement {
             point: Point::new(
-                bounds.max.x + TEXT_CLEARANCE,
+                bounds.max.x + RIGHT_TEXT_CLEARANCE,
                 centered_baseline(center_y, secondary),
             ),
             anchor: TextAnchor::Start,
@@ -1761,7 +1765,7 @@ fn single_fine_candidates(
         },
         FineTextPlacement {
             point: Point::new(
-                bounds.max.x + TEXT_CLEARANCE,
+                bounds.max.x + RIGHT_TEXT_CLEARANCE,
                 bounds.min.y - TEXT_CLEARANCE - 1,
             ),
             anchor: TextAnchor::Start,
@@ -1772,7 +1776,7 @@ fn single_fine_candidates(
         },
         FineTextPlacement {
             point: Point::new(
-                bounds.max.x + TEXT_CLEARANCE,
+                bounds.max.x + RIGHT_TEXT_CLEARANCE,
                 centered_baseline(center_y, text),
             ),
             anchor: TextAnchor::Start,

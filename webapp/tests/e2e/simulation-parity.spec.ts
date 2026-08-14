@@ -76,8 +76,25 @@ test('normalizes OP, transient, AC and DC sweep results and restarts after cance
   await summary.getByRole('tab', { name: 'transient' }).click();
   await expect(summary.locator('.result-plot')).toHaveCount(1);
   await expect(summary.locator('.threshold-line')).toHaveCount(1);
-  await summary.locator('.result-plot').hover({ position: { x: 250, y: 80 } });
+  const transientPlot = summary.locator('.result-plot');
+  const plotPoints = await transientPlot.evaluate((element) => {
+    const svg = element as SVGSVGElement;
+    const matrix = svg.getScreenCTM();
+    if (!matrix) throw new Error('result plot has no screen transform');
+    const screenPoint = (x: number) => {
+      const point = svg.createSVGPoint();
+      point.x = x;
+      point.y = 96;
+      const screen = point.matrixTransform(matrix);
+      return { x: screen.x, y: screen.y };
+    };
+    return { left: screenPoint(44), right: screenPoint(576) };
+  });
+  await page.mouse.move(plotPoints.left.x, plotPoints.left.y);
   await expect(summary.locator('.cursor-readout')).toBeVisible();
+  expect(Math.abs(Number(await summary.locator('.cursor-line').getAttribute('x1')) - 44)).toBeLessThan(0.5);
+  await page.mouse.move(plotPoints.right.x, plotPoints.right.y);
+  expect(Math.abs(Number(await summary.locator('.cursor-line').getAttribute('x1')) - 576)).toBeLessThan(0.5);
   await summary.getByRole('tab', { name: 'ac' }).click();
   await expect(summary.locator('.result-plot')).toHaveCount(2);
   await summary.getByRole('tab', { name: 'dc sweep' }).click();

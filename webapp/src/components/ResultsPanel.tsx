@@ -43,6 +43,20 @@ interface PlotProps {
   logX?: boolean;
 }
 
+const PLOT_LEFT = 42;
+const PLOT_RIGHT = 578;
+const PLOT_WIDTH = PLOT_RIGHT - PLOT_LEFT;
+
+function pointerPositionInPlot(svg: SVGSVGElement, clientX: number, clientY: number) {
+  const matrix = svg.getScreenCTM();
+  if (!matrix) return null;
+  const point = svg.createSVGPoint();
+  point.x = clientX;
+  point.y = clientY;
+  const local = point.matrixTransform(matrix.inverse());
+  return Math.max(0, Math.min(1, (local.x - PLOT_LEFT) / PLOT_WIDTH));
+}
+
 function LinePlot({ axis, values, axisName, valueUnit, thresholds = [], logX = false }: PlotProps) {
   const [zoom, setZoom] = useState<[number, number]>([0, 1]);
   const [cursor, setCursor] = useState<number | null>(null);
@@ -56,7 +70,7 @@ function LinePlot({ axis, values, axisName, valueUnit, thresholds = [], logX = f
   const allY = [...visibleValues, ...thresholds];
   const minY = Math.min(...allY);
   const maxY = Math.max(...allY);
-  const x = (value: number) => 42 + ((value - minX) / (maxX - minX || 1)) * 536;
+  const x = (value: number) => PLOT_LEFT + ((value - minX) / (maxX - minX || 1)) * PLOT_WIDTH;
   const y = (value: number) => 174 - ((value - minY) / (maxY - minY || 1)) * 146;
   const points = xValues.map((value, index) => `${x(value)},${y(visibleValues[index])}`).join(' ');
   const cursorIndex = cursor === null ? null : Math.min(axis.length - 1, Math.max(0, Math.round(start + cursor * (stop - start - 1))));
@@ -69,8 +83,11 @@ function LinePlot({ axis, values, axisName, valueUnit, thresholds = [], logX = f
         role="img"
         aria-label={`${axisName} plot`}
         onPointerMove={(event) => {
-          const bounds = event.currentTarget.getBoundingClientRect();
-          setCursor(Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)));
+          setCursor(pointerPositionInPlot(
+            event.currentTarget,
+            event.clientX,
+            event.clientY,
+          ));
         }}
         onPointerLeave={() => setCursor(null)}
         onWheel={(event) => {
@@ -80,18 +97,18 @@ function LinePlot({ axis, values, axisName, valueUnit, thresholds = [], logX = f
           setZoom([Math.max(0, center - width / 2), Math.min(1, center + width / 2)]);
         }}
       >
-        <rect x="42" y="18" width="536" height="156" className="plot-bg" />
-        {[0, 0.25, 0.5, 0.75, 1].map((ratio) => <line key={ratio} x1="42" x2="578" y1={28 + ratio * 146} y2={28 + ratio * 146} className="grid-line" />)}
-        {thresholds.map((threshold) => <line key={threshold} x1="42" x2="578" y1={y(threshold)} y2={y(threshold)} className="threshold-line" />)}
+        <rect x={PLOT_LEFT} y="18" width={PLOT_WIDTH} height="156" className="plot-bg" />
+        {[0, 0.25, 0.5, 0.75, 1].map((ratio) => <line key={ratio} x1={PLOT_LEFT} x2={PLOT_RIGHT} y1={28 + ratio * 146} y2={28 + ratio * 146} className="grid-line" />)}
+        {thresholds.map((threshold) => <line key={threshold} x1={PLOT_LEFT} x2={PLOT_RIGHT} y1={y(threshold)} y2={y(threshold)} className="threshold-line" />)}
         <polyline points={points} className="signal-line" />
         {cursorIndex !== null && (
           <>
-            <line x1={42 + (cursor ?? 0) * 536} x2={42 + (cursor ?? 0) * 536} y1="18" y2="174" className="cursor-line" />
+            <line x1={PLOT_LEFT + (cursor ?? 0) * PLOT_WIDTH} x2={PLOT_LEFT + (cursor ?? 0) * PLOT_WIDTH} y1="18" y2="174" className="cursor-line" />
             <circle cx={x(logX ? Math.log10(Math.max(axis[cursorIndex], Number.MIN_VALUE)) : axis[cursorIndex])} cy={y(values[cursorIndex])} r="4" className="cursor-dot" />
           </>
         )}
-        <text x="42" y="195" className="axis-label">{engineering(visibleAxis[0], axisUnit(axisName))}</text>
-        <text x="578" y="195" textAnchor="end" className="axis-label">{engineering(visibleAxis.at(-1) ?? 0, axisUnit(axisName))}</text>
+        <text x={PLOT_LEFT} y="195" className="axis-label">{engineering(visibleAxis[0], axisUnit(axisName))}</text>
+        <text x={PLOT_RIGHT} y="195" textAnchor="end" className="axis-label">{engineering(visibleAxis.at(-1) ?? 0, axisUnit(axisName))}</text>
         <text x="48" y="14" className="axis-label">{engineering(maxY, valueUnit)}</text>
       </svg>
       {cursorIndex !== null && (
