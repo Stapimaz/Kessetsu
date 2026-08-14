@@ -10,7 +10,9 @@ use std::collections::{BTreeMap, BTreeSet, BinaryHeap, VecDeque};
 
 pub const SCHEMATIC_SCHEMA_VERSION: &str = "kessetsu.schematic.v1";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 pub struct Point {
     pub x: i32,
     pub y: i32,
@@ -165,6 +167,9 @@ pub struct SchematicText {
     pub role: TextRole,
     pub text: String,
     pub point: Point,
+    /// Fine typographic adjustment in eighths of one schematic grid unit.
+    #[serde(default)]
+    pub offset_eighths: Point,
     pub anchor: TextAnchor,
     pub bounds: Rect,
 }
@@ -1523,6 +1528,7 @@ fn place_component_texts(
                 role: TextRole::Reference,
                 text: reference_text.to_string(),
                 point: reference_point,
+                offset_eighths: Point::new(0, 0),
                 anchor: reference_anchor,
                 bounds: reference_bounds,
             });
@@ -1532,6 +1538,7 @@ fn place_component_texts(
                 role: secondary_role,
                 text: secondary_text.to_string(),
                 point: secondary_point,
+                offset_eighths: Point::new(0, 0),
                 anchor: secondary_anchor,
                 bounds: secondary_bounds,
             });
@@ -1554,12 +1561,387 @@ fn place_component_texts(
                 role: TextRole::Reference,
                 text: reference_text.to_string(),
                 point,
+                offset_eighths: Point::new(0, 0),
                 anchor,
                 bounds,
             });
         }
     }
     placed
+}
+
+const TEXT_SUBGRID: i32 = 8;
+const TEXT_CLEARANCE: i32 = 2;
+const TEXT_LINE_GAP: i32 = 0;
+
+#[derive(Debug, Clone, Copy)]
+struct FineTextPlacement {
+    point: Point,
+    anchor: TextAnchor,
+}
+
+fn fine_rect(rect: Rect) -> Rect {
+    Rect {
+        min: Point::new(rect.min.x * TEXT_SUBGRID, rect.min.y * TEXT_SUBGRID),
+        max: Point::new(rect.max.x * TEXT_SUBGRID, rect.max.y * TEXT_SUBGRID),
+    }
+}
+
+fn text_height_eighths(role: TextRole) -> i32 {
+    if role == TextRole::Reference { 4 } else { 3 }
+}
+
+fn text_width_eighths(text: &SchematicText) -> i32 {
+    let character_width = if text.role == TextRole::Reference {
+        3
+    } else {
+        2
+    };
+    i32::try_from(text.text.chars().count())
+        .unwrap_or(i32::MAX / character_width)
+        .saturating_mul(character_width)
+        .max(2)
+}
+
+fn fine_text_bounds_at(text: &SchematicText, placement: FineTextPlacement) -> Rect {
+    let width = text_width_eighths(text);
+    let (min_x, max_x) = match placement.anchor {
+        TextAnchor::Start => (placement.point.x, placement.point.x.saturating_add(width)),
+        TextAnchor::Middle => {
+            let left = width / 2;
+            (
+                placement.point.x.saturating_sub(left),
+                placement.point.x.saturating_add(width - left),
+            )
+        }
+        TextAnchor::End => (placement.point.x.saturating_sub(width), placement.point.x),
+    };
+    Rect {
+        min: Point::new(
+            min_x,
+            placement
+                .point
+                .y
+                .saturating_sub(text_height_eighths(text.role)),
+        ),
+        max: Point::new(max_x, placement.point.y.saturating_add(1)),
+    }
+}
+
+fn fine_text_placement(text: &SchematicText) -> FineTextPlacement {
+    FineTextPlacement {
+        point: Point::new(
+            text.point.x * TEXT_SUBGRID + text.offset_eighths.x,
+            text.point.y * TEXT_SUBGRID + text.offset_eighths.y,
+        ),
+        anchor: text.anchor,
+    }
+}
+
+fn rendered_text_bounds(text: &SchematicText) -> Rect {
+    fine_text_bounds_at(text, fine_text_placement(text))
+}
+
+fn centered_baseline(center_y: i32, text: &SchematicText) -> i32 {
+    center_y + (text_height_eighths(text.role) - 1) / 2
+}
+
+fn pair_fine_candidates(
+    component: &SchematicComponent,
+    reference: &SchematicText,
+    secondary: &SchematicText,
+) -> Vec<[FineTextPlacement; 2]> {
+    let bounds = fine_rect(component.bounds);
+    let center_x = (bounds.min.x + bounds.max.x) / 2;
+    let center_y = (bounds.min.y + bounds.max.y) / 2;
+    let reference_height = text_height_eighths(reference.role);
+    let secondary_height = text_height_eighths(secondary.role);
+
+    let secondary_above = bounds.min.y - TEXT_CLEARANCE - 1;
+    let reference_above = secondary_above - secondary_height - TEXT_LINE_GAP - 1;
+    let reference_below = bounds.max.y + TEXT_CLEARANCE + reference_height;
+    let secondary_below = reference_below + 1 + TEXT_LINE_GAP + secondary_height;
+    let reference_side = center_y - (reference_height + TEXT_LINE_GAP) / 2;
+    let secondary_side = reference_side + 1 + TEXT_LINE_GAP + secondary_height;
+
+    let above = [
+        FineTextPlacement {
+            point: Point::new(center_x, reference_above),
+            anchor: TextAnchor::Middle,
+        },
+        FineTextPlacement {
+            point: Point::new(center_x, secondary_above),
+            anchor: TextAnchor::Middle,
+        },
+    ];
+    let below = [
+        FineTextPlacement {
+            point: Point::new(center_x, reference_below),
+            anchor: TextAnchor::Middle,
+        },
+        FineTextPlacement {
+            point: Point::new(center_x, secondary_below),
+            anchor: TextAnchor::Middle,
+        },
+    ];
+    let left = [
+        FineTextPlacement {
+            point: Point::new(bounds.min.x - TEXT_CLEARANCE, reference_side),
+            anchor: TextAnchor::End,
+        },
+        FineTextPlacement {
+            point: Point::new(bounds.min.x - TEXT_CLEARANCE, secondary_side),
+            anchor: TextAnchor::End,
+        },
+    ];
+    let right = [
+        FineTextPlacement {
+            point: Point::new(bounds.max.x + TEXT_CLEARANCE, reference_side),
+            anchor: TextAnchor::Start,
+        },
+        FineTextPlacement {
+            point: Point::new(bounds.max.x + TEXT_CLEARANCE, secondary_side),
+            anchor: TextAnchor::Start,
+        },
+    ];
+    let split = [
+        FineTextPlacement {
+            point: Point::new(
+                bounds.min.x - TEXT_CLEARANCE,
+                centered_baseline(center_y, reference),
+            ),
+            anchor: TextAnchor::End,
+        },
+        FineTextPlacement {
+            point: Point::new(
+                bounds.max.x + TEXT_CLEARANCE,
+                centered_baseline(center_y, secondary),
+            ),
+            anchor: TextAnchor::Start,
+        },
+    ];
+
+    let vertical = matches!(component.orientation, Orientation::Down | Orientation::Up);
+    let passive = matches!(
+        component.symbol,
+        CatalogSymbol::Resistor
+            | CatalogSymbol::Capacitor
+            | CatalogSymbol::Inductor
+            | CatalogSymbol::Diode
+    );
+    if matches!(
+        component.symbol,
+        CatalogSymbol::VoltageSource | CatalogSymbol::CurrentSource
+    ) {
+        vec![above, below, left, right, split]
+    } else if passive && vertical {
+        vec![right, left, above, below]
+    } else if passive {
+        vec![above, below, left, right]
+    } else {
+        vec![above, right, left, below, split]
+    }
+}
+
+fn single_fine_candidates(
+    component: &SchematicComponent,
+    text: &SchematicText,
+) -> Vec<FineTextPlacement> {
+    let bounds = fine_rect(component.bounds);
+    let center_x = (bounds.min.x + bounds.max.x) / 2;
+    let center_y = (bounds.min.y + bounds.max.y) / 2;
+    let height = text_height_eighths(text.role);
+    vec![
+        FineTextPlacement {
+            point: Point::new(
+                bounds.min.x - TEXT_CLEARANCE,
+                bounds.min.y - TEXT_CLEARANCE - 1,
+            ),
+            anchor: TextAnchor::End,
+        },
+        FineTextPlacement {
+            point: Point::new(
+                bounds.max.x + TEXT_CLEARANCE,
+                bounds.min.y - TEXT_CLEARANCE - 1,
+            ),
+            anchor: TextAnchor::Start,
+        },
+        FineTextPlacement {
+            point: Point::new(center_x, bounds.min.y - TEXT_CLEARANCE - 1),
+            anchor: TextAnchor::Middle,
+        },
+        FineTextPlacement {
+            point: Point::new(
+                bounds.max.x + TEXT_CLEARANCE,
+                centered_baseline(center_y, text),
+            ),
+            anchor: TextAnchor::Start,
+        },
+        FineTextPlacement {
+            point: Point::new(
+                bounds.min.x - TEXT_CLEARANCE,
+                centered_baseline(center_y, text),
+            ),
+            anchor: TextAnchor::End,
+        },
+        FineTextPlacement {
+            point: Point::new(center_x, bounds.max.y + TEXT_CLEARANCE + height),
+            anchor: TextAnchor::Middle,
+        },
+    ]
+}
+
+fn fine_path_crosses_text(bounds: Rect, wire: &SchematicWire) -> bool {
+    wire.points.windows(2).any(|pair| {
+        let start = Point::new(pair[0].x * TEXT_SUBGRID, pair[0].y * TEXT_SUBGRID);
+        let end = Point::new(pair[1].x * TEXT_SUBGRID, pair[1].y * TEXT_SUBGRID);
+        if start.y == end.y {
+            let min_x = start.x.min(end.x);
+            let max_x = start.x.max(end.x);
+            start.y > bounds.min.y
+                && start.y < bounds.max.y
+                && max_x > bounds.min.x
+                && min_x < bounds.max.x
+        } else if start.x == end.x {
+            let min_y = start.y.min(end.y);
+            let max_y = start.y.max(end.y);
+            start.x > bounds.min.x
+                && start.x < bounds.max.x
+                && max_y > bounds.min.y
+                && min_y < bounds.max.y
+        } else {
+            false
+        }
+    })
+}
+
+fn fine_text_candidate_is_clear(
+    candidates: &[(usize, FineTextPlacement)],
+    texts: &[SchematicText],
+    components: &[SchematicComponent],
+    labels: &[NetLabel],
+    wires: &[SchematicWire],
+    settled: &[Rect],
+) -> bool {
+    let bounds: Vec<_> = candidates
+        .iter()
+        .map(|(index, placement)| fine_text_bounds_at(&texts[*index], *placement))
+        .collect();
+    if bounds.iter().any(|text_bounds| {
+        components
+            .iter()
+            .any(|component| text_bounds.overlaps_interior(fine_rect(component.bounds)))
+            || labels
+                .iter()
+                .any(|label| text_bounds.overlaps_interior(fine_rect(semantic_label_bounds(label))))
+            || wires
+                .iter()
+                .any(|wire| fine_path_crosses_text(*text_bounds, wire))
+            || settled
+                .iter()
+                .any(|other| text_bounds.overlaps_interior(*other))
+    }) {
+        return false;
+    }
+    for (index, left) in bounds.iter().enumerate() {
+        if bounds[index + 1..]
+            .iter()
+            .any(|right| left.overlaps_interior(*right))
+        {
+            return false;
+        }
+    }
+    true
+}
+
+fn ceil_subgrid(value: i32) -> i32 {
+    -((-value).div_euclid(TEXT_SUBGRID))
+}
+
+fn apply_fine_text_placement(text: &mut SchematicText, placement: FineTextPlacement) {
+    let bounds = fine_text_bounds_at(text, placement);
+    let point = Point::new(
+        placement.point.x.div_euclid(TEXT_SUBGRID),
+        placement.point.y.div_euclid(TEXT_SUBGRID),
+    );
+    text.point = point;
+    text.offset_eighths = Point::new(
+        placement.point.x - point.x * TEXT_SUBGRID,
+        placement.point.y - point.y * TEXT_SUBGRID,
+    );
+    text.anchor = placement.anchor;
+    text.bounds = Rect {
+        min: Point::new(
+            bounds.min.x.div_euclid(TEXT_SUBGRID),
+            bounds.min.y.div_euclid(TEXT_SUBGRID),
+        ),
+        max: Point::new(ceil_subgrid(bounds.max.x), ceil_subgrid(bounds.max.y)),
+    };
+}
+
+fn refine_component_texts(
+    texts: &mut [SchematicText],
+    components: &[SchematicComponent],
+    labels: &[NetLabel],
+    wires: &[SchematicWire],
+) {
+    let mut settled = Vec::new();
+    for component in components {
+        let indexes: Vec<_> = texts
+            .iter()
+            .enumerate()
+            .filter_map(|(index, text)| (text.component == component.id).then_some(index))
+            .collect();
+        let selected = if indexes.len() == 2 {
+            let reference_index = indexes
+                .iter()
+                .copied()
+                .find(|index| texts[*index].role == TextRole::Reference)
+                .unwrap_or(indexes[0]);
+            let secondary_index = indexes
+                .iter()
+                .copied()
+                .find(|index| *index != reference_index)
+                .unwrap_or(indexes[1]);
+            let mut candidates: Vec<_> =
+                pair_fine_candidates(component, &texts[reference_index], &texts[secondary_index])
+                    .into_iter()
+                    .map(|pair| vec![(reference_index, pair[0]), (secondary_index, pair[1])])
+                    .collect();
+            candidates.push(vec![
+                (
+                    reference_index,
+                    fine_text_placement(&texts[reference_index]),
+                ),
+                (
+                    secondary_index,
+                    fine_text_placement(&texts[secondary_index]),
+                ),
+            ]);
+            candidates.into_iter().find(|candidate| {
+                fine_text_candidate_is_clear(candidate, texts, components, labels, wires, &settled)
+            })
+        } else if indexes.len() == 1 {
+            let index = indexes[0];
+            let mut candidates: Vec<_> = single_fine_candidates(component, &texts[index])
+                .into_iter()
+                .map(|placement| vec![(index, placement)])
+                .collect();
+            candidates.push(vec![(index, fine_text_placement(&texts[index]))]);
+            candidates.into_iter().find(|candidate| {
+                fine_text_candidate_is_clear(candidate, texts, components, labels, wires, &settled)
+            })
+        } else {
+            None
+        };
+
+        if let Some(selected) = selected {
+            for (index, placement) in selected {
+                apply_fine_text_placement(&mut texts[index], placement);
+                settled.push(rendered_text_bounds(&texts[index]));
+            }
+        }
+    }
 }
 
 fn oriented_between(
@@ -3019,8 +3401,9 @@ fn quality_report(input: QualityInput<'_>) -> QualityReport {
 
     let mut text_symbol_hits = BTreeSet::new();
     for text in texts {
+        let text_bounds = rendered_text_bounds(text);
         for component in components {
-            if text.bounds.overlaps_interior(component.bounds) {
+            if text_bounds.overlaps_interior(fine_rect(component.bounds)) {
                 text_symbol_hits.insert((text.id.clone(), component.id.clone()));
             }
         }
@@ -3028,7 +3411,7 @@ fn quality_report(input: QualityInput<'_>) -> QualityReport {
     let mut text_wire_hits = BTreeSet::new();
     for text in texts {
         for wire in wires {
-            if path_crosses_text_interior(text.bounds, wire) {
+            if fine_path_crosses_text(rendered_text_bounds(text), wire) {
                 text_wire_hits.insert((text.id.clone(), wire.id.clone()));
             }
         }
@@ -3036,7 +3419,7 @@ fn quality_report(input: QualityInput<'_>) -> QualityReport {
     let mut text_text_hits = BTreeSet::new();
     for (index, left) in texts.iter().enumerate() {
         for right in &texts[index + 1..] {
-            if left.bounds.overlaps_interior(right.bounds) {
+            if rendered_text_bounds(left).overlaps_interior(rendered_text_bounds(right)) {
                 text_text_hits.insert((left.id.clone(), right.id.clone()));
             }
         }
@@ -3044,7 +3427,8 @@ fn quality_report(input: QualityInput<'_>) -> QualityReport {
     let mut text_label_hits = BTreeSet::new();
     for text in texts {
         for label in labels {
-            if text.bounds.overlaps_interior(semantic_label_bounds(label)) {
+            if rendered_text_bounds(text).overlaps_interior(fine_rect(semantic_label_bounds(label)))
+            {
                 text_label_hits.insert((text.id.clone(), label.id.clone()));
             }
         }
@@ -3054,7 +3438,16 @@ fn quality_report(input: QualityInput<'_>) -> QualityReport {
         .filter(|text| {
             component_by_id
                 .get(text.component.as_str())
-                .is_none_or(|component| rect_manhattan_gap(text.bounds, component.bounds) > 3)
+                .is_none_or(|component| {
+                    let text_bounds = rendered_text_bounds(text);
+                    rect_manhattan_gap(text_bounds, fine_rect(component.bounds)) > 4
+                        && !texts.iter().any(|sibling| {
+                            sibling.id != text.id
+                                && sibling.component == text.component
+                                && rect_manhattan_gap(text_bounds, rendered_text_bounds(sibling))
+                                    <= TEXT_LINE_GAP as usize
+                        })
+                })
         })
         .count();
     let component_text_pair_violations = components
@@ -3070,13 +3463,22 @@ fn quality_report(input: QualityInput<'_>) -> QualityReport {
             reference
                 .zip(secondary)
                 .is_some_and(|(reference, secondary)| {
-                    text_pair_style_penalty(
-                        component,
-                        reference.bounds,
-                        reference.point,
-                        secondary.bounds,
-                        secondary.point,
-                    ) >= 5_000
+                    let component_bounds = fine_rect(component.bounds);
+                    let reference_bounds = rendered_text_bounds(reference);
+                    let secondary_bounds = rendered_text_bounds(secondary);
+                    let reference_side = text_horizontal_side(reference_bounds, component_bounds);
+                    let secondary_side = text_horizontal_side(secondary_bounds, component_bounds);
+                    let both_above = reference_bounds.max.y <= component_bounds.min.y
+                        && secondary_bounds.max.y <= component_bounds.min.y;
+                    let both_below = reference_bounds.min.y >= component_bounds.max.y
+                        && secondary_bounds.min.y >= component_bounds.max.y;
+                    let coherent_same_side = (reference_side != 0
+                        && reference_side == secondary_side)
+                        || both_above
+                        || both_below;
+                    coherent_same_side
+                        && rect_manhattan_gap(reference_bounds, secondary_bounds)
+                            > TEXT_LINE_GAP as usize
                 })
         })
         .count();
@@ -3450,7 +3852,8 @@ pub fn generate_schematic(circuit: &CircuitIR) -> Result<Schematic, SchematicErr
     let labels = build_semantic_labels(circuit, &components, &nets)?;
     let (wires, junctions, crossings, labels) =
         route_schematic(circuit, &components, &nets, labels)?;
-    let texts = place_component_texts(&components, &labels, &wires);
+    let mut texts = place_component_texts(&components, &labels, &wires);
+    refine_component_texts(&mut texts, &components, &labels, &wires);
     let connectivity = connectivity_report(&graph, &wires, &labels);
     if !connectivity.verified {
         return Err(SchematicError {

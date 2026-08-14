@@ -1,5 +1,5 @@
 import { CircuitBoard, Grid3X3, Maximize2, Minus, Plus } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { SchematicSummary } from '../domain';
 
 interface Props {
@@ -7,12 +7,74 @@ interface Props {
   svg: string;
 }
 
+function componentAtTarget(target: EventTarget | null) {
+  return target instanceof Element
+    ? target.closest('[data-component]')?.getAttribute('data-component') ?? null
+    : null;
+}
+
+function componentAtPointer(
+  target: EventTarget | null,
+  surface: HTMLDivElement,
+  clientX: number,
+  clientY: number,
+) {
+  const direct = componentAtTarget(target);
+  if (direct) return direct;
+
+  const padding = 6;
+  const matches = Array.from(
+    surface.querySelectorAll<SVGGElement>('g.component[data-component]'),
+  ).flatMap((group) => {
+    const bounds = group.getBoundingClientRect();
+    if (
+      clientX < bounds.left - padding
+      || clientX > bounds.right + padding
+      || clientY < bounds.top - padding
+      || clientY > bounds.bottom + padding
+    ) return [];
+    return [{
+      component: group.getAttribute('data-component') ?? '',
+      area: bounds.width * bounds.height,
+    }];
+  });
+  matches.sort((left, right) => left.area - right.area || left.component.localeCompare(right.component));
+  return matches[0]?.component || null;
+}
+
 export function SchematicPanel({ schematic, svg }: Props) {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
   const [gridVisible, setGridVisible] = useState(true);
+  const [hoveredComponent, setHoveredComponent] = useState<string | null>(null);
+  const [selectedComponent, setSelectedComponent] = useState<string | null>(null);
+  const documentRef = useRef<HTMLDivElement>(null);
+  const activeComponent = hoveredComponent ?? selectedComponent;
   const reset = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
+
+  useEffect(() => {
+    setHoveredComponent(null);
+    setSelectedComponent(null);
+  }, [svg]);
+
+  useEffect(() => {
+    const nodes = documentRef.current?.querySelectorAll('[data-component]') ?? [];
+    for (const node of nodes) {
+      node.classList.toggle(
+        'is-component-active',
+        activeComponent !== null && node.getAttribute('data-component') === activeComponent,
+      );
+    }
+  }, [activeComponent, svg]);
+
+  useEffect(() => {
+    const clearSelection = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSelectedComponent(null);
+    };
+    window.addEventListener('keydown', clearSelection);
+    return () => window.removeEventListener('keydown', clearSelection);
+  }, []);
 
   return (
     <section className="workspace-panel schematic-panel" aria-label="Canonical schematic">
@@ -40,13 +102,35 @@ export function SchematicPanel({ schematic, svg }: Props) {
           setZoom((current) => Math.max(0.2, Math.min(4, current - event.deltaY * 0.002)));
         }}
         onPointerDown={(event) => {
+          event.currentTarget.focus();
+          const component = componentAtPointer(
+            event.target,
+            event.currentTarget,
+            event.clientX,
+            event.clientY,
+          );
+          if (component) {
+            setSelectedComponent((current) => component === current ? null : component);
+            return;
+          }
+          setSelectedComponent(null);
           event.currentTarget.setPointerCapture(event.pointerId);
           setDragStart({ x: event.clientX - pan.x, y: event.clientY - pan.y });
         }}
-        onPointerMove={(event) => dragStart && setPan({ x: event.clientX - dragStart.x, y: event.clientY - dragStart.y })}
+        onPointerMove={(event) => {
+          setHoveredComponent(componentAtPointer(
+            event.target,
+            event.currentTarget,
+            event.clientX,
+            event.clientY,
+          ));
+          if (dragStart) setPan({ x: event.clientX - dragStart.x, y: event.clientY - dragStart.y });
+        }}
         onPointerUp={() => setDragStart(null)}
+        onPointerLeave={() => { setHoveredComponent(null); setDragStart(null); }}
         onKeyDown={(event) => {
           const delta = event.shiftKey ? 40 : 12;
+          if (event.key === 'Escape') setSelectedComponent(null);
           if (event.key === 'ArrowLeft') setPan((current) => ({ ...current, x: current.x - delta }));
           if (event.key === 'ArrowRight') setPan((current) => ({ ...current, x: current.x + delta }));
           if (event.key === 'ArrowUp') setPan((current) => ({ ...current, y: current.y - delta }));
@@ -55,9 +139,11 @@ export function SchematicPanel({ schematic, svg }: Props) {
       >
         {svg ? (
           <div
+            ref={documentRef}
             className="schematic-document"
             data-testid="canonical-schematic"
             data-quality={schematic?.quality.passed ? 'pass' : 'warning'}
+            data-selected-component={selectedComponent ?? undefined}
             style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
             dangerouslySetInnerHTML={{ __html: svg }}
           />

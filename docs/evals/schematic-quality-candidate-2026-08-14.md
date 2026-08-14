@@ -18,6 +18,9 @@ The owner rejected the 2026-08-13 candidate after the real images exposed detach
 - DC supply sources form compact power blocks outside the main signal lane;
 - Web clears stale compiled artifacts immediately after source edits, preventing the previous circuit from being captured or displayed as the new result;
 - Web uses a default-on, user-toggleable dark dotted grid that is not baked into engineering exports.
+- Component fields receive deterministic eighth-grid typography refinement after coarse placement, keeping references and values close without moving symbols or routing.
+- Web-only component hit areas link hover/click selection across a symbol and all of its reference/value/model fields; exported artwork remains unchanged.
+- NPN and PNP emitter arrows use crisp, filled, polarity-correct triangular markers instead of open splayed polylines.
 - small parallel two-net networks use shared horizontal rails, while a direct-feedback op-amp's grounded output load aligns below the output pin; both topologies have permanent regressions.
 
 ## Machine evidence
@@ -48,7 +51,7 @@ The diode clamp's `800/1000` aligned-direct coverage and `95‰` detour come fro
 - KiCad and LTspice consume the same component origins, orientations, pin anchors, wires and semantic labels; neither owns a second layout engine.
 - `core/tests/exporter_contract.rs`: 5/5 tests pass across all seven advertised formats, including deterministic bytes, real signatures, fail-closed connectivity and complete benchmark component coverage.
 - Installed-application smoke: RC, gain-stage and power-amplifier open in KiCad and LTspice, retain every component reference and produce netlists. KiCad ERC reports **0 errors**; its warnings are limited to the documented portable embedded `Kessetsu` symbol-library namespace not being present in the user's global library table.
-- `webapp/tests/e2e/schematic-corpus.spec.ts`: all thirteen Core SVGs render on the actual Web canvas with verified quality and the dotted-grid contract. The test also caught and fixed stale schematic state during debounced source changes.
+- `webapp/tests/e2e/schematic-corpus.spec.ts`: all thirteen Core SVGs render on the actual Web canvas with verified quality and the dotted-grid contract. The test also covers linked component hover/click selection, generous symbol hit areas, empty/repeat/Escape clearing and caught the earlier stale schematic state during debounced source changes.
 - Full local `scripts/verify.ps1` passed on 2026-08-14: Rust fmt/Clippy/tests, release and WASM builds, 10 Web unit tests, 11 Chromium E2E tests, dependency/security audits, external-agent replay, clean release smoke and installed KiCad/LTspice smoke.
 
 ## Agent visual review
@@ -61,10 +64,10 @@ The actual exported PNGs and Web captures were inspected after more than seven f
 - The high-fan-out fixture intentionally uses a BUS label, but its two resistor banks place both text fields outward so ownership is unambiguous.
 - The power amplifier reads left-to-right as input/buffer → gain/error → driver → complementary class-B output → load. Local feedback paths and the load remain explicit.
 
-No major visual defect remains in the agent review. This statement is not a substitute for the project owner's SQ-10 review.
+After the owner's second review, all thirteen exported PNGs and the linked-highlight Web capture were regenerated and inspected again. The reported distant text and BJT-arrow defects are resolved without changing accepted routing. No major visual defect remains in the agent review. This statement is not a substitute for the project owner's final SQ-10 acceptance.
 
 ## Remaining acceptance gates
 
 1. Confirm the pushed commit's remote canonical CI result to finish SQ-9; the local gate and candidate hash/scorecard lock already pass.
-2. Open the local Web Hub and obtain explicit owner approval for RC, gain-stage and power-amplifier under SQ-10.
+2. Open the refined local Web Hub and obtain explicit owner approval for RC, gain-stage and power-amplifier under SQ-10; implementation subtasks SQ-10a–c are complete.
 3. Only after that approval may this candidate become the accepted visual golden and Phase 4 visual acceptance close.

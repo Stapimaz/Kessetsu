@@ -39,8 +39,39 @@ test('renders the canonical schematic corpus with verified quality', async ({ pa
 
     const schematic = page.getByTestId('canonical-schematic');
     await expect(schematic).toHaveAttribute('data-quality', 'pass');
-    await expect(schematic.locator(`g.component[data-component="${component}"]`)).toBeVisible();
+    const componentSymbol = schematic.locator(`g.component[data-component="${component}"]`);
+    await expect(componentSymbol).toBeVisible();
     await expect(schematic.locator('svg[data-schema="kessetsu.schematic.v1"]')).toBeVisible();
+
+    if (name === 'gain-stage') {
+      const componentTexts = schematic.locator(`text[data-component="${component}"]`);
+      await expect(componentTexts).toHaveCount(2);
+      await componentSymbol.hover();
+      await expect(componentSymbol).toHaveClass(/is-component-active/);
+      for (const text of await componentTexts.all()) await expect(text).toHaveClass(/is-component-active/);
+      await surface.hover({ position: { x: 4, y: 4 } });
+      await expect(componentSymbol).not.toHaveClass(/is-component-active/);
+      await componentSymbol.click();
+      await expect(schematic).toHaveAttribute('data-selected-component', component);
+      await expect(componentSymbol).toHaveClass(/is-component-active/);
+      for (const text of await componentTexts.all()) await expect(text).toHaveClass(/is-component-active/);
+      if (process.env.KESSETSU_CAPTURE_VISUALS) {
+        await schematic.screenshot({
+          path: join('test-results', 'schematic-corpus', 'gain-stage-selected.png'),
+          animations: 'disabled',
+        });
+      }
+      await page.keyboard.press('Escape');
+      await expect(schematic).not.toHaveAttribute('data-selected-component', component);
+      await expect(componentSymbol).not.toHaveClass(/is-component-active/);
+      await componentSymbol.click();
+      await expect(schematic).toHaveAttribute('data-selected-component', component);
+      await componentSymbol.click();
+      await expect(schematic).not.toHaveAttribute('data-selected-component', component);
+      await componentSymbol.click();
+      await surface.click({ position: { x: 4, y: 4 } });
+      await expect(schematic).not.toHaveAttribute('data-selected-component', component);
+    }
 
     if (process.env.KESSETSU_CAPTURE_VISUALS) {
       await schematic.screenshot({

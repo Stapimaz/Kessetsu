@@ -2,6 +2,7 @@ use crate::component::{CatalogSymbol, PinSide};
 use crate::schematic::{NetKind, Point, Schematic, SchematicComponent, SchematicText, TextAnchor};
 
 const SCALE: i32 = 32;
+const TEXT_SUBGRID: i32 = 8;
 
 fn escape_xml(value: &str) -> String {
     value
@@ -122,13 +123,13 @@ fn symbol_markup(component: &SchematicComponent) -> String {
                         two = local(2.0)
                     ),
                     format!(
-                        "M {} {} L {} {} L {} {}",
-                        local(1.5),
-                        local(0.42),
-                        local(1.16),
-                        local(0.7),
-                        local(1.56),
-                        local(0.7)
+                        "M {} {} L {} {} L {} {} Z",
+                        local(1.18),
+                        local(0.56),
+                        local(1.62),
+                        local(0.47),
+                        local(1.48),
+                        local(0.23)
                     ),
                 )
             } else {
@@ -141,18 +142,18 @@ fn symbol_markup(component: &SchematicComponent) -> String {
                         two = local(2.0)
                     ),
                     format!(
-                        "M {} {} L {} {} L {} {}",
-                        local(1.48),
-                        local(1.58),
-                        local(1.15),
-                        local(1.3),
-                        local(1.55),
-                        local(1.3)
+                        "M {} {} L {} {} L {} {} Z",
+                        local(1.65),
+                        local(1.65),
+                        local(1.23),
+                        local(1.57),
+                        local(1.37),
+                        local(1.33)
                     ),
                 )
             };
             format!(
-                "<path {stroke} d=\"M 0 {one} H {base} M {base} {top} V {bottom} {branches}\"/><path d=\"{arrow}\" fill=\"none\" stroke=\"#172033\" stroke-width=\"2\"/>",
+                "<path {stroke} d=\"M 0 {one} H {base} M {base} {top} V {bottom} {branches}\"/><path class=\"emitter-arrow\" d=\"{arrow}\" fill=\"#172033\" stroke=\"none\"/>",
                 one = local(1.0),
                 base = local(0.72),
                 top = local(0.45),
@@ -226,7 +227,9 @@ fn component_markup(component: &SchematicComponent) -> String {
 }
 
 fn text_markup(text: &SchematicText) -> String {
-    let (x, y) = px(text.point);
+    let (base_x, base_y) = px(text.point);
+    let x = base_x + text.offset_eighths.x * SCALE / TEXT_SUBGRID;
+    let y = base_y + text.offset_eighths.y * SCALE / TEXT_SUBGRID;
     let anchor = match text.anchor {
         TextAnchor::Start => "start",
         TextAnchor::Middle => "middle",

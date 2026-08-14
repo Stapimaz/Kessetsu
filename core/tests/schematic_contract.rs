@@ -202,6 +202,19 @@ fn component_text_is_owned_by_the_schematic_contract_and_stays_collision_free() 
                 .filter(|text| text.component == component.id && text.role == TextRole::Reference)
                 .count();
             assert_eq!(references, 1, "{name}: {} reference", component.id);
+            for text in schematic
+                .texts
+                .iter()
+                .filter(|text| text.component == component.id)
+            {
+                assert!(
+                    (0..8).contains(&text.offset_eighths.x)
+                        && (0..8).contains(&text.offset_eighths.y),
+                    "{name}: {} has a non-canonical fine text offset {:?}",
+                    text.id,
+                    text.offset_eighths
+                );
+            }
             if component
                 .value
                 .as_deref()
@@ -235,7 +248,8 @@ fn component_text_is_owned_by_the_schematic_contract_and_stays_collision_free() 
                     .find(|text| text.component == component.id && text.role == TextRole::Value),
             ) {
                 assert_ne!(
-                    reference.point.y, value.point.y,
+                    reference.point.y * 8 + reference.offset_eighths.y,
+                    value.point.y * 8 + value.offset_eighths.y,
                     "{name}: {} reference/value share a text row",
                     component.id
                 );
@@ -248,6 +262,27 @@ fn component_text_is_owned_by_the_schematic_contract_and_stays_collision_free() 
         assert_eq!(schematic.quality.detached_component_texts, 0, "{name}");
         assert_eq!(
             schematic.quality.component_text_pair_violations, 0,
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn bjt_emitter_arrows_render_as_crisp_filled_markers() {
+    for (name, source, expected_arrows) in [
+        ("power_amplifier", CORPUS[5].1, 2),
+        ("differential_pair", CORPUS[7].1, 2),
+        ("bjt_common_emitter", CORPUS[11].1, 1),
+    ] {
+        let svg = schematic_svg::render_svg(&schematic(source));
+        assert_eq!(
+            svg.matches("class=\"emitter-arrow\"").count(),
+            expected_arrows,
+            "{name}"
+        );
+        assert_eq!(
+            svg.matches("fill=\"#172033\" stroke=\"none\"/>").count(),
+            expected_arrows,
             "{name}"
         );
     }
@@ -462,32 +497,32 @@ fn svg_visual_golden_hashes_are_cross_platform_stable() {
         (
             "minimal",
             CORPUS[0].1,
-            "8f554f9372959461ca23e8a582abf8fc311f5a501d107f29cab6427760582f48",
+            "6f830225fc4a75b3e9f654c1f8398bb1c8b7fcd7c2e0741571dac267abca3a4b",
         ),
         (
             "rc_filter",
             CORPUS[1].1,
-            "7ae4525552caba93da2563a7a6c086c6fdd09a83de78eb7fab5d8402e87f04a2",
+            "cd714d7005061d27889f342c10cc589b2340be12b4cdaee31b04f72c6c1e25dd",
         ),
         (
             "wheatstone",
             CORPUS[2].1,
-            "e6b3fa2ec29f6243568f796da4fc9238235e677a3266dfd84154b3be49509f83",
+            "31cfa59c8bd758c47578c8eff5bec4eb5875bac679b3bd0877a7484a43ff30c7",
         ),
         (
             "gain_stage",
             CORPUS[3].1,
-            "d090e8e9b419227e780e7053aad08a335757530731ff41829bd1b6aa5b15fe67",
+            "537643881975fd56d4b7b25a5d23052a308afda69b35a5115c019d03736f7668",
         ),
         (
             "high_fanout",
             CORPUS[4].1,
-            "a8a048e75cdfb2fc64776d9d2b90215ed77bb1962dfe250608e6505c3d37832d",
+            "bec7c0f842f962e88bd4357b68b56e9bfbfb0a2b31cf25feb0ad4d387393babc",
         ),
         (
             "power_amplifier",
             CORPUS[5].1,
-            "bba5ca50ccd3eee2c85ed0e668faf1d823ba84e087f9bbdff88fd08369827846",
+            "dca2efa25df95d1015716dd0b69e7ed1b672a4aa0e35a1481cdd367e3cdd2b27",
         ),
     ] {
         let actual = svg_hash(source);
