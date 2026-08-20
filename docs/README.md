@@ -48,7 +48,7 @@ Files under [`evals/`](evals/) are evidence, not general user documentation. Rej
 
 English is the primary language for source comments, UI text, diagnostics, and documentation. New documents and newly written sections must use English. Exact identifiers, commands, schema fields, and quoted external text should retain their original spelling.
 
-Three long-lived documents still contain Turkish prose: `architecture.md`, `cli_reference.md`, and `ROADMAP.md`. They remain authoritative while translation is completed incrementally. A section should be translated as a coherent unit; avoid mixing languages sentence by sentence or changing technical meaning merely to finish the migration quickly.
+The authoritative architecture, CLI reference, and roadmap were migrated to English on 2026-08-20. If older Turkish prose is found elsewhere, translate the containing section as a coherent unit; avoid mixing languages sentence by sentence or changing technical meaning merely to finish a translation.
 
 ## Document lifecycle
 
