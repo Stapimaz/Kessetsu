@@ -1,6 +1,8 @@
 # Schematic Quality Candidate — 2026-08-14
 
-- Status: **Candidate; agent-reviewed, not yet owner-accepted and not an accepted golden**
+- Status: **Accepted visual golden on 2026-08-20 after explicit owner review of RC, gain-stage and power-amplifier**
+- Accepted implementation: `5308f3b` (`Fix schematic and plot pointer geometry`)
+- Remote verification: GitHub Actions run `31850078955`, successful on the accepted commit
 - Source of truth: Circuit IR → `kessetsu.schematic.v1` → Core render/export projections
 - Harness: `scripts/capture-schematic-corpus.ps1`
 - Local evidence directory: `.artifacts/schematic-quality-candidate-2026-08-14`
@@ -64,10 +66,10 @@ The actual exported PNGs and Web captures were inspected after more than seven f
 - The high-fan-out fixture intentionally uses a BUS label, but its two resistor banks place both text fields outward so ownership is unambiguous.
 - The power amplifier reads left-to-right as input/buffer → gain/error → driver → complementary class-B output → load. Local feedback paths and the load remain explicit.
 
-After the owner's second review, all thirteen exported PNGs and the linked-highlight Web capture were regenerated and inspected again. The reported distant text and BJT-arrow defects are resolved without changing accepted routing. No major visual defect remains in the agent review. This statement is not a substitute for the project owner's final SQ-10 acceptance.
+After the owner's second review, all thirteen exported PNGs and the linked-highlight Web capture were regenerated and inspected again. The reported distant text and BJT-arrow defects were resolved without changing accepted routing. A final follow-up placed right-side fields clear of rotated symbol overhang, centered NPN/PNP arrows on their emitter branches, made schematic wheel zoom pointer-anchored, and corrected result-plot pointer mapping. The owner explicitly accepted the RC, gain-stage and power-amplifier schematics on 2026-08-20.
 
-## Remaining acceptance gates
+## Acceptance record
 
-1. Confirm the pushed commit's remote canonical CI result to finish SQ-9; the local gate and candidate hash/scorecard lock already pass.
-2. Open the refined local Web Hub and obtain explicit owner approval for RC, gain-stage and power-amplifier under SQ-10; implementation subtasks SQ-10a–c are complete.
-3. Only after that approval may this candidate become the accepted visual golden and Phase 4 visual acceptance close.
+1. The full local canonical gate passed on the accepted implementation, including 13 Chromium E2E tests, release smoke and installed KiCad/LTspice smoke.
+2. Remote CI run `31850078955` passed on exact commit `5308f3b`.
+3. The owner accepted all three required Web examples. This acceptance freezes the current output as the regression baseline; it does not prohibit future schematic improvements or fixes when a new defect is reported.

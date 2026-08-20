@@ -40,7 +40,7 @@ The [schematic quality plan](schematic_quality_plan.md) defines the current visu
 
 - [Rejected baseline — 2026-08-13](evals/schematic-quality-baseline-2026-08-13.md)
 - [Rejected/superseded candidate — 2026-08-13](evals/schematic-quality-candidate-2026-08-13.md)
-- [Current unaccepted candidate — 2026-08-14](evals/schematic-quality-candidate-2026-08-14.md)
+- [Accepted visual golden — candidate 2026-08-14, accepted 2026-08-20](evals/schematic-quality-candidate-2026-08-14.md)
 
 Files under [`evals/`](evals/) are evidence, not general user documentation. Rejected candidates are intentionally retained so that a later layout regression cannot be mistaken for progress.
 
