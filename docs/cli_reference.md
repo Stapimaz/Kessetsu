@@ -1,26 +1,26 @@
 # Kessetsu CLI Reference
 
-Kessetsu CLI, `.kess` kaynaklarını ortak Rust derleme hattından geçirir; ERC, SPICE üretimi, Ngspice çalıştırma ve assertion değerlendirme komutları sunar. Human çıktı insanlar, sürümlü JSON çıktı otomasyon ve AI ajanları içindir.
+The Kessetsu CLI sends `.kess` source through the shared Rust compilation pipeline and provides ERC, SPICE generation, Ngspice execution, and assertion evaluation commands. Human output is intended for people; versioned JSON output is intended for automation and AI agents.
 
-## Kullanım
+## Usage
 
 ```bash
 kess [--format human|json] [--schema-version kessetsu.cli.v1] \
   [--include ast,ir,graph,spice,datasets,models,raw-log] <COMMAND> [OPTIONS] <FILE>
 ```
 
-`--format` gerçek bir global seçenektir; alt komuttan önce veya sonra yazılabilir:
+`--format` is a true global option and can appear before or after the subcommand:
 
 ```bash
 kess --format json check examples/demo_circuit.kess
 kess check examples/demo_circuit.kess --format json
 ```
 
-`--schema-version` ve `--include` da global seçeneklerdir. `--include` virgülle ayrılarak veya tekrarlanarak kullanılabilir. Bilinmeyen schema sürümü `KES-F002` ve exit `2` ile, kaynak okunmadan ve output oluşturulmadan reddedilir.
+`--schema-version` and `--include` are also global options. `--include` accepts a comma-separated list or repeated uses. An unknown schema version is rejected with `KES-F002` and exit code `2` before the source is read or any output is created.
 
-## Stdin ve dosyasız agent kullanımı
+## Stdin and File-Free Agent Use
 
-Dosya yolu yerine `-` verildiğinde Kessetsu source stdin'den okunur:
+When the file path is `-`, Kessetsu reads source from stdin:
 
 ```bash
 kess check - --format json < circuit.kess
@@ -29,15 +29,15 @@ kess simulate - --format json < circuit.kess
 kess test - --format json < circuit.kess
 ```
 
-Stdin ile `compile`, `simulate` ve `test`, açık `--output` yoksa çalışma dizinine SPICE dosyası yazmaz. `compile` JSON çağrısında generated netlist gerekiyorsa `--include spice` kullanılır. Human `compile -` netlist'i stdout'a basar. Kalıcı artifact istenirse normal güvenli overwrite sözleşmesiyle `--output result.spice` verilebilir.
+With stdin, `compile`, `simulate`, and `test` do not write a SPICE file into the working directory unless an explicit `--output` is provided. Use `--include spice` when a JSON `compile` call needs the generated netlist. Human-mode `compile -` prints the netlist to stdout. To retain an artifact, provide an output such as `--output result.spice`; the normal safe-overwrite contract still applies.
 
-Side-effect-free stdin + JSON kullanımı agent retry'ları için idempotenttir: aynı source, seçenekler ve deterministic simulator sonucu byte-for-byte aynı envelope'u üretir. Dosya çıktısı isteyen caller, mevcut artifact'i bilinçli biçimde yenilemek için `--force` kullanmalıdır.
+Side-effect-free stdin plus JSON is idempotent for agent retries: the same source, options, and deterministic simulator result produce a byte-for-byte identical envelope. A caller that requests file output must use `--force` when intentionally replacing an existing artifact.
 
-## Komutlar
+## Commands
 
 ### `check`
 
-Parse, semantic validation ve ERC çalıştırır; dosya üretmez.
+Runs parsing, semantic validation, and ERC without producing a file.
 
 ```bash
 kess check examples/demo_circuit.kess
@@ -45,26 +45,26 @@ kess check examples/demo_circuit.kess
 
 ### `compile`
 
-Kontroller başarılıysa SPICE netlist üretir.
+Generates a SPICE netlist after all checks pass.
 
 ```bash
 kess compile examples/demo_circuit.kess
 kess compile examples/demo_circuit.kess --output build/demo.spice
 ```
 
-Varsayılan hedef kaynak dosyanın `.spice` uzantılı halidir. Var olan dosya sessizce ezilmez; bilinçli overwrite için `--force` gerekir:
+The default destination is the source path with a `.spice` extension. Existing files are never overwritten silently; intentional replacement requires `--force`:
 
 ```bash
 kess compile examples/demo_circuit.kess --force
 ```
 
-`--output` yolu çalışma dizinine göre çözülür. Hedef kaynak dosyanın kendisiyse `--force` verilse bile işlem reddedilir. CLI eksik parent dizinlerini otomatik oluşturmaz.
+The `--output` path is resolved relative to the working directory. If the destination is the source file itself, the operation is rejected even with `--force`. The CLI does not create missing parent directories automatically.
 
 ### `simulate`
 
-Derler, aynı output politikasına göre SPICE dosyasını yazar ve ortak simulation runner üzerinden Ngspice'ı batch modunda çalıştırır. Runner executable sürümünü doğrular, her çalışma için benzersiz temporary directory kullanır ve varsayılan 30 saniyelik timeout uygular. Simulator process status veya fatal/error çıktısı başarısızsa exit `3` döner. Human ve JSON renderer aynı typed `SimulationResult` nesnesini kullanır; raw simulator log yalnız açık `--include raw-log` ile gösterilir.
+Compiles the source, writes the SPICE file under the same output policy, and runs Ngspice in batch mode through the shared simulation runner. The runner probes the executable version, creates a unique temporary directory for every run, and applies a default 30-second timeout. A failed simulator process status or fatal/error output returns exit code `3`. Human and JSON renderers use the same typed `SimulationResult`; raw simulator logs appear only through explicit `--include raw-log`.
 
-Dil seviyesinde `op`, `tran`, `ac` ve bağımsız voltage/current source için `dc` sweep desteklenir. Analysis argümanları ve fiziksel birimleri semantic aşamada doğrulanır; desteklenmeyen veya hatalı analysis `KES-C009` verir ve simulator başlatılmaz.
+The language supports `op`, `tran`, `ac`, and `dc` sweeps of independent voltage/current sources. Analysis arguments and physical units are validated during semantic conversion. Unsupported or malformed analyses produce `KES-C009`, and the simulator does not start.
 
 ```bash
 kess simulate examples/demo_circuit.kess --force
@@ -72,23 +72,23 @@ kess simulate examples/demo_circuit.kess --force
 
 ### `test`
 
-Derleme ve simülasyondan sonra kaynak içindeki assertion'ları değerlendirir. Simülasyon problemi exit `3`, başarısız assertion exit `4` üretir.
+Evaluates source assertions after compilation and simulation. A simulation failure returns exit code `3`; an unsuccessful assertion result returns exit code `4`.
 
 ```bash
 kess test examples/test_features.kess --force
 ```
 
-Her assertion kaynak sırasına göre deterministik bir `KES-Txxx` kodu alır. Durumlar `PASS`, `FAIL`, `ERROR` ve `SKIPPED` olarak ayrılır: eşik sağlanmıyorsa `FAIL`, ölçüm bulunamıyor veya metric desteklenmiyorsa `ERROR`, simülasyon tamamlanmadıysa `SKIPPED` üretilir. Bu durumların herhangi biri varsa komut exit `4` döner.
+Each assertion receives a deterministic `KES-Txxx` code in source order. Results are separated into `PASS`, `FAIL`, `ERROR`, and `SKIPPED`: an unmet threshold is `FAIL`; a missing measurement or unsupported metric is `ERROR`; and an incomplete simulation produces `SKIPPED`. If any of these non-passing states exists, the command returns exit code `4`.
 
-Desteklenen temel metric'ler `value`, `min`, `max`, `peak`, `average`/`avg` ve `rms`'tir. `peak`, signed maksimum değil `max(abs(x))` anlamına gelir. OP analizinde `value`, `min`, `max` ve `average` signed skaler değeri; `peak` ve `rms` mutlak büyüklüğü verir. Equality ve inclusive comparator'lar küçük numeric sapmalar için tanımlı absolute/relative tolerans uygular; strict `<`/`>` sınırları gevşetilmez.
+Supported primitive metrics are `value`, `min`, `max`, `peak`, `average`/`avg`, and `rms`. `peak` means `max(abs(x))`, not the signed maximum. In OP analysis, `value`, `min`, `max`, and `average` return the signed scalar value, while `peak` and `rms` return its magnitude. Equality and inclusive comparators use defined absolute/relative tolerances for small numeric differences; strict `<` and `>` boundaries are not relaxed.
 
-Akım işareti component'in canonical pozitif/reference pinine giren yönü pozitif kabul eder. Voltage source için bu `plus` pinidir; dolayısıyla güç veren bir kaynağın ölçülen akımı çoğu zaman negatiftir. Human çıktı engineering prefix ve fiziksel birimi birlikte gösterir; JSON aynı typed assertion raporunu ve sayısal summary'yi taşır.
+Positive current enters the component's canonical positive/reference pin. This is the `plus` pin for a voltage source, so the measured current of a source delivering power is often negative. Human output displays engineering prefixes together with physical units. JSON contains the same typed assertion report and numeric summary.
 
-Ngspice executable discovery gerektiğinde `KESSETSU_NGSPICE` environment variable ile açık bir executable yoluna yönlendirilebilir. Yol başlatılamazsa simülasyon exit `3` ile fail-closed olur.
+When required, set `KESSETSU_NGSPICE` to an explicit simulator executable path. If that path cannot be launched, simulation fails closed with exit code `3`.
 
 ### `render`
 
-Canonical Schematic IR üzerinden SVG, PNG veya tek sayfa vector PDF üretir. Format output uzantısından seçilir; PNG ölçeği `0.25..8`, arka plan `white|transparent` olabilir.
+Produces SVG, PNG, or a single-page vector PDF from canonical Schematic IR. The output extension selects the format. PNG scale is limited to `0.25..8`, and background can be `white|transparent`.
 
 ```bash
 kess render circuit.kess --output circuit.svg
@@ -98,7 +98,7 @@ kess render circuit.kess --output circuit.pdf
 
 ### `export`
 
-Versioned ortak exporter sözleşmesinden makine-okunabilir veya düzenlenebilir çıktı üretir:
+Produces machine-readable or editable artifacts through the shared versioned exporter contract:
 
 ```bash
 kess export circuit.kess --target schematic-json --output circuit.kessetsu.json
@@ -107,17 +107,17 @@ kess export circuit.kess --target kicad --output circuit.kicad_sch
 kess export circuit.kess --target ltspice --output circuit.asc
 ```
 
-`render` ve `export`, canonical connectivity doğrulanmadıysa veya hedef bir özelliği güvenle temsil edemiyorsa `KES-X...` diagnostic ile çıktı üretmeden durur. Mevcut dosyayı yenilemek için `--force` gerekir. `--format json` artifact schema/version, MIME, SHA-256, byte length, connectivity, capability, warning ve loss alanlarını bildirir. Formatların sınırları [export matrix](export_formats.md) içinde tanımlıdır.
+`render` and `export` stop without creating output and emit a `KES-X...` diagnostic when canonical connectivity is not verified or when the target cannot safely represent a required feature. Replacing an existing file requires `--force`. With `--format json`, artifacts report schema/version, MIME type, SHA-256, byte length, connectivity, capability, warnings, and known losses. See the [export matrix](export_formats.md) for format boundaries.
 
-## JSON sözleşmesi
+## JSON Contract
 
-JSON stdout her çalıştırmada tek bir JSON objesidir; progress ve simulator logları stdout'a yazılmaz. Varsayılan agent envelope sürümü `kessetsu.cli.v1`'dir. Compile raporu `kessetsu.compile.v3`, canonical şema `kessetsu.schematic.v1`, simulation sonucu `kessetsu.simulation.v1`, engineering measurement modeli `kessetsu.measurement.v1`, assertion raporu `kessetsu.assertion.v1` kullanır; geçerli alt sözleşmeler `domain_versions` alanında görünür.
+JSON stdout is exactly one JSON object for every invocation. Progress and simulator logs are never written to stdout. The default agent envelope is `kessetsu.cli.v1`. Compile reports use `kessetsu.compile.v3`, canonical schematics use `kessetsu.schematic.v1`, simulation results use `kessetsu.simulation.v1`, engineering measurements use `kessetsu.measurement.v1`, and assertion reports use `kessetsu.assertion.v1`. Active subcontracts appear in `domain_versions`.
 
-Assertion primitive'leri, derived metric formülleri, analiz gereksinimleri ve sign convention için [engineering measurement sözleşmesine](engineering_measurements.md) bakın.
+See the [engineering-measurement contract](engineering_measurements.md) for assertion primitives, derived-metric formulas, analysis requirements, and sign conventions.
 
-Varsayılan çıktı bilinçli olarak kompakttır. Yalnız `status`, diagnostics, summary, measurements, assertions ve artifact referanslarına ek olarak command/schema metadata'sı taşır. Canonical AST/IR/graph/SPICE, analysis dataset'leri, model manifest/lock ve raw log `debug` altında ancak ilgili `--include` seçilirse bulunur.
+Default output is intentionally compact. In addition to command/schema metadata, it contains only `status`, diagnostics, summary, measurements, assertions, and artifact references. Canonical AST/IR/graph/SPICE, analysis datasets, model manifest/lock content, and raw logs appear under `debug` only when selected through the corresponding `--include` option.
 
-Başarılı `check` özeti:
+Successful `check` summary:
 
 ```json
 {
@@ -145,7 +145,7 @@ Başarılı `check` özeti:
 }
 ```
 
-Debug alanlarını isteme örneği:
+Examples that request debug fields:
 
 ```bash
 kess compile circuit.kess --format json --include ast,ir,graph,spice
@@ -153,9 +153,9 @@ kess simulate circuit.kess --format json --include datasets,raw-log --force
 kess compile circuit.kess --format json --include models --force
 ```
 
-İlk komutta `debug.ast`, `debug.ir`, `debug.graph` ve `debug.spice_netlist`; ikincide `debug.datasets` ve `debug.raw_log`; üçüncüde `debug.models.manifest` ve `debug.models.lock` oluşur. Seçilmeyen hacimli alanlar `null` yazılmak yerine tamamen dışarıda bırakılır.
+The first command adds `debug.ast`, `debug.ir`, `debug.graph`, and `debug.spice_netlist`; the second adds `debug.datasets` and `debug.raw_log`; and the third adds `debug.models.manifest` and `debug.models.lock`. Unselected large fields are omitted entirely rather than serialized as `null`.
 
-`test` sonucundaki assertion alanı ayrı sürümlü ve özetlidir:
+The assertion field of a `test` result is independently versioned and summarized:
 
 ```json
 {
@@ -181,7 +181,7 @@ kess compile circuit.kess --format json --include models --force
 }
 ```
 
-Diagnostic alanları bütün aşamalarda ortaktır:
+Diagnostic fields are shared across every stage:
 
 ```json
 {
@@ -194,11 +194,11 @@ Diagnostic alanları bütün aşamalarda ortaktır:
 }
 ```
 
-Başarılı `compile`, yazılan SPICE dosyasını `artifacts` içinde `spice_netlist` olarak bildirir. Kullanılan bir model/subcircuit varsa aynı dizindeki deterministic `kessetsu.lock` ayrıca `model_lock` artifact'i olur. Netlist metni yalnız `--include spice`, model provenance ve lock içeriği yalnız `--include models` ile döner. I/O veya runtime hatalarında `status` hiçbir zaman `success` değildir.
+A successful `compile` reports the written SPICE file as a `spice_netlist` entry in `artifacts`. If a model or subcircuit is used, the deterministic `kessetsu.lock` beside it is also reported as a `model_lock` artifact. Netlist text appears only with `--include spice`; model provenance and lock content appear only with `--include models`. On I/O or runtime failure, `status` is never `success`.
 
-## Model ve subcircuit kullanımı
+## Model and Subcircuit Use
 
-User-defined device model ve op-amp subcircuit'leri raw SPICE değil typed declaration'dır:
+User-defined device models and op-amp subcircuits are typed declarations, not raw SPICE:
 
 ```kessetsu
 model diode SafeD version=1.0.0 license=MIT Is=2e-9 Rs=0.5
@@ -207,33 +207,33 @@ model mosfet SafeP pmos version=1.0.0 license=MIT Vto=-2 Kp=4
 subcircuit opamp SafeOp (in_p,in_n,vcc,vee,out) version=1.0.0 license=MIT gain=100k bandwidth=2MHz
 ```
 
-Exact packaged model seçimi:
+Exact packaged-model selection:
 
 ```kessetsu
 model_include kessetsu_analog 1.0.0
 opamp U1 KESSETSU_PACKAGE_OPAMP
 ```
 
-`version` ve `license` user declaration'larında zorunlu, `source` opsiyoneldir. İzinli parametreler kind'e göre sınırlıdır; bilinmeyen parametre, yanlış polarity/kind, hatalı pin sırası, duplicate ad veya raw directive payload compile aşamasında structured `KES-C010..013` diagnostic'i üretir. Builtin generic doğrulama yolları `KESSETSU_OPAMP_V1`, `KESSETSU_PMOS_V1` ve `KESSETSU_POWER_NPN_V1`'dir.
+`version` and `license` are required on user declarations; `source` is optional. Allowed parameters are restricted by kind. Unknown parameters, incorrect polarity/kind, invalid pin order, duplicate names, or raw-directive payloads produce structured `KES-C010..013` diagnostics during compilation. Built-in generic verification paths are `KESSETSU_OPAMP_V1`, `KESSETSU_PMOS_V1`, and `KESSETSU_POWER_NPN_V1`.
 
-## Exit kodları
+## Exit Codes
 
-- `0`: Başarı.
-- `1`: Flatten, semantic validation veya ERC hatası.
-- `2`: Parse, I/O, güvenli output politikası veya export/render frontend hatası.
-- `3`: Simulator başlatma/process/runtime hatası.
-- `4`: Bir veya daha fazla assertion başarısız.
+- `0`: Success.
+- `1`: Flattening, semantic-validation, or ERC failure.
+- `2`: Parse, I/O, safe-output-policy, or export/render frontend failure.
+- `3`: Simulator launch, process, or runtime failure.
+- `4`: One or more assertions did not pass.
 
-Human ve JSON formatları aynı kod yolunu ve exit semantiğini kullanır.
+Human and JSON formats use the same code path and exit semantics.
 
-## Agent döngüsü
+## Agent Loop
 
-Ayrı daemon veya özel bir Agent API gerekmez. Bir ajan şu döngüyü yalnız JSON alanlarını okuyarak kurabilir:
+No separate daemon or dedicated Agent API is required. An agent can implement the following loop by reading JSON fields only:
 
-1. `check - --format json` ile syntax/semantic/ERC diagnostic'lerini alır.
-2. `compile - --format json --include spice` ile canonical netlist'i gerektiğinde inspect eder.
-3. `simulate - --format json` ile typed measurement ve analysis summary'yi okur.
-4. `test - --format json` içindeki `assertions[].status`, `actual`, `threshold` ve summary alanlarından hedef farkını çıkarır.
-5. Source'u revize edip aynı stdin çağrısını tekrarlar.
+1. Run `check - --format json` to obtain syntax, semantic, and ERC diagnostics.
+2. Run `compile - --format json --include spice` when inspection of the canonical netlist is needed.
+3. Run `simulate - --format json` to read typed measurements and the analysis summary.
+4. Read `assertions[].status`, `actual`, `threshold`, and summary fields from `test - --format json` to determine the remaining target difference.
+5. Revise the source and repeat the same stdin call.
 
-Repository contract suite'i bu akışı başarısız 10 Ω adayından ölçülen 200 mA sonucunu okuyup direnci 100 Ω'a revize eden ve 20 mA ile assertion'ı geçen platformlar arası fixture ile doğrular; test human terminal metni parse etmez.
+The repository contract suite verifies this flow with a cross-platform fixture: it reads the measured 200 mA result from a failing 10 Ω candidate, revises the resistor to 100 Ω, and passes the assertion at 20 mA. The test never parses human terminal text.
