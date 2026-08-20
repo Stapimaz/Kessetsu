@@ -1,19 +1,20 @@
-# Kessetsu Projesi Mimari Anayasası
+# Kessetsu Architecture Constitution
 
-Bu doküman, Kessetsu projesinin çekirdek algoritmalarını, derleme süreçlerini ve dil tasarım standartlarını açıklar. **Projeye dahil olan tüm geliştiriciler ve Yapay Zeka Ajanları (AI Agents), projede herhangi bir kod yazmadan önce bu dokümandaki kurallara uymak ZORUNDADIR.**
+This document defines the core algorithms, compilation pipeline, and language-design standards of Kessetsu. **Every developer and AI agent working on the project must follow these rules before changing code.**
 
-> **Geliştirme planı ve görev takibi için:** `docs/ROADMAP.md` dosyasına bakınız.
+> **For development planning and task tracking:** see `docs/ROADMAP.md`.
 
-## 1. Sistemin Temel Parçaları
+## 1. Core System Components
 
-Kessetsu projesi temelde iki ana parçadan oluşur:
-1. **`kessetsu-core` (Rust):** Dilin ayrıştırıcısı (parser), AST oluşturucusu, Circuit IR dönüştürücüsü, ERC (Electrical Rules Check) motoru, SPICE netlist jeneratörü ve otomatik şema (layout) motorunu barındıran çekirdek kütüphane.
-   - Hem bir kütüphane (`lib`), hem CLI (`bin/`) olarak hem de Web için WASM (`wasm.rs`) olarak derlenir.
-2. **`webapp` (React/TS):** Kullanıcının kodu yazdığı ve sonuçları (şema/grafik) gördüğü UI. `kessetsu-core`'u WASM üzerinden tarayıcı içinde gerçek zamanlı çalıştırır.
+Kessetsu consists of two primary parts:
 
-### Derleme Pipeline'ı
+1. **`kessetsu-core` (Rust):** Contains the language parser, AST construction, Circuit IR conversion, ERC (Electrical Rules Check) engine, SPICE netlist generator, and automatic schematic-layout engine.
+   - It builds as a library (`lib`), a CLI (`bin/`), and WebAssembly for the Web (`wasm.rs`).
+2. **`webapp` (React/TypeScript):** The UI where users write source and inspect results such as schematics and plots. It runs `kessetsu-core` in the browser through WASM.
 
-```
+### Compilation Pipeline
+
+```text
 Kessetsu Source (.kess)
     │
     ▼
@@ -23,7 +24,7 @@ Kessetsu Source (.kess)
   Module Flattening → Canonical AST
     │
     ▼
-  Circuit IR (typed dönüşüm + semantic validation)
+  Circuit IR (typed conversion + semantic validation)
     │
     ▼
   Canonical Graph → ERC
@@ -33,112 +34,116 @@ Kessetsu Source (.kess)
     └──► CompileReport (CLI/WASM/API)
 ```
 
-**Kritik kural:** Tüm backend'ler (SPICE, Layout, ERC, JSON) yalnızca Circuit IR üzerinden çalışır. AST'den doğrudan çıktı üretilmez.
+**Critical rule:** Every backend—SPICE, layout, ERC, and JSON—must consume Circuit IR. No backend may generate output directly from the AST.
 
-### Tek Compile Sözleşmesi
+### Single Compile Contract
 
-Çekirdeğin canonical derleme girişi `compile_source(source, options) -> CompileReport` fonksiyonudur. Bu fonksiyon dosya yazmaz, process başlatmaz ve log basmaz; bu yan etkiler CLI gibi frontend'lere aittir. Rapor şeması `kessetsu.compile.v3` ile sürümlüdür ve opsiyonlara göre flattened AST, typed IR, deterministik graph özeti, SPICE, canonical `kessetsu.schematic.v1`, SVG, geçici legacy layout ve KiCad çıktıları taşıyabilir.
+The canonical Core entry point is `compile_source(source, options) -> CompileReport`. This function does not write files, launch processes, or print logs; those side effects belong to frontends such as the CLI. The report is versioned as `kessetsu.compile.v3` and, depending on its options, can carry the flattened AST, typed IR, deterministic graph summary, SPICE, canonical `kessetsu.schematic.v1`, SVG, temporary legacy layout, and KiCad output.
 
-Parse, flatten, semantic ve ERC hataları ortak `Diagnostic` modeline dönüştürülür. Error severity varsa hiçbir backend çıktısı üretilmez; warning ve info sonuçları başarılı çıktılarla birlikte taşınabilir. CLI ve WASM kendi paralel derleme akışlarını kurmamalı, yalnızca bu entrypoint'in adaptörü olmalıdır.
+Parse, flattening, semantic, and ERC failures are normalized into the shared `Diagnostic` model. If any error-severity diagnostic exists, no backend output is produced. Warnings and informational diagnostics may accompany successful output. The CLI and WASM layers must remain adapters around this entry point and must not construct parallel compilation pipelines.
 
-CLI, canonical raporu `kessetsu.cli.v1` agent envelope'u içinde render eder; Core raporunun semantiğini değiştirmez. Varsayılan JSON yalnız kompakt durum/diagnostic/summary/measurement/assertion/artifact alanlarını taşır. AST, IR, graph, SPICE, dataset ve raw simulator log açık `--include` olmadan serialize edilmez. Compile, simulation, measurement ve assertion alt sözleşmelerinin sürümleri `domain_versions` içinde ilan edilir; bilinmeyen CLI schema isteği hiçbir compile veya dosya yazma işlemi başlamadan `KES-F002` ile reddedilir. JSON stdout tek bir obje olarak kalır. Dosya yazma frontend sorumluluğudur: mevcut output açık `--force` olmadan ezilmez ve hiçbir generated output kaynak `.kess` dosyasının üzerine yazılamaz.
+The CLI renders the canonical report inside the `kessetsu.cli.v1` agent envelope without changing Core semantics. Default JSON contains only compact status, diagnostic, summary, measurement, assertion, and artifact fields. AST, IR, graph, SPICE, datasets, and raw simulator logs are serialized only through explicit `--include` options. Compile, simulation, measurement, and assertion contract versions are declared in `domain_versions`. An unknown CLI schema request is rejected with `KES-F002` before compilation or file output begins. JSON stdout remains exactly one object. File output is a frontend responsibility: an existing destination is not overwritten without `--force`, and generated output may never overwrite the source `.kess` file.
 
-CLI'da kaynak yolu `-` ise source stdin'den okunur. Stdin tabanlı `compile`, `simulate` ve `test` açık `--output` verilmedikçe SPICE dosyası yazmaz; netlist process içinde simulation'a aktarılır ve JSON caller gerekirse `--include spice` ile metni alır. Böylece tool çağrıları geçici kaynak dosyasına ihtiyaç duymaz ve side-effect-free stdin istekleri aynı input/seçenekler için byte-stable JSON üretir. Dosya tabanlı komutların mevcut güvenli overwrite politikası değişmez.
+When the CLI source path is `-`, source is read from stdin. Stdin-based `compile`, `simulate`, and `test` commands do not write a SPICE file unless an explicit `--output` is supplied. The netlist remains in memory for simulation, and JSON callers can request its text through `--include spice`. This removes the need for temporary source files and makes side-effect-free stdin requests byte-stable for the same input and options. Existing safe-overwrite behavior for file-based commands remains unchanged.
 
-Simulator executable discovery, dağıtılan binary konumlarını ve sistem fallback'ini dener; otomasyon/packaging ortamları açık bir executable yolu için `KESSETSU_NGSPICE` kullanabilir. Bu override derleme hattını değiştirmez ve başlatma/process hataları CLI'da exit `3` olarak kalır.
+Simulator discovery checks packaged executable locations and system fallbacks. Automation and packaging environments may specify an executable through `KESSETSU_NGSPICE`. This override does not change the compilation pipeline, and launch/process failures remain CLI exit code `3`.
 
-## 2. Dilin Sözdizimi (Syntax) ve Kurallar
+## 2. Language Syntax and Rules
 
-### Desteklenen Bileşenler
-| Keyword | Tür | Pinler | SPICE Prefix |
+### Supported Components
+
+| Keyword | Type | Pins | SPICE Prefix |
 |---|---|---|---|
-| `resistor` | Pasif | p1, p2 | R_ |
-| `capacitor` | Pasif | p1, p2 | C_ |
-| `inductor` | Pasif | p1, p2 | L_ |
-| `diode` | Yarı-iletken | p1, p2 | D_ |
+| `resistor` | Passive | p1, p2 | R_ |
+| `capacitor` | Passive | p1, p2 | C_ |
+| `inductor` | Passive | p1, p2 | L_ |
+| `diode` | Semiconductor | p1, p2 | D_ |
 | `transistor` | BJT (NPN/PNP) | c, b, e | Q_ |
 | `mosfet` | MOSFET (NMOS/PMOS) | d, g, s | M_ |
-| `opamp` | Op-Amp | in_p, in_n, vcc, vee, out | X_ |
-| `source` | Voltaj Kaynağı | plus, minus | V_ |
-| `current_source` | Akım Kaynağı | plus, minus | I_ |
+| `opamp` | Operational amplifier | in_p, in_n, vcc, vee, out | X_ |
+| `source` | Voltage source | plus, minus | V_ |
+| `current_source` | Current source | plus, minus | I_ |
 
-### Temel Kurallar
-- `source`, DC ve waveform tabanlı voltaj kaynaklarının canonical component türüdür; SPICE çıktısında `V_` öneki kullanılır.
-- **Değerler:** Bileşen değerleri typed olarak parse edilir. SI prefixler desteklenir:
+### Fundamental Rules
+
+- `source` is the canonical component type for DC and waveform voltage sources; generated SPICE uses the `V_` prefix.
+- **Values:** Component values are parsed into typed quantities. SI prefixes are supported:
   - `resistor R1 10k` → 10000 Ω
-  - `capacitor C1 100uF` → 100µF
-  - `source Vin 5V` → 5V DC
-  - `source Vin sine(0V, 1V, 1kHz)` → transient sinüs kaynağı
-  - `source Vin ac(1V)` → small-signal AC kaynağı
-  - `source Vin sine_ac(0V, 1V, 1kHz, 1V)` → transient ve AC analizlerinde ortak kaynak
-  - Geriye uyumluluk: `source Vin "SINE(0 1V 1kHz)"` da kabul edilir (string olarak)
-- **Simülasyon Komutları:** Analysis komutları raw SPICE metni olarak taşınmaz; semantic aşamada typed `Analysis` varyantlarına çevrilir. Desteklenmeyen komut, arity, birim veya sweep yönü `KES-C009` ile fail-closed reddedilir.
-  - `simulate op` — DC Operating Point
-  - `simulate tran 10us 1ms` — Transient
-  - `simulate ac dec 10 1Hz 1MHz` — AC Analiz
-  - `simulate dc V1 0V 5V 100mV` — Bağımsız voltage/current source sweep
-- **Assertion'lar (Test):**
+  - `capacitor C1 100uF` → 100 µF
+  - `source Vin 5V` → 5 V DC
+  - `source Vin sine(0V, 1V, 1kHz)` → transient sine source
+  - `source Vin ac(1V)` → small-signal AC source
+  - `source Vin sine_ac(0V, 1V, 1kHz, 1V)` → shared transient and AC source
+  - Backward compatibility: `source Vin "SINE(0 1V 1kHz)"` is also accepted as a string.
+- **Simulation commands:** Analysis commands are not carried as raw SPICE strings. They become typed `Analysis` variants during semantic conversion. Unsupported commands, invalid arity, incompatible units, or an invalid sweep direction fail closed with `KES-C009`.
+  - `simulate op` — DC operating point
+  - `simulate tran 10us 1ms` — transient analysis
+  - `simulate ac dec 10 1Hz 1MHz` — AC analysis
+  - `simulate dc V1 0V 5V 100mV` — independent voltage/current-source sweep
+- **Assertions:**
   - `assert max(V(out)) < 3.3V`
   - `assert peak(I(D1)) < 100mA`
   - `assert output_power(V(out),RL) > 2W`
-  - Primitive, derived metric, analysis ve sign semantiğinin canonical tanımı `docs/engineering_measurements.md` içindedir.
+  - The canonical definitions of primitive and derived metrics, analysis requirements, and sign semantics are in `docs/engineering_measurements.md`.
 
 ## 3. Circuit IR (Intermediate Representation)
 
-AST ile SPICE/Layout/ERC arasında **typed bir ara katman** bulunur. Bu katmanın amacı:
+A typed intermediate layer exists between the AST and SPICE/layout/ERC. Its purposes are:
 
-1. **Tip güvenliği:** `value: String` yerine typed parameters (resistance, capacitance, waveform, vb.)
-2. **Statik doğrulama:** IR üzerinde SPICE çalıştırmadan kontrol yapılabilir
-3. **Backend bağımsızlığı:** Syntax değişse bile backend'ler etkilenmez
-4. **Agent erişimi:** AI ajanları compile raporundaki typed IR ve diagnostics alanlarını okuyabilir; backend input'u olarak raw IR kabul edilmez
+1. **Type safety:** Typed parameters such as resistance, capacitance, and waveform replace `value: String`.
+2. **Static validation:** Electrical constraints can be checked before SPICE runs.
+3. **Backend independence:** Syntax can evolve without forcing backend semantics to change.
+4. **Agent access:** AI agents may inspect typed IR and diagnostics from compile reports; raw IR is not accepted as backend input.
 
-**Kural:** Hiçbir backend, IR'yi atlayarak doğrudan AST üzerinden çalışmamalıdır.
+**Rule:** No backend may bypass IR and operate directly on the AST.
 
-## 4. Düğüm (Node) İsimlendirme Algoritması (`graph.rs`)
+## 4. Node-Naming Algorithm (`graph.rs`)
 
-Component pin adları, canonical backend sırası, SPICE prefix'i ve layout pin koordinatları `core/src/component.rs` kataloğunda tek kez tanımlanır. Graph, ERC, SPICE ve layout kendi ayrı pin listelerini üretmez. Fiziksel bağlantısı olmayan bir pin magic integer ile değil `Option<NetId>::None` ile temsil edilir; `NetId(0)` typed ground kimliğidir.
+Component pin names, canonical backend order, SPICE prefixes, and layout pin coordinates are defined once in `core/src/component.rs`. Graph, ERC, SPICE, and layout must not define independent pin lists. A physically disconnected pin is represented by `Option<NetId>::None`, never by a magic integer. `NetId(0)` is the typed ground identity.
 
-SPICE motoru için düğüm isimleri rastgele tam sayılar DEĞİLDİR. Okunabilirlik ve determinism için özel bir algoritma kullanılır:
+SPICE nodes are not assigned arbitrary integers. Kessetsu uses the following readability and determinism rules:
 
-1. Explicit `net GND` hattına bağlı her şey her zaman `"0"` düğümündedir ve bu referans legacy fallback'ten önceliklidir. Explicit GND yoksa lexicographic olarak ilk voltage-source `minus` neti geriye uyumluluk fallback'i olur. Birden fazla bağımsız aday deterministic seçilse bile `KES-E008` ambiguity diagnostic üretilir; belirsizlik sessizce başarılı sayılmaz.
-2. **User-named netler birinci sınıf kimliktir.** Kullanıcı `net output` tanımladıysa, o net SPICE'ta `output` olarak görünür.
-   - Component ve net aynı exact identifier'ı paylaşamaz (`KES-E006`).
-   - Aynı fiziksel nete birden fazla user-name bağlanamaz (`KES-E007`).
-3. User ismi olmayan netlerde, kendisine bağlı pinlerin listesi **alfabetik olarak sıralanır** ve en baştaki pinin adı alınır.
-4. Pin adındaki nokta `.` karakteri alt çizgiye `_` çevrilip başına `N_` eklenir.
-   - *Örnek:* Bir düğüme `R1.p2`, `C1.p1` ve `Q1.b` bağlıysa. Alfabetik sırada ilk gelen `C1.p1`'dir. Düğüm ismi **`N_C1_p1`** olur. SPICE çıktısında voltaj `v(N_C1_p1)` olarak okunur.
+1. Everything connected to an explicit `net GND` is always node `"0"`, and this explicit reference takes precedence over the legacy fallback. If no explicit GND exists, the lexicographically first voltage-source `minus` net is used for backward compatibility. When multiple independent candidates exist, Kessetsu still selects deterministically but also emits `KES-E008`; ambiguity is never silently accepted.
+2. **User-named nets are first-class identities.** If the user declares `net output`, that net appears as `output` in SPICE.
+   - A component and a net may not share the same exact identifier (`KES-E006`).
+   - A physical net may not have multiple user names (`KES-E007`).
+3. For unnamed nets, the connected pin names are sorted alphabetically and the first pin name is selected.
+4. Dots in the pin name become underscores and the result receives an `N_` prefix.
+   - *Example:* If a node connects `R1.p2`, `C1.p1`, and `Q1.b`, the first alphabetically is `C1.p1`, so the node becomes **`N_C1_p1`**. SPICE refers to its voltage as `v(N_C1_p1)`.
 
-**Determinism kuralı:** Aynı canonical graph her zaman aynı net isimlerini üretir. Bu algoritma BOZULMAMALIDIR. Ancak user-named netler bu algoritmanın üstüne eklenir — otomatik isimler yalnızca isimsiz netler için fallback'tir.
+**Determinism rule:** The same canonical graph must always produce the same node names. This algorithm must not be broken. User-named nets take precedence; automatic naming is only a fallback for unnamed nets.
 
-**Not:** Algoritma deterministiktir ama edit-stable değildir. Devreye yeni component eklendiğinde otomatik net isimleri değişebilir. Önemli ölçüm noktaları için user-named net kullanılmalıdır.
+**Note:** The algorithm is deterministic but not edit-stable. Adding a component can change an automatically generated name. Important measurement points should use user-named nets.
 
-## 5. SPICE Motoru ve Standart Modeller
+## 5. SPICE Engine and Standard Models
 
-Ngspice entegrasyonu Windows'ta repository/release sidecar ile, otomasyon ve diğer paketleme ortamlarında `KESSETSU_NGSPICE` override'ı ile çalışır.
-- Eğer IR içerisinde `2N3904`, `1N4148`, `IRF540` gibi bilinen bir parça kullanılırsa, SPICE jeneratörü builtin `.model` tanımını otomatik olarak netlist'in sonuna ekler. Kullanıcıların `.model` yazmasına gerek yoktur.
-- **Model provenance:** Her modelin kaynağı (builtin/user-defined) ve tipi (NPN/PNP/NMOS/PMOS/D) IR'de belirtilir.
-- **Model kalitesi:** Dahili modeller "generic" kalitededir. İleri sürümlerde üretici-spesifik modeller ve kalite seviyeleri eklenecektir.
-- **Canonical sayılar:** Generated SPICE sayıları tek formatter kullanır. Orta büyüklükler trimlenmiş decimal, çok küçük/büyük değerler normalize edilmiş lowercase exponent ile yazılır; `-0` ve binary float artıkları output'a taşınmaz.
+Ngspice integration uses a repository/release sidecar on Windows and the `KESSETSU_NGSPICE` override in automation and other packaging environments.
 
-### Desteklenen Modeller
-| Model | Tür | Kaynak |
+- Known parts such as `2N3904`, `1N4148`, and `IRF540` cause the SPICE generator to append the appropriate built-in `.model` definition automatically. Users do not need to write `.model` directives.
+- **Model provenance:** IR records whether each model is built in or user-defined and records its type.
+- **Model quality:** Built-in models are generic. Manufacturer-specific models and additional quality levels belong to later releases.
+- **Canonical numbers:** Generated SPICE uses one formatter. Mid-range values are trimmed decimal values, very small and large values use normalized lowercase exponents, and neither `-0` nor binary floating-point artifacts may leak into output.
+
+### Supported Models
+
+| Model | Type | Source |
 |---|---|---|
-| 2N3904 | BJT NPN | Builtin |
-| 2N3906 | BJT PNP | Builtin |
-| 2N2222 | BJT NPN | Builtin |
-| KESSETSU_POWER_NPN_V1 | Generic power BJT NPN | Verified builtin |
-| KESSETSU_POWER_PNP_V1 | Generic power BJT PNP | Verified builtin |
-| 1N4148 | Diode | Builtin |
-| 1N4007 | Diode | Builtin |
-| IRF540 | MOSFET NMOS | Builtin |
-| KESSETSU_PMOS_V1 | Generic MOSFET PMOS | Verified builtin |
-| KESSETSU_OPAMP_V1 | Generic op-amp subcircuit | Verified builtin |
+| 2N3904 | BJT NPN | Built in |
+| 2N3906 | BJT PNP | Built in |
+| 2N2222 | BJT NPN | Built in |
+| KESSETSU_POWER_NPN_V1 | Generic power BJT NPN | Verified built in |
+| KESSETSU_POWER_PNP_V1 | Generic power BJT PNP | Verified built in |
+| 1N4148 | Diode | Built in |
+| 1N4007 | Diode | Built in |
+| IRF540 | MOSFET NMOS | Built in |
+| KESSETSU_PMOS_V1 | Generic MOSFET PMOS | Verified built in |
+| KESSETSU_OPAMP_V1 | Generic op-amp subcircuit | Verified built in |
 
-Builtin default'lar BJT için `2N3904`/`2N3906`, MOSFET için `IRF540`, diode için `1N4148`, op-amp için `KESSETSU_OPAMP_V1`'dir. Böylece dilde tanımlı temel component türlerinden hiçbiri bütünüyle kullanılamaz durumda değildir. `KESSETSU_*` modelleri Kessetsu'nun kendi generic ve lisansı açık doğrulama modelleridir; belirli bir üretici parçasının datasheet eşleniği oldukları iddia edilmez. `KESSETSU_PMOS_V1` provenance sürümü `1.0.1`'dir ve Ngspice `MOS1` için portable model parametreleri kullanır.
+Default built-ins are `2N3904`/`2N3906` for BJTs, `IRF540` for MOSFETs, `1N4148` for diodes, and `KESSETSU_OPAMP_V1` for op-amps. No fundamental component type defined by the language is therefore entirely unusable. `KESSETSU_*` models are Kessetsu's own open-licensed generic verification models; they are not claimed to match a specific manufacturer's data sheet. `KESSETSU_PMOS_V1` has provenance version `1.0.1` and uses portable Ngspice `MOS1` parameters.
 
-### Typed user model ve subcircuit sınırı
+### Typed User-Model and Subcircuit Boundary
 
-Kessetsu raw `.include`, `.model`, `.subckt` veya control directive kabul etmez. Kullanıcı yalnız typed declaration verir; parameter whitelist, numeric parse, model kind/polarity ve metadata semantic aşamada doğrulandıktan sonra directive Core tarafından canonical biçimde üretilir:
+Kessetsu does not accept raw `.include`, `.model`, `.subckt`, or control directives. Users provide typed declarations only. Parameter allowlists, numeric values, model kind/polarity, and metadata are validated during semantic conversion before Core produces a canonical directive:
 
 ```kessetsu
 model diode SafeD version=1.0.0 license=MIT Is=2e-9 Rs=0.5
@@ -146,66 +151,70 @@ model mosfet SafeP pmos version=1.0.0 license=MIT Vto=-2 Kp=4
 subcircuit opamp SafeOp (in_p,in_n,vcc,vee,out) version=1.0.0 license=MIT gain=100k bandwidth=2MHz
 ```
 
-- Device model kind'leri `diode`, `bjt` ve `mosfet`; güvenli subcircuit template'i şu aşamada `opamp` ile sınırlıdır.
-- BJT `npn|pnp`, MOSFET `nmos|pmos` polarity ister. Component/model kind veya polarity uyuşmazlığı `KES-C004` olur.
-- User model/subcircuit `version` ve `license` metadata'sı taşır; `source` opsiyoneldir. İzinli elektriksel parametreler kind'e göre sabit whitelist'ten gelir. Bilinmeyen/duplicate/non-finite parameter `KES-C010` olur.
-- Op-amp pin sırası ortak component kataloğundaki `in_p,in_n,vcc,vee,out` sırasıyla byte-for-byte uyuşur; aksi durum `KES-C012`'dir. Backend kendi ayrı pin listesine güvenmez.
-- Builtin, package, user model ve subcircuit adları case-insensitive tek namespace içindedir; çakışma `KES-C013` ile reddedilir.
-- Simulator capability şu sözleşmede `ngspice-35+` olarak provenance'a yazılır. Desteklenmeyen paket/sürüm `KES-C011` ile fail-closed olur.
+- Device model kinds are `diode`, `bjt`, and `mosfet`. The safe subcircuit template is currently limited to `opamp`.
+- BJTs require `npn|pnp`; MOSFETs require `nmos|pmos`. Component/model kind or polarity mismatch produces `KES-C004`.
+- User models and subcircuits carry required `version` and `license` metadata; `source` is optional. Electrical parameters come from a fixed allowlist for each kind. Unknown, duplicate, or non-finite parameters produce `KES-C010`.
+- Op-amp pin order must match the shared component catalog byte for byte: `in_p,in_n,vcc,vee,out`. A mismatch is `KES-C012`. Backends do not own separate pin lists.
+- Built-in, packaged, user-model, and subcircuit names share one case-insensitive namespace. Collisions produce `KES-C013`.
+- Simulator capability is recorded as `ngspice-35+`. Unsupported package or simulator versions fail closed with `KES-C011`.
 
-Exact package kullanımı `model_include kessetsu_analog 1.0.0` biçimindedir. Floating version/range yoktur. Kullanılan model ve paketler `kessetsu.models.v1` manifest'inde source, license, version, simulator capability ve `sha256:` content hash ile taşınır. Dosya tabanlı compile/simulate/test model kullanıyorsa SPICE artifact'iyle aynı dizine deterministic `kessetsu.lock` (`kessetsu.lock.v1`) yazılır ve CLI bunu `model_lock` artifact'i olarak bildirir. Stdin-only çağrı filesystem'e yazmaz; manifest ve lock içeriği `--include models` ile alınabilir.
+Exact packages are selected with syntax such as `model_include kessetsu_analog 1.0.0`; floating versions and ranges are not supported. Resolved models and packages appear in a `kessetsu.models.v1` manifest containing source, license, version, simulator capability, and a `sha256:` content hash. When file-based compile/simulate/test uses a model, a deterministic `kessetsu.lock` (`kessetsu.lock.v1`) is written beside the SPICE artifact and reported as a `model_lock` CLI artifact. Stdin-only calls do not write files; callers can request manifest and lock content through `--include models`.
 
-Quoted parameter içine `.control`, `.include`, shell veya satır sonu saklama girişimleri typed numeric/metadata doğrulamasından geçemez; error varken SPICE backend çalışmaz. Bu injection sınırı regression testleriyle korunur.
+Attempts to hide `.control`, `.include`, shell syntax, or line breaks inside quoted parameters cannot cross typed numeric and metadata validation. When an error exists, the SPICE backend does not run. Regression tests protect this injection boundary.
 
-## 6. ERC (Electrical Rules Check) Motoru (`erc.rs`)
+## 6. ERC (Electrical Rules Check) Engine (`erc.rs`)
 
-> **Not:** Daha önceki sürümlerde "DRC" olarak adlandırılıyordu. Schematic seviyesindeki kontroller için doğru terim **ERC** (Electrical Rules Check). DRC, PCB physical design kontrolleri için kullanılır.
+> **Note:** Older versions used the term DRC. The correct term for schematic-level checks is **ERC (Electrical Rules Check)**. DRC refers to physical PCB design checks.
 
-### Yapısal Kontroller (Simülasyonsuz)
-| Kod | Severity | Açıklama |
+### Structural Checks Without Simulation
+
+| Code | Severity | Description |
 |---|---|---|
 | KES-E001 | Error | Duplicate component declaration |
 | KES-E002 | Error | Undefined component reference |
-| KES-E003 | Error | Floating pin (bağlantısız zorunlu pin) |
-| KES-E004 | Error | Direct short circuit (source plus=minus) |
-| KES-E005 | Error | Component türünde bulunmayan pin referansı |
-| KES-E006 | Error | Component/net namespace çakışması |
-| KES-E007 | Error | Aynı fiziksel net için birden fazla user-name |
-| KES-E008 | Error | Birden fazla bağımsız ground adayı |
+| KES-E003 | Error | Floating mandatory pin |
+| KES-E004 | Error | Direct short circuit (`source plus == minus`) |
+| KES-E005 | Error | Pin reference not present on the component type |
+| KES-E006 | Error | Component/net namespace collision |
+| KES-E007 | Error | Multiple user names for one physical net |
+| KES-E008 | Error | Multiple independent ground candidates |
 | KES-E009 | Error | Duplicate net declaration |
 
-### Runtime Diagnostic'leri
-| Kod | Severity | Açıklama |
+### Runtime Diagnostics
+
+| Code | Severity | Description |
 |---|---|---|
-| KES-S001 | Error | Simulator executable başlatılamadı |
-| KES-S002 | Error | Simulator process/output başarısızlığı |
-| KES-S003 | Warning | Simulator warning veya runtime cleanup uyarısı |
-| KES-S004 | Error | Convergence/singular-matrix/timestep başarısızlığı |
-| KES-S005 | Error | Fatal veya aborted simulator çıktısı |
-| KES-S006 | Error | Measurement veya analysis dataset parse başarısızlığı |
+| KES-S001 | Error | Simulator executable could not be launched |
+| KES-S002 | Error | Simulator process/output failure |
+| KES-S003 | Warning | Simulator warning or runtime cleanup warning |
+| KES-S004 | Error | Convergence, singular-matrix, or timestep failure |
+| KES-S005 | Error | Fatal or aborted simulator output |
+| KES-S006 | Error | Measurement or analysis-dataset parse failure |
 
-Assertion sonuçları simulation diagnostic'lerinden ayrı, sürümlü `kessetsu.assertion.v1` raporunda taşınır. Kaynak sırasındaki her assertion deterministik `KES-T001`, `KES-T002`, ... kimliği alır ve `PASS`, `FAIL`, `ERROR` veya `SKIPPED` durumlarından biriyle sonuçlanır. Eksik ya da desteklenmeyen ölçüm `NaN` üretmez; açıklamalı `ERROR` olur. Simulation başarıyla tamamlanmadıysa assertion sonucu uydurulmaz ve `SKIPPED` olarak raporlanır.
+Assertion results are separate from simulation diagnostics and use the versioned `kessetsu.assertion.v1` report. Every assertion receives a deterministic `KES-T001`, `KES-T002`, and so on in source order, with one of `PASS`, `FAIL`, `ERROR`, or `SKIPPED`. Missing or unsupported measurements never become `NaN`; they produce an explanatory `ERROR`. If simulation does not finish successfully, Kessetsu does not fabricate assertion results and reports them as `SKIPPED`.
 
-### Simulation domain ve runner sınırı
+### Simulation Domain and Runner Boundary
 
-Native simulator process ayrıntıları Core'un ortak simulation sözleşmesine sızdırılmaz. Versioned `SimulationRequest` typed analysis listesi, netlist, timeout ve artifact politikasını; `SimulationResult` ise analysis, simulator/process status, measurement, warning, error, raw log ve artifact referanslarını ayrı alanlarda taşır. Native Ngspice adaptörü ile gelecekteki browser adaptörü aynı `SimulationRunner` sınırını uygular.
+Native simulator-process details do not leak into the shared Core simulation contract. A versioned `SimulationRequest` contains typed analyses, netlist, timeout, and artifact policy. `SimulationResult` keeps analysis, simulator/process status, measurements, warnings, errors, raw logs, and artifact references separate. Native Ngspice and future browser adapters implement the same `SimulationRunner` boundary.
 
-Native runner her çalıştırma için benzersiz bir temporary directory oluşturur. Başarılı çalışmanın artifact'ları temizlenir; hata artifact'ları yalnız açık `retain_on_failure` politikasıyla korunur. Runner executable discovery ve version probe uygular, timeout'ta process'i sonlandırır ve paylaşılabilir cancellation token kabul eder. CLI `simulate` ve `test` aynı runner üzerinden çalışır.
+The native runner creates a unique temporary directory for every run. Successful artifacts are cleaned up; failure artifacts are retained only under an explicit `retain_on_failure` policy. The runner discovers and probes the simulator executable, terminates it on timeout, and accepts a shared cancellation token. CLI `simulate` and `test` both use this runner.
 
-Ngspice analysis verileri stdout tablo metninden çıkarılmaz. Generated SPICE her typed analysis sonrasında deterministic isimli `wrdata` çıktısı üretir. OP sonucu sorted scalar map'e, transient/DC sonucu ortak axis ve real signal serilerine, AC sonucu frequency axis ile real/imaginary signal serilerine parse edilir. Parser exponent, decimal-comma ve LF/CRLF farklarını normalize eder; malformed, duplicate veya non-finite veri `KES-S006` ile fail-closed olur.
+Ngspice analysis data is not scraped from stdout tables. Generated SPICE writes deterministic `wrdata` artifacts after every typed analysis. OP becomes a sorted scalar map, transient and DC become a shared axis plus real signal series, and AC becomes a frequency axis plus real/imaginary signal series. The parser normalizes exponents, decimal commas, and LF/CRLF differences. Malformed, duplicate, or non-finite data fails closed with `KES-S006`.
 
-### Assertion ve ölçüm semantiği
+### Assertion and Measurement Semantics
 
-- `value`, serinin son örneğini; `min` ve `max`, signed minimum/maksimumu; `average` (`avg`) aritmetik ortalamayı; `rms`, kareler ortalamasının karekökünü verir.
-- `peak` absolute peak'tir: `max(abs(x))`. Pozitif maksimum anlamına gelmez. Generated `.meas` fallback'inde pozitif maksimum ve negatif minimum ayrı ölçülüp mutlak değerce büyüğü seçilir.
-- OP tek skaler örnektir. OP üzerinde `value`, `min`, `max` ve `average` aynı signed değeri; `peak` ve `rms` değerin mutlak büyüklüğünü verir.
-- Equality ve inclusive sınırlar (`==`, `<=`, `>=`) varsayılan `abs=1e-9`, `rel=1e-6` toleransını kullanır. Strict `<` ve `>` toleransla gevşetilmez.
-- Akım yönü Ngspice branch-current kuralını korur: pozitif akım component'in canonical pozitif/reference pinine giren akımdır. Voltage source için bu `plus`, inductor için `p1` pinidir. Bu nedenle yükü besleyen bir voltage source'un OP akımı çoğu devrede negatif görünür. Assertion motoru işareti yalnız `peak`/`rms` gibi açıkça magnitude tanımlı metric'lerde kaldırır.
-- AC dataset'i kompleks olduğu için ham `min`/`max`/`peak`/`average`/`rms` reduction şu aşamada fail-closed `ERROR` verir; frequency-domain magnitude/phase metric'leri mühendislik ölçümleri katmanında tanımlanır.
+- `value` selects the final sample; `min` and `max` select signed extrema; `average` (`avg`) is the arithmetic mean; `rms` is root mean square.
+- `peak` is the absolute peak, `max(abs(x))`, not the positive maximum. Generated `.meas` fallback measures positive maximum and negative minimum separately, then selects the larger magnitude.
+- OP contains one scalar sample. For OP, `value`, `min`, `max`, and `average` return the same signed value; `peak` and `rms` return its magnitude.
+- Equality and inclusive limits (`==`, `<=`, `>=`) use default tolerances of `abs=1e-9` and `rel=1e-6`. Strict `<` and `>` are never relaxed by tolerance.
+- Current direction follows the Ngspice branch-current convention: positive current enters the component's canonical positive/reference pin. This is `plus` for a voltage source and `p1` for an inductor. A voltage source delivering power therefore often has negative OP current. The assertion engine removes sign only for explicitly magnitude-based metrics such as `peak` and `rms`.
+- Because AC data is complex, raw `min`, `max`, `peak`, `average`, and `rms` reductions currently fail closed with `ERROR`. Frequency-domain magnitude and phase metrics are defined in the engineering-measurement layer.
 
-### Çıktı Formatı
-- **İnsan modu (varsayılan):** Stage/code/message içeren stderr diagnostic'leri; assertion PASS/FAIL satırlarında terminal rengi
-- **JSON modu (`--format json`):** Makine-okunabilir structured diagnostics
+### Output Formats
+
+- **Human mode (default):** stage/code/message diagnostics on stderr; assertion PASS/FAIL lines may use terminal color.
+- **JSON mode (`--format json`):** machine-readable structured diagnostics.
+
   ```json
   {
     "code": "KES-E003",
@@ -220,59 +229,62 @@ Ngspice analysis verileri stdout tablo metninden çıkarılmaz. Generated SPICE 
   }
   ```
 
-**Önemli not:** ERC sonuçları, tespit edilen riskleri raporlar. Bu sonuçlar fiziksel doğrulama veya mühendis incelemesinin yerine geçmez. Özellikle thermal davranış, PCB parasitikleri, ESD ve üretici toleransları gibi konular ERC kapsamı dışındadır.
+**Important:** ERC reports detected risks. It does not replace physical validation or engineering review. Thermal behavior, PCB parasitics, ESD, and manufacturer tolerances remain outside ERC scope.
 
-## 7. Şema Sahipliği ve Layout Motoru
+## 7. Schematic Ownership and Layout Engine
 
-Circuit IR elektriksel semantiğin, versioned Schematic IR ise çizim semantiğinin tek gerçek kaynağıdır. Schematic IR, Circuit IR ve canonical graph'tan üretilir; component instance, canonical pin anchor, orientation, wire endpoint/segment, junction, bağlantısız crossing, net label, bounds ve kalite/connectivity raporunu explicit taşır. Aynı Circuit IR için collection/declaration sırasından bağımsız ve byte-stable serialize edilmelidir.
+Circuit IR is the single source of electrical semantics; the versioned Schematic IR is the single source of drawing semantics. Schematic IR is generated from Circuit IR and the canonical graph. It explicitly carries component instances, canonical pin anchors, orientation, wire endpoints and segments, junctions, disconnected crossings, net labels, bounds, and quality/connectivity reports. For the same Circuit IR, serialization must be collection/declaration-order independent and byte-stable.
 
-Render/export sahipliği şu sınırı izler:
+Render/export ownership follows this boundary:
 
 ```text
 Circuit IR + Canonical Graph
         → kessetsu.schematic.v1
         → SVG / PNG / PDF / Schematic JSON / KiCad / LTspice exporters
-        → CLI artifact writer veya Web download UI
+        → CLI artifact writer or Web download UI
 ```
 
-Renderer/exporter'lar AST'ye veya legacy layout shape'ine dönmez; component pinlerini, bağlantıları veya symbol geometrisini yeniden tanımlamaz. Ortak symbol/pin kataloğu `core/src/component.rs` içindedir. Web yalnız Schematic IR/SVG'yi gösterir ve zoom/pan/selection gibi interaction ekler. Dosya yazma, overwrite ve download yan etkileri Core'un saf exporter sonucunun dışındadır.
+Renderers and exporters never return to the AST or legacy layout shapes. They do not redefine component pins, connections, or symbol geometry. The shared symbol/pin catalog lives in `core/src/component.rs`. The Web displays Schematic IR/SVG and adds interactions such as zoom, pan, and selection. File writes, overwrite policy, and browser downloads remain outside pure Core exporter results.
 
-Legacy `layout.rs` için başlangıç davranışı aşağıdaki gibidir; Faz 4 migration'ı sırasında characterization baseline olarak korunur:
+The legacy `layout.rs` behavior below remains a characterization baseline during the Phase 4 migration:
 
-Şematiği çizerken parçaları x/y koordinatlarına yerleştirmek için **chain-based vertical layout** yaklaşımı kullanılır. DFS, layout pipeline'ında traversal ve başlangıç sıralaması için kullanılan heuristic'lerden biridir.
+Schematic placement originally used a **chain-based vertical-layout** approach for assigning component x/y coordinates. DFS was one heuristic for traversal and initial ordering.
 
-- **Mevcut heuristic:** Voltage-source rail'leri, GND yönü, through-pin ve `is_signal_pin` bilgisi chain sıralamasını ve rotation seçimini etkiler. BJT/MOSFET gibi aktif elemanlar için ayrı yerleşim davranışı vardır; bütün topolojilerde ideal yön garanti edilmez.
-- **Canonical kapı:** `kessetsu.schematic.v1`, her bağlı graph pinini typed wire endpoint veya semantic net label ile temsil eder; eksik/fazla pin/net varsa `KES-L001` ile fail-closed olur.
-- **Yerleşim/router:** Deterministik layered placement, shared pin-side metadata, orthogonal cost-based routing ve yüksek fan-out/power netleri için semantic label kullanır. Symbol/wire/label collision, crossing ve bend sayıları versioned kalite raporundadır.
-- **Visual regression:** Altı devrelik corpus'un deterministic SVG SHA-256 golden'ları Rust testinde, gerçek browser görüntüsü Playwright corpus testinde korunur.
+- **Legacy heuristic:** Voltage-source rails, GND direction, through pins, and `is_signal_pin` affect chain order and rotation. Active devices such as BJTs and MOSFETs have separate placement behavior, but ideal orientation is not guaranteed for every topology.
+- **Canonical gate:** `kessetsu.schematic.v1` represents every connected graph pin with either a typed wire endpoint or a semantic net label. Missing or extra pins/nets fail closed with `KES-L001`.
+- **Placement and routing:** Deterministic layered placement, shared pin-side metadata, orthogonal cost-based routing, and semantic labels for high-fan-out/power nets are canonical. Symbol/wire/label collisions, crossings, and bend counts appear in the versioned quality report.
+- **Visual regression:** Deterministic SVG SHA-256 goldens for the schematic corpus are protected by Rust tests, and real-browser rendering is protected by the Playwright corpus.
 
-## 8. Kessetsu Vizyonu ve Ekosistem Manifestosu
+## 8. Kessetsu Vision and Ecosystem Manifesto
 
-**Kessetsu**, analog ve karma-sinyal devrelerini yazılım gibi derlemek, simüle etmek ve assertion'larla test etmek için tasarlanmış; native ve browser ortamlarında çalışan, AI-agent odaklı, deterministik bir SPICE derleyicisi ve doğrulama altyapısıdır.
+**Kessetsu** is an AI-agent-oriented, deterministic SPICE compiler and verification platform for developing analog and mixed-signal circuits like software. It runs natively and in the browser, expresses circuits as source, simulates them, and tests them with assertions.
 
-```
+```text
 Compile, simulate and test circuits like software.
 ```
 
-Bu ekosistem üç sütun üzerinde yükselir:
+The ecosystem has three pillars:
 
-### 1. Kessetsu Core (Rust Çekirdeği)
-Projenin kalbi. Parser, IR, ERC, SPICE jeneratör ve layout motoru tek bir Rust crate içinde yaşar. Hem kütüphane (`lib`), hem CLI, hem WASM olarak derlenir. Deterministik davranış sağlar — aynı devre, her platformda aynı sonucu üretir.
+### 1. Kessetsu Core
 
-### 2. Kessetsu CLI (Yapay Zeka ve Geliştiriciler İçin Motor)
-Derleme/ERC/SPICE üretimi için internet gerektirmeyen Rust CLI'dır. Windows x86-64 release'i Ngspice sidecar taşır; Linux x86-64 ile macOS Intel/Apple Silicon release'leri version-probed sistem Ngspice'ını keşfeder ve açık executable override'ını destekler.
+The heart of the project. Parser, IR, ERC, SPICE generation, and layout live in one Rust crate. It builds as a library, CLI, and WASM package. The same circuit produces deterministic results across platforms.
 
-- **Mevcut dağıtım:** Dört platform artifact'i, SHA-256/release manifest'i ve clean-machine simulation smoke'u. `cargo install` ve VS Code extension sonraki dağıtım hedefleridir.
-- **Kullanım:** AI ajanları ve donanım mühendisleri devreyi derlemek, test etmek ve otomatik JSON formatında hataları ayıklamak için kullanır. Ayrıntılar [CLI Reference](cli_reference.md) içindedir.
-- **TDD Döngüsü:** Ajan, assertion'ları yazılım testleri gibi kullanarak devreyi iteratif olarak düzeltebilir (Self-Healing). Her iterasyonda structured feedback alır.
+### 2. Kessetsu CLI — Engine for AI Agents and Developers
 
-### 3. Kessetsu Web Hub (İnsanlar İçin Vitrin ve Oyun Alanı)
-Kullanıcıların kayıtsız, indirmesiz kullanabildiği; Rust çekirdeğini WASM ile tarayıcıda çalıştıran arayüz.
+An offline-capable Rust CLI for compilation, ERC, SPICE generation, simulation, testing, and export. Windows x86-64 releases package Ngspice as a sidecar. Linux x86-64 and macOS Intel/Apple Silicon releases discover a version-probed system Ngspice and support an explicit executable override.
 
-- **Mevcut workspace:** Kod yaz → debounced WASM compile/ERC → canonical şema → dedicated worker içinde Ngspice simulation → typed plot/measurement/assertion sonuçları.
-- **Mevcut export:** Core'un `kessetsu.export.v1` capability sözleşmesi üzerinden SVG, PNG, PDF, Schematic JSON, SPICE, KiCad ve LTspice; Web exporter semantiğini yeniden kurmaz.
-- **Mevcut paylaşım:** `kessetsu.share.v1` source, compile schema ve exact package/version manifest'ini gzip + base64url URL fragment'inde taşır. Decode streaming boyut limitlidir; bilinmeyen sürüm, bozuk payload veya compile sonrası package uyuşmazlığı fail-closed olur. Sunucuya proje yüklenmez.
+- **Current distribution:** Four platform artifacts, SHA-256/release manifests, and clean-machine simulation smoke tests. `cargo install` and a VS Code extension are later distribution targets.
+- **Use:** AI agents and hardware engineers use the CLI to compile circuits, test requirements, and consume structured diagnostics. See the [CLI Reference](cli_reference.md).
+- **TDD loop:** An agent can use assertions like software tests, consume structured failures, revise the circuit, and repeat.
 
-**Güvenlik notu:** Web playground'da kullanıcı girdisi doğrudan SPICE string olarak netlist'e eklenmez. Tüm girdiler IR üzerinden typed olarak işlenir. Raw SPICE erişimi (ileride `unsafe spice_raw {}`) web sürümünde varsayılan olarak kapalıdır.
+### 3. Kessetsu Web Hub — Showcase and Playground for Humans
 
-**ÖZETLE:** Kessetsu bir "çizim programı" değil, bir devre derleyicisi ve doğrulama altyapısıdır. Bugünkü ürün CLI'da agent-oriented compile/test/export geri bildirimi ve Web'de aynı Core'a bağlı compile/simulation/measurement/schematic/export/share workspace'i sunar. Cross-platform release paketleme sıradaki ürün kapısıdır.
+A no-account, no-install interface that runs the Rust Core in the browser through WASM.
+
+- **Current workspace:** Write source → debounced WASM compile/ERC → canonical schematic → Ngspice simulation in a dedicated worker → typed plot/measurement/assertion results.
+- **Current exports:** SVG, PNG, PDF, Schematic JSON, SPICE, KiCad, and LTspice through Core's `kessetsu.export.v1` capability contract. The Web does not reconstruct exporter semantics.
+- **Current sharing:** A `kessetsu.share.v1` URL fragment carries source, compile schema, and the exact package/version manifest through gzip + base64url. Decoding uses streaming size limits; unknown versions, malformed payloads, or post-compile package mismatches fail closed. Projects are not uploaded to a server.
+
+**Security note:** The Web playground never inserts user input directly into a SPICE netlist. All input crosses typed IR validation. Any future raw-SPICE escape hatch such as `unsafe spice_raw {}` remains disabled by default on the Web.
+
+**In summary:** Kessetsu is not merely a drawing application. It is a circuit compiler and verification platform. The current product offers agent-oriented compile/test/export feedback through the CLI and a Web workspace—using the same Core—for compile, simulation, measurements, schematics, exports, and sharing. Cross-platform release packaging is the next product gate.
