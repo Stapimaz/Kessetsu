@@ -68,6 +68,7 @@ finally {
 Invoke-NativeStep 'Release dependency/license/artifact audit' { & (Join-Path $repoRoot 'scripts/audit-release.ps1') }
 Invoke-NativeStep 'RustSec vulnerability audit' { & (Join-Path $repoRoot 'scripts/audit-rust.ps1') }
 Invoke-NativeStep 'Replayable external-agent evaluation' { & (Join-Path $repoRoot 'scripts/replay-agent-eval.ps1') }
+Invoke-NativeStep 'Independent U1 evaluator contracts' { node --test (Join-Path $repoRoot 'scripts/evals/passive-filter.test.mjs') }
 
 $architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
 $releaseTarget = if ($env:OS -eq 'Windows_NT' -and $architecture -eq 'X64') {

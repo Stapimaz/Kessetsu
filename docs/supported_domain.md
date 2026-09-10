@@ -20,6 +20,7 @@ This document freezes the electrical scope advertised for Phase 4. â€œSupportedâ
 - Verified generic PMOS: `KESSETSU_PMOS_V1@1.0.1`, a portable Ngspice `MOS1` DC model with no manufacturer, datasheet, or parasitic-model claim.
 - User models: typed diode/BJT/MOSFET parameter allowlists.
 - User subcircuits: the typed op-amp template only.
+- Op-amp fidelity: the current generic template is a controlled voltage source with an RC pole. Its declared supply pins are unused internally; it does not model supply consumption, rail saturation, or a realistic output-current limit. Amplifier power, efficiency, and clipping assertions cover only the modeled circuit and supplied measurements, not those missing device effects.
 - Package imports: `kessetsu.models.v1`/`kessetsu.lock.v1` with an exact name and version, content hash, license, and simulator capability.
 - Unsupported: raw `.include`, `.model`, `.subckt`, or `.control`; floating package versions; arbitrary vendor script/model injection.
 

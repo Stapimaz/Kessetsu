@@ -10,7 +10,13 @@ Kessetsu is not a claim that existing simulators or EDA tools are inadequate. It
 | KiCad or LTspice | Mature graphical schematic capture plus integrated simulation/waveform workflows | One text source callable by an AI agent, deterministic JSON feedback and the same Core in a zero-install browser; editable files are outputs, not replacements for those editors |
 | Python circuit DSL such as SKiDL | General-purpose Python composition, ERC and multiple netlist/PCB/graphics outputs | A small data-like DSL with no arbitrary code execution, direct measurement assertions and native/browser contract parity |
 
-The repository tests these claims rather than relying on slogans: three real Ngspice benchmarks, native/browser engineering-decision parity, schematic connectivity/visual gates, KiCad 10 and LTspice round-trip smoke tests, and a replayable structured-feedback agent eval.
+The repository tests these mechanisms through three real Ngspice benchmarks, native/browser engineering-decision parity, schematic connectivity/visual gates, KiCad 10 and LTspice round-trip smoke tests, and a replayable structured-feedback correction. The correction restores a deliberately changed load in an existing amplifier; it does not prove independent design from unseen requirements or superiority over direct simulator/EDA workflows.
+
+## Competitive reality check — 2026-09-10
+
+[Flux](https://www.flux.ai/p/blog/simulate-circuits-with-a-prompt) documents AI-driven SPICE simulation and iteration against specifications. [tscircuit](https://docs.tscircuit.com/) documents a code-based workflow for schematics, simulation, PCBs, and manufacturing outputs. [Quilter](https://docs.quilter.ai/using-quilter/introduction) documents automated placement, routing, and validation from a schematic and starter board. AI-assisted circuit engineering is therefore not unique to Kessetsu.
+
+Kessetsu's proposed value is the combined provider-independent CLI, local/browser execution, executable requirements, and readable portable artifacts. Whether this combination saves effort or improves results over a strong agent using established tools is an open question tracked in [Roadmap 4.6V](ROADMAP.md#46v--unseen-design-and-incremental-value-gate). No comparative superiority or market demand has been demonstrated. Its current generic-model and subcircuit limits remain material; see the [support matrix](supported_domain.md).
 
 ## Who it is for
 

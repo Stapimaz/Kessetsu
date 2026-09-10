@@ -47,6 +47,25 @@ Kessetsu is developed agentically with LLM agents. Phases are evidence gates and
 
 The repository remains private during integrated development. The CLI/agent surface, simulation and assertion runtime, Web Hub, professional schematics, and target EDA exports must satisfy their acceptance gates together before public release. There is no external-user deadline driving premature publication.
 
+### Strategic Reality Check — 2026-09-10
+
+**Direction accepted by the owner on 2026-09-10:** Continue development around a provider-independent circuit design, verification, and artifact workflow. Validate its incremental value before publication. Stronger agents can use existing simulators and EDA tools directly; a custom language, JSON output, or AI-generated schematic is not by itself a defensible advantage. The developer owns routine planning and implementation; comparative product value and market demand remain unproven.
+
+The existing Rust Core, shared CLI/Web semantics, executable requirements, and readable exports are useful assets. Their combined convenience and correctness must be demonstrated against a capable agent using ordinary tools, not against an unaided language model. Keep the no-account browser workspace and locally usable CLI central. Do not introduce a PCB engine or embedded chat solely because competing products offer them.
+
+**Evidence limitations found in this review:**
+
+- `scripts/replay-agent-eval.ps1` derives a failing candidate from the finished amplifier by changing its load from 8 ohms to 16 ohms, then restores it. The JSON record documents this derivation and only a broad model family. This is useful regression evidence, not an independent, unseen requirements-to-design evaluation.
+- Three canonical simulation benchmarks and thirteen schematic fixtures establish bounded coverage, not general circuit-design or arbitrary-layout quality.
+- The model boundary accepts allowlisted discrete-device parameters and one op-amp template. It does not import arbitrary manufacturer IC/subcircuit models. Passing generic-model assertions does not establish that a purchasable part or physical board meets the same requirements.
+- In `core/src/models.rs`, the op-amp template declares `vcc`/`vee` but does not use them internally; it implements a controlled source and an RC pole. Supply-current accounting, rail saturation, and realistic output-current limits are not represented by that template. The amplifier's reported efficiency and clipping must be interpreted within this restricted model, not as full hardware validation.
+- Assertions currently live beside the candidate source. A design agent could weaken them or alter a fixed load/supply. Product evaluations must keep the requirement oracle outside the agent's editable candidate.
+- August verification records remain historical evidence. This review is not a new comprehensive implementation audit or a new competitive benchmark.
+
+**Market evidence checked on 2026-09-10:** [GPT-6 Astra](https://developers.openai.com/api/docs/models/gpt-6-astra) and [Claude Fable 5.1](https://www.anthropic.com/claude/fable) document stronger agent capabilities, but these pages do not establish general PCB correctness. [Flux](https://www.flux.ai/p/blog/simulate-circuits-with-a-prompt) already describes AI-driven SPICE simulation and specification-based iteration. [tscircuit](https://docs.tscircuit.com/) documents code-based schematic, PCB, simulation, and manufacturing workflows. [Quilter](https://docs.quilter.ai/using-quilter/introduction) automates placement/routing and validation from a schematic and starter board. These are documented capabilities, not comparative hands-on results. AI plus simulation is already a competitive category.
+
+**Decision rule:** Continue the integrated product if new tasks show a repeatable benefit in correctness, user effort, or usable artifacts. If most useful tasks are blocked by model/interchange limits, prioritize those limits over UI expansion. If the complete workflow adds no repeatable benefit but rendering or verification does, evaluate packaging that subsystem as an interoperable tool. Reconsider the standalone product if neither provides value. No outcome should be assumed before the comparison.
+
 ### Product Surfaces
 
 | Surface | Primary audience | Responsibility |
@@ -411,12 +430,46 @@ The first technically passing candidate was reopened after real PNG review expos
 - [x] Audit documentation by audience and lifecycle, create `docs/README.md`, and define English as the primary language.
 - [x] Translate the authoritative `docs/architecture.md`, `docs/cli_reference.md`, and `docs/ROADMAP.md` to English without changing their contracts. _Completed section by section on 2026-08-20; the roadmap's historical evidence was consolidated while all active scope and release gates remained explicit._
 
+### 4.6V — Unseen Design and Incremental-Value Gate
+
+- [x] Review current market documentation and repository evidence; record the 2026-09-10 recommendation and its limitations above.
+- [x] Freeze six unseen task specifications before candidate generation: passive filter, active filter, transistor bias/amplifier, load driver, fixed-load power amplifier, and a manufacturer-model-dependent design. _`docs/evals/unseen-design-v1.md`, 2026-09-10: immutable conditions, measured targets, repeated-run budgets, record requirements, and independent checking protocol. No candidate trials have been run._
+- [ ] Compare the same identified model and agent harness with Kessetsu versus direct Ngspice plus scripts and the relevant EDA workflow. Give both equal specifications, tool access, model data, and run budgets; allow baseline automation. Start with one accessible model, repeat each task at least three times, then check whether conclusions transfer to another available model. Record unavailable access rather than inventing runs.
+- [ ] Keep loads, supplies, topology constraints, and acceptance measurements in an evaluator-owned specification. Candidate revisions cannot lower thresholds, replace required parts/models, or remove tests. Use independent formulas/reference calculations where applicable so both workflows are not graded only by Kessetsu's own measurement implementation.
+  - [x] Implement U1 evaluation for Kessetsu and direct SPICE candidates. _`node scripts/evals/passive-filter.mjs <kessetsu|direct> <candidate-file>` validates the restricted passive topology, fixed load/source and resistance range, builds its own testbench, measures raw Ngspice AC/OP data, and checks analytic loaded-RC results. Five tests cover valid/invalid numbers, changed requirements, malformed data, both frontends, real simulation, and wrong cutoff. Development fixtures are not agent trial results._
+  - [ ] Implement and verify independent evaluators for U2–U6, including model adequacy and fixed topology/testbench integrity; retain acquisition/unsupported outcomes for U6.
+- [ ] Save prompts, exact available model identifiers/settings, sources, tool traces, failures, human interventions, elapsed time, usage/cost when available, and final artifacts. Report successful designs, false passes, unsupported cases, and artifact usability separately. Existing fixture replay remains a regression test.
+- [ ] Review fresh schematic PNGs and open editable exports from successful unseen tasks; a corpus hash alone cannot establish readable new layouts.
+- [ ] Audit verification claims and show which requirements, model assumptions, operating conditions, and untested physical effects each PASS covers. Check the flagship amplifier's generic driver and power-accounting limitations before using it as evidence of real-part performance.
+- [ ] Record per-task comparative results and a continue / interoperability-first / reconsider decision with the owner. Require no false acceptance of immutable requirements in the evaluated set and a repeatable practical benefit on at least two task families; do not turn a small sample into a universal success-rate claim. Convert demonstrated blockers into bounded Phase 4 tasks before closing this gate.
+
+This gate evaluates existing Phase 4 product claims; it does not begin Phase 5. Manufacturer-model support, import, or a separate test-spec interface is added only through an explicit scoped task if the evidence requires it. No paid model runs or third-party project uploads are implied by recording this plan.
+
+**Access constraint, owner-confirmed 2026-09-10:** Only the current Codex session is available. Separate model/API trials are unavailable. Continue evaluator implementation and independent UI/maintenance work; current-session development or self-review must not be reported as fresh-context independent comparative evidence. Do not purchase access or launch paid runs without an agreed budget.
+
 ### 4.6R — Owner Web Hub and Editor Review
 
-- [ ] Convert the owner's pending landing-page and editor feedback into explicit, bounded Phase 4 tasks; implement and verify the accepted changes before production deployment. _Awaiting the next review round; this is product-polish work within Phase 4, not a new phase._
+- [x] Capture the owner's 2026-09-10 feedback and define the workspace revision below.
+- [x] Reduce repeated landing-page calls to action while preserving the accepted visual direction: one primary hero entry, a quiet navigation entry, and no repeated closing sales block.
+- [x] Consolidate example selection, Check/Run/Cancel, Share, and one Export entry in the top workspace toolbar. Keep local view controls beside their panel; expose model/netlist/legal details without a permanent bottom export strip.
+- [x] Make source, schematic, and results independently collapsible/restorable with draggable desktop splitters, keyboard resizing, minimum sizes, reset layout, and persistence. Keep source and results alive when hidden; provide a usable narrow-screen arrangement.
+- [x] Replace assertion pills with a readable requirements table containing status, requirement, measured value, and limit; retain signal selection, failure visibility, and all assertion states.
+- [x] Verify resizing, collapse/restore, export selection, simulation, keyboard interaction, and mobile layout with browser tests and actual screenshots. _2026-09-10: 15 Chromium E2E passed; desktop/mobile/export/requirements/light-theme screenshots inspected. Existing schematic connectivity and pointer regressions passed._
+- [ ] Obtain owner feedback on the revised workspace and update public screenshots once its visual direction is accepted.
+
+### Release Execution Order and Commercial Direction
+
+1. Restore the 4.7 local verification prerequisites and patch the reported development dependency advisory.
+2. Freeze 4.6V task specifications and implement evaluator-owned requirements and reproducible records before generating candidate designs.
+3. Run accessible comparisons and document model-access gaps. Independent 4.6R interface work can proceed while external evaluation access is pending; this does not close 4.6V.
+4. Resolve demonstrated model/verification/interchange blockers, finish owner-facing review, and repeat affected evidence.
+5. Complete production deployment/rollback proof and the explicitly authorized integrated public release.
+
+The local CLI and no-account local-browser workspace remain free core surfaces. Commercial hypotheses are optional managed compute/automation, team workflows, and commercial licensing; pricing and implementation follow evidence of demand. Before release, define a privacy-respecting way to collect voluntary feedback and distinguish repeat usage from willingness to pay. Paid infrastructure, accounts, or artificial export restrictions are not first-release prerequisites.
 
 ### 4.7 — Cross-Platform Packaging and Public Release Gate
 
+- [x] Restore and rerun the current full verification gate before release. _2026-09-10: repaired recovery from incomplete `cargo-audit 0.22.2` extraction and upgraded Vitest to 4.1.11. The full canonical `scripts/verify.ps1` passed, including Rust/WASM, Web lint/10 unit tests/build, 15 Chromium E2E, dependency/license/artifact audits, replay, five independent U1 evaluator tests, packaging, and EDA smoke. Npm audit reports zero vulnerabilities. Accepted RustSec maintenance warnings and documented KiCad ERC/export warnings remain; this is not a claim of warning-free EDA interoperability. Rerun against the final release candidate._
 - [x] Define CLI artifacts for Windows x86-64, Linux x86-64, macOS Intel, and macOS Apple Silicon.
 - [x] Include simulator discovery/provenance, license notices, checksums, release manifests, and version probes.
 - [x] Automate clean-environment install → compile → real simulation → assertion smoke tests on all four targets. _GitHub run `31730843184`: all packaging and 12/12 simulation jobs passed._
@@ -436,16 +489,19 @@ The first technically passing candidate was reopened after real PNG review expos
 - [x] OP, transient, AC, and DC sweep results are interactive and assertions are connected to relevant signals/thresholds.
 - [x] User-defined and packaged models are reproducible, provenance-aware, and injection-safe in native and Web builds.
 - [x] RC, gain-stage, and power-amplifier benchmarks make the same engineering decisions in CLI and Web.
-- [x] An external AI agent reaches real power-amplifier requirements through structured CLI feedback without parsing human output.
+- [x] A recorded amplifier correction replays structured CLI feedback without parsing human output. _This proves regression behavior; independent unseen design ability is evaluated separately in 4.6V._
+- [ ] Pass the 4.6V unseen-design and incremental-value gate and resolve the blockers selected from its evidence.
 - [x] Shared URLs round-trip source and exact package/version requirements without schema loss.
 - [x] CLI installation and first simulation pass clean-machine smoke tests on every supported platform.
 - [x] A new user can define, measure, assert, and export a circuit using public documentation only.
 - [x] Canonical verification, browser E2E, schematic connectivity/visual corpus, benchmark parity, and release artifacts pass. _Accepted commit `5308f3b`; local full gate and remote CI `31850078955`._
-- [ ] Publish the repository and Web Hub only after the owner review, production-deployment proof, and release-transaction gates are complete.
+- [ ] Publish the repository and Web Hub only after the incremental-value gate, owner review, production-deployment proof, and release-transaction gates are complete.
 
 ---
 
 ## 6. Phase 5+ — Long-Term Vision
+
+After Phase 4 closes, order these options using 4.6V evidence. The default preference is useful model coverage and interchange, stronger verification across operating conditions, and agent onboarding, ahead of accounts, more export formats, or a new PCB engine. This is a prioritized direction, not authorization to bypass Phase 4 or implement the entire list.
 
 - Provider-independent natural-language design/chat inside the Web Hub
 - Bring-your-own-provider/API-key and optional managed AI service
@@ -513,6 +569,6 @@ For every development session:
 
 ### Current Next Task
 
-**4.6R — Owner Web Hub and editor review.**
+**4.6V — Extend independent requirement evaluators from U1 to U2–U6.**
 
-The authoritative documentation is now English and the current implementation satisfies its existing automated and owner-reviewed gates. Next, capture the owner's landing-page and editor feedback as concrete Phase 4 tasks and resolve them without weakening the accepted schematic or Core contracts. Production deployment proof follows that review; the public tag and repository visibility change remain the final, explicitly authorized transaction.
+The owner accepted this direction on 2026-09-10 and authorized developer-led execution. Six task specifications and the U1 evaluator now exist; the initial 4.6R interface revision is implemented and awaiting owner feedback. Continue the remaining evaluator/model-adequacy work with the current session while independent model access remains unavailable. Historical gates remain recorded; they do not substitute for new design evidence. Public release still requires the integrated Phase 4 gates and explicit owner authorization.
