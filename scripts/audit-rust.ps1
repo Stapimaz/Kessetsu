@@ -16,11 +16,16 @@ if (-not $auditCommand -and ($env:OS -eq "Windows_NT")) {
     }
     $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($actual -ne $expectedSha256) { throw "cargo-audit release asset checksum mismatch" }
-    if (-not (Test-Path -LiteralPath $extractRoot -PathType Container)) {
-        Expand-Archive -LiteralPath $archive -DestinationPath $extractRoot
+    if (Test-Path -LiteralPath $extractRoot -PathType Container) {
+        $auditCommand = Get-ChildItem -LiteralPath $extractRoot -Recurse -Filter cargo-audit.exe |
+            Select-Object -First 1 -ExpandProperty FullName
     }
-    $auditCommand = Get-ChildItem -LiteralPath $extractRoot -Recurse -Filter cargo-audit.exe |
-        Select-Object -First 1 -ExpandProperty FullName
+    if (-not $auditCommand) {
+        # A directory can survive an interrupted extraction without the binary.
+        Expand-Archive -LiteralPath $archive -DestinationPath $extractRoot -Force
+        $auditCommand = Get-ChildItem -LiteralPath $extractRoot -Recurse -Filter cargo-audit.exe |
+            Select-Object -First 1 -ExpandProperty FullName
+    }
 }
 
 if (-not $auditCommand) {

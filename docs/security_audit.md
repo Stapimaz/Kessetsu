@@ -4,6 +4,8 @@ Audit date: 2026-08-13. This is an engineering dependency review, not a legal op
 
 ## Automated gates
 
+2026-09-10 maintenance note: full npm audit identified `GHSA-82fw-gwwq-j7x9` in the development-only Vitest/mocker 4.1.10 dependency chain. The lockfile now resolves Vitest 4.1.11 and the lockfile audit reports zero vulnerabilities. The Windows RustSec bootstrap now retries extraction from its checksum-verified archive if a previous extraction left directories without `cargo-audit.exe`; the restored audit passes with the same two informational notices below.
+
 - `npm audit --omit=dev`: zero known production vulnerabilities.
 - RustSec `cargo-audit 0.22.2`: zero vulnerability advisories affecting the locked 128-crate graph.
 - Rust license metadata: all 127 third-party crates declare a license; no GPL/AGPL/SSPL identifier detected.
