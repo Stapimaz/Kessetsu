@@ -1,5 +1,5 @@
-import { Download, FileCode2 } from 'lucide-react';
-import { useState } from 'react';
+import { Download, X } from 'lucide-react';
+import { useRef, useState } from 'react';
 import type { ExportArtifact, ExportDescriptor, ExportFormat, ModelManifest } from '../domain';
 
 interface Props {
@@ -10,6 +10,12 @@ interface Props {
   message: string;
   onExport: (format: ExportFormat) => ExportArtifact;
 }
+
+const formatDescriptions: Record<ExportFormat, string> = {
+  svg: 'Scalable vector image', png: 'Raster image', pdf: 'Print-ready document',
+  schematic_json: 'Structured schematic data', spice: 'Simulation netlist',
+  kicad: 'Editable KiCad schematic', ltspice: 'Editable LTspice schematic',
+};
 
 function downloadArtifact(artifact: ExportArtifact) {
   const blob = new Blob([new Uint8Array(artifact.bytes)], { type: artifact.mime_type });
@@ -23,6 +29,7 @@ function downloadArtifact(artifact: ExportArtifact) {
 
 export function ArtifactBar({ spice, models, enabled, capabilities, message, onExport }: Props) {
   const [error, setError] = useState('');
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const exportOne = (format: ExportFormat) => {
     try {
       setError('');
@@ -34,7 +41,11 @@ export function ArtifactBar({ spice, models, enabled, capabilities, message, onE
 
   return (
     <aside className="artifact-bar" aria-label="Exports">
-      <div className="header-title"><FileCode2 size={16} /><strong>Export</strong></div>
+      <button disabled={!enabled} onClick={() => dialogRef.current?.showModal()} aria-haspopup="dialog"><Download size={15} /> Export</button>
+      <dialog ref={dialogRef} className="export-dialog" aria-labelledby="export-title">
+      <header><div><h2 id="export-title">Export circuit</h2><p>Choose a format to download.</p></div>
+        <button aria-label="Close export" onClick={() => dialogRef.current?.close()}><X size={18} /></button>
+      </header>
       <div className="export-buttons" data-testid="export-capabilities">
         {capabilities.map((descriptor) => (
           <button
@@ -44,7 +55,8 @@ export function ArtifactBar({ spice, models, enabled, capabilities, message, onE
             title={`${descriptor.capability.editable ? 'Editable' : 'View-only'} · ${descriptor.capability.preserves_connectivity ? 'connectivity-safe' : 'visual only'}`}
             data-export-format={descriptor.format}
           >
-            <Download size={13} /> {descriptor.label}
+            <strong>{descriptor.label}</strong>
+            <small>{formatDescriptions[descriptor.format]}</small>
           </button>
         ))}
       </div>
@@ -68,6 +80,8 @@ export function ArtifactBar({ spice, models, enabled, capabilities, message, onE
         </div>
       </details>
       {(error || message) && <span className={error ? 'export-status export-error' : 'export-status'} role="status">{error || message}</span>}
+      </dialog>
+      <details className="circuit-details"><summary>Details</summary><div className="circuit-details-popover">
       <details className="model-details" data-testid="model-manifest" data-manifest={models ? JSON.stringify(models) : ''}>
         <summary>Models ({models?.models.length ?? 0})</summary>
         <div className="model-popover">
@@ -83,7 +97,7 @@ export function ArtifactBar({ spice, models, enabled, capabilities, message, onE
       </details>
       <details className="spice-details">
         <summary>Generated SPICE Netlist</summary>
-        <pre>{spice || 'Geçerli devre bekleniyor…'}</pre>
+        <pre>{spice || 'Waiting for a valid circuit…'}</pre>
       </details>
       <details className="legal-details">
         <summary>Legal</summary>
@@ -97,6 +111,7 @@ export function ArtifactBar({ spice, models, enabled, capabilities, message, onE
           </span>
         </div>
       </details>
+      </div></details>
     </aside>
   );
 }

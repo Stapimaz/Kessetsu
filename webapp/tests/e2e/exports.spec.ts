@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 test('downloads every advertised artifact from the shared Core contract', async ({ page }) => {
   await page.goto('/#editor');
   await expect(page.getByTestId('compile-success')).toBeVisible();
+  await page.getByRole('button', { name: 'Export', exact: true }).click();
   await page.screenshot({ path: 'test-results/exports-ui.png', fullPage: true });
   const expected = ['svg', 'png', 'pdf', 'schematic_json', 'spice', 'kicad', 'ltspice'];
   const binary = resolve('../core/target/release', process.platform === 'win32' ? 'kess.exe' : 'kess');

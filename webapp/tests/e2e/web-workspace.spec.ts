@@ -17,7 +17,7 @@ test('supports edit, inline diagnostic navigation, fix, simulation, assertion an
   await diagnostic.click();
   await expect(page.locator('.monaco-editor').getByRole('textbox').first()).toBeFocused();
 
-  await page.getByLabel('Örnek devre').selectOption('rc');
+  await page.getByLabel('Example circuit').selectOption('rc');
   await expect(page.getByTestId('compile-success')).toBeVisible();
   await expect(page.getByTestId('canonical-schematic')).toHaveAttribute('data-quality', 'pass');
 
@@ -40,6 +40,7 @@ test('offers corresponding source and license from the interactive Web Hub', asy
   const sourceLink = page.getByRole('link', { name: /source code and AGPL license/i });
   await expect(sourceLink).toHaveAttribute('href', 'https://github.com/Stapimaz/Kessetsu');
   await expect(sourceLink).toContainText('AGPLv3');
+  await page.getByText('Details', { exact: true }).click();
   await page.getByText('Legal', { exact: true }).click();
   await expect(page.getByText('AGPL-3.0-only free software, provided without warranty.')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Full license' })).toHaveAttribute('href', '/LICENSE.txt');

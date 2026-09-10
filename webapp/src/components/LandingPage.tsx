@@ -2,7 +2,6 @@ import {
   ArrowRight,
   Check,
   CircuitBoard,
-  Code2,
   FileDown,
   Globe2,
   ShieldCheck,
@@ -67,7 +66,7 @@ export function LandingPage() {
             <code>agent-loop.kess</code>
           </div>
           <div className="requirement-note">
-            <small>ENGINEERING REQUIREMENT</small>
+            <small>RECORDED CORRECTION EXAMPLE · GENERIC MODELS</small>
             <p>Four-stage amplifier · 8 Ω load · ≈2 W output · gain ≈55 · device dissipation &lt;2 W</p>
           </div>
           <pre><span className="prompt">$</span> kess test - --format json{`\n`}
@@ -127,7 +126,6 @@ export function LandingPage() {
             <li><Check size={16} /> Connectivity-verified automatic schematics</li>
             <li><Check size={16} /> Interactive results and explicit PASS/FAIL assertions</li>
           </ul>
-          <a className="text-link" href="#editor">Open the browser workspace <ArrowRight size={16} /></a>
         </div>
         <WebHubPreview />
       </section>
@@ -147,19 +145,6 @@ export function LandingPage() {
         <div className="export-row">
           <FileDown size={18} aria-hidden="true" />
           {exports.map((format) => <span key={format}>{format}</span>)}
-        </div>
-      </section>
-
-      <section className="final-cta">
-        <div>
-          <p className="eyebrow">Ready when you are</p>
-          <h2>Start with a circuit. Leave with verified engineering artifacts.</h2>
-        </div>
-        <div className="hero-actions">
-          <a className="button button-primary" href="#editor">Open Web Hub <ArrowRight size={17} /></a>
-          <a className="button button-secondary" href="https://github.com/Stapimaz/Kessetsu">
-            <Code2 size={17} /> View source
-          </a>
         </div>
       </section>
 

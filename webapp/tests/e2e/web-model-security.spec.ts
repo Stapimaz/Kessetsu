@@ -53,5 +53,5 @@ test('keeps exact packages reproducible and rejects model directive injection in
   await replaceSource(page, 'model diode Evil version=1 license=MIT Is="1e-9 .control"\n');
   await expect(page.getByText(/KES-C010/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Run' })).toBeDisabled();
-  await expect(page.locator('.spice-details pre')).toContainText('Geçerli devre bekleniyor');
+  await expect(page.locator('.spice-details pre')).toContainText('Waiting for a valid circuit');
 });

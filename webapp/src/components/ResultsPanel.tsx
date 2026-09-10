@@ -1,4 +1,4 @@
-import { Activity, RotateCcw, Square, Zap } from 'lucide-react';
+import { Activity, RotateCcw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { SimulationState } from '../domain';
 import type { AssertionResult, BrowserEvaluation, Dataset } from '../simulation/types';
@@ -7,9 +7,6 @@ interface Props {
   state: SimulationState;
   message: string;
   evaluation: BrowserEvaluation | null;
-  canRun: boolean;
-  onRun(): void;
-  onCancel(): void;
 }
 
 function engineering(value: number, unit = ''): string {
@@ -25,6 +22,14 @@ function engineering(value: number, unit = ''): string {
 
 function signalLabel(name: string) {
   return name.includes('#branch') ? `${name.replace('#branch', '')} current` : `V(${name})`;
+}
+
+function measuredQuantity(value: number, unit: string) {
+  const units: Record<string, string> = { volt: 'V', ampere: 'A', watt: 'W', hertz: 'Hz', second: 's', degree: '°', ohm: 'Ω', dimensionless: '', ratio: '' };
+  const canonical = unit.toLowerCase();
+  if (canonical === 'dimensionless' || canonical === 'ratio' || canonical === '') return Number(value.toPrecision(4)).toString();
+  if (canonical === 'percent') return `${value.toPrecision(4)} %`;
+  return engineering(value, units[canonical] ?? unit);
 }
 
 function axisUnit(name: string) {
@@ -145,7 +150,7 @@ function DatasetView({ dataset, assertions }: { dataset: Dataset; assertions: As
   }
 
   if (signalNames.length === 0) {
-    return <div className="result-empty">Simulator bu analiz için çizilebilir sinyal üretmedi.</div>;
+    return <div className="result-empty">No plottable signals in this analysis.</div>;
   }
   const selectedSignal = signalNames.includes(signal) ? signal : signalNames[0];
 
@@ -179,7 +184,7 @@ function DatasetView({ dataset, assertions }: { dataset: Dataset; assertions: As
   /></>;
 }
 
-export function ResultsPanel({ state, message, evaluation, canRun, onRun, onCancel }: Props) {
+export function ResultsPanel({ state, message, evaluation }: Props) {
   const [datasetIndex, setDatasetIndex] = useState(0);
   const datasets = evaluation?.simulation.datasets ?? [];
   const selected = datasets[datasetIndex] ?? datasets[0];
@@ -195,9 +200,6 @@ export function ResultsPanel({ state, message, evaluation, canRun, onRun, onCanc
       <header className="workspace-header">
         <div className="header-title"><Activity size={18} /><strong>Results</strong></div>
         <span className={`run-status status-${state}`}>{statusText}</span>
-        {state === 'running'
-          ? <button className="run-button cancel-button" onClick={onCancel}><Square size={13} /> Cancel</button>
-          : <button className="run-button" onClick={onRun} disabled={!canRun}><Zap size={15} /> Run</button>}
       </header>
       <div className="results-body">
         {datasets.length > 0 ? (
@@ -214,17 +216,22 @@ export function ResultsPanel({ state, message, evaluation, canRun, onRun, onCanc
               ))}
             </div>
             {selected && <DatasetView dataset={selected.data} assertions={evaluation?.assertions.assertions ?? []} />}
-            <div className="assertion-list">
-              {evaluation?.assertions.assertions.map((assertion) => (
-                <span key={assertion.code} className={`assertion assertion-${assertion.status.toLowerCase()}`} title={assertion.message}>
-                  <span hidden data-assertion-code={assertion.code} data-actual={assertion.actual ?? ''} />
-                  {assertion.status} · {assertion.metric}({assertion.signal})
-                  {assertion.actual == null ? '' : ` = ${engineering(assertion.actual)}`}
-                </span>
-              ))}
-            </div>
           </>
         ) : <div className={`result-empty result-${state}`}><Activity size={28} /><p>{message}</p></div>}
+        {!!evaluation?.assertions.assertions.length && <div className="requirements-wrap">
+          <table className="requirements-table" aria-label="Engineering requirements">
+            <thead><tr><th>Status</th><th>Requirement</th><th>Measured</th><th>Limit</th></tr></thead>
+            <tbody>{evaluation.assertions.assertions.map((assertion) => <tr key={assertion.code}>
+              <td><span className={`assertion-${assertion.status.toLowerCase()}`}>{assertion.status}</span></td>
+              <td><span hidden data-assertion-code={assertion.code} data-actual={assertion.actual ?? ''} />
+                <span className="requirement-name">{assertion.metric}({assertion.signal})</span>
+                {assertion.message && assertion.status !== 'PASS' && <small>{assertion.message}</small>}
+              </td>
+              <td>{assertion.actual == null ? '—' : measuredQuantity(assertion.actual, assertion.unit)}</td>
+              <td>{assertion.comparator} {measuredQuantity(assertion.threshold, assertion.unit)}</td>
+            </tr>)}</tbody>
+          </table>
+        </div>}
       </div>
     </section>
   );

@@ -27,9 +27,11 @@ test('opens the final power-amplifier source from a versioned URL and runs the f
   await page.screenshot({ path: screenshotPath, fullPage: true });
 
   const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export', exact: true }).click();
   await page.locator('[data-export-format="svg"]').click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe('circuit.svg');
+  await page.getByRole('button', { name: 'Close export' }).click();
 
   await page.getByRole('button', { name: 'Share circuit' }).click();
   await expect(page.locator('.share-status')).toContainText(/source and package versions embedded/);

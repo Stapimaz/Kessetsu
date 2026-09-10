@@ -15,7 +15,7 @@ test('keeps gain-stage and power-amplifier native/browser decisions, SPICE and m
 
   for (const benchmark of cases) {
     const fixturePath = resolve(`../core/tests/fixtures/benchmarks/${benchmark.fixture}`);
-    await page.getByLabel('Örnek devre').selectOption(benchmark.option);
+    await page.getByLabel('Example circuit').selectOption(benchmark.option);
     await expect(page.getByTestId('compile-success')).toBeVisible();
 
     const outputPath = resolve(`test-results/native-${benchmark.option}.spice`);

@@ -34,9 +34,9 @@ button { color: inherit; }
 button:focus-visible, select:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .workspace-loading { min-height: 100vh; display: grid; place-items: center; color: var(--muted); background: var(--page); font: 13px ui-monospace, monospace; }
 
-.app-shell { height: 100vh; display: grid; grid-template-rows: 48px minmax(0, 1fr) 46px; overflow: hidden; }
+.app-shell { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
 .product-header, .artifact-bar, .workspace-header { display: flex; align-items: center; }
-.product-header { padding: 0 18px; justify-content: space-between; border-bottom: 1px solid var(--border); background: rgba(17, 23, 34, .92); }
+.product-header { min-height: 48px; flex-shrink: 0; padding: 0 18px; justify-content: space-between; border-bottom: 1px solid var(--border); background: var(--panel); }
 .product-actions { display: flex; align-items: center; gap: 8px; }
 .share-status { color: var(--muted); font-size: 11px; max-width: 360px; text-align: right; }
 .license-link { color: var(--muted); font-size: 11px; text-decoration: none; white-space: nowrap; }
@@ -47,7 +47,21 @@ button:focus-visible, select:focus-visible, a:focus-visible, [tabindex]:focus-vi
 .tagline { margin-left: 14px; color: var(--muted); font-size: 12px; }
 .theme-button, .icon-actions button { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel-raised); cursor: pointer; }
 
-.workspace-grid { min-height: 0; display: grid; grid-template-columns: minmax(340px, .85fr) minmax(440px, 1.15fr); grid-template-rows: minmax(280px, 1fr) minmax(280px, 1fr); gap: 1px; background: var(--border); }
+.command-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 9px 14px; border-bottom: 1px solid var(--border); background: var(--panel); }
+.workspace-layout { display: flex; flex: 1; min-height: 0; flex-direction: column; }
+.panel-toolbar { display: flex; flex-shrink: 0; align-items: center; gap: 6px; padding: 6px 14px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 11px; }
+.panel-toolbar button { border: 1px solid transparent; border-radius: 4px; padding: 4px 8px; background: transparent; color: var(--muted); cursor: pointer; text-transform: capitalize; }
+.panel-toolbar button[aria-pressed='true'] { border-color: var(--border); background: var(--panel-raised); color: var(--text); }
+.panel-toolbar .reset-layout { margin-left: auto; text-transform: none; }
+.resizable-workspace, .output-panels { display: grid; min-height: 0; min-width: 0; }
+.resizable-workspace { flex: 1; }
+.panel-slot { min-width: 0; min-height: 0; }
+.panel-slot > .workspace-panel { height: 100%; }
+.panel-slot[hidden], .output-panels[hidden] { display: none; }
+.workspace-splitter { background: var(--border); touch-action: none; position: relative; }
+.workspace-splitter:hover, .workspace-splitter:focus-visible { background: var(--accent); }
+.splitter-horizontal { cursor: col-resize; }
+.splitter-vertical { cursor: row-resize; }
 .workspace-panel { min-width: 0; min-height: 0; overflow: hidden; background: var(--panel); display: flex; flex-direction: column; }
 .editor-panel { grid-row: 1 / 3; }
 .workspace-header { min-height: 43px; gap: 10px; padding: 7px 10px; border-bottom: 1px solid var(--border); background: var(--panel-raised); }
@@ -105,7 +119,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .results-body { min-height: 0; flex: 1; overflow: auto; padding: 10px; }
 .result-empty { height: 100%; display: grid; place-content: center; justify-items: center; gap: 3px; }
 .analysis-tabs { display: flex; gap: 5px; overflow-x: auto; margin-bottom: 8px; }
-.analysis-tabs button { border: 1px solid var(--border); border-radius: 999px; color: var(--muted); background: transparent; padding: 4px 9px; cursor: pointer; text-transform: capitalize; font-size: 11px; }
+.analysis-tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--muted); background: transparent; padding: 7px 12px; cursor: pointer; text-transform: capitalize; font-size: 12px; }
 .analysis-tabs button[aria-selected='true'] { border-color: var(--accent); color: var(--accent); background: var(--accent-dark); }
 .signal-picker { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; color: var(--muted); font-size: 11px; }
 .signal-picker select { padding: 3px 6px; }
@@ -125,15 +139,34 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .op-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 7px; }
 .op-grid div { display: flex; justify-content: space-between; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-raised); font-size: 11px; }
 .op-grid span { color: var(--muted); }
-.assertion-list { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
-.assertion { border-radius: 999px; padding: 4px 7px; background: #334155; font-size: 10px; }
-.assertion-pass { color: #bbf7d0; background: #14532d; }
-.assertion-fail, .assertion-error { color: #fecaca; background: #7f1d1d; }
-.assertion-skipped { color: #fde68a; background: #78350f; }
+.requirements-wrap { overflow-x: auto; margin-top: 16px; border: 1px solid var(--border); border-radius: 6px; }
+.requirements-table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: left; }
+.requirements-table th { color: var(--muted); background: var(--panel-raised); font-weight: 500; }
+.requirements-table th, .requirements-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.requirements-table tr:last-child td { border-bottom: 0; }
+.requirements-table td:first-child { font-size: 10px; font-weight: 700; letter-spacing: .04em; }
+.requirements-table td:nth-child(n+3) { white-space: nowrap; font-family: ui-monospace, monospace; }
+.requirement-name { overflow-wrap: anywhere; }
+.requirements-table small { display: block; color: var(--muted); margin-top: 3px; }
+.assertion-pass { color: var(--success); }
+.assertion-fail, .assertion-error { color: var(--error); }
+.assertion-skipped { color: var(--warning); }
 
-.artifact-bar { gap: 7px; padding: 6px 14px; border-top: 1px solid var(--border); background: var(--panel-raised); }
+.artifact-bar { gap: 12px; margin-left: auto; }
 .artifact-bar button { padding: 4px 8px; font-size: 11px; }
-.export-buttons { display: flex; gap: 5px; }
+.export-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-block: 16px; }
+.export-dialog { width: min(520px, calc(100vw - 24px)); max-height: calc(100dvh - 40px); overflow: auto; padding: 22px; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 24px 80px #0006; }
+.export-dialog::backdrop { background: #0008; }
+.export-dialog header { display: flex; align-items: flex-start; justify-content: space-between; }
+.export-dialog h2 { margin: 0 0 6px; font-size: 20px; }
+.export-dialog p { margin: 0; color: var(--muted); font-size: 13px; }
+.export-dialog .export-buttons button { display: flex; align-items: flex-start; flex-direction: column; gap: 6px; padding: 14px; text-align: left; background: var(--panel-raised); }
+.export-buttons small { color: var(--muted); font-size: 11px; }
+.export-dialog .export-status { display: block; max-width: none; white-space: normal; font-size: 12px; margin-top: 14px; }
+.circuit-details { position: relative; font-size: 12px; }
+.circuit-details > summary { cursor: pointer; color: var(--muted); }
+.circuit-details-popover { position: absolute; z-index: 20; top: 28px; right: 0; width: min(440px, calc(100vw - 28px)); max-height: 65dvh; overflow: auto; padding: 16px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 12px 30px #0005; }
+.circuit-details-popover > details { padding: 8px 0; margin: 0; }
 .export-status { max-width: 320px; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .export-error { color: #fca5a5; }
 .model-details, .spice-details, .export-details, .legal-details { position: relative; font-size: 11px; }
@@ -151,6 +184,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .legal-popover { width: min(380px, 80vw); display: grid; gap: 6px; color: var(--text); }
 .legal-popover span { color: var(--muted); }
 .legal-popover a { color: var(--accent); }
+.circuit-details-popover .model-popover, .circuit-details-popover .legal-popover, .circuit-details-popover .spice-details pre, .export-dialog .export-popover { position: static; width: 100%; margin-top: 8px; background: var(--panel-raised); }
+.circuit-details-popover .spice-details pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .model-popover p { margin-top: 0; color: var(--muted); }
 .model-popover article, .export-popover article { display: grid; gap: 2px; padding: 7px 0; border-top: 1px solid var(--border); }
 .model-popover article span, .export-popover article span { color: var(--accent); }
@@ -160,13 +195,19 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 
 @media (max-width: 900px) {
   body { overflow: auto; }
-  .app-shell { height: auto; min-height: 100vh; overflow: visible; grid-template-rows: 48px auto 46px; }
-  .workspace-grid { display: flex; flex-direction: column; }
+  .app-shell { height: auto; min-height: 100vh; overflow: visible; }
+  .workspace-layout, .resizable-workspace, .output-panels { display: flex; flex-direction: column; }
+  .workspace-splitter { display: none; }
+  .panel-slot > .workspace-panel { height: 480px; }
+  .panel-slot > .editor-panel { height: 600px; }
   .workspace-panel { min-height: 430px; }
   .editor-panel { min-height: 600px; }
   .bode-grid { grid-template-columns: 1fr; }
   .tagline { display: none; }
   .license-link { display: none; }
-  .artifact-bar { position: sticky; bottom: 0; overflow-x: auto; }
-  .spice-details { display: none; }
+  .command-toolbar { gap: 6px; padding-inline: 10px; }
+  .command-toolbar > select { max-width: 135px; }
+  .panel-toolbar { padding-inline: 8px; gap: 2px; }
+  .panel-toolbar > span { display: none; }
+  .share-status { max-width: 140px; }
 }

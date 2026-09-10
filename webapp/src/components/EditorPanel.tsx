@@ -1,25 +1,20 @@
 import Editor, { type OnMount } from '@monaco-editor/react';
-import { Code2, Play } from 'lucide-react';
+import { Code2 } from 'lucide-react';
 import { useCallback, useEffect, useRef } from 'react';
 import type { editor } from 'monaco-editor';
 import type { CompileDiagnostic } from '../domain';
-import { type ExampleId, examples } from '../hooks/useKessetsuWorkspace';
 import { monaco } from '../monaco';
 
 interface Props {
   code: string;
   diagnostics: CompileDiagnostic[];
-  wasmLoaded: boolean;
   compileSucceeded: boolean;
   onCodeChange(code: string): void;
-  onCompile(): void;
-  onExample(id: ExampleId): void;
 }
 
-export function EditorPanel({ code, diagnostics, wasmLoaded, compileSucceeded, onCodeChange, onCompile, onExample }: Props) {
+export function EditorPanel({ code, diagnostics, compileSucceeded, onCodeChange }: Props) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const modelRef = useRef<editor.ITextModel | null>(null);
-  const selectedExample = Object.entries(examples).find(([, example]) => example.source === code)?.[0] ?? 'custom';
 
   const applyMarkers = useCallback(() => {
     const model = modelRef.current;
@@ -57,21 +52,7 @@ export function EditorPanel({ code, diagnostics, wasmLoaded, compileSucceeded, o
   return (
     <section className="workspace-panel editor-panel" aria-label="Kessetsu source editor">
       <header className="workspace-header">
-        <div className="header-title"><Code2 size={18} /><strong>Kessetsu</strong></div>
-        <label className="example-picker">
-          <span className="sr-only">Örnek devre</span>
-          <select
-            aria-label="Örnek devre"
-            value={selectedExample}
-            onChange={(event) => event.target.value !== 'custom' && onExample(event.target.value as ExampleId)}
-          >
-            {selectedExample === 'custom' && <option value="custom">Shared / custom circuit</option>}
-            {Object.entries(examples).map(([id, example]) => <option key={id} value={id}>{example.label} — {example.description}</option>)}
-          </select>
-        </label>
-        <button className="secondary-button" onClick={onCompile} disabled={!wasmLoaded}>
-          <Play size={14} /> {wasmLoaded ? 'Check' : 'Core…'}
-        </button>
+        <div className="header-title"><Code2 size={18} /><strong>Source</strong></div>
       </header>
       <div className="editor-container">
         <Editor
@@ -98,7 +79,7 @@ export function EditorPanel({ code, diagnostics, wasmLoaded, compileSucceeded, o
             <span>{diagnostic.message}</span>
             {diagnostic.line && <span className="diagnostic-location">L{diagnostic.line}:{diagnostic.column ?? 1}</span>}
           </button>
-        )) : <span className="diagnostic-pending">Core hazırlanıyor…</span>}
+        )) : <span className="diagnostic-pending">Initializing Core…</span>}
       </div>
     </section>
   );
