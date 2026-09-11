@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spiceNumber, parseRows } from './passive-filter.mjs';
 import { digest, runBench, evaluatorMain } from './runtime.mjs';
+import { verificationScope } from './verification-scope.mjs';
 
 // Frozen generic model, identical for both arms; not sourced from candidate assertions.
 export const MODEL = '.model 2N3904 NPN (Is=6.734f Xti=3 Eg=1.11 Vaf=74.03 Bf=416.4 Ne=1.259 Ise=6.734f Ikf=66.78m Xtb=1.5 Br=.7371 Nc=2 Isc=0 Ikr=0 Rc=1 Cjc=3.638p Mjc=.3085 Vjc=.75 Fc=.5 Cje=4.493p Mje=.2593 Vje=.75 Tr=239.5n Tf=301.2p Itf=.4 Vtf=4 Xtf=2 Rb=10)';
@@ -106,6 +107,7 @@ export function evaluateU3(netlist, simulator, runSimulator) {
       small_signal_transient_agreement: Math.abs(amplitude / (0.005 * gain) - 1) < 0.02 };
     return { status: Object.values(checks).every(Boolean) ? 'PASS' : 'FAIL', checks,
       measurements: { collector_v: collector, collector_current_a: current, gain_1khz: gain, phase_deg: phase, fundamental_v: amplitude },
+      verification_scope: verificationScope('U3', checks),
       model_adequacy: { model: '2N3904', model_sha256: digest(MODEL), hardware_validated: false,
         limitations: ['Generic model, nominal operating point only; no tolerance/thermal or manufacturer-part guarantee.', 'Evaluator topology is limited to divider bias and an unbypassed emitter resistor.'] } };
   }, runSimulator);

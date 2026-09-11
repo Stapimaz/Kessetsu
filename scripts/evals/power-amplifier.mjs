@@ -4,6 +4,7 @@ import { spiceNumber, parseRows } from './passive-filter.mjs';
 import { fundamental } from './common-emitter.mjs';
 import { MODEL as OPAMP_MODEL, inspectModel } from './active-filter.mjs';
 import { digest, runBench, evaluatorMain } from './runtime.mjs';
+import { verificationScope } from './verification-scope.mjs';
 
 export const NPN_MODEL = '.model KESSETSU_POWER_NPN_V1 NPN (Is=1e-12 Bf=80 Vaf=60 Cje=300p Cjc=150p Tf=1u Tr=5u)';
 export const PNP_MODEL = '.model KESSETSU_POWER_PNP_V1 PNP (Is=1e-12 Bf=80 Vaf=60 Cje=300p Cjc=150p Tf=1u Tr=5u)';
@@ -117,6 +118,7 @@ export function evaluateU5(netlist, simulator, runSimulator) {
       thd: measurements.thd < 0.03, npn_dissipation: measurements.npn_dissipation_w < 2,
       pnp_dissipation: measurements.pnp_dissipation_w < 2 };
     return { status: Object.values(checks).every(Boolean) ? 'PASS' : 'FAIL', checks, measurements,
+      verification_scope: verificationScope('U5', checks),
       driver_power: { status: 'UNAVAILABLE', reason: 'The generic op-amp template exposes no supply-current branches; total efficiency is not claimed.' },
       model_adequacy: { hardware_validated: false, opamp_model_sha256: digest(OPAMP_MODEL), npn_model_sha256: digest(NPN_MODEL), pnp_model_sha256: digest(PNP_MODEL),
         limitations: ['Generic linear op-amp omits rail saturation, output-current limits, and supply current.', 'Generic power-BJT models omit tolerance, thermal/package/SOA validation.', 'Nominal simulation is not a hardware efficiency or manufacturability claim.'] } };

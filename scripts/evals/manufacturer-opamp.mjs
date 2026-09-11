@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { spiceNumber, parseRows, cutoffFrequency } from './passive-filter.mjs';
 import { fundamental } from './common-emitter.mjs';
 import { digest, runBench, evaluatorMain } from './runtime.mjs';
+import { verificationScope } from './verification-scope.mjs';
 
 export const OFFICIAL_MODEL_SHA256 = 'fc5b020e63346e511bd808bf41c856b0150b000bcf8a41fe00eeececb1f422a5';
 export const MODEL_PROVENANCE = {
@@ -86,6 +87,7 @@ export function evaluateU6(netlist, simulator, runSimulator, modelPath = process
       settled_peak: peak >= 0.475 && peak <= 0.525, transient_fundamental: amplitude >= 0.475 && amplitude <= 0.525 };
     return { status: Object.values(checks).every(Boolean) ? 'PASS' : 'FAIL', checks,
       measurements: { gain_1khz: gain, settled_peak_v: peak, fundamental_v: amplitude, dc_offset_v: op[0][1], cutoff_hz: cutoff },
+      verification_scope: verificationScope('U6', checks),
       model_provenance: { ...MODEL_PROVENANCE, supplied_file_sha256: model.sha256 },
       model_adequacy: { authentic_manufacturer_model: model.sha256 === OFFICIAL_MODEL_SHA256 && expectedHash === OFFICIAL_MODEL_SHA256, hardware_validated: false,
         limitations: ['Manufacturer macromodel simulation does not replace tolerance, board, thermal, EMC, or bench validation.'] } };

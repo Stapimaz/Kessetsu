@@ -5,6 +5,7 @@ import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import { verificationScope } from './verification-scope.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const digest = (text) => createHash('sha256').update(text).digest('hex');
@@ -130,6 +131,7 @@ export function evaluateU1(netlist, simulator, runSimulator = spawnSync) {
     const checks = { fixed_requirements: true, dc_gain: dcGain >= 0.95, cutoff: cutoff >= 1450 && cutoff <= 1750, independent_formula_agreement: formulaAgreement };
     return { status: Object.values(checks).every(Boolean) ? 'PASS' : 'FAIL', checks,
       measurements: { dc_gain: dcGain, cutoff_hz: cutoff }, analytic_reference: { dc_gain: expectedGain, cutoff_hz: expectedCutoff },
+      verification_scope: verificationScope('U1', checks),
       evidence };
   } catch (error) { error.evidence = evidence; throw error; } finally {
     // This path is created by mkdtemp for this evaluation, never caller-supplied.

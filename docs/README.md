@@ -42,6 +42,12 @@ The [schematic quality plan](schematic_quality_plan.md) defines the current visu
 - [Rejected/superseded candidate — 2026-08-13](evals/schematic-quality-candidate-2026-08-13.md)
 - [Accepted visual golden — candidate 2026-08-14, accepted 2026-08-20](evals/schematic-quality-candidate-2026-08-14.md)
 
+The unseen-design gate has its own frozen protocol and claim boundaries:
+
+- [Unseen design evaluation v1](evals/unseen-design-v1.md)
+- [Evaluation verification-claim audit v1](evals/verification-claim-audit-v1.md)
+- [OPA197 manufacturer-model probe](evals/opa197-model-probe-2026-09-11.md)
+
 Files under [`evals/`](evals/) are evidence, not general user documentation. Rejected candidates are intentionally retained so that a later layout regression cannot be mistaken for progress.
 
 ## Language policy

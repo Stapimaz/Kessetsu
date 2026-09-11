@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spiceNumber, parseRows } from './passive-filter.mjs';
 import { digest, runBench, evaluatorMain } from './runtime.mjs';
+import { verificationScope } from './verification-scope.mjs';
 
 export const MODEL = '.model IRF540 VDMOS (Rg=3 Vto=4.0 Rd=45m Rs=12m Rb=10m Kp=18 Cgdmax=2n Cgdmin=1.3n Cgs=1.7n Cjo=1n Is=2p mfg=IR)';
 const normalize = (line) => line.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -120,6 +121,7 @@ export function evaluateU4(netlist, simulator, runSimulator) {
       off_current: measurements.off_current_peak_a <= 100e-6, on_drain: measurements.on_drain_peak_v <= 0.6,
       mean_dissipation: measurements.mean_dissipation_w < 0.1 };
     return { status: Object.values(checks).every(Boolean) ? 'PASS' : 'FAIL', checks, measurements,
+      verification_scope: verificationScope('U4', checks),
       model_adequacy: { model: 'IRF540', model_sha256: digest(MODEL), hardware_validated: false,
         limitations: ['Generic nominal VDMOS model; no tolerance, thermal, package, avalanche, or gate-driver validation.', 'Settled-window dissipation intentionally excludes 50 us around switching transitions and therefore is not total switching loss.'] } };
   }, runSimulator);

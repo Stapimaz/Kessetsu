@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { spiceNumber, parseRows, cutoffFrequency } from './passive-filter.mjs';
+import { verificationScope } from './verification-scope.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const digest = (value) => createHash('sha256').update(value).digest('hex');
@@ -186,6 +187,7 @@ export function evaluateU2(netlist, simulator, runSimulator = spawnSync) {
       ac_transient_agreement: Math.abs(peak - 0.05 * gain) < 1e-5 };
     return { status: Object.values(checks).every(Boolean) ? 'PASS' : 'FAIL', checks,
       measurements: { gain_100hz: gain, cutoff_hz: cutoff, dc_offset_v: op[0][1], settled_peak_v: peak },
+      verification_scope: verificationScope('U2', checks),
       model_adequacy: { scope: 'nominal_generic_linear_simulation', hardware_validated: false, limitations,
         model_sha256: digest(circuit.modelInfo.canonical), candidate_model_sha256: digest(circuit.model), model_name: circuit.modelInfo.name },
       evidence };
