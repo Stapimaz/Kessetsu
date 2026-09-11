@@ -27,7 +27,7 @@ const sameModel = (text) => {
   });
 };
 
-function inspectModel(text) {
+export function inspectModel(text) {
   const tokens = normalize(text);
   if (tokens.length !== normalize(MODEL).length || !/^[a-z][a-z0-9_]*$/.test(tokens[1]) || tokens[26] !== tokens[1]) throw new Error('Unsupported model declaration');
   const name = tokens[1], gain = spiceNumber(tokens[12]), capacitance = spiceNumber(tokens[20]);

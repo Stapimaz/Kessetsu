@@ -8,12 +8,14 @@ import { spawnSync } from 'node:child_process';
 export const root = fileURLToPath(new URL('../../', import.meta.url));
 export const digest = (value) => createHash('sha256').update(value).digest('hex');
 
-export function runBench(task, bench, simulator, names, measure, runSimulator = spawnSync) {
+export function runBench(task, bench, simulator, names, measure, runSimulator = spawnSync, evidenceBench = bench) {
   const directory = mkdtempSync(join(tmpdir(), `kessetsu-${task.toLowerCase()}-`));
-  const evidence = { testbench: bench };
+  const evidence = { testbench: evidenceBench };
   try {
     writeFileSync(join(directory, 'bench.spice'), bench);
-    const run = runSimulator(simulator, ['-n', '-b', 'bench.spice'], { cwd: directory, encoding: 'utf8', timeout: 30000, maxBuffer: 2 * 1024 * 1024, windowsHide: true });
+    const executable = typeof simulator === 'string' ? simulator : simulator.executable;
+    const prefixArgs = typeof simulator === 'string' ? [] : simulator.args;
+    const run = runSimulator(executable, [...prefixArgs, '-n', '-b', 'bench.spice'], { cwd: directory, encoding: 'utf8', timeout: 30000, maxBuffer: 2 * 1024 * 1024, windowsHide: true });
     Object.assign(evidence, { simulator_stdout: run.stdout, simulator_stderr: run.stderr, simulator_exit_code: run.status,
       simulator_signal: run.signal, simulator_error: run.error?.message ?? null });
     const raw = {};
