@@ -46,6 +46,20 @@ foreach ($name in $fixtures) {
     if ($LASTEXITCODE -ne 0) { throw "$name did not open in KiCad." }
     & $kicad sch erc --output $kicadErc $kicadSchematic
     if ($LASTEXITCODE -ne 0) { throw "$name KiCad ERC invocation failed." }
+    $ercText = Get-Content -LiteralPath $kicadErc -Raw -Encoding UTF8
+    $ercSummary = [regex]::Match($ercText, '\*\* ERC messages:\s+(?<total>\d+)\s+Errors\s+(?<errors>\d+)\s+Warnings\s+(?<warnings>\d+)')
+    if (-not $ercSummary.Success) { throw "$name KiCad ERC report has no parseable summary." }
+    $ercErrors = [int]$ercSummary.Groups['errors'].Value
+    $ercWarnings = [int]$ercSummary.Groups['warnings'].Value
+    $ercViolations = @([regex]::Matches($ercText, '(?m)^\[([^\]]+)\]:') | ForEach-Object { $_.Groups[1].Value })
+    $unexpectedViolations = @($ercViolations | Where-Object { $_ -ne 'lib_symbol_issues' })
+    if ($ercErrors -ne 0 -or $unexpectedViolations.Count -ne 0) {
+        throw "$name KiCad ERC found $ercErrors error(s) or unexpected violation types: $($unexpectedViolations -join ', ')."
+    }
+    if ([int]$ercSummary.Groups['total'].Value -ne $ercViolations.Count) {
+        throw "$name KiCad ERC summary/violation count mismatch."
+    }
+    Write-Host "KiCad ERC accepted: 0 errors; $ercWarnings embedded-symbol library warning(s)."
 
     & $kess export $source --target ltspice --output $ltspiceSchematic --force
     if ($LASTEXITCODE -ne 0) { throw "$name LTspice export failed." }
