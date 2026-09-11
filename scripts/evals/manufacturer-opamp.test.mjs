@@ -61,11 +61,13 @@ test('U6 evaluator measurement path passes a synthetic test-only five-pin model'
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('official user-supplied TI model records bundled-Ngspice capability failure',
+test('official user-supplied TI model executes through bundled-Ngspice PSpice library mode',
   { skip: !process.env.KESSETSU_U6_MODEL }, () => {
-    assert.throws(() => evaluateU6(valid, simulator),
-      (error) => /U6_MODEL_CAPABILITY_ERROR/.test(error.message) && /no such function 'if'/.test(error.evidence.simulator_stderr) &&
-        !error.evidence.testbench.includes('Green-Williams-Lis') && error.evidence.model_provenance.supplied_file_sha256 === OFFICIAL_MODEL_SHA256);
+    const result = evaluateU6(valid, simulator);
+    assert.equal(result.status, 'PASS', JSON.stringify(result.measurements));
+    assert.equal(result.model_adequacy.authentic_manufacturer_model, true);
+    assert.equal(result.model_provenance.supplied_file_sha256, OFFICIAL_MODEL_SHA256);
+    assert.ok(!result.evidence.testbench.includes('Green-Williams-Lis'));
   });
 
 test('U6 CLI records acquisition failure rather than accepting a generic fallback', () => {

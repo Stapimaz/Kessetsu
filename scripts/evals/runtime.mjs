@@ -8,11 +8,15 @@ import { spawnSync } from 'node:child_process';
 export const root = fileURLToPath(new URL('../../', import.meta.url));
 export const digest = (value) => createHash('sha256').update(value).digest('hex');
 
-export function runBench(task, bench, simulator, names, measure, runSimulator = spawnSync, evidenceBench = bench) {
+export function runBench(task, bench, simulator, names, measure, runSimulator = spawnSync, evidenceBench = bench, supportFiles = {}) {
   const directory = mkdtempSync(join(tmpdir(), `kessetsu-${task.toLowerCase()}-`));
   const evidence = { testbench: evidenceBench };
   try {
     writeFileSync(join(directory, 'bench.spice'), bench);
+    for (const [name, contents] of Object.entries(supportFiles)) {
+      if (!/^[A-Za-z0-9._-]+$/.test(name) || typeof contents !== 'string') throw new Error('Invalid evaluator support file');
+      writeFileSync(join(directory, name), contents);
+    }
     const executable = typeof simulator === 'string' ? simulator : simulator.executable;
     const prefixArgs = typeof simulator === 'string' ? [] : simulator.args;
     const run = runSimulator(executable, [...prefixArgs, '-n', '-b', 'bench.spice'], { cwd: directory, encoding: 'utf8', timeout: 30000, maxBuffer: 2 * 1024 * 1024, windowsHide: true });

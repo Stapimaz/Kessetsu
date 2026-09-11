@@ -70,8 +70,8 @@ export function inspectU6(netlist) {
 
 export function evaluateU6(netlist, simulator, runSimulator, modelPath = process.env.KESSETSU_U6_MODEL, expectedHash = OFFICIAL_MODEL_SHA256) {
   const c = inspectU6(netlist), model = loadVerifiedModel(modelPath, expectedHash);
-  const bench = `Evaluator-owned U6\n.param TEMP=27\nVIN in 0 SIN(0 0.1 1000) AC 1\nVP vcc 0 6\nVN 0 vee 6\nRF out feedback ${c.rf}\nRG feedback 0 ${c.rg}\nRL out 0 10000\nX1 in feedback vcc vee out OPAx197\n${model.text}\n.control\nset numdgt=15\nop\nwrdata op.data v(out)\nac dec 100 10 1000000\nwrdata ac.data v(out) v(in)\ntran 2u 10m 0 2u\nwrdata tran.data v(out)\nquit\n.endc\n.end\n`;
-  const evidenceBench = bench.replace(model.text, `* External OPAx197 model omitted from record; sha256=${model.sha256}`);
+  const bench = `Evaluator-owned U6\n.param TEMP=27\nVIN in 0 SIN(0 0.1 1000) AC 1\nVP vcc 0 6\nVN 0 vee 6\nRF out feedback ${c.rf}\nRG feedback 0 ${c.rg}\nRL out 0 10000\nX1 in feedback vcc vee out OPAx197\n.include OPAx197.LIB\n.control\nset numdgt=15\nop\nwrdata op.data v(out)\nac dec 100 10 1000000\nwrdata ac.data v(out) v(in)\ntran 2u 10m 0 2u\nwrdata tran.data v(out)\nquit\n.endc\n.end\n`;
+  const evidenceBench = `${bench}* External OPAx197 model omitted from record; sha256=${model.sha256}\n`;
   try { return runBench('U6', bench, { executable: simulator, args: ['-D', 'ngbehavior=ps'] }, ['op', 'ac', 'tran'], (raw) => {
     const op = parseRows(raw.op, 2), ac = parseRows(raw.ac, 6), transient = parseRows(raw.tran, 2);
     if (op.length !== 1 || ac.length !== 501) throw new Error('Incomplete U6 OP/AC data');
@@ -89,10 +89,10 @@ export function evaluateU6(netlist, simulator, runSimulator, modelPath = process
       model_provenance: { ...MODEL_PROVENANCE, supplied_file_sha256: model.sha256 },
       model_adequacy: { authentic_manufacturer_model: model.sha256 === OFFICIAL_MODEL_SHA256 && expectedHash === OFFICIAL_MODEL_SHA256, hardware_validated: false,
         limitations: ['Manufacturer macromodel simulation does not replace tolerance, board, thermal, EMC, or bench validation.'] } };
-  }, runSimulator, evidenceBench); } catch (error) {
+  }, runSimulator, evidenceBench, { 'OPAx197.LIB': model.text }); } catch (error) {
     error.evidence.model_provenance = { ...MODEL_PROVENANCE, supplied_file_sha256: model.sha256 };
-    if (model.sha256 === OFFICIAL_MODEL_SHA256 && /no such function 'if'|fatal error/i.test(error.evidence?.simulator_stderr ?? '')) {
-      error.message = 'U6_MODEL_CAPABILITY_ERROR: official OPAx197 Rev. D PSpice model is not executable by bundled Ngspice 46, including ps compatibility mode';
+    if (model.sha256 === OFFICIAL_MODEL_SHA256 && /no such function 'if'|mif-error|fatal error/i.test(error.evidence?.simulator_stderr ?? '')) {
+      error.message = 'U6_MODEL_CAPABILITY_ERROR: selected simulator lacks the PSpice/XSPICE support required by the official OPAx197 Rev. D model';
     }
     throw error;
   }

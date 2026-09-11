@@ -25,21 +25,23 @@ matrix and smoke contract are in the [release document](../../../docs/release.md
 | --- | --- |
 | `bin/ngspice_con.exe` | Console simulator invoked by Kessetsu in batch mode |
 | `bin/libomp140.x86_64.dll` | OpenMP runtime for this Windows binary |
+| `lib/ngspice/analog.cm` | XSPICE transfer-function models required by PSpice library translation |
+| `lib/ngspice/xtradev.cm` | XSPICE analog-switch models required by PSpice `VSWITCH` translation |
 | `share/ngspice/scripts/spinit` | Deterministic minimal startup settings |
 | `docs/COPYING` | Upstream license texts and exceptions |
 | `docs/AUTHORS` | Upstream attribution record |
 | `docs/README` | Upstream project and source information |
 
 The GUI executable, upstream example/test tree, PDF manual, development notes,
-XSPICE `.cm` code models, and OpenVAF/OSDI model libraries are not part of
-Kessetsu's current analog runtime profile. `spinit` is explicitly configured not
-to load those absent optional libraries. If any such feature enters product
-scope, it requires a separate runtime profile backed by fixture and distribution
-review.
+the other five XSPICE `.cm` modules, and OpenVAF/OSDI model libraries are not
+part of Kessetsu's current runtime profile. `spinit` loads only the two modules
+above and explicitly disables the absent OSDI family. Any broader feature set
+requires a separate runtime-profile review and fixtures.
 
 ## Verification scope
 
-The following was verified on August 8, 2026:
+The base profile was verified on August 8, 2026, and its manufacturer-model
+extension on September 11, 2026:
 
 1. In a clean temporary directory containing only the runtime files above,
    `ngspice_con.exe --version` reported version 46.
@@ -47,6 +49,17 @@ The following was verified on August 8, 2026:
    mode with exit code 0.
 3. Measurement output produced `max_v_my_signal = 6.20001e-08` with no missing
    initialization, code-model, or OSDI-file errors.
+4. The exact user-supplied TI OPAx197 Rev. D model ran in PSpice library mode
+   without modifying or redistributing the model; evaluator-owned OP, AC, and
+   transient checks passed.
+
+The source archive was the official `ngspice-46_64.7z` from SourceForge
+(`SHA-256 7ed713cd8d401db724ffe99087c3122bf05a9cfa99de02c6eeed44ee44785a33`).
+The tracked module hashes are
+`6173f1621c91b77c4a32c1573e55bfff97fc144d838eb7648e76e50f843a9202`
+(`analog.cm`) and
+`28899526c5024193160a4cdcc96b11723b4ced4494cc5d6ca4e95f573cd7773f`
+(`xtradev.cm`).
 
 This smoke verification does not guarantee every supported Ngspice feature.
 Canonical integration fixtures additionally lock OP, transient, AC, and DC

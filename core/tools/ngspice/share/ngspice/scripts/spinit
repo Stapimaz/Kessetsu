@@ -14,8 +14,12 @@ set filetype=ascii
 set num_threads=8
 *set interactive
 
-* Kessetsu ships the minimal analog runtime profile. Optional XSPICE code
-* models and OpenVAF/OSDI models are not part of this bundle; do not try to
-* load files that are intentionally absent. Add a separate runtime profile
-* before enabling either model family.
+* Kessetsu ships a minimal manufacturer-model runtime profile. analog.cm and
+* xtradev.cm supply the transfer and analog-switch models used by ngspice's
+* PSpice translation. Other optional XSPICE and all OpenVAF/OSDI models remain
+* outside this bundle.
+if $?xspice_enabled
+ codemodel ../lib/ngspice/analog.cm
+ codemodel ../lib/ngspice/xtradev.cm
+end
 unset osdi_enabled
