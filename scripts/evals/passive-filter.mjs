@@ -20,16 +20,18 @@ export function spiceNumber(text) {
 
 export function inspectU1(netlist) {
   const devices = [];
-  let control = false;
+  let control = false, ended = false;
   const lines = netlist.replace(/^\uFEFF/, '').split(/\r?\n/);
   // A SPICE file's first line is its title, not an executable/device line.
   for (const original of lines.slice(1)) {
     const line = original.trim();
     if (!line || line.startsWith('*')) continue;
+    if (ended) throw new Error('Content after SPICE end directive');
     if (/^\.control$/i.test(line)) { if (control) throw new Error('Nested control block'); control = true; continue; }
     if (/^\.endc$/i.test(line)) { if (!control) throw new Error('Unmatched endc'); control = false; continue; }
     if (control) continue;
-    if (/^\.(end|op|ac|tran|meas|measure)(\s|$)/i.test(line)) continue;
+    if (/^\.end$/i.test(line)) { ended = true; continue; }
+    if (/^\.(op|ac|tran|meas|measure)(\s|$)/i.test(line)) continue;
     const fields = line.split(/\s+/);
     const kind = fields[0][0].toUpperCase();
     if (!['R', 'C', 'V'].includes(kind) || fields.length < 4) throw new Error(`Unsupported U1 device/directive: ${line}`);
@@ -98,7 +100,7 @@ export function cutoffFrequency(rows, dcGain) {
   return crossings[0];
 }
 
-export function evaluateU1(netlist, simulator) {
+export function evaluateU1(netlist, simulator, runSimulator = spawnSync) {
   const circuit = inspectU1(netlist);
   const expectedGain = circuit.load / (circuit.resistance + circuit.load);
   const parallel = circuit.resistance * circuit.load / (circuit.resistance + circuit.load);
@@ -106,12 +108,20 @@ export function evaluateU1(netlist, simulator) {
   const directory = mkdtempSync(join(tmpdir(), 'kessetsu-u1-'));
   // Only validated positive finite component values cross into the testbench.
   const bench = `Evaluator-owned U1\nVTEST in 0 DC 1 AC 1\nRS in out ${circuit.resistance}\nRL out 0 100000\nC1 out 0 ${circuit.capacitance}\n.control\nop\nwrdata op.data v(out)\nac dec 100 10 1000000\nwrdata ac.data v(out) v(in)\nquit\n.endc\n.end\n`;
+  const evidence = { testbench: bench };
   try {
     writeFileSync(join(directory, 'bench.spice'), bench);
-    const run = spawnSync(simulator, ['-n', '-b', 'bench.spice'], { cwd: directory, encoding: 'utf8', timeout: 30000, maxBuffer: 2 * 1024 * 1024, windowsHide: true });
+    const run = runSimulator(simulator, ['-n', '-b', 'bench.spice'], { cwd: directory, encoding: 'utf8', timeout: 30000, maxBuffer: 2 * 1024 * 1024, windowsHide: true });
+    Object.assign(evidence, { simulator_stdout: run.stdout, simulator_stderr: run.stderr,
+      simulator_exit_code: run.status, simulator_signal: run.signal, simulator_error: run.error?.message ?? null });
+    for (const name of ['op', 'ac']) {
+      try { evidence[`${name}_data`] = readFileSync(join(directory, `${name}.data`), 'utf8'); }
+      catch (error) { evidence[`${name}_data_error`] = error.code ?? error.message; }
+    }
     if (run.error || run.status !== 0) throw new Error(`Ngspice failed: ${run.error?.message ?? run.stderr}`);
-    const opText = readFileSync(join(directory, 'op.data'), 'utf8');
-    const acText = readFileSync(join(directory, 'ac.data'), 'utf8');
+    const opText = evidence.op_data;
+    const acText = evidence.ac_data;
+    if (opText === undefined || acText === undefined) throw new Error('Missing simulator datasets');
     const op = parseRows(opText, 2);
     if (op.length !== 1) throw new Error('Expected one operating-point sample');
     const dcGain = op[0][1];
@@ -120,8 +130,8 @@ export function evaluateU1(netlist, simulator) {
     const checks = { fixed_requirements: true, dc_gain: dcGain >= 0.95, cutoff: cutoff >= 1450 && cutoff <= 1750, independent_formula_agreement: formulaAgreement };
     return { status: Object.values(checks).every(Boolean) ? 'PASS' : 'FAIL', checks,
       measurements: { dc_gain: dcGain, cutoff_hz: cutoff }, analytic_reference: { dc_gain: expectedGain, cutoff_hz: expectedCutoff },
-      evidence: { testbench: bench, op_data: opText, ac_data: acText, simulator_stdout: run.stdout, simulator_stderr: run.stderr } };
-  } finally {
+      evidence };
+  } catch (error) { error.evidence = evidence; throw error; } finally {
     // This path is created by mkdtemp for this evaluation, never caller-supplied.
     rmSync(directory, { recursive: true, force: true });
   }
@@ -129,25 +139,34 @@ export function evaluateU1(netlist, simulator) {
 
 function main() {
   const [arm, candidatePath] = process.argv.slice(2);
+  const record = { schema_version: 'kessetsu.u1-evaluation.v1', task: 'U1', arm };
+  try {
+  record.spec_sha256 = digest(readFileSync(join(root, 'docs/evals/unseen-design-v1.md')));
   if (!['kessetsu', 'direct'].includes(arm) || !candidatePath) throw new Error('Usage: node scripts/evals/passive-filter.mjs <kessetsu|direct> <candidate-file>');
   const candidate = readFileSync(resolve(candidatePath), 'utf8');
+  Object.assign(record, { candidate_source: candidate, candidate_sha256: digest(candidate) });
   let netlist = candidate;
   if (arm === 'kessetsu') {
     const binary = process.env.KESSETSU_BINARY ?? join(root, 'core/target/release', process.platform === 'win32' ? 'kess.exe' : 'kess');
     const compile = spawnSync(binary, ['compile', '-', '--format', 'json', '--include', 'spice'], { input: candidate, encoding: 'utf8', timeout: 30000, maxBuffer: 4 * 1024 * 1024, windowsHide: true });
+    Object.assign(record, { compiler_stdout: compile.stdout, compiler_stderr: compile.stderr });
     if (compile.error || compile.status !== 0) throw new Error(`Candidate compilation failed: ${compile.error?.message ?? compile.stdout}`);
     const report = JSON.parse(compile.stdout);
     netlist = report.debug?.spice_netlist;
     if (typeof netlist !== 'string') throw new Error('Compile output did not contain SPICE');
   }
   const simulator = process.env.KESSETSU_NGSPICE ?? (process.platform === 'win32' ? join(root, 'core/tools/ngspice/bin/ngspice_con.exe') : 'ngspice');
+  Object.assign(record, { netlist_sha256: digest(netlist), compiled_netlist: netlist });
   const result = evaluateU1(netlist, simulator);
-  const spec = readFileSync(join(root, 'docs/evals/unseen-design-v1.md'));
-  console.log(JSON.stringify({ schema_version: 'kessetsu.u1-evaluation.v1', task: 'U1', arm, candidate_sha256: digest(candidate), spec_sha256: digest(spec),
-    netlist_sha256: digest(netlist), candidate_source: candidate, compiled_netlist: netlist, ...result }));
+  Object.assign(record, result);
   process.exitCode = result.status === 'PASS' ? 0 : 1;
+  } catch (error) {
+    Object.assign(record, { status: 'ERROR', message: error.message, ...(error.evidence ? { evidence: error.evidence } : {}) });
+    process.exitCode = 2;
+  }
+  console.log(JSON.stringify(record));
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try { main(); } catch (error) { console.log(JSON.stringify({ schema_version: 'kessetsu.u1-evaluation.v1', task: 'U1', status: 'ERROR', message: error.message })); process.exitCode = 2; }
+  main();
 }

@@ -60,6 +60,35 @@ test('real U2 simulation agrees with independent formula; wrong gain/cutoff fail
   assert.equal(evaluateU2(valid.replace('20k', '40k'), simulator).checks.gain_100hz, false);
 });
 
+test('two-section RC ladder includes interstage loading in the independent formula', () => {
+  const ladder = valid.replace('RS in filtered 10k\nC1 filtered 0 8n', 'RS in middle 10k\nR2 middle filtered 10k\nC1 middle 0 3n\nC2 filtered 0 3n');
+  const result = evaluateU2(ladder, simulator);
+  assert.equal(result.status, 'PASS', JSON.stringify(result.measurements));
+  assert.equal(result.checks.independent_formula_agreement, true);
+  assert.throws(() => inspectU2(ladder.replace('C2 filtered 0', 'C2 middle 0')));
+  assert.throws(() => inspectU2(ladder.replace('R2 middle filtered', 'R2 middle out')));
+});
+
+test('declared linear models retain actual gain/pole and reject altered structure', () => {
+  const custom = valid.replaceAll('KESSETSU_OPAMP_V1', 'CustomOp').replace('200000', '100000').replace('0.03183098861837907', '0.007957747154594767');
+  const result = evaluateU2(custom, simulator);
+  assert.equal(result.status, 'PASS');
+  assert.equal(result.model_adequacy.model_name, 'customop');
+  assert.notEqual(result.model_adequacy.model_sha256, evaluateU2(valid, simulator).model_adequacy.model_sha256);
+  for (const altered of [custom.replace('RPOLE n_int out 1', 'RPOLE n_int out 2'), custom.replace('100000', '-1'),
+    custom.replace('EGAIN n_int 0 in_p in_n', 'EGAIN n_int 0 in_n in_p'), custom.replace('RLOAD out 0 1e9', 'RLOAD out 0 1e9\nB1 out 0 V=1')]) assert.throws(() => inspectU2(altered));
+});
+
+test('U2 retains partial and malformed datasets on process/parse failures', () => {
+  for (const status of [0, 1]) {
+    assert.throws(() => evaluateU2(valid, 'fake-test-runner', (_exe, _args, options) => {
+      for (const name of ['op', 'ac', 'tran']) writeFileSync(join(options.cwd, `${name}.data`), 'malformed result');
+      return { status, stdout: 'partial stdout', stderr: 'diagnostic stderr', signal: null };
+    }), (error) => error.evidence.op_data === 'malformed result' && error.evidence.transient_data === 'malformed result' &&
+      error.evidence.simulator_stderr === 'diagnostic stderr' && error.evidence.simulator_exit_code === status);
+  }
+});
+
 test('both U2 frontends retain evidence and failed requirement provenance', () => {
   const source = `net GND
 net IN
@@ -87,7 +116,8 @@ connect U1.out,RF.p1,RL.p1 to OUT
 `;
   const directory = mkdtempSync(join(tmpdir(), 'kessetsu-u2-contract-'));
   try {
-    for (const [arm, candidate, expected] of [['direct', valid, 0], ['kessetsu', source, 0], ['direct', valid.replace('VP vcc 0 6', 'VP vcc 0 9'), 2]]) {
+    const customSource = 'subcircuit opamp CustomOp (in_p,in_n,vcc,vee,out) version=1.0.0 license=MIT gain=100k bandwidth=2MHz\n' + source.replace('KESSETSU_OPAMP_V1', 'CustomOp');
+    for (const [arm, candidate, expected] of [['direct', valid, 0], ['kessetsu', source, 0], ['kessetsu', customSource, 0], ['direct', valid.replace('VP vcc 0 6', 'VP vcc 0 9'), 2]]) {
       const path = join(directory, 'candidate');
       writeFileSync(path, candidate);
       const run = spawnSync(process.execPath, [fileURLToPath(new URL('./active-filter.mjs', import.meta.url)), arm, path], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 60000, windowsHide: true });

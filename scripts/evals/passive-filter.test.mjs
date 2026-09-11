@@ -25,7 +25,8 @@ test('enforces immutable topology/load/source regardless of candidate assertions
   assert.ok(Math.abs(circuit.capacitance - 50e-9) < 1e-20);
   for (const tampered of [valid.replace('100k', '50k'), valid.replace('AC 1', 'AC 2'),
     valid.replace('R1 in out', 'R1 in 0'), valid.replace('2k', '20k'),
-    valid.replace('.end', '.include secrets.model\n.end'), valid.replace('.end', 'R2 in out 1k\n.end')]) {
+    valid.replace('.end', '.include secrets.model\n.end'), valid.replace('.end', 'R2 in out 1k\n.end'),
+    valid.replace('V1 in', '.end\nV1 in'), `${valid}R2 in out 1k\n`, valid.replace('.end', '.end ignored')]) {
     assert.throws(() => inspectU1(tampered));
   }
   assert.deepEqual(inspectU1(valid.replace('.end', '.control\necho FAKE PASS\nquit\n.endc\n.end')), inspectU1(valid));
@@ -52,7 +53,24 @@ test('both candidate frontends produce reproducible evidence; load tampering err
     const run = spawnSync(process.execPath, [evaluator, 'direct', tampered], { encoding: 'utf8', windowsHide: true });
     assert.equal(run.status, 2);
     assert.equal(JSON.parse(run.stdout).status, 'ERROR');
+    assert.equal(JSON.parse(run.stdout).candidate_source, valid.replace('100k', '50k'));
+    const failed = spawnSync(process.execPath, [evaluator, 'direct', join(directory, 'candidate-direct')], {
+      encoding: 'utf8', windowsHide: true, env: { ...process.env, KESSETSU_NGSPICE: join(directory, 'missing-simulator') } });
+    const failure = JSON.parse(failed.stdout);
+    assert.equal(failed.status, 2);
+    assert.match(failure.evidence.simulator_error, /ENOENT/);
+    assert.ok(failure.evidence.testbench.startsWith('Evaluator-owned U1'));
   } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('U1 retains partial datasets and process errors even when parsing fails', () => {
+  for (const status of [0, 1]) {
+    assert.throws(() => evaluateU1(valid, 'fake-test-runner', (_exe, _args, options) => {
+      writeFileSync(join(options.cwd, 'op.data'), 'malformed result');
+      return { status, stdout: 'partial stdout', stderr: 'diagnostic stderr', signal: null };
+    }), (error) => error.evidence.op_data === 'malformed result' && error.evidence.ac_data_error === 'ENOENT' &&
+      error.evidence.simulator_stdout === 'partial stdout' && error.evidence.simulator_exit_code === status);
+  }
 });
 
 test('checks data integrity and cutoff against independent analytic samples', () => {

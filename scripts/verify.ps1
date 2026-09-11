@@ -70,6 +70,8 @@ Invoke-NativeStep 'RustSec vulnerability audit' { & (Join-Path $repoRoot 'script
 Invoke-NativeStep 'Replayable external-agent evaluation' { & (Join-Path $repoRoot 'scripts/replay-agent-eval.ps1') }
 Invoke-NativeStep 'Independent U1 evaluator contracts' { node --test (Join-Path $repoRoot 'scripts/evals/passive-filter.test.mjs') }
 Invoke-NativeStep 'Independent U2 evaluator contracts' { node --test (Join-Path $repoRoot 'scripts/evals/active-filter.test.mjs') }
+Invoke-NativeStep 'Independent U3 evaluator contracts' { node --test (Join-Path $repoRoot 'scripts/evals/common-emitter.test.mjs') }
+Invoke-NativeStep 'Independent U4 evaluator contracts' { node --test (Join-Path $repoRoot 'scripts/evals/load-driver.test.mjs') }
 
 $architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
 $releaseTarget = if ($env:OS -eq 'Windows_NT' -and $architecture -eq 'X64') {
