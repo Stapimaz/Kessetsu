@@ -32,7 +32,10 @@ export function inspectU1(netlist) {
     if (/^\.endc$/i.test(line)) { if (!control) throw new Error('Unmatched endc'); control = false; continue; }
     if (control) continue;
     if (/^\.end$/i.test(line)) { ended = true; continue; }
-    if (/^\.(op|ac|tran|meas|measure)(\s|$)/i.test(line)) continue;
+    // Candidate analyses and presentation commands are never executed. Accepting
+    // standard output directives keeps the direct workflow usable without
+    // widening the device/model/include boundary evaluated below.
+    if (/^\.(op|ac|tran|meas|measure|print|plot|save)(\s|$)/i.test(line)) continue;
     const fields = line.split(/\s+/);
     const kind = fields[0][0].toUpperCase();
     if (!['R', 'C', 'V'].includes(kind) || fields.length < 4) throw new Error(`Unsupported U1 device/directive: ${line}`);
@@ -141,7 +144,7 @@ export function evaluateU1(netlist, simulator, runSimulator = spawnSync) {
 
 function main() {
   const [arm, candidatePath] = process.argv.slice(2);
-  const record = { schema_version: 'kessetsu.u1-evaluation.v1', task: 'U1', arm };
+  const record = { schema_version: 'kessetsu.u1-evaluation.v2', task: 'U1', arm };
   try {
   record.spec_sha256 = digest(readFileSync(join(root, 'docs/evals/unseen-design-v1.md')));
   if (!['kessetsu', 'direct'].includes(arm) || !candidatePath) throw new Error('Usage: node scripts/evals/passive-filter.mjs <kessetsu|direct> <candidate-file>');

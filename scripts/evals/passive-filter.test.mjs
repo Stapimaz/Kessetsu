@@ -30,6 +30,10 @@ test('enforces immutable topology/load/source regardless of candidate assertions
     assert.throws(() => inspectU1(tampered));
   }
   assert.deepEqual(inspectU1(valid.replace('.end', '.control\necho FAKE PASS\nquit\n.endc\n.end')), inspectU1(valid));
+  for (const directive of ['.print ac vm(out)', '.plot ac vm(out)', '.save v(out)']) {
+    assert.deepEqual(inspectU1(valid.replace('.end', `${directive}\n.end`)), inspectU1(valid));
+  }
+  assert.throws(() => inspectU1(valid.replace('.end', '.include arbitrary.lib\n.end')));
 });
 
 test('both candidate frontends produce reproducible evidence; load tampering errors', () => {
