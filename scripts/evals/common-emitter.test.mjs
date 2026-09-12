@@ -37,7 +37,7 @@ test('U3 requires immutable bias topology, source, load and generic transistor m
     valid.replace('Q1 collector base emitter', 'Q1 emitter base collector'), valid.replace('VIN in', '.end\nVIN in'),
     valid.replace('.end\n', 'E1 out 0 in 0 -10\n.end\n')]) assert.throws(() => inspectU3(candidate));
   assert.deepEqual(inspectU3(valid.replace('.end\n', '.control\necho FALSE PASS\n.endc\n.end\n')), inspectU3(valid));
-  for (const directive of ['.print ac vm(out)', '.plot tran v(out)', '.save v(out)']) {
+  for (const directive of ['.print ac vm(out)', '.plot tran v(out)', '.save v(out)', '.four 1k v(out)']) {
     assert.deepEqual(inspectU3(valid.replace('.end\n', `${directive}\n.end\n`)), inspectU3(valid));
   }
 });
@@ -104,7 +104,7 @@ connect CO.p2,RL.p1 to OUT
       const run = spawnSync(process.execPath, [fileURLToPath(new URL('./common-emitter.mjs', import.meta.url)), arm, path], { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024, timeout: 60000, windowsHide: true });
       const report = JSON.parse(run.stdout);
       assert.equal(run.status, 0, report.message ?? JSON.stringify(report.measurements));
-      assert.equal(report.schema_version, 'kessetsu.u3-evaluation.v2');
+      assert.equal(report.schema_version, 'kessetsu.u3-evaluation.v3');
       assert.equal(report.candidate_source, candidate);
       assert.match(report.model_adequacy.model_sha256, /^[a-f0-9]{64}$/);
     }

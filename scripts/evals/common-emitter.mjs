@@ -21,7 +21,7 @@ export function inspectU3(netlist) {
     if (line === '.end') { ended = true; continue; }
     // Candidate analyses and presentation commands are inert: scoring always
     // uses the evaluator-owned testbench below.
-    if (/^\.(op|ac|tran|meas|measure|print|plot|save)(\s|$)/.test(line)) continue;
+    if (/^\.(op|ac|tran|meas|measure|print|plot|save|four)(\s|$)/.test(line)) continue;
     if (line.startsWith('.model')) {
       if (modelFound || line !== normalize(MODEL)) throw new Error('Missing/changed frozen 2N3904 model');
       modelFound = true; continue;
@@ -114,4 +114,4 @@ export function evaluateU3(netlist, simulator, runSimulator) {
         limitations: ['Generic model, nominal operating point only; no tolerance/thermal or manufacturer-part guarantee.', 'Evaluator topology is limited to divider bias and an unbypassed emitter resistor.'] } };
   }, runSimulator);
 }
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) evaluatorMain('U3', evaluateU3, 2);
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) evaluatorMain('U3', evaluateU3, 3);
