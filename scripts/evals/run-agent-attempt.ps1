@@ -8,7 +8,7 @@ param(
     [ValidateRange(1, 3)]
     [int]$Attempt,
 
-    [ValidateSet('U1', 'U2')]
+    [ValidateSet('U1', 'U2', 'U3')]
     [string]$Task = 'U1',
 
     [string]$Model = 'gpt-5.6-sol',
@@ -45,10 +45,18 @@ $CodexBinary = (Resolve-Path -LiteralPath $CodexBinary).Path
 $kessBinary = Join-Path $repoRoot 'core/target/release/kess.exe'
 $ngspiceRoot = Join-Path $repoRoot 'core/tools/ngspice'
 $ngspiceBinary = Join-Path $ngspiceRoot 'bin/ngspice_con.exe'
-$modelPath = Join-Path $repoRoot 'scripts/evals/models/KESSETSU_OPAMP_V1.lib'
-$evaluator = if ($Task -eq 'U1') { Join-Path $repoRoot 'scripts/evals/passive-filter.mjs' } else { Join-Path $repoRoot 'scripts/evals/active-filter.mjs' }
+$modelPath = switch ($Task) {
+    'U2' { Join-Path $repoRoot 'scripts/evals/models/KESSETSU_OPAMP_V1.lib' }
+    'U3' { Join-Path $repoRoot 'scripts/evals/models/2N3904.lib' }
+    default { $null }
+}
+$evaluator = switch ($Task) {
+    'U1' { Join-Path $repoRoot 'scripts/evals/passive-filter.mjs' }
+    'U2' { Join-Path $repoRoot 'scripts/evals/active-filter.mjs' }
+    'U3' { Join-Path $repoRoot 'scripts/evals/common-emitter.mjs' }
+}
 $requiredFiles = @($protocolPath, $harnessPath, $CodexBinary, $ngspiceBinary, $evaluator)
-if ($Task -eq 'U2') { $requiredFiles += $modelPath }
+if ($modelPath) { $requiredFiles += $modelPath }
 foreach ($required in $requiredFiles) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required file is missing: $required" }
 }
@@ -78,16 +86,16 @@ function Read-HarnessSection([string]$Heading, [string]$NextHeading) {
     return $text.Substring($start, $end - $start).Trim()
 }
 
-$commonHeading = if ($Task -eq 'U1') { 'Common U1 prompt' } else { 'Common U2 prompt' }
-$commonEnd = if ($Task -eq 'U1') { 'Kessetsu arm tool reference' } else { 'U2 Kessetsu arm tool reference' }
+$commonHeading = if ($Task -eq 'U1') { 'Common U1 prompt' } else { "Common $Task prompt" }
+$commonEnd = if ($Task -eq 'U1') { 'Kessetsu arm tool reference' } else { "$Task Kessetsu arm tool reference" }
 $commonPrompt = Read-HarnessSection $commonHeading $commonEnd
 $commonPrompt = $commonPrompt.Trim().TrimStart('>').Trim()
 if ($Task -eq 'U1') {
     $armHeading = if ($Arm -eq 'kessetsu') { 'Kessetsu arm tool reference' } else { 'Direct arm tool reference' }
     $nextHeading = if ($Arm -eq 'kessetsu') { 'Direct arm tool reference' } else { 'Common U2 prompt' }
 } else {
-    $armHeading = if ($Arm -eq 'kessetsu') { 'U2 Kessetsu arm tool reference' } else { 'U2 Direct arm tool reference' }
-    $nextHeading = if ($Arm -eq 'kessetsu') { 'U2 Direct arm tool reference' } else { 'Evidence retained per attempt' }
+    $armHeading = if ($Arm -eq 'kessetsu') { "$Task Kessetsu arm tool reference" } else { "$Task Direct arm tool reference" }
+    $nextHeading = if ($Arm -eq 'kessetsu') { "$Task Direct arm tool reference" } elseif ($Task -eq 'U2') { 'Common U3 prompt' } else { 'Evidence retained per attempt' }
 }
 $toolReference = Read-HarnessSection $armHeading $nextHeading
 $prompt = @"
@@ -109,9 +117,10 @@ try {
     New-Item -ItemType Directory -Path (Join-Path $workspace 'tools') -Force | Out-Null
     Copy-Item -LiteralPath $ngspiceRoot -Destination (Join-Path $workspace 'tools/ngspice') -Recurse
     if ($Arm -eq 'kessetsu') { Copy-Item -LiteralPath $kessBinary -Destination (Join-Path $workspace 'kess.exe') }
-    if ($Task -eq 'U2') {
+    if ($modelPath) {
         New-Item -ItemType Directory -Path (Join-Path $workspace 'models') -Force | Out-Null
-        Copy-Item -LiteralPath $modelPath -Destination (Join-Path $workspace 'models/KESSETSU_OPAMP_V1.lib')
+        $workspaceModelPath = Join-Path (Join-Path $workspace 'models') (Split-Path -Leaf $modelPath)
+        Copy-Item -LiteralPath $modelPath -Destination $workspaceModelPath
     }
     Set-Content -LiteralPath (Join-Path $workspace 'PROMPT.md') -Value $prompt -Encoding UTF8
     Set-Content -LiteralPath (Join-Path $workspace 'AGENTS.md') -Encoding UTF8 -Value @"
@@ -229,7 +238,7 @@ try {
         kessetsu = if ($Arm -eq 'kessetsu') { [ordered]@{ version = (& $kessBinary --version | Out-String).Trim(); sha256 = Get-Sha256 $kessBinary } } else { $null }
         ngspice = [ordered]@{ version = '46'; sha256 = Get-Sha256 $ngspiceBinary }
         evaluator = [ordered]@{ path = (Resolve-Path -LiteralPath $evaluator).Path; sha256 = Get-Sha256 $evaluator }
-        circuit_model = if ($Task -eq 'U2') { [ordered]@{ name = 'KESSETSU_OPAMP_V1'; sha256 = Get-Sha256 $modelPath } } else { $null }
+        circuit_model = if ($modelPath) { [ordered]@{ name = [System.IO.Path]::GetFileNameWithoutExtension($modelPath); sha256 = Get-Sha256 $modelPath } } else { $null }
         trace_sha256 = Get-Sha256 $tracePath
         candidate_sha256 = if (Test-Path -LiteralPath $candidatePath -PathType Leaf) { Get-Sha256 $candidatePath } else { $null }
     }

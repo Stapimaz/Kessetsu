@@ -34,9 +34,9 @@ export function runBench(task, bench, simulator, names, measure, runSimulator = 
   finally { rmSync(directory, { recursive: true, force: true }); } // Only this invocation's mkdtemp path.
 }
 
-export function evaluatorMain(task, evaluate) {
+export function evaluatorMain(task, evaluate, schemaVersion = 1) {
   const [arm, path] = process.argv.slice(2);
-  const record = { schema_version: `kessetsu.${task.toLowerCase()}-evaluation.v1`, task, arm };
+  const record = { schema_version: `kessetsu.${task.toLowerCase()}-evaluation.v${schemaVersion}`, task, arm };
   try {
     record.spec_sha256 = digest(readFileSync(join(root, 'docs/evals/unseen-design-v1.md')));
     if (!['direct', 'kessetsu'].includes(arm) || !path) throw new Error('Expected <kessetsu|direct> <candidate-file>');

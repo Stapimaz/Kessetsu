@@ -97,6 +97,31 @@ Finished repository examples, evaluator implementation, previous candidates, oth
 - Batch invocation: `./tools/ngspice/bin/ngspice_con.exe -n -b candidate.cir`.
 - Ngspice has no schematic-layout exporter. Produce only artifacts supported by supplied local tools and label hand-authored output honestly.
 
+## Common U3 prompt
+
+> Design a biased common-emitter amplifier using exactly one 2N3904 with the supplied generic model, a 9 V supply, divider bias, an unbypassed emitter resistor, input and output coupling capacitors, and a fixed 10 kohm AC-coupled output load. The immutable input is an ideal 5 mV-peak, 1 kHz sine that is also a 1 V AC stimulus. Collector bias must be from 3 V through 6 V; collector DC current from 0.5 mA through 2 mA; 1 kHz small-signal gain magnitude from 8 through 15 with inversion; and settled output fundamental amplitude from 35 mV through 80 mV. Do not use an ideal controlled-source amplifier or change the source, supply, load, device/model, supported topology, or limits. The independent evaluator runs OP, AC from 10 Hz through 1 MHz at 100 points per decade, and transient through 10 ms with a maximum 2 us step, measuring the final five periods. The generic nominal model does not prove tolerance, temperature, thermal, manufacturer-part, or hardware performance; preferred-value compliance is not required in v1. Work only in the supplied directory. You may calculate and simulate iteratively. Preserve each materially different candidate revision in `revisions/` before replacing it. Write the final circuit to the required candidate filename. Produce the schematic and editable/export artifacts that your supplied workflow genuinely supports; missing capability must be reported rather than fabricated. Finish with a short account of calculations, checks, model limitations, and produced files. Do not inspect parent directories or search for Kessetsu repository examples, evaluator code, prior attempts, or another arm's work.
+
+## U3 Kessetsu arm tool reference
+
+- Executable: `./kess.exe`; final source: `candidate.kess`.
+- The exact generic model is built into Kessetsu as `2N3904`; `./models/2N3904.lib` is supplied only so both arms can inspect identical model data. Do not redeclare or alter the built-in model.
+- Available declarations include `net NAME`, `source NAME VALUE`, `source NAME sine_ac(0V,5mV,1kHz,1V)`, `resistor NAME VALUE`, `capacitor NAME VALUE`, and `transistor NAME npn 2N3904`.
+- Pins: source `plus/minus`; resistor/capacitor `p1/p2`; NPN transistor `c/b/e`.
+- Connect pins with `connect A.pin,B.pin to NET`. A +9 V rail uses a 9 V source from the rail to GND.
+- Available analyses: `simulate op`, `simulate ac dec 100 10Hz 1MHz`, and `simulate tran 2us 10ms`.
+- Useful commands: `check`, `compile --include spice`, `simulate --include datasets`, `render` to SVG/PNG, and `export --target kicad|ltspice`, using the forms documented in the U1 reference above.
+- Existing outputs are not overwritten unless `--force` is supplied.
+
+## U3 Direct arm tool reference
+
+- Executable: `./tools/ngspice/bin/ngspice_con.exe`; final source: `candidate.cir`.
+- `./models/2N3904.lib` contains the exact model used by the other arm. The final candidate must embed that exact `.model` line; do not alter it and do not leave the final candidate dependent on `.include`.
+- The first SPICE line is a title. Use `VIN in 0 SIN(0 0.005 1000) AC 1` and a +9 V source from the supply rail to ground. Resistors use `Rname node1 node2 value`; capacitors use `Cname node1 node2 value`; instantiate the transistor as `Qname collector base emitter 2N3904`.
+- The final topology must contain five resistors: collector, emitter, upper/lower base-divider, and the fixed 10 kohm load; plus exactly two input/output coupling capacitors and one transistor.
+- A candidate may contain `.op`, `.ac`, `.tran`, `.control`, and measurement/output commands for its own iteration. The evaluator ignores those commands and supplies its own analyses.
+- Batch invocation: `./tools/ngspice/bin/ngspice_con.exe -n -b candidate.cir`.
+- Ngspice has no schematic-layout exporter. Produce only artifacts supported by supplied local tools and label hand-authored output honestly.
+
 ## Evidence retained per attempt
 
 The runner refuses to overwrite an existing run directory and records:
