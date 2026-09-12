@@ -1,0 +1,6 @@
+.subckt KESSETSU_OPAMP_V1 in_p in_n vcc vee out
+EGAIN n_int 0 in_p in_n 200000
+RPOLE n_int out 1
+CPOLE out 0 0.03183098861837907
+RLOAD out 0 1e9
+.ends KESSETSU_OPAMP_V1

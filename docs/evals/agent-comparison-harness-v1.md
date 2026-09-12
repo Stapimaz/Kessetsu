@@ -71,6 +71,32 @@ Finished repository examples, evaluator implementation, previous candidates, oth
 - Batch invocation: `./tools/ngspice/bin/ngspice_con.exe -n -b candidate.cir`.
 - Ngspice does not itself provide a schematic-layout exporter. The agent may create a truthful schematic or editable artifact using only supplied local tools, but must not disguise a hand-authored or unsupported artifact as an EDA-verified export.
 
+## Common U2 prompt
+
+> Design a non-inverting active low-pass circuit using the supported topology: one or two passive input RC low-pass sections feeding the non-inverting input, a resistive non-inverting feedback divider, one declared `KESSETSU_OPAMP_V1` generic op-amp, and a fixed 10 kohm output load. The immutable sources are +6 V and -6 V rails plus a 50 mV-peak, 100 Hz sine input that is also a 1 V AC stimulus. Gain at 100 Hz must be from 2.85 through 3.15; the -3 dB cutoff relative to the 100 Hz gain must be from 1.8 kHz through 2.2 kHz; output DC offset magnitude must be below 20 mV; and settled output peak must be below 0.2 V. The independent evaluator runs OP, AC from 10 Hz through 1 MHz at 100 points per decade, and transient through 100 ms with a maximum 2 us step, measuring the final 50 ms. Do not change or omit the sources, load, supported topology, model identity, or limits. The supplied generic model is intentionally linear and does not prove rail saturation, current limits, supply consumption, manufacturer-part behavior, or hardware performance. Work only in the supplied directory. You may calculate and simulate iteratively. Preserve each materially different candidate revision in `revisions/` before replacing it. Write the final circuit to the required candidate filename. Produce the schematic and editable/export artifacts that your supplied workflow genuinely supports; missing capability must be reported rather than fabricated. Finish with a short account of calculations, checks, model limitations, and produced files. Do not inspect parent directories or search for Kessetsu repository examples, evaluator code, prior attempts, or another arm's work.
+
+## U2 Kessetsu arm tool reference
+
+- Executable: `./kess.exe`; final source: `candidate.kess`.
+- The exact generic model is built into Kessetsu as `KESSETSU_OPAMP_V1`; `./models/KESSETSU_OPAMP_V1.lib` is supplied only so both arms can inspect identical model data. Do not redeclare or alter the built-in model.
+- Available declarations include `net NAME`, `source NAME VALUE`, `source NAME sine_ac(0V,50mV,100Hz,1V)`, `resistor NAME VALUE`, `capacitor NAME VALUE`, and `opamp NAME KESSETSU_OPAMP_V1`.
+- Pins: source `plus/minus`; resistor/capacitor `p1/p2`; op-amp `in_p/in_n/vcc/vee/out`.
+- Connect pins with `connect A.pin,B.pin to NET`. A +6 V rail uses a 6 V source from VCC to GND; a -6 V rail uses a 6 V source from GND to VEE.
+- Available analyses: `simulate op`, `simulate ac dec 100 10Hz 1MHz`, and `simulate tran 2us 100ms`.
+- Useful commands: `check`, `compile --include spice`, `simulate --include datasets`, `render` to SVG/PNG, and `export --target kicad|ltspice`, using the same forms documented in the U1 reference above.
+- Existing outputs are not overwritten unless `--force` is supplied.
+
+## U2 Direct arm tool reference
+
+- Executable: `./tools/ngspice/bin/ngspice_con.exe`; final source: `candidate.cir`.
+- `./models/KESSETSU_OPAMP_V1.lib` contains the exact model used by the other arm. The final candidate must embed that exact `.subckt` text; do not alter it and do not leave the final candidate dependent on `.include`.
+- The first SPICE line is a title. Use `VIN in 0 SIN(0 0.05 100) AC 1`, a +6 V source from `vcc` to ground, and a +6 V source from ground to `vee`. Resistors use `Rname node1 node2 value`; capacitors use `Cname node1 node2 value`.
+- Instantiate the op-amp as `Xname in_p in_n vcc vee out KESSETSU_OPAMP_V1`; the node order is immutable.
+- The final topology must use one or two passive input RC sections, a resistive non-inverting feedback divider, and the fixed 10 kohm load.
+- A candidate may contain `.op`, `.ac`, `.tran`, `.control`, and measurement/output commands for its own iteration. The evaluator ignores those commands and supplies its own analyses.
+- Batch invocation: `./tools/ngspice/bin/ngspice_con.exe -n -b candidate.cir`.
+- Ngspice has no schematic-layout exporter. Produce only artifacts supported by supplied local tools and label hand-authored output honestly.
+
 ## Evidence retained per attempt
 
 The runner refuses to overwrite an existing run directory and records:

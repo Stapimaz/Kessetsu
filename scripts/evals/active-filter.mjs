@@ -59,7 +59,9 @@ export function inspectU2(netlist) {
       continue;
     }
     if (/^\.end$/i.test(line)) { ended = true; continue; }
-    if (/^\.(op|ac|tran|meas|measure)(\s|$)/i.test(line)) continue;
+    // Candidate analysis and presentation commands are inert: the evaluator
+    // never executes them and always supplies its own fixed testbench.
+    if (/^\.(op|ac|tran|meas|measure|print|plot|save)(\s|$)/i.test(line)) continue;
     const fields = normalize(line), kind = fields[0][0];
     if (!['r', 'c', 'v', 'x'].includes(kind)) throw new Error(`Unsupported U2 device/directive: ${line}`);
     const nodes = fields.slice(1, kind === 'x' ? 6 : 3);
@@ -196,7 +198,7 @@ export function evaluateU2(netlist, simulator, runSimulator = spawnSync) {
 
 function main() {
   const [arm, candidatePath] = process.argv.slice(2);
-  const record = { schema_version: 'kessetsu.u2-evaluation.v1', task: 'U2', arm, spec_sha256: digest(readFileSync(join(root, 'docs/evals/unseen-design-v1.md'))) };
+  const record = { schema_version: 'kessetsu.u2-evaluation.v2', task: 'U2', arm, spec_sha256: digest(readFileSync(join(root, 'docs/evals/unseen-design-v1.md'))) };
   try {
     if (!['kessetsu', 'direct'].includes(arm) || !candidatePath) throw new Error('Usage: node scripts/evals/active-filter.mjs <kessetsu|direct> <candidate-file>');
     const candidate = readFileSync(resolve(candidatePath), 'utf8');

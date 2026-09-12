@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,6 +24,11 @@ ${MODEL}
 const simulator = process.env.KESSETSU_NGSPICE ?? (process.platform === 'win32'
   ? fileURLToPath(new URL('../../core/tools/ngspice/bin/ngspice_con.exe', import.meta.url)) : 'ngspice');
 
+test('agent harness distributes the exact evaluator op-amp model', () => {
+  const distributed = readFileSync(fileURLToPath(new URL('./models/KESSETSU_OPAMP_V1.lib', import.meta.url)), 'utf8').trim();
+  assert.equal(distributed, MODEL);
+});
+
 test('U2 accepts the supported topology and rejects requirement/model tampering', () => {
   assert.equal(inspectU2(valid).feedback, 20000);
   for (const candidate of [valid.replace('RL out 0 10k', 'RL out 0 20k'), valid.replace('VP vcc 0 6', 'VP vcc 0 9'),
@@ -33,6 +38,9 @@ test('U2 accepts the supported topology and rejects requirement/model tampering'
     valid.replace('vcc vee out KESSETSU', 'vcc vcc out KESSETSU'), valid.replace('RS in filtered 10k', 'RS in filtered 1e999'),
     valid.replace('.end\n', `${MODEL}\n.end\n`), valid.replace('VIN in', '.end\nVIN in')]) assert.throws(() => inspectU2(candidate));
   assert.deepEqual(inspectU2(valid.replace('.end\n', '.control\necho FAKE PASS\nquit\n.endc\n.end\n')), inspectU2(valid));
+  for (const directive of ['.print ac vm(out)', '.plot tran v(out)', '.save v(out)']) {
+    assert.deepEqual(inspectU2(valid.replace('.end\n', `${directive}\n.end\n`)), inspectU2(valid));
+  }
 });
 
 test('independent finite-gain formula tends to expected non-inverting gain and RC cutoff', () => {
