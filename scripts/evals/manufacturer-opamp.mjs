@@ -34,7 +34,9 @@ export function inspectU6(netlist) {
     if (line === '.endc') { if (!control) throw new Error('Unmatched endc'); control = false; continue; }
     if (control) continue;
     if (line === '.end') { ended = true; continue; }
-    if (/^\.(op|ac|tran|meas|measure)(\s|$)/.test(line)) continue;
+    // Candidate analyses and presentation commands are inert: scoring always
+    // uses the evaluator-owned OP/AC/transient testbench and exact local model.
+    if (/^\.(op|ac|tran|meas|measure|four|print|plot|save)(\s|$)/.test(line)) continue;
     const fields = line.split(' '), kind = fields[0][0], count = kind === 'x' ? 5 : 2;
     if (!['r', 'v', 'x'].includes(kind)) throw new Error('Unsupported U6 device/directive; model inclusion belongs to the evaluator');
     const nodes = fields.slice(1, 1 + count);
@@ -99,4 +101,4 @@ export function evaluateU6(netlist, simulator, runSimulator, modelPath = process
     throw error;
   }
 }
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) evaluatorMain('U6', evaluateU6);
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) evaluatorMain('U6', evaluateU6, 2);

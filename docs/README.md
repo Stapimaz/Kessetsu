@@ -47,6 +47,8 @@ The unseen-design gate has its own frozen protocol and claim boundaries:
 - [Unseen design evaluation v1](evals/unseen-design-v1.md)
 - [Evaluation verification-claim audit v1](evals/verification-claim-audit-v1.md)
 - [OPA197 manufacturer-model probe](evals/opa197-model-probe-2026-09-11.md)
+- [Six-task unseen-design decision summary](evals/unseen-design-summary-2026-09-13.md)
+- Per-task comparisons: [U1](evals/unseen-design-u1-comparison-2026-09-12.md), [U2](evals/unseen-design-u2-comparison-2026-09-12.md), [U3](evals/unseen-design-u3-comparison-2026-09-12.md), [U4](evals/unseen-design-u4-comparison-2026-09-13.md), [U5](evals/unseen-design-u5-comparison-2026-09-13.md), and [U6](evals/unseen-design-u6-comparison-2026-09-13.md)
 
 Files under [`evals/`](evals/) are evidence, not general user documentation. Rejected candidates are intentionally retained so that a later layout regression cannot be mistaken for progress.
 

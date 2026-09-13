@@ -172,6 +172,28 @@ Finished repository examples, evaluator implementation, previous candidates, oth
 - Batch invocation: `./tools/ngspice/bin/ngspice_con.exe -n -b candidate.cir`.
 - Ngspice has no schematic-layout exporter. Produce only artifacts supported by supplied local tools and label hand-authored output honestly.
 
+## Common U6 prompt
+
+> Design a non-inverting gain-five amplifier around the authentic Texas Instruments `OPAx197` PSpice macromodel supplied locally as `./models/OPAx197.LIB`. Use exactly one OPAx197 instance and exactly three resistors: a two-resistor non-inverting feedback divider plus a fixed 10 kohm output load. The immutable supplies are +6 V and -6 V; the immutable input is a 100 mV-peak, 1 kHz sine that is also a 1 V AC stimulus. Gain at 1 kHz must be from 4.75 through 5.25; settled output peak and independently integrated fundamental amplitude must each be from 0.475 V through 0.525 V. The independent evaluator runs OP, AC from 10 Hz through 1 MHz at 100 points per decade, and a maximum-2-us-step transient through 10 ms, measuring the final five periods. Do not change or omit the source, supplies, load, topology, authentic model identity/content, pin order, analyses, or limits. Substituting a generic model is not success. The model is TI `OPAx197 PSpice Model (Rev. D)`, Final 1.3 dated 2022-06-23, downloaded from `https://www.ti.com/lit/zip/SBOMA34`; its required SHA-256 is `fc5b020e63346e511bd808bf41c856b0150b000bcf8a41fe00eeececb1f422a5`, and its pin order is `IN+ IN- VCC VEE OUT`. It is supplied only for this local evaluation under TI terms; retain its notices and do not copy, rewrite, embed in another artifact, or claim redistribution rights. If the supplied workflow cannot represent or execute the exact model, report a capability failure rather than fabricating support. Work only in the supplied directory; do not use the network. You may calculate and simulate iteratively. Preserve each materially different candidate revision in `revisions/` before replacing it. Write a final candidate only if the supplied workflow can truthfully represent the exact required model. Produce the schematic and editable/export artifacts that your supplied workflow genuinely supports; missing capability must be reported rather than fabricated. Finish with a short account of calculations, checks, model provenance, capability limits, and produced files. Do not inspect parent directories or search for Kessetsu repository examples, evaluator code, prior attempts, or another arm's work.
+
+## U6 Kessetsu arm tool reference
+
+- Executable: `./kess.exe`; final source, if representable without substitution: `candidate.kess`.
+- `./models/OPAx197.LIB` is the exact local manufacturer model supplied to both arms. It is not a Kessetsu built-in or packaged model and must not be copied into another artifact.
+- The current CLI accepts built-in models, the exact `kessetsu_analog@1.0.0` package, allowlisted typed diode/BJT/MOSFET declarations, and a safe parameterized op-amp template. It has no documented command for importing an arbitrary manufacturer SPICE/PSpice subcircuit body.
+- A typed declaration such as `subcircuit opamp NAME (in_p,in_n,vcc,vee,out) ... gain=... bandwidth=...` generates Kessetsu's safe linear template; naming it `OPAx197` would not make it the authentic TI model and is forbidden for this task. `KESSETSU_OPAMP_V1` and `KESSETSU_PACKAGE_OPAMP` are also invalid substitutes.
+- If no documented exact-model path exists, do not create `candidate.kess`; instead write `CAPABILITY.md` explaining the precise unsupported boundary, retain the supplied model notices, list no electrical PASS, and report which future capability would be required. Do not bypass the Kessetsu workflow by submitting a direct SPICE candidate in this arm.
+- If an exact supported path is found using only the supplied documentation and CLI help, normal Kessetsu declarations use `source`, `resistor`, and `opamp`; pins are source `plus/minus`, resistor `p1/p2`, and op-amp `in_p/in_n/vcc/vee/out`; available analyses are OP, AC, and transient. Use `check`, `compile`, `simulate`, `render`, and `export` as documented in the U1 reference.
+
+## U6 Direct arm tool reference
+
+- Executable: `./tools/ngspice/bin/ngspice_con.exe`; final source: `candidate.cir`.
+- `./models/OPAx197.LIB` is the exact official model. Preserve it byte-for-byte and retain its notices. The final `candidate.cir` contains only the candidate topology and must not embed, rewrite, or `.include` the model; the evaluator separately supplies the already hash-verified file.
+- The first SPICE line is a title. Use `VIN in 0 SIN(0 0.1 1000) AC 1`, a +6 V source from `vcc` to ground, and a +6 V source from ground to `vee`. Resistors use `Rname node1 node2 value`; instantiate the model as `Xname in_p in_n vcc vee out OPAx197` in the exact five-pin order.
+- The final topology must use one OPAx197, the fixed 10 kohm load, and only the two additional feedback-divider resistors. It must not contain a model or include directive.
+- For local iteration only, create a separate `verification.cir` that includes `./models/OPAx197.LIB`, and run `./tools/ngspice/bin/ngspice_con.exe -D ngbehavior=ps -n -b verification.cir`. Do not replace the final candidate with this deck. A candidate may contain inert `.op`, `.ac`, `.tran`, `.four`, `.control`, and measurement/output commands; the evaluator ignores them and supplies its own exact-model OP/AC/transient testbench.
+- Ngspice has no schematic-layout exporter. Produce only artifacts supported by supplied local tools and label hand-authored output honestly.
+
 ## Evidence retained per attempt
 
 The runner refuses to overwrite an existing run directory and records:

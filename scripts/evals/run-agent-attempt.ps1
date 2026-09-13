@@ -8,7 +8,7 @@ param(
     [ValidateRange(1, 3)]
     [int]$Attempt,
 
-    [ValidateSet('U1', 'U2', 'U3', 'U4', 'U5')]
+    [ValidateSet('U1', 'U2', 'U3', 'U4', 'U5', 'U6')]
     [string]$Task = 'U1',
 
     [string]$Model = 'gpt-5.6-sol',
@@ -22,10 +22,13 @@ param(
     [ValidateRange(1, 60)]
     [int]$ToolCallLimit = 60,
 
-    [string]$CodexBinary = ''
+    [string]$CodexBinary = '',
+
+    [string]$U6ModelPath = $env:KESSETSU_U6_MODEL
 )
 
 $ErrorActionPreference = 'Stop'
+$originalU6ModelEnv = $env:KESSETSU_U6_MODEL
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $protocolPath = Join-Path $repoRoot 'docs/evals/unseen-design-v1.md'
 $harnessPath = Join-Path $repoRoot 'docs/evals/agent-comparison-harness-v1.md'
@@ -50,6 +53,7 @@ $modelPath = switch ($Task) {
     'U3' { Join-Path $repoRoot 'scripts/evals/models/2N3904.lib' }
     'U4' { Join-Path $repoRoot 'scripts/evals/models/IRF540.lib' }
     'U5' { Join-Path $repoRoot 'scripts/evals/models/KESSETSU_POWER_AMPLIFIER_V1.lib' }
+    'U6' { if ($U6ModelPath) { (Resolve-Path -LiteralPath $U6ModelPath).Path } else { $null } }
     default { $null }
 }
 $evaluator = switch ($Task) {
@@ -58,11 +62,22 @@ $evaluator = switch ($Task) {
     'U3' { Join-Path $repoRoot 'scripts/evals/common-emitter.mjs' }
     'U4' { Join-Path $repoRoot 'scripts/evals/load-driver.mjs' }
     'U5' { Join-Path $repoRoot 'scripts/evals/power-amplifier.mjs' }
+    'U6' { Join-Path $repoRoot 'scripts/evals/manufacturer-opamp.mjs' }
+}
+$expectedU6ModelHash = 'fc5b020e63346e511bd808bf41c856b0150b000bcf8a41fe00eeececb1f422a5'
+if ($Task -eq 'U6' -and -not $modelPath) {
+    throw 'U6 requires -U6ModelPath or KESSETSU_U6_MODEL pointing to the locally acquired official OPAx197.LIB.'
 }
 $requiredFiles = @($protocolPath, $harnessPath, $CodexBinary, $ngspiceBinary, $evaluator)
 if ($modelPath) { $requiredFiles += $modelPath }
 foreach ($required in $requiredFiles) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required file is missing: $required" }
+}
+if ($Task -eq 'U6') {
+    $actualU6ModelHash = (Get-FileHash -LiteralPath $modelPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actualU6ModelHash -ne $expectedU6ModelHash) {
+        throw "U6 model integrity error: expected $expectedU6ModelHash, got $actualU6ModelHash"
+    }
 }
 if ($Arm -eq 'kessetsu' -and -not (Test-Path -LiteralPath $kessBinary -PathType Leaf)) {
     throw "Required Kessetsu binary is missing: $kessBinary"
@@ -99,7 +114,7 @@ if ($Task -eq 'U1') {
     $nextHeading = if ($Arm -eq 'kessetsu') { 'Direct arm tool reference' } else { 'Common U2 prompt' }
 } else {
     $armHeading = if ($Arm -eq 'kessetsu') { "$Task Kessetsu arm tool reference" } else { "$Task Direct arm tool reference" }
-    $nextHeading = if ($Arm -eq 'kessetsu') { "$Task Direct arm tool reference" } elseif ($Task -eq 'U2') { 'Common U3 prompt' } elseif ($Task -eq 'U3') { 'Common U4 prompt' } elseif ($Task -eq 'U4') { 'Common U5 prompt' } else { 'Evidence retained per attempt' }
+    $nextHeading = if ($Arm -eq 'kessetsu') { "$Task Direct arm tool reference" } elseif ($Task -eq 'U2') { 'Common U3 prompt' } elseif ($Task -eq 'U3') { 'Common U4 prompt' } elseif ($Task -eq 'U4') { 'Common U5 prompt' } elseif ($Task -eq 'U5') { 'Common U6 prompt' } else { 'Evidence retained per attempt' }
 }
 $toolReference = Read-HarnessSection $armHeading $nextHeading
 $prompt = @"
@@ -126,6 +141,7 @@ try {
         $workspaceModelPath = Join-Path (Join-Path $workspace 'models') (Split-Path -Leaf $modelPath)
         Copy-Item -LiteralPath $modelPath -Destination $workspaceModelPath
     }
+    if ($Task -eq 'U6') { $env:KESSETSU_U6_MODEL = $workspaceModelPath }
     Set-Content -LiteralPath (Join-Path $workspace 'PROMPT.md') -Value $prompt -Encoding UTF8
     Set-Content -LiteralPath (Join-Path $workspace 'AGENTS.md') -Encoding UTF8 -Value @"
 # Isolated circuit-design attempt
@@ -255,6 +271,10 @@ try {
     if ($exitCode -ne 0) { exit $exitCode }
     if ($evaluationExitCode -ne 0) { exit 10 }
 } finally {
+    if ($Task -eq 'U6') {
+        if ($originalU6ModelEnv) { $env:KESSETSU_U6_MODEL = $originalU6ModelEnv }
+        else { Remove-Item Env:KESSETSU_U6_MODEL -ErrorAction SilentlyContinue }
+    }
     if (Test-Path -LiteralPath $tempRoot) {
         $resolvedTemp = (Resolve-Path -LiteralPath $tempRoot).Path
         $systemTemp = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).TrimEnd('\')

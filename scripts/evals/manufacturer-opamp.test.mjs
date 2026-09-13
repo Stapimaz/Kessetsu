@@ -33,6 +33,9 @@ test('U6 topology rejects generic substitution and immutable requirement changes
     valid.replace('0.1 1000', '0.2 1000'), valid.replace('OPAx197', 'KESSETSU_OPAMP_V1'),
     valid.replace('RF out feedback', 'RF in feedback'), valid.replace('.end\n', '.include model.lib\n.end\n'),
     valid.replace('VIN in', '.end\nVIN in')]) assert.throws(() => inspectU6(candidate));
+  for (const directive of ['.four 1k v(out)', '.print tran v(out)', '.plot tran v(out)', '.save v(out)']) {
+    assert.deepEqual(inspectU6(valid.replace('.end\n', `${directive}\n.end\n`)), inspectU6(valid));
+  }
 });
 
 test('U6 requires the exact externally acquired model hash and pin contract', () => {
@@ -78,6 +81,7 @@ test('U6 CLI records acquisition failure rather than accepting a generic fallbac
       { encoding: 'utf8', env: { ...process.env, KESSETSU_U6_MODEL: '' }, windowsHide: true });
     const report = JSON.parse(run.stdout);
     assert.equal(run.status, 2);
+    assert.equal(report.schema_version, 'kessetsu.u6-evaluation.v2');
     assert.match(report.message, /MODEL_ACQUISITION_REQUIRED/);
     assert.equal(report.candidate_source, valid);
   } finally { rmSync(directory, { recursive: true, force: true }); }
