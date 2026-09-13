@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,6 +18,11 @@ ${MODEL}
 const simulator = process.env.KESSETSU_NGSPICE ?? (process.platform === 'win32'
   ? fileURLToPath(new URL('../../core/tools/ngspice/bin/ngspice_con.exe', import.meta.url)) : 'ngspice');
 
+test('agent harness distributes the exact evaluator IRF540 model', () => {
+  const distributed = readFileSync(fileURLToPath(new URL('./models/IRF540.lib', import.meta.url)), 'utf8').trim();
+  assert.equal(distributed, MODEL);
+});
+
 test('U4 rejects source/load/model/topology tampering and accepts bounded gate networks', () => {
   assert.equal(inspectU4(valid).gateSeries, null);
   const withGate = valid.replace('VG gate', 'VG in').replace('M1 drain gate', 'RG in gate 100\nRPD gate 0 100k\nM1 drain gate');
@@ -26,6 +31,9 @@ test('U4 rejects source/load/model/topology tampering and accepts bounded gate n
     valid.replace('500u 1m', '400u 1m'), valid.replace('Vto=4.0', 'Vto=2'), valid.replace('M1 drain gate 0 0', 'M1 gate drain 0 0'),
     valid.replace('.end\n', 'C1 gate 0 1n\n.end\n'), valid.replace('VG gate', '.end\nVG gate'),
     withGate.replace('RPD gate 0 100k', 'RPD drain 0 100k'), withGate.replace('RPD gate 0 100k', 'RPD gate 0 100k\nRPD2 gate 0 100k')]) assert.throws(() => inspectU4(candidate));
+  for (const directive of ['.print tran v(drain)', '.plot tran v(drain)', '.save v(drain)']) {
+    assert.deepEqual(inspectU4(valid.replace('.end\n', `${directive}\n.end\n`)), inspectU4(valid));
+  }
 });
 
 test('settled U4 metrics are time weighted, exclude transitions, and enforce KCL/data integrity', () => {
@@ -79,6 +87,7 @@ connect RL.p2,M1.d to DRAIN
       const run = spawnSync(process.execPath, [fileURLToPath(new URL('./load-driver.mjs', import.meta.url)), arm, path], { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024, timeout: 60000, windowsHide: true });
       const report = JSON.parse(run.stdout);
       assert.equal(run.status, 0, report.message ?? JSON.stringify(report.measurements));
+      assert.equal(report.schema_version, 'kessetsu.u4-evaluation.v2');
       assert.equal(report.candidate_source, candidate);
       assert.equal(report.status, 'PASS');
     }

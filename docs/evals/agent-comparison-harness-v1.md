@@ -122,6 +122,31 @@ Finished repository examples, evaluator implementation, previous candidates, oth
 - Batch invocation: `./tools/ngspice/bin/ngspice_con.exe -n -b candidate.cir`.
 - Ngspice has no schematic-layout exporter. Produce only artifacts supported by supplied local tools and label hand-authored output honestly.
 
+## Common U4 prompt
+
+> Design a low-side switched resistive-load driver using exactly one IRF540 with the supplied generic model, a fixed 12 V supply, a fixed 120 ohm resistor load from the supply rail to the drain, and the MOSFET source/body grounded. The immutable gate stimulus is `PULSE(0,10 V,0,1 us,1 us,500 us,1 ms)`. Direct gate drive is allowed; alternatively use at most one series gate resistor and at most one gate-to-ground pull-down resistor. During settled ON intervals load current must be at least 95 mA and drain voltage at most 0.6 V; during settled OFF intervals load-current magnitude must be at most 100 uA; settled-window mean positive transistor dissipation must be below 0.1 W. The independent evaluator runs a 2 us-step transient through 10 ms and measures the final four periods while excluding 50 us around every switching transition. Do not change the source, supply, load, device/model, topology, timing, windows, or limits. This settled-window dissipation intentionally excludes switching loss; the generic nominal model does not prove tolerance, thermal, package, avalanche, gate-driver, manufacturer-part, or hardware performance. Preferred-value compliance is not required in v1. Work only in the supplied directory. You may calculate and simulate iteratively. Preserve each materially different candidate revision in `revisions/` before replacing it. Write the final circuit to the required candidate filename. Produce the schematic and editable/export artifacts that your supplied workflow genuinely supports; missing capability must be reported rather than fabricated. Finish with a short account of calculations, checks, exclusions, model limitations, and produced files. Do not inspect parent directories or search for Kessetsu repository examples, evaluator code, prior attempts, or another arm's work.
+
+## U4 Kessetsu arm tool reference
+
+- Executable: `./kess.exe`; final source: `candidate.kess`.
+- The exact generic model is built into Kessetsu as `IRF540`; `./models/IRF540.lib` is supplied only so both arms can inspect identical model data. Do not redeclare or alter the built-in model.
+- Available declarations include `net NAME`, `source NAME VALUE`, `source NAME pulse(0V,10V,0s,1us,1us,500us,1ms)`, `resistor NAME VALUE`, and `mosfet NAME IRF540`.
+- Pins: source `plus/minus`; resistor `p1/p2`; NMOS `d/g/s` (body is tied to source by the backend model contract).
+- Connect pins with `connect A.pin,B.pin to NET`. A +12 V rail uses a 12 V source from the rail to GND.
+- Available analysis: `simulate tran 2us 10ms`.
+- Useful commands: `check`, `compile --include spice`, `simulate --include datasets`, `render` to SVG/PNG, and `export --target kicad|ltspice`, using the forms documented in the U1 reference above.
+- Existing outputs are not overwritten unless `--force` is supplied.
+
+## U4 Direct arm tool reference
+
+- Executable: `./tools/ngspice/bin/ngspice_con.exe`; final source: `candidate.cir`.
+- `./models/IRF540.lib` contains the exact model used by the other arm. The final candidate must embed that exact `.model` line; do not alter it and do not leave the final candidate dependent on `.include`.
+- The first SPICE line is a title. Use `VG in 0 PULSE(0 10 0 1u 1u 500u 1m)` and a +12 V source from the supply rail to ground. Resistors use `Rname node1 node2 value`; instantiate the MOSFET as `Mname drain gate source body IRF540`, with source and body grounded.
+- The final topology contains the fixed 120 ohm load and may use direct gate drive or exactly one series gate resistor plus at most one gate-to-ground pull-down resistor. No other devices are supported.
+- A candidate may contain `.op`, `.tran`, `.control`, and measurement/output commands for its own iteration. The evaluator ignores those commands and supplies its own analysis and settled windows.
+- Batch invocation: `./tools/ngspice/bin/ngspice_con.exe -n -b candidate.cir`.
+- Ngspice has no schematic-layout exporter. Produce only artifacts supported by supplied local tools and label hand-authored output honestly.
+
 ## Evidence retained per attempt
 
 The runner refuses to overwrite an existing run directory and records:

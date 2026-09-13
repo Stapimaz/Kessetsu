@@ -18,7 +18,9 @@ export function inspectU4(netlist) {
     if (line === '.endc') { if (!control) throw new Error('Unmatched endc'); control = false; continue; }
     if (control) continue;
     if (line === '.end') { ended = true; continue; }
-    if (/^\.(op|tran|meas|measure)(\s|$)/.test(line)) continue;
+    // Candidate analyses and presentation commands are inert: scoring always
+    // uses the evaluator-owned settled-window testbench below.
+    if (/^\.(op|tran|meas|measure|print|plot|save)(\s|$)/.test(line)) continue;
     if (line.startsWith('.model')) {
       if (modelFound || line !== normalize(MODEL)) throw new Error('Missing/changed frozen IRF540 model');
       modelFound = true; continue;
@@ -126,4 +128,4 @@ export function evaluateU4(netlist, simulator, runSimulator) {
         limitations: ['Generic nominal VDMOS model; no tolerance, thermal, package, avalanche, or gate-driver validation.', 'Settled-window dissipation intentionally excludes 50 us around switching transitions and therefore is not total switching loss.'] } };
   }, runSimulator);
 }
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) evaluatorMain('U4', evaluateU4);
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) evaluatorMain('U4', evaluateU4, 2);
