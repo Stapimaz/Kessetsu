@@ -147,6 +147,31 @@ Finished repository examples, evaluator implementation, previous candidates, oth
 - Batch invocation: `./tools/ngspice/bin/ngspice_con.exe -n -b candidate.cir`.
 - Ngspice has no schematic-layout exporter. Produce only artifacts supported by supplied local tools and label hand-authored output honestly.
 
+## Common U5 prompt
+
+> Design a fixed-load power amplifier using the supported four-block signal path: a unity-gain input buffer, a non-inverting voltage-gain stage with a two-resistor feedback divider, an output-feedback error/driver stage, and a complementary emitter-follower output made from exactly one `KESSETSU_POWER_NPN_V1` and one `KESSETSU_POWER_PNP_V1`. Use exactly three `KESSETSU_OPAMP_V1` instances and exactly three resistors: the two gain-setting resistors and the fixed 4 ohm output load. The immutable supplies are +9 V and -9 V; the immutable input is a 100 mV-peak, 1 kHz sine that is also a 1 V AC stimulus. Output RMS power must be from 0.9 W through 1.1 W, THD must be below 3%, and each output transistor's mean positive dissipation must be below 2 W. The independent evaluator runs a transient with a maximum 2 us step through 30 ms and integrates 10–30 ms. Do not change or omit the source, supplies, load, supported topology, exact models, measurement window, or limits. The generic linear op-amp model has no rail saturation, output-current limit, or supply-current branches; therefore driver power and total efficiency are unavailable. The generic transistor models do not prove tolerance, thermal/package/SOA, manufacturer-part, or hardware behavior. Preferred-value compliance is not required in v1. Work only in the supplied directory. You may calculate and simulate iteratively. Preserve each materially different candidate revision in `revisions/` before replacing it. Write the final circuit to the required candidate filename. Produce the schematic and editable/export artifacts that your supplied workflow genuinely supports; missing capability must be reported rather than fabricated. Finish with a short account of calculations, checks, exclusions, model limitations, and produced files. Do not inspect parent directories or search for Kessetsu repository examples, evaluator code, prior attempts, or another arm's work.
+
+## U5 Kessetsu arm tool reference
+
+- Executable: `./kess.exe`; final source: `candidate.kess`.
+- The exact generic models are built into Kessetsu as `KESSETSU_OPAMP_V1`, `KESSETSU_POWER_NPN_V1`, and `KESSETSU_POWER_PNP_V1`; `./models/KESSETSU_POWER_AMPLIFIER_V1.lib` is supplied only so both arms can inspect identical model data. Do not redeclare or alter the built-in models.
+- Available declarations include `net NAME`, `source NAME VALUE`, `source NAME sine_ac(0V,100mV,1kHz,1V)`, `resistor NAME VALUE`, `opamp NAME KESSETSU_OPAMP_V1`, and `transistor NAME npn|pnp MODEL`.
+- Pins: source `plus/minus`; resistor `p1/p2`; op-amp `in_p/in_n/vcc/vee/out`; BJT `c/b/e`.
+- Connect pins with `connect A.pin,B.pin to NET`. A +9 V rail uses a 9 V source from VCC to GND; a -9 V rail uses a 9 V source from GND to VEE. In the complementary emitter follower, the NPN collector goes to VCC, the PNP collector to VEE, their bases share the driver node, and their emitters share the output node.
+- Available analysis: `simulate tran 2us 30ms`.
+- Useful commands: `check`, `compile --include spice`, `simulate --include datasets`, `render` to SVG/PNG, and `export --target kicad|ltspice`, using the forms documented in the U1 reference above.
+- Existing outputs are not overwritten unless `--force` is supplied.
+
+## U5 Direct arm tool reference
+
+- Executable: `./tools/ngspice/bin/ngspice_con.exe`; final source: `candidate.cir`.
+- `./models/KESSETSU_POWER_AMPLIFIER_V1.lib` contains the exact op-amp subcircuit and NPN/PNP model lines used by the other arm. The final candidate must embed that exact `.subckt` block and both exact `.model` lines; do not alter them and do not leave the final candidate dependent on `.include`.
+- The first SPICE line is a title. Use `VIN in 0 SIN(0 0.1 1000) AC 1`, a +9 V source from `vcc` to ground, and a +9 V source from ground to `vee`. Resistors use `Rname node1 node2 value`; instantiate each op-amp as `Xname in_p in_n vcc vee out KESSETSU_OPAMP_V1`; instantiate each BJT as `Qname collector base emitter MODEL`.
+- The final topology must use exactly three op-amps, the exact NPN/PNP pair, the fixed 4 ohm load, and only the two additional gain-setting resistors. The unity buffer feeds the non-inverting gain stage; that stage feeds an error/driver whose inverting input senses the final output; the driver's output drives both transistor bases; both emitters join at the loaded output.
+- A candidate may contain `.op`, `.ac`, `.tran`, `.four`, `.control`, and measurement/output commands for its own iteration. The evaluator ignores those commands and supplies its own transient analysis and integration window.
+- Batch invocation: `./tools/ngspice/bin/ngspice_con.exe -n -b candidate.cir`.
+- Ngspice has no schematic-layout exporter. Produce only artifacts supported by supplied local tools and label hand-authored output honestly.
+
 ## Evidence retained per attempt
 
 The runner refuses to overwrite an existing run directory and records:

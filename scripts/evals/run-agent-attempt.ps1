@@ -8,7 +8,7 @@ param(
     [ValidateRange(1, 3)]
     [int]$Attempt,
 
-    [ValidateSet('U1', 'U2', 'U3', 'U4')]
+    [ValidateSet('U1', 'U2', 'U3', 'U4', 'U5')]
     [string]$Task = 'U1',
 
     [string]$Model = 'gpt-5.6-sol',
@@ -49,6 +49,7 @@ $modelPath = switch ($Task) {
     'U2' { Join-Path $repoRoot 'scripts/evals/models/KESSETSU_OPAMP_V1.lib' }
     'U3' { Join-Path $repoRoot 'scripts/evals/models/2N3904.lib' }
     'U4' { Join-Path $repoRoot 'scripts/evals/models/IRF540.lib' }
+    'U5' { Join-Path $repoRoot 'scripts/evals/models/KESSETSU_POWER_AMPLIFIER_V1.lib' }
     default { $null }
 }
 $evaluator = switch ($Task) {
@@ -56,6 +57,7 @@ $evaluator = switch ($Task) {
     'U2' { Join-Path $repoRoot 'scripts/evals/active-filter.mjs' }
     'U3' { Join-Path $repoRoot 'scripts/evals/common-emitter.mjs' }
     'U4' { Join-Path $repoRoot 'scripts/evals/load-driver.mjs' }
+    'U5' { Join-Path $repoRoot 'scripts/evals/power-amplifier.mjs' }
 }
 $requiredFiles = @($protocolPath, $harnessPath, $CodexBinary, $ngspiceBinary, $evaluator)
 if ($modelPath) { $requiredFiles += $modelPath }
@@ -97,7 +99,7 @@ if ($Task -eq 'U1') {
     $nextHeading = if ($Arm -eq 'kessetsu') { 'Direct arm tool reference' } else { 'Common U2 prompt' }
 } else {
     $armHeading = if ($Arm -eq 'kessetsu') { "$Task Kessetsu arm tool reference" } else { "$Task Direct arm tool reference" }
-    $nextHeading = if ($Arm -eq 'kessetsu') { "$Task Direct arm tool reference" } elseif ($Task -eq 'U2') { 'Common U3 prompt' } elseif ($Task -eq 'U3') { 'Common U4 prompt' } else { 'Evidence retained per attempt' }
+    $nextHeading = if ($Arm -eq 'kessetsu') { "$Task Direct arm tool reference" } elseif ($Task -eq 'U2') { 'Common U3 prompt' } elseif ($Task -eq 'U3') { 'Common U4 prompt' } elseif ($Task -eq 'U4') { 'Common U5 prompt' } else { 'Evidence retained per attempt' }
 }
 $toolReference = Read-HarnessSection $armHeading $nextHeading
 $prompt = @"
@@ -159,7 +161,8 @@ try {
     $process = New-Object System.Diagnostics.Process
     $process.StartInfo = $psi
     if (-not $process.Start()) { throw 'Codex CLI process did not start.' }
-    $process.StandardInput.Write($prompt)
+    $promptBytes = (New-Object System.Text.UTF8Encoding($false)).GetBytes($prompt)
+    $process.StandardInput.BaseStream.Write($promptBytes, 0, $promptBytes.Length)
     $process.StandardInput.Close()
 
     $stdoutTask = $process.StandardOutput.ReadToEndAsync()

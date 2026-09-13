@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,6 +28,11 @@ ${PNP_MODEL}
 const simulator = process.env.KESSETSU_NGSPICE ?? (process.platform === 'win32'
   ? fileURLToPath(new URL('../../core/tools/ngspice/bin/ngspice_con.exe', import.meta.url)) : 'ngspice');
 
+test('agent harness distributes the exact evaluator power-amplifier models', () => {
+  const distributed = readFileSync(fileURLToPath(new URL('./models/KESSETSU_POWER_AMPLIFIER_V1.lib', import.meta.url)), 'utf8').trim();
+  assert.equal(distributed, `${OPAMP_MODEL}\n${NPN_MODEL}\n${PNP_MODEL}`);
+});
+
 test('U5 locks sources, load, models, complementary stage, and bounded gain/driver topology', () => {
   assert.equal(inspectU5(valid).rf, 27500);
   for (const candidate of [valid.replace('VN 0 vee 9', 'VN 0 vee 12'), valid.replace('RL out 0 4', 'RL out 0 8'),
@@ -35,6 +40,9 @@ test('U5 locks sources, load, models, complementary stage, and bounded gain/driv
     valid.replace('X3 gain out', 'X3 gain feedback'), valid.replace('X1 in buf', 'X1 gain buf'),
     valid.replace('RG feedback 0', 'RG feedback vee'), valid.replace('.end\n', 'C1 out 0 1n\n.end\n'),
     valid.replace('VP vcc', '.end\nVP vcc'), valid.replace('VIN in 0', 'VIN out 0')]) assert.throws(() => inspectU5(candidate));
+  for (const directive of ['.four 1k v(out)', '.print tran v(out)', '.plot tran v(out)', '.save v(out)']) {
+    assert.deepEqual(inspectU5(valid.replace('.end\n', `${directive}\n.end\n`)), inspectU5(valid));
+  }
 });
 
 test('U5 metric integration recovers RMS power, THD, and positive device dissipation', () => {
@@ -104,6 +112,7 @@ connect U3.out,QN.b,QP.b to DRIVE
       const run = spawnSync(process.execPath, [fileURLToPath(new URL('./power-amplifier.mjs', import.meta.url)), arm, path], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 60000, windowsHide: true });
       const report = JSON.parse(run.stdout);
       assert.equal(run.status, 0, report.message ?? JSON.stringify(report.measurements));
+      assert.equal(report.schema_version, 'kessetsu.u5-evaluation.v2');
       assert.equal(report.candidate_source, candidate);
       assert.equal(report.status, 'PASS');
     }

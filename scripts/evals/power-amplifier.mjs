@@ -23,7 +23,9 @@ export function inspectU5(netlist) {
     if (line.startsWith('.subckt')) { if (inSub || subcircuit.length) throw new Error('Unsupported extra subcircuit'); inSub = true; }
     if (inSub) { subcircuit.push(line); if (line.startsWith('.ends')) inSub = false; continue; }
     if (line === '.end') { ended = true; continue; }
-    if (/^\.(op|ac|tran|meas|measure)(\s|$)/.test(line)) continue;
+    // Candidate analyses and presentation commands are inert: scoring always
+    // uses the evaluator-owned 10–30 ms integration window below.
+    if (/^\.(op|ac|tran|meas|measure|four|print|plot|save)(\s|$)/.test(line)) continue;
     if (line.startsWith('.model')) { modelLines.add(line); continue; }
     const fields = line.split(' '), kind = fields[0][0], count = kind === 'q' ? 3 : kind === 'x' ? 5 : 2;
     if (!['r', 'c', 'v', 'q', 'x'].includes(kind)) throw new Error('Unsupported U5 device/directive');
@@ -124,4 +126,4 @@ export function evaluateU5(netlist, simulator, runSimulator) {
         limitations: ['Generic linear op-amp omits rail saturation, output-current limits, and supply current.', 'Generic power-BJT models omit tolerance, thermal/package/SOA validation.', 'Nominal simulation is not a hardware efficiency or manufacturability claim.'] } };
   }, runSimulator);
 }
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) evaluatorMain('U5', evaluateU5);
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) evaluatorMain('U5', evaluateU5, 2);
