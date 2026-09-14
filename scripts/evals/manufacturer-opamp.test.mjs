@@ -1,12 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, copyFileSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { digest } from './runtime.mjs';
 import { OFFICIAL_MODEL_SHA256, inspectU6, loadVerifiedModel, evaluateU6 } from './manufacturer-opamp.mjs';
+import { FOLLOWUP_SCHEMA, validateKessetsuU6Compilation } from './manufacturer-opamp-followup.mjs';
 
 const valid = `U6 fixture
 VIN in 0 SIN(0 0.1 1000) AC 1
@@ -23,6 +24,41 @@ const mockModel = `* Test-only model, not TI content
 E1 OUT 0 IN+ IN- 1000000
 R1 OUT 0 1e9
 .ENDS OPAx197
+`;
+const kessValid = `external_subcircuit opamp OPA197 (in_p,in_n,vcc,vee,out) file="models/OPAx197.LIB" entry=OPAx197 sha256=${OFFICIAL_MODEL_SHA256} version="Final 1.3" license="TI terms" source="https://www.ti.com/lit/zip/SBOMA34" simulator=ngspice_ps redistribution=prohibited
+net GND
+net VCC
+net VEE
+net IN
+net FB
+net OUT
+source VP 6V
+source VN 6V
+source VIN sine_ac(0V,100mV,1kHz,1V)
+opamp U1 OPA197
+resistor RF 40k
+resistor RG 10k
+resistor RL 10k
+connect VP.minus to GND
+connect VP.plus to VCC
+connect VN.plus to GND
+connect VN.minus to VEE
+connect VIN.minus to GND
+connect VIN.plus to IN
+connect U1.in_p to IN
+connect U1.in_n to FB
+connect U1.vcc to VCC
+connect U1.vee to VEE
+connect U1.out to OUT
+connect RF.p1 to OUT
+connect RF.p2 to FB
+connect RG.p1 to FB
+connect RG.p2 to GND
+connect RL.p1 to OUT
+connect RL.p2 to GND
+simulate op
+simulate ac dec 100 10Hz 1MHz
+simulate tran 2us 10ms
 `;
 const simulator = process.env.KESSETSU_NGSPICE ?? (process.platform === 'win32'
   ? fileURLToPath(new URL('../../core/tools/ngspice/bin/ngspice_con.exe', import.meta.url)) : 'ngspice');
@@ -86,3 +122,55 @@ test('U6 CLI records acquisition failure rather than accepting a generic fallbac
     assert.equal(report.candidate_source, valid);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
+
+test('U6 follow-up accepts only the exact typed external-model compilation contract', () => {
+  const model = {
+    name: 'OPA197', source: 'external',
+    provenance: { content_hash: `sha256:${OFFICIAL_MODEL_SHA256}` },
+    external: {
+      resource: 'models/OPAx197.LIB', entry: 'OPAx197',
+      pins: ['in_p', 'in_n', 'vcc', 'vee', 'out'],
+      simulator: 'ngspice_ps', redistribution: 'prohibited',
+    },
+  };
+  const compilation = { debug: { models: { manifest: { schema_version: 'kessetsu.models.v2', models: [model] } } } };
+  const netlist = valid.replace('.end', '.include "models/OPAx197.LIB"\n.end');
+  const checked = validateKessetsuU6Compilation(compilation, netlist);
+  assert.equal(FOLLOWUP_SCHEMA, 'kessetsu.u6-followup-evaluation.v1');
+  assert.equal(checked.contract.model_body_serialized, false);
+  assert.ok(!checked.netlist.includes('.include'));
+
+  for (const changed of [
+    { ...model, provenance: { content_hash: 'sha256:changed' } },
+    { ...model, external: { ...model.external, pins: ['in_n', 'in_p', 'vcc', 'vee', 'out'] } },
+    { ...model, external: { ...model.external, simulator: 'ngspice' } },
+    { ...model, external: { ...model.external, redistribution: 'permitted' } },
+  ]) {
+    const altered = { debug: { models: { manifest: { schema_version: 'kessetsu.models.v2', models: [changed] } } } };
+    assert.throws(() => validateKessetsuU6Compilation(altered, netlist), /FOLLOWUP_CONTRACT_ERROR/);
+  }
+  assert.throws(() => validateKessetsuU6Compilation(compilation, valid), /FOLLOWUP_CONTRACT_ERROR/);
+});
+
+test('U6 follow-up runs file-bound Kessetsu through the exact official model without serializing its body',
+  { skip: !process.env.KESSETSU_U6_MODEL }, () => {
+    const directory = mkdtempSync(join(tmpdir(), 'kessetsu-u6-followup-'));
+    try {
+      const models = join(directory, 'models'); mkdirSync(models);
+      const modelPath = join(models, 'OPAx197.LIB');
+      copyFileSync(process.env.KESSETSU_U6_MODEL, modelPath);
+      const candidatePath = join(directory, 'candidate.kess'); writeFileSync(candidatePath, kessValid);
+      const evaluator = fileURLToPath(new URL('./manufacturer-opamp-followup.mjs', import.meta.url));
+      const run = spawnSync(process.execPath, [evaluator, 'kessetsu', candidatePath], {
+        encoding: 'utf8', windowsHide: true, maxBuffer: 4 * 1024 * 1024,
+        env: { ...process.env, KESSETSU_U6_MODEL: modelPath },
+      });
+      assert.equal(run.status, 0, run.stderr);
+      const report = JSON.parse(run.stdout);
+      assert.equal(report.schema_version, FOLLOWUP_SCHEMA);
+      assert.equal(report.status, 'PASS');
+      assert.equal(report.kessetsu_contract.content_hash, `sha256:${OFFICIAL_MODEL_SHA256}`);
+      assert.equal(report.kessetsu_contract.model_body_serialized, false);
+      assert.ok(!run.stdout.includes('Green-Williams-Lis'));
+    } finally { rmSync(directory, { recursive: true, force: true }); }
+  });

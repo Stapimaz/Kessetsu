@@ -11,6 +11,9 @@ param(
     [ValidateSet('U1', 'U2', 'U3', 'U4', 'U5', 'U6')]
     [string]$Task = 'U1',
 
+    [ValidateSet('original', 'u6-external-v1')]
+    [string]$Protocol = 'original',
+
     [string]$Model = 'gpt-5.6-sol',
 
     [ValidateSet('low', 'medium', 'high')]
@@ -30,9 +33,17 @@ param(
 $ErrorActionPreference = 'Stop'
 $originalU6ModelEnv = $env:KESSETSU_U6_MODEL
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-$protocolPath = Join-Path $repoRoot 'docs/evals/unseen-design-v1.md'
-$harnessPath = Join-Path $repoRoot 'docs/evals/agent-comparison-harness-v1.md'
-$evidenceRoot = Join-Path $repoRoot ".artifacts/agent-comparison-v1/$Task/$Arm/attempt-$Attempt"
+if ($Protocol -eq 'u6-external-v1' -and ($Task -ne 'U6' -or $Arm -ne 'kessetsu')) {
+    throw 'u6-external-v1 is a Kessetsu-only U6 follow-up; use -Task U6 -Arm kessetsu.'
+}
+$protocolPath = if ($Protocol -eq 'u6-external-v1') {
+    Join-Path $repoRoot 'docs/evals/unseen-design-u6-followup-v1.md'
+} else { Join-Path $repoRoot 'docs/evals/unseen-design-v1.md' }
+$harnessPath = if ($Protocol -eq 'u6-external-v1') { $protocolPath } else {
+    Join-Path $repoRoot 'docs/evals/agent-comparison-harness-v1.md'
+}
+$evidenceTask = if ($Protocol -eq 'u6-external-v1') { 'U6-followup-v1' } else { $Task }
+$evidenceRoot = Join-Path $repoRoot ".artifacts/agent-comparison-v1/$evidenceTask/$Arm/attempt-$Attempt"
 
 if (Test-Path -LiteralPath $evidenceRoot) {
     throw "Evidence directory already exists and will not be overwritten: $evidenceRoot"
@@ -62,7 +73,9 @@ $evaluator = switch ($Task) {
     'U3' { Join-Path $repoRoot 'scripts/evals/common-emitter.mjs' }
     'U4' { Join-Path $repoRoot 'scripts/evals/load-driver.mjs' }
     'U5' { Join-Path $repoRoot 'scripts/evals/power-amplifier.mjs' }
-    'U6' { Join-Path $repoRoot 'scripts/evals/manufacturer-opamp.mjs' }
+    'U6' { if ($Protocol -eq 'u6-external-v1') {
+        Join-Path $repoRoot 'scripts/evals/manufacturer-opamp-followup.mjs'
+    } else { Join-Path $repoRoot 'scripts/evals/manufacturer-opamp.mjs' } }
 }
 $expectedU6ModelHash = 'fc5b020e63346e511bd808bf41c856b0150b000bcf8a41fe00eeececb1f422a5'
 if ($Task -eq 'U6' -and -not $modelPath) {
@@ -105,11 +118,14 @@ function Read-HarnessSection([string]$Heading, [string]$NextHeading) {
     return $text.Substring($start, $end - $start).Trim()
 }
 
-$commonHeading = if ($Task -eq 'U1') { 'Common U1 prompt' } else { "Common $Task prompt" }
-$commonEnd = if ($Task -eq 'U1') { 'Kessetsu arm tool reference' } else { "$Task Kessetsu arm tool reference" }
+$commonHeading = if ($Protocol -eq 'u6-external-v1') { 'Common prompt' } elseif ($Task -eq 'U1') { 'Common U1 prompt' } else { "Common $Task prompt" }
+$commonEnd = if ($Protocol -eq 'u6-external-v1') { 'Kessetsu tool reference' } elseif ($Task -eq 'U1') { 'Kessetsu arm tool reference' } else { "$Task Kessetsu arm tool reference" }
 $commonPrompt = Read-HarnessSection $commonHeading $commonEnd
 $commonPrompt = $commonPrompt.Trim().TrimStart('>').Trim()
-if ($Task -eq 'U1') {
+if ($Protocol -eq 'u6-external-v1') {
+    $armHeading = 'Kessetsu tool reference'
+    $nextHeading = 'Evidence retained per attempt'
+} elseif ($Task -eq 'U1') {
     $armHeading = if ($Arm -eq 'kessetsu') { 'Kessetsu arm tool reference' } else { 'Direct arm tool reference' }
     $nextHeading = if ($Arm -eq 'kessetsu') { 'Direct arm tool reference' } else { 'Common U2 prompt' }
 } else {
@@ -231,8 +247,9 @@ try {
     $toolCallCount = $completedToolCallCount + $rejectedToolCallCount
 
     $metadata = [ordered]@{
-        schema_version = 'kessetsu.agent-attempt.v1'
-        task = $Task
+        schema_version = 'kessetsu.agent-attempt.v2'
+        task = $evidenceTask
+        protocol = $Protocol
         arm = $Arm
         attempt = $Attempt
         model = $Model

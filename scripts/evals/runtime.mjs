@@ -1,7 +1,7 @@
 // Evaluator-owned testbench execution; never a raw candidate execution API.
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { resolve, join } from 'node:path';
+import { resolve, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
@@ -34,22 +34,35 @@ export function runBench(task, bench, simulator, names, measure, runSimulator = 
   finally { rmSync(directory, { recursive: true, force: true }); } // Only this invocation's mkdtemp path.
 }
 
-export function evaluatorMain(task, evaluate, schemaVersion = 1) {
+export function evaluatorMain(task, evaluate, schemaVersion = 1, options = {}) {
   const [arm, path] = process.argv.slice(2);
-  const record = { schema_version: `kessetsu.${task.toLowerCase()}-evaluation.v${schemaVersion}`, task, arm };
+  const record = { schema_version: options.schemaVersion ?? `kessetsu.${task.toLowerCase()}-evaluation.v${schemaVersion}`, task, arm };
   try {
-    record.spec_sha256 = digest(readFileSync(join(root, 'docs/evals/unseen-design-v1.md')));
+    record.spec_sha256 = digest(readFileSync(join(root, options.specPath ?? 'docs/evals/unseen-design-v1.md')));
     if (!['direct', 'kessetsu'].includes(arm) || !path) throw new Error('Expected <kessetsu|direct> <candidate-file>');
-    const source = readFileSync(resolve(path), 'utf8');
+    const candidatePath = resolve(path), source = readFileSync(candidatePath, 'utf8');
     Object.assign(record, { candidate_source: source, candidate_sha256: digest(source) });
     let netlist = source;
     if (arm === 'kessetsu') {
       const binary = process.env.KESSETSU_BINARY ?? join(root, 'core/target/release', process.platform === 'win32' ? 'kess.exe' : 'kess');
-      const run = spawnSync(binary, ['compile', '-', '--format', 'json', '--include', 'spice'], { input: source, encoding: 'utf8', timeout: 30000, maxBuffer: 4 * 1024 * 1024, windowsHide: true });
+      const compileFromFile = options.compileKessetsuFromFile === true;
+      const evaluatorOutput = join(dirname(candidatePath), '.kessetsu-evaluator.spice');
+      const args = compileFromFile
+        ? ['compile', candidatePath, '--format', 'json', '--include', 'spice,models', '--output', evaluatorOutput, '--force']
+        : ['compile', '-', '--format', 'json', '--include', 'spice'];
+      const run = spawnSync(binary, args, { ...(compileFromFile ? {} : { input: source }), encoding: 'utf8', timeout: 30000, maxBuffer: 4 * 1024 * 1024, windowsHide: true });
+      if (compileFromFile) rmSync(evaluatorOutput, { force: true });
       Object.assign(record, { compiler_stdout: run.stdout, compiler_stderr: run.stderr });
       if (run.error || run.status !== 0) throw new Error(`Compilation failed: ${run.error?.message ?? run.status}`);
-      netlist = JSON.parse(run.stdout).debug?.spice_netlist;
+      const compilation = JSON.parse(run.stdout);
+      netlist = compilation.debug?.spice_netlist;
       if (typeof netlist !== 'string') throw new Error('Missing compiled netlist');
+      if (options.validateKessetsuCompilation) {
+        const validated = options.validateKessetsuCompilation(compilation, netlist);
+        if (!validated || typeof validated.netlist !== 'string') throw new Error('Invalid Kessetsu compilation validator result');
+        netlist = validated.netlist;
+        record.kessetsu_contract = validated.contract;
+      }
     }
     Object.assign(record, { compiled_netlist: netlist, netlist_sha256: digest(netlist) });
     const simulator = process.env.KESSETSU_NGSPICE ?? (process.platform === 'win32' ? join(root, 'core/tools/ngspice/bin/ngspice_con.exe') : 'ngspice');
