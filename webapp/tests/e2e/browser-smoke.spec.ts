@@ -6,6 +6,9 @@ test('opens the landing page, enters Web Hub, initializes WASM and compiles the 
 
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Circuit engineering you can execute.' })).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  expect(await page.locator('.landing-hero .eyebrow').evaluate((element) => (element as HTMLElement).innerText))
+    .toBe('EXECUTABLE CIRCUIT ENGINEERING');
   await expect(page.locator('.monaco-editor')).toHaveCount(0);
   if (process.env.KESSETSU_E2E_SCREENSHOTS) {
     await page.screenshot({ path: 'test-results/landing-desktop.png', fullPage: true });
@@ -27,6 +30,7 @@ test('keeps the landing page readable and actionable on mobile', async ({ page }
   await page.goto('/');
 
   await expect(page.getByRole('heading', { name: 'Circuit engineering you can execute.' })).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await expect(page.locator('.landing-header').getByRole('link', { name: /Open Web Hub/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Give your agent requirements, not blind trust.' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'The complete workflow, in your browser.' })).toBeVisible();

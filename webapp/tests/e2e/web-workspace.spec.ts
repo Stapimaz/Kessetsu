@@ -11,14 +11,17 @@ test('supports edit, inline diagnostic navigation, fix, simulation, assertion an
   page.on('pageerror', (error) => console.log(`[workspace:error] ${error.stack ?? error.message}`));
   await page.goto('/#editor');
   await expect(page.getByTestId('compile-success')).toBeVisible();
+  await expect(page.getByTestId('compile-status')).toHaveText('Checked');
   await expect(page.getByLabel('Simulation results')).toContainText('Run a simulation to inspect results.');
   await replaceSource(page, 'resistor R1 nope\n');
+  await expect(page.getByTestId('compile-status')).toHaveText('1 error');
   const diagnostic = page.getByRole('button', { name: /KES-C001/ });
   await expect(diagnostic).toContainText('L1:');
   await diagnostic.click();
   await expect(page.locator('.monaco-editor').getByRole('textbox').first()).toBeFocused();
 
   await page.getByRole('button', { name: 'File', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Examples', exact: true }).click();
   await page.getByRole('menuitem', { name: 'RC Low-pass', exact: true }).click();
   await expect(page.getByTestId('compile-success')).toBeVisible();
   await expect(page.getByTestId('canonical-schematic')).toHaveAttribute('data-quality', 'pass');
@@ -61,4 +64,6 @@ test('exposes keyboard controls and a usable mobile workspace', async ({ page })
   await expect(page.getByRole('button', { name: 'Run' })).toBeEnabled();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect(page.getByRole('button', { name: /theme/i })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Check', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Simulation', exact: true })).toHaveCount(0);
 });

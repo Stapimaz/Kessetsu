@@ -16,6 +16,7 @@ test('keeps gain-stage and power-amplifier native/browser decisions, SPICE and m
   for (const benchmark of cases) {
     const fixturePath = resolve(`../core/tests/fixtures/benchmarks/${benchmark.fixture}`);
     await page.getByRole('button', { name: 'File', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Examples', exact: true }).click();
     await page.getByRole('menuitem', {
       name: benchmark.option === 'gain' ? 'Gain Stage' : 'Power Amplifier',
       exact: true,

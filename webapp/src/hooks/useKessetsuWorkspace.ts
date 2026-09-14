@@ -31,6 +31,7 @@ function errorMessage(error: unknown): string {
 const initialState: WorkspaceState = {
   code: rcFilter,
   diagnostics: [],
+  compileState: 'loading',
   compileSucceeded: false,
   wasmError: null,
   wasmLoaded: false,
@@ -65,11 +66,16 @@ export function useKessetsuWorkspace() {
           ...current,
           code: shared?.source ?? current.code,
           wasmLoaded: true,
+          compileState: 'checking',
           exportCapabilities: capabilities as WorkspaceState['exportCapabilities'],
           shareMessage: shared ? 'Shared circuit loaded · package versions will be verified' : '',
         }));
       })
-      .catch((error: unknown) => mounted && setState((current) => ({ ...current, wasmError: errorMessage(error) })));
+      .catch((error: unknown) => mounted && setState((current) => ({
+        ...current,
+        compileState: 'invalid',
+        wasmError: errorMessage(error),
+      })));
     const runner = new BrowserSimulationRunner();
     runnerRef.current = runner;
     return () => {
@@ -94,6 +100,7 @@ export function useKessetsuWorkspace() {
       setState((current) => ({
         ...current,
         diagnostics: result.diagnostics,
+        compileState: !hasErrors && verified ? 'valid' : 'invalid',
         compileSucceeded: !hasErrors && verified,
         schematic: !hasErrors ? result.schematic : null,
         schematicSvg: !hasErrors ? result.schematic_svg ?? '' : '',
@@ -105,6 +112,7 @@ export function useKessetsuWorkspace() {
       setState((current) => ({
         ...current,
         compileSucceeded: false,
+        compileState: 'invalid',
         diagnostics: [{ code: 'KES-W001', severity: 'error', stage: 'io', message: errorMessage(error) }],
         schematic: null,
         schematicSvg: '',
@@ -125,6 +133,7 @@ export function useKessetsuWorkspace() {
     setState((current) => ({
       ...current,
       code,
+      compileState: 'checking',
       compileSucceeded: false,
       diagnostics: [],
       schematic: null,

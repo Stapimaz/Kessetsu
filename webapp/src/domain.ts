@@ -85,10 +85,12 @@ export interface ExportArtifact extends ExportDescriptor {
 }
 
 export type SimulationState = 'idle' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+export type CompileState = 'loading' | 'checking' | 'valid' | 'invalid';
 
 export interface WorkspaceState {
   code: string;
   diagnostics: CompileDiagnostic[];
+  compileState: CompileState;
   compileSucceeded: boolean;
   wasmError: string | null;
   wasmLoaded: boolean;

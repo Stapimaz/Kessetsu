@@ -51,6 +51,7 @@ test('resizes, minimizes, maximizes and persists panels without losing circuit s
   await page.keyboard.press('ArrowUp');
   await expect(vertical).toHaveAttribute('aria-valuenow', '53');
   await page.getByRole('button', { name: 'File', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Examples', exact: true }).click();
   await expect(page.getByRole('menuitem', { name: 'Power Amplifier', exact: true })).toBeVisible();
   await page.screenshot({ path: 'test-results/workspace-file-menu.png', fullPage: true });
   await page.getByRole('button', { name: 'File', exact: true }).click();
@@ -84,8 +85,9 @@ test('allows every panel to minimize and keeps menus and restore dock usable on 
   await expect(page.getByLabel('Kessetsu source editor')).toBeVisible();
 
   await page.getByRole('button', { name: 'File', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Examples', exact: true }).click();
   await expect(page.getByRole('menuitem', { name: 'Power Amplifier', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'File', exact: true }).click();
+  await page.keyboard.press('Escape');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.getByRole('button', { name: 'Export', exact: true }).click();
   const bounds = (await page.getByRole('dialog').boundingBox())!;
