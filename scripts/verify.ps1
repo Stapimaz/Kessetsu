@@ -7,6 +7,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $corePath = Join-Path $repoRoot 'core'
 $webPath = Join-Path $repoRoot 'webapp'
 $npmCommand = if ($env:OS -eq 'Windows_NT') { 'npm.cmd' } else { 'npm' }
+$releaseVersion = (Get-Content -LiteralPath (Join-Path $repoRoot 'VERSION') -Raw).Trim()
 
 function Invoke-NativeStep {
     param(
@@ -36,6 +37,11 @@ foreach ($requiredCommand in @('cargo', 'git', 'wasm-pack', $npmCommand)) {
 }
 
 $worktreeBefore = Get-WorktreeSnapshot
+
+Invoke-NativeStep 'Product version consistency' { & (Join-Path $repoRoot 'scripts/verify-version.ps1') | Out-Null }
+Invoke-NativeStep 'Version-scoped release notes' {
+    & (Join-Path $repoRoot 'scripts/extract-release-notes.ps1') -Version $releaseVersion -Output (Join-Path $repoRoot "release-artifacts/release-notes-v$releaseVersion.md")
+}
 
 Push-Location $corePath
 try {
@@ -88,9 +94,9 @@ $releaseTarget = if ($env:OS -eq 'Windows_NT' -and $architecture -eq 'X64') {
 } else {
     throw "Canonical verification does not have a release target for this host: $architecture"
 }
-Invoke-NativeStep 'Package host release artifact' { & (Join-Path $repoRoot 'scripts/package-release.ps1') -Target $releaseTarget -Version '0.1.0' }
+Invoke-NativeStep 'Package host release artifact' { & (Join-Path $repoRoot 'scripts/package-release.ps1') -Target $releaseTarget -Version $releaseVersion }
 $releaseArchive = Get-ChildItem (Join-Path $repoRoot 'release-artifacts') -File |
-    Where-Object { $_.Name -like "kessetsu-v0.1.0-$releaseTarget.*" -and $_.Name -notlike '*.sha256' } |
+    Where-Object { $_.Name -like "kessetsu-v$releaseVersion-$releaseTarget.*" -and $_.Name -notlike '*.sha256' } |
     Select-Object -First 1 -ExpandProperty FullName
 Invoke-NativeStep 'Clean release artifact simulation smoke' { & (Join-Path $repoRoot 'scripts/smoke-release.ps1') -Archive $releaseArchive }
 if ($env:OS -eq 'Windows_NT') {

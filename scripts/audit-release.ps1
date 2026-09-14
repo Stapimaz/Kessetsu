@@ -4,6 +4,8 @@ $corePath = Join-Path $repoRoot "core"
 $webPath = Join-Path $repoRoot "webapp"
 $npmCommand = if ($env:OS -eq "Windows_NT") { "npm.cmd" } else { "npm" }
 
+& (Join-Path $PSScriptRoot "verify-version.ps1") | Out-Null
+
 $metadata = (& cargo metadata --manifest-path (Join-Path $corePath "Cargo.toml") --format-version 1 --locked | Out-String) | ConvertFrom-Json
 if ($LASTEXITCODE -ne 0) { throw "cargo metadata failed" }
 $projectPackage = $metadata.packages | Where-Object { $_.name -eq "kessetsu-core" } | Select-Object -First 1

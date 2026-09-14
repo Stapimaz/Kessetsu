@@ -29,6 +29,10 @@ export default defineConfig({
           resolve(import.meta.dirname, 'dist/COMMERCIAL_LICENSE.md'),
         )
         copyFileSync(
+          resolve(import.meta.dirname, '../docs/assets/web-hub-workspace.png'),
+          resolve(import.meta.dirname, 'dist/og-kessetsu.png'),
+        )
+        copyFileSync(
           resolve(import.meta.dirname, 'node_modules/eecircuit-engine/LICENSE'),
           resolve(licenseDir, 'eecircuit-engine-MIT.txt'),
         )

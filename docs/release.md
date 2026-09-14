@@ -9,7 +9,7 @@
 | `macos-x86_64.tar.gz` | macOS Intel | Homebrew/system `ngspice`, or explicit override |
 | `macos-aarch64.tar.gz` | macOS Apple Silicon | Homebrew/system `ngspice`, or explicit override |
 
-Every archive contains `kess` (`kess.exe` on Windows), `INSTALL.txt`, `README.md`, `LICENSE`, `NOTICE`, `COMMERCIAL_LICENSE.md`, `SUPPORTED_DOMAIN.md` and `release-manifest.json`; a sibling `.sha256` protects the archive. The manifest records target, Git commit, simulator policy and executable SHA-256. `scripts/smoke-release.ps1` extracts to a new temporary directory, verifies the binary, probes its version, performs a real power-amplifier simulation and requires 12/12 assertions.
+Every archive contains `kess` (`kess.exe` on Windows), platform-specific `INSTALL.txt`, the public README/documentation and `.kess` examples, `LICENSE`, `NOTICE`, `COMMERCIAL_LICENSE.md`, `SUPPORTED_DOMAIN.md` and `release-manifest.json`; a sibling `.sha256` protects the archive. The manifest records target, Git commit, simulator policy and executable SHA-256. `scripts/smoke-release.ps1` extracts to a new temporary directory, verifies that the binary and manifest versions agree, performs a real power-amplifier simulation and requires 12/12 assertions.
 
 ## Web production
 
@@ -17,7 +17,19 @@ The production workflow builds the pinned Rust/WASM/Node dependency graph and de
 
 The first release sends no analytics or error telemetry. Failures remain in local UI/console state. This avoids silently collecting circuit source; server telemetry may be introduced only with a documented privacy boundary and opt-in/necessity review.
 
+The canonical public origin is `https://kessetsu.com/`. The production bundle includes its `CNAME`, canonical/Open Graph/Twitter metadata, `robots.txt`, sitemap, and current workspace preview. `scripts/audit-performance.mjs` records and gates three gzip transfer stages in `performance-budget.json`: the initial landing shell (90 KiB), editor activation including Monaco/Core WASM (2,800 KiB), and the browser simulator loaded only on first Run (5,700 KiB). These are regression ceilings, not claims about network latency; release review uses the generated measured values.
+
 Rollback is a normal workflow dispatch: choose a previously verified tag/commit in the `ref` input. The workflow rebuilds that immutable source and atomically replaces the Pages deployment. A release tag is never moved.
+
+## First-public-release transaction
+
+The prepared repository state does not itself publish anything. Execute the external transaction in this order:
+
+1. Confirm the final candidate has passed local canonical verification and remote CI, then change repository visibility to public.
+2. Configure GitHub Pages for the Actions workflow and set `kessetsu.com` as the custom domain. Apply the DNS records required by GitHub, wait for its DNS check, and enable HTTPS before announcing the URL. The built site already contains the matching root-domain `CNAME` and `/` asset base.
+3. Manually dispatch **Web Hub production** for the exact candidate commit. Verify the real origin, content/MIME/cache headers, CSP, Web compile/simulation/export path, and a dispatch-based redeploy before tagging.
+4. Manually dispatch **Release matrix** and require all four clean package smokes. Create the immutable annotated `v1.0.0` tag only after both production and package evidence pass; the tag publishes the selected changelog section and rebuilds the same Web source.
+5. Verify the GitHub Release assets/checksums and `https://kessetsu.com/` once more. If any gate fails, do not move the tag; redeploy a known verified ref and publish a new patch version after correction.
 
 ## Release gates
 
@@ -31,4 +43,4 @@ Rollback is a normal workflow dispatch: choose a previously verified tag/commit 
 
 ## Release commands
 
-The normal path is a signed/annotated `v0.1.0` tag after all gates. The tag triggers the package matrix, GitHub Release publication and Web deployment. A manual workflow dispatch tests the matrix without publishing a GitHub Release.
+`VERSION` is the sole product-version authority. Cargo, npm, packaging and release automation must match it through `scripts/verify-version.ps1`; machine-contract versions such as `kessetsu.cli.v1` evolve independently. The normal path is a signed/annotated `v1.0.0` tag after all gates. The tag triggers the package matrix, GitHub Release publication and Web deployment. A manual workflow dispatch tests the matrix without publishing a GitHub Release. GitHub release notes are extracted only from the matching version section in `CHANGELOG.md`, never from the entire history.

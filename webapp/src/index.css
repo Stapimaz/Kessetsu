@@ -35,6 +35,7 @@ button:focus-visible, select:focus-visible, a:focus-visible, [tabindex]:focus-vi
 .menu-popover a { min-height: 30px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 6px 9px; border: 0; border-radius: 4px; color: var(--text); background: transparent; cursor: pointer; text-align: left; text-decoration: none; font-size: 12px; }
 .menu-popover button:hover,
 .menu-popover a:hover { background: #243044; }
+.menu-version { padding: 7px 9px 3px; color: #66758c; font: 10px ui-monospace, monospace; }
 .menu-popover button:disabled { cursor: not-allowed; opacity: .42; }
 .menu-popover kbd { color: var(--muted); font: 10px ui-monospace, monospace; }
 .menu-separator { height: 1px; margin: 4px 3px; background: var(--border); }

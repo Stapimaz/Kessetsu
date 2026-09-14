@@ -205,7 +205,7 @@ model diode SafeD version=1.0.0 license=MIT Is=2e-9 Rs=0.5
 model bjt SafeN npn version=1.0.0 license=MIT Is=1e-12 Bf=100
 model mosfet SafeP pmos version=1.0.0 license=MIT Vto=-2 Kp=4
 subcircuit opamp SafeOp (in_p,in_n,vcc,vee,out) version=1.0.0 license=MIT gain=100k bandwidth=2MHz
-external_subcircuit opamp OPA197 (in_p,in_n,vcc,vee,out) file="models/OPAx197.LIB" entry=OPA197 sha256=<64-hex-digest> version="Final 1.3" license="vendor terms" source="vendor URL" simulator=ngspice_ps redistribution=prohibited
+external_subcircuit opamp OPA197 (in_p,in_n,vcc,vee,out) file="models/OPAx197.LIB" entry=OPAx197 sha256=<64-hex-digest> version="Final 1.3" license="vendor terms" source="vendor URL" simulator=ngspice_ps redistribution=prohibited
 ```
 
 Exact packaged-model selection:

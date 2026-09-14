@@ -8,10 +8,12 @@ import {
   Terminal,
 } from 'lucide-react';
 import { useEffect } from 'react';
+import productVersionSource from '../../../VERSION?raw';
 import '../landing.css';
 import { WebHubPreview } from './WebHubPreview';
 
 const exports = ['SVG', 'PNG', 'PDF', 'Schematic JSON', 'SPICE', 'KiCad', 'LTspice'];
+const productVersion = productVersionSource.trim();
 
 export function LandingPage() {
   useEffect(() => {
@@ -90,7 +92,7 @@ export function LandingPage() {
           <li>
             <span className="step-number">01</span>
             <strong>Specify</strong>
-            <p>Describe topology constraints, load, gain, power, stress, or any other measurable requirement.</p>
+            <p>Describe topology constraints, load, gain, power, stress, or another supported measurable requirement.</p>
           </li>
           <li>
             <span className="step-number">02</span>
@@ -126,6 +128,11 @@ export function LandingPage() {
             <li><Check size={16} /> Connectivity-verified automatic schematics</li>
             <li><Check size={16} /> Interactive results and explicit PASS/FAIL assertions</li>
           </ul>
+          <p className="scope-note">
+            <strong>First-release scope:</strong> schematic-level analog and mixed-signal circuits with supported
+            components, models, and OP/transient/AC/DC analysis. It is not PCB layout or hardware sign-off.{' '}
+            <a href="https://github.com/Stapimaz/Kessetsu/blob/main/docs/supported_domain.md">Read the supported domain.</a>
+          </p>
         </div>
         <WebHubPreview />
       </section>
@@ -148,9 +155,18 @@ export function LandingPage() {
         </div>
       </section>
 
-      <footer className="landing-footer">
-        <span>Kessetsu © 2026 Stapimaz</span>
-        <span>AGPL-3.0-only · No telemetry in the first release</span>
+      <footer className="landing-footer" role="contentinfo">
+        <div>
+          <strong>Kessetsu {productVersion}</strong>
+          <span>© 2026 Stapimaz · AGPL-3.0-only · No telemetry in the first release</span>
+        </div>
+        <nav aria-label="Footer navigation">
+          <a href="https://github.com/Stapimaz/Kessetsu/blob/main/docs/README.md">Docs</a>
+          <a href="https://github.com/Stapimaz/Kessetsu/blob/main/docs/supported_domain.md">Supported domain</a>
+          <a href="https://github.com/Stapimaz/Kessetsu/blob/main/CHANGELOG.md">Changelog</a>
+          <a href="https://github.com/Stapimaz/Kessetsu">Source</a>
+          <a href="https://github.com/Stapimaz/Kessetsu/issues">Feedback</a>
+        </nav>
       </footer>
     </main>
   );

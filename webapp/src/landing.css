@@ -162,6 +162,10 @@
 .check-list { display: grid; gap: 12px; margin: 26px 0; padding: 0; list-style: none; color: #b2bfd0; font-size: 13px; }
 .check-list li { display: flex; align-items: center; gap: 9px; }
 .check-list svg { flex: 0 0 auto; color: #55e1cc; }
+.scope-note { max-width: 620px; margin: 26px 0 0; padding: 14px 16px; border-left: 2px solid #28756c; color: #8798ae; background: #101721; font-size: 12px; line-height: 1.6; }
+.scope-note strong { color: #b9c7d9; }
+.scope-note a { color: #55e1cc; text-decoration: none; }
+.scope-note a:hover { text-decoration: underline; }
 .text-link { display: inline-flex; align-items: center; gap: 7px; color: #55e1cc; font-weight: 700; }
 .hub-preview { overflow: hidden; margin: 0; border: 1px solid #2d3c50; border-radius: 14px; background: #111722; box-shadow: 0 16px 44px rgba(0, 0, 0, .26); }
 .hub-preview figcaption { padding: 12px 16px; color: #76869d; font-size: 11px; }
@@ -209,7 +213,13 @@
 .final-cta { display: flex; align-items: center; justify-content: space-between; gap: 48px; padding-block: 82px; border-top: 1px solid rgba(139, 154, 177, .17); }
 .final-cta h2 { max-width: 690px; font-size: clamp(28px, 3.5vw, 42px); }
 .final-cta .hero-actions { flex: 0 0 auto; margin: 0; }
-.landing-footer { min-height: 82px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border-top: 1px solid rgba(139, 154, 177, .17); }
+.landing-footer { min-height: 96px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border-top: 1px solid rgba(139, 154, 177, .17); }
+.landing-footer > div { display: grid; gap: 6px; }
+.landing-footer strong { color: #cbd5e3; font-size: 12px; }
+.landing-footer > div span { font-size: 11px; }
+.landing-footer nav { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 10px 18px; }
+.landing-footer a { color: #93a2b8; text-decoration: none; }
+.landing-footer a:hover { color: #55e1cc; }
 
 @media (max-width: 900px) {
   .landing-nav { display: none; }
@@ -259,5 +269,6 @@
   .provider-note { align-items: flex-start; }
   .preview-workspace { grid-template-columns: 1fr; }
   .preview-source { display: none; }
-  .landing-footer { align-items: flex-start; flex-direction: column; justify-content: center; }
+  .landing-footer { align-items: flex-start; flex-direction: column; justify-content: center; padding-block: 24px; }
+  .landing-footer nav { justify-content: flex-start; }
 }

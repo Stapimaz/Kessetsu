@@ -1,8 +1,12 @@
 # Changelog
 
-All notable changes are documented here. Kessetsu follows Semantic Versioning for release artifacts and versions its machine contracts independently.
+All notable changes are documented here. Kessetsu follows [Semantic Versioning](https://semver.org/) for product releases and versions its machine contracts independently.
 
-## 0.1.0 — 2026-08-13
+## [Unreleased]
+
+Changes merged after the first public release will be recorded here.
+
+## [1.0.0] — 2026-09-14
 
 First public-release candidate.
 
@@ -10,6 +14,7 @@ First public-release candidate.
 
 - One Rust Core shared by native CLI and WebAssembly.
 - Zero-account Web Hub with live compile/ERC, canonical schematic, real browser Ngspice simulation, plots, assertions, seven export formats and versioned share URLs.
+- Local Web document workflow with `.kess` open/save, explicit naming, deterministic export filenames and versioned browser draft recovery.
 - Agent-oriented CLI with stdin, `kessetsu.cli.v1` JSON, stable diagnostics/exit codes and safe artifact writes.
 - OP, transient, AC and DC sweep datasets; engineering metrics for gain, cutoff/bandwidth, phase/frequency, output power, efficiency, THD, clipping and dissipation.
 - Typed builtin/user/package models with exact versions, hashes, licenses and lockfile provenance.

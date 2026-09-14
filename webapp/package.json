@@ -1,13 +1,13 @@
 {
   "name": "webapp",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build:wasm": "wasm-pack build ../core --target web --out-dir pkg --release",
-    "build:web": "tsc -b && vite build && node scripts/audit-licenses.mjs --output dist/licenses/npm-inventory.json",
+    "build:web": "tsc -b && vite build && node scripts/audit-licenses.mjs --output dist/licenses/npm-inventory.json && node scripts/audit-performance.mjs",
     "verify:runtime": "node scripts/verify-runtime.mjs",
     "verify:deployment": "node scripts/verify-deployment.mjs",
     "test:unit": "vitest run",

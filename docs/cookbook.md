@@ -56,3 +56,68 @@ Read `diagnostics[]`, `assertions.assertions[]` and `assertions.summary`; do not
 - Schematic JSON: lossless versioned Kessetsu interchange.
 - SPICE: canonical simulation netlist.
 - KiCad/LTspice: editable handoff with the loss/capability report documented in [export formats](export_formats.md).
+
+## Choose and verify a component model
+
+Use the least complicated model that truthfully matches the job.
+
+### 1. Built-in model
+
+Known generic parts need no declaration:
+
+```kessetsu
+diode D1 1N4148
+transistor Q1 npn 2N3904
+mosfet M1 nmos IRF540
+opamp U1 KESSETSU_OPAMP_V1
+```
+
+Run `kess compile design.kess --format json --include models` to inspect exact provenance. Built-ins are useful for topology and first-pass verification; they are not manufacturer guarantees.
+
+### 2. Exact Kessetsu package
+
+Select the package by exact version and use the model it supplies:
+
+```kessetsu
+model_include kessetsu_analog 1.0.0
+opamp U1 KESSETSU_PACKAGE_OPAMP
+```
+
+A file-based compile or simulation writes `kessetsu.lock` beside the generated SPICE artifact. Commit that lock with the circuit when reproducibility matters.
+
+### 3. User-owned manufacturer op-amp model
+
+Keep the downloaded model under the circuit directory; Kessetsu will not fetch or redistribute it:
+
+```text
+my-filter/
+├── design.kess
+└── models/
+    └── VendorOp.lib
+```
+
+Calculate the exact SHA-256:
+
+```powershell
+(Get-FileHash .\models\VendorOp.lib -Algorithm SHA256).Hash.ToLowerInvariant()
+```
+
+```bash
+sha256sum ./models/VendorOp.lib
+```
+
+Read the model file's `.SUBCKT` line and bind its real entry name and pin order explicitly:
+
+```kessetsu
+external_subcircuit opamp VendorOp (in_p,in_n,vcc,vee,out) file="models/VendorOp.lib" entry=VendorOp sha256=<64-hex-digest> version="vendor-version" license="vendor terms" source="https://vendor.example/model" simulator=ngspice_ps redistribution=prohibited
+opamp U1 VendorOp
+```
+
+Then use a file-based native command so the relative resource can be validated and staged:
+
+```powershell
+kess compile .\design.kess --output .\design.spice --format json --include models
+kess test .\design.kess --format json --include models
+```
+
+The digest, `.SUBCKT` entry, canonical five-pin mapping, license and compatibility mode must all match. The current Web Hub and stdin-only CLI cannot bind external file bytes and fail closed instead of substituting a generic model. See [language reference](language_reference.md#typed-models-and-packages) for the complete contract.

@@ -24,8 +24,11 @@ try {
     $actualHash = (Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($actualHash -ne $manifest.executable_sha256) { throw "Executable checksum mismatch" }
 
-    & $binary --version
+    $versionOutput = (& $binary --version | Out-String).Trim()
     if ($LASTEXITCODE -ne 0) { throw "CLI version probe failed" }
+    if ($versionOutput -ne "kess $($manifest.version)") {
+        throw "CLI version '$versionOutput' does not match release manifest '$($manifest.version)'"
+    }
     if ($manifest.simulator.policy -eq "bundled-ngspice-46") {
         $env:KESSETSU_NGSPICE = Join-Path $bundleRoot "tools/ngspice/bin/ngspice_con.exe"
     }

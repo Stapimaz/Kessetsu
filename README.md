@@ -1,6 +1,6 @@
 # Kessetsu
 
-[Web Hub](https://stapimaz.github.io/Kessetsu/) · [CLI releases](https://github.com/Stapimaz/Kessetsu/releases) · [Documentation](docs/README.md) · [Tutorial](docs/tutorial.md) · [Supported domain](docs/supported_domain.md)
+[Web Hub](https://kessetsu.com/) · [CLI releases](https://github.com/Stapimaz/Kessetsu/releases) · [Documentation](docs/README.md) · [Tutorial](docs/tutorial.md) · [Supported domain](docs/supported_domain.md)
 
 Kessetsu is an agent-driven circuit engineering platform for describing circuits as text, compiling and simulating them like software, and verifying them with engineering assertions. The CLI's human mode serves engineers, its versioned JSON mode serves AI agents and automation, and the zero-friction Web Hub serves browser users. Every surface uses the same Rust Core: typed Circuit IR, deterministic graph/ERC, SPICE netlists, schematics, and EDA outputs all derive from shared semantics.
 
@@ -34,6 +34,7 @@ Kessetsu Web Hub is the primary product surface for people who want to develop c
 The current repository build can:
 
 - Edit Kessetsu source in Monaco and switch between example circuits
+- Open and save `.kess` files, name documents, and recover an unsaved versioned browser draft
 - Run live compilation, ERC, and canonical schematic-connectivity verification through WASM
 - Run real OP/transient/AC/DC simulations inside a Web Worker
 - Inspect interactive waveform, Bode, and DC plots plus assertion results
@@ -67,6 +68,18 @@ Compiling the same source in the CLI or Web Hub produces the same IR, diagnostic
 ## Quick start
 
 Ready-to-use CLI packages are published on [GitHub Releases](https://github.com/Stapimaz/Kessetsu/releases) for Windows x86-64, Linux x86-64, macOS Intel, and macOS Apple Silicon, together with SHA-256 files. The Windows package includes a verified Ngspice sidecar. On Linux and macOS, install the system `ngspice` package or provide a trusted absolute path through `KESSETSU_NGSPICE`. Each package includes `INSTALL.txt` and `release-manifest.json` with exact setup and provenance details.
+
+Download the archive for your platform, extract the complete directory, then follow its `INSTALL.txt`. On Windows the first commands are:
+
+```powershell
+.\kess.exe --version
+.\kess.exe check .\examples\demo_circuit.kess
+.\kess.exe test .\examples\demo_circuit.kess
+```
+
+The Windows archive includes Ngspice. Linux and macOS users install `ngspice` with their package manager, run `ngspice -v`, and use the same commands with `./kess`. To make `kess` available from any directory, keep the extracted bundle in a permanent location and add that directory to user `PATH`; the bundled `INSTALL.txt` gives platform-specific details.
+
+### Build from source
 
 Requirements:
 

@@ -21,4 +21,4 @@ npm run build
 npm run dev
 ```
 
-`npm run build` first compiles the Rust Core to WASM under `core/pkg`, then runs the TypeScript and Vite production build. The editor's default circuit comes from `examples/demo_circuit.kess` at the repository root; no separate Web-only language example is maintained.
+`npm run build` first compiles the Rust Core to WASM under `core/pkg`, then runs the TypeScript and Vite production build. The editor's default circuit comes from the canonical `core/tests/fixtures/benchmarks/rc_filter.kess` fixture; no separate Web-only language example is maintained.

@@ -10,7 +10,6 @@ permissions:
 
 env:
   RUST_VERSION: 1.97.1
-  RELEASE_VERSION: 0.1.0
 
 jobs:
   audit:
@@ -74,7 +73,7 @@ jobs:
         run: cargo build --release --locked
       - name: Package versioned artifact
         shell: pwsh
-        run: ./scripts/package-release.ps1 -Target '${{ matrix.target }}' -Version $env:RELEASE_VERSION
+        run: ./scripts/package-release.ps1 -Target '${{ matrix.target }}'
       - name: Smoke packaged artifact in a clean directory
         shell: pwsh
         run: |
@@ -106,8 +105,11 @@ jobs:
       - name: Verify tag matches package version
         shell: pwsh
         run: |
-          if ($env:GITHUB_REF_NAME -ne "v$env:RELEASE_VERSION") { throw "Tag must equal v$env:RELEASE_VERSION" }
+          $version = (Get-Content VERSION -Raw).Trim()
+          ./scripts/verify-version.ps1 -ExpectedVersion $version
+          if ($env:GITHUB_REF_NAME -ne "v$version") { throw "Tag must equal v$version" }
+          ./scripts/extract-release-notes.ps1 -Version $version -Output release-notes.md
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" release-artifacts/* --verify-tag --title "Kessetsu $GITHUB_REF_NAME" --notes-file CHANGELOG.md
+        run: gh release create "$GITHUB_REF_NAME" release-artifacts/* --verify-tag --title "Kessetsu $GITHUB_REF_NAME" --notes-file release-notes.md
