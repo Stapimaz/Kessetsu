@@ -1,7 +1,8 @@
 mod common;
 
 use common::TestWorkspace;
-use kessetsu_core::compiler::{CompileOptions, compile_source};
+use kessetsu_core::compiler::{CompileOptions, compile_source, compile_source_with_resources};
+use kessetsu_core::exporter::{ExportFormat, ExportOptions, export_report};
 use kessetsu_core::graph::{NetlistGraph, generate_spice};
 use kessetsu_core::ir::{ComponentKind, FETPolarity, ModelSource, ast_to_ir};
 use kessetsu_core::models::{MODEL_LOCK_SCHEMA_VERSION, lockfile_json};
@@ -9,6 +10,8 @@ use kessetsu_core::parse_program;
 use kessetsu_core::simulation::{
     CancellationToken, NgspiceRunner, SimulationRequest, SimulationRunner,
 };
+use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
 
 fn user_model_source() -> &'static str {
     "model diode SafeD version=1.2.0 license=MIT source=user Is=2e-9 Rs=0.5\n\
@@ -17,6 +20,256 @@ fn user_model_source() -> &'static str {
      diode D1 SafeD\n\
      mosfet M1 SafeP\n\
      opamp U1 SafeOp\n"
+}
+
+fn external_model_fixture() -> Vec<u8> {
+    b"* synthetic contract fixture; never manufacturer content\n.SUBCKT OPA197 IN+ IN- VCC VEE OUT\nE1 OUT 0 IN+ IN- 100000\n.ENDS OPA197\n"
+        .to_vec()
+}
+
+fn external_model_source(hash: &str, file: &str, alias: &str) -> String {
+    format!(
+        "external_subcircuit opamp {alias} (in_p,in_n,vcc,vee,out) file=\"{file}\" entry=OPA197 sha256={hash} version=\"Final 1.3\" license=\"TI terms\" source=\"https://www.ti.com/model\" simulator=ngspice_ps redistribution=prohibited\n\
+         net GND\nnet VCC\nnet VEE\nnet OUT\nsource VP 6V\nsource VN 6V\nopamp U1 {alias}\nresistor RL 10k\n\
+         connect VP.minus to GND\nconnect VP.plus to VCC\nconnect VN.plus to GND\nconnect VN.minus to VEE\n\
+         connect U1.in_p to GND\nconnect U1.in_n to OUT\nconnect U1.vcc to VCC\nconnect U1.vee to VEE\nconnect U1.out to OUT\n\
+         connect RL.p1 to OUT\nconnect RL.p2 to GND\nsimulate op\n"
+    )
+}
+
+#[test]
+fn external_subcircuit_is_hash_bound_without_serializing_its_body() {
+    let bytes = external_model_fixture();
+    let hash = format!("{:x}", Sha256::digest(&bytes));
+    let source = external_model_source(&hash, "models/OPA197.LIB", "OPA_ALIAS");
+    let mut resources = BTreeMap::new();
+    resources.insert("models/OPA197.LIB".to_string(), bytes.clone());
+
+    let report = compile_source_with_resources(&source, CompileOptions::all_outputs(), &resources);
+    assert!(
+        !report.has_errors(),
+        "diagnostics: {:?}",
+        report.diagnostics
+    );
+    let spice = report.spice_netlist.as_deref().expect("SPICE should exist");
+    assert!(spice.contains("XU1 0 OUT VCC VEE OUT OPA197"));
+    assert!(spice.contains(".include \"models/OPA197.LIB\""));
+    assert!(!spice.contains("synthetic contract fixture"));
+
+    let lock = report.model_lock.as_deref().expect("lock should exist");
+    assert!(lock.contains("\"source\": \"External\""));
+    assert!(lock.contains("\"resource\": \"models/OPA197.LIB\""));
+    assert!(lock.contains("\"simulator\": \"ngspice_ps\""));
+    assert!(lock.contains(&format!("sha256:{hash}")));
+    assert!(!lock.contains("synthetic contract fixture"));
+    let serialized = serde_json::to_string(&report).expect("report should serialize");
+    assert!(!serialized.contains("synthetic contract fixture"));
+    assert!(!serialized.contains("E1 OUT"));
+    let schematic_component = report
+        .schematic
+        .as_ref()
+        .expect("schematic should exist")
+        .components
+        .iter()
+        .find(|component| component.id == "U1")
+        .expect("external opamp should exist in schematic");
+    let metadata = schematic_component
+        .model_metadata
+        .as_ref()
+        .expect("schematic should preserve model metadata");
+    assert_eq!(metadata.resource.as_deref(), Some("models/OPA197.LIB"));
+    assert_eq!(metadata.content_hash, format!("sha256:{hash}"));
+    let kicad = report.kicad_sch.as_deref().expect("KiCad should exist");
+    assert!(kicad.contains("Kessetsu_Model_Resource"));
+    assert!(kicad.contains("models/OPA197.LIB"));
+    assert!(!kicad.contains("synthetic contract fixture"));
+    let ltspice = export_report(&report, ExportFormat::Ltspice, ExportOptions::default())
+        .expect("LTspice export should exist");
+    let ltspice_text = std::str::from_utf8(&ltspice.bytes).expect("LTspice should be text");
+    assert!(ltspice_text.contains(".include \"models/OPA197.LIB\""));
+    assert!(!ltspice_text.contains("synthetic contract fixture"));
+    assert!(
+        ltspice
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("user-owned"))
+    );
+}
+
+#[test]
+fn external_subcircuit_resolution_fails_closed() {
+    let bytes = external_model_fixture();
+    let hash = format!("{:x}", Sha256::digest(&bytes));
+    let valid = external_model_source(&hash, "models/OPA197.LIB", "OPA_ALIAS");
+
+    let missing = compile_source(&valid, CompileOptions::default());
+    assert_eq!(missing.diagnostics[0].code, "KES-C015");
+    assert!(missing.spice_netlist.is_none());
+
+    let mut changed = BTreeMap::new();
+    changed.insert("models/OPA197.LIB".to_string(), b"changed".to_vec());
+    let mismatch = compile_source_with_resources(&valid, CompileOptions::default(), &changed);
+    assert_eq!(mismatch.diagnostics[0].code, "KES-C016");
+
+    let traversal = external_model_source(&hash, "../OPA197.LIB", "OPA_ALIAS");
+    let invalid = compile_source_with_resources(&traversal, CompileOptions::default(), &changed);
+    assert_eq!(invalid.diagnostics[0].code, "KES-C014");
+
+    let unsupported = valid.replace("simulator=ngspice_ps", "simulator=ngspice_raw_args");
+    let invalid = compile_source_with_resources(&unsupported, CompileOptions::default(), &changed);
+    assert_eq!(invalid.diagnostics[0].code, "KES-C014");
+
+    let absolute = external_model_source(&hash, "C:/models/OPA197.LIB", "OPA_ALIAS");
+    let invalid = compile_source_with_resources(&absolute, CompileOptions::default(), &changed);
+    assert_eq!(invalid.diagnostics[0].code, "KES-C014");
+
+    let path_injection = external_model_source(&hash, "models/OPA197.LIB$danger", "OPA_ALIAS");
+    let invalid =
+        compile_source_with_resources(&path_injection, CompileOptions::default(), &changed);
+    assert_eq!(invalid.diagnostics[0].code, "KES-C014");
+
+    let injected = valid.replace("license=\"TI terms\"", "license=\"TI terms\n.control\"");
+    let invalid = compile_source_with_resources(&injected, CompileOptions::default(), &changed);
+    assert_eq!(invalid.diagnostics[0].code, "KES-C014");
+
+    let duplicate = valid.replace(
+        "simulator=ngspice_ps",
+        &format!("sha256={hash} simulator=ngspice_ps"),
+    );
+    let invalid = compile_source_with_resources(&duplicate, CompileOptions::default(), &changed);
+    assert_eq!(invalid.diagnostics[0].code, "KES-C014");
+
+    let mut malformed = BTreeMap::new();
+    let malformed_bytes = b".SUBCKT OPA197 IN+ IN- OUT\n.ENDS OPA197\n".to_vec();
+    let malformed_hash = format!("{:x}", Sha256::digest(&malformed_bytes));
+    malformed.insert("models/OPA197.LIB".to_string(), malformed_bytes);
+    let invalid = compile_source_with_resources(
+        &external_model_source(&malformed_hash, "models/OPA197.LIB", "OPA_ALIAS"),
+        CompileOptions::default(),
+        &malformed,
+    );
+    assert_eq!(invalid.diagnostics[0].code, "KES-C012");
+
+    let mut valid_resource = BTreeMap::new();
+    valid_resource.insert("models/OPA197.LIB".to_string(), bytes);
+    let collision = compile_source_with_resources(
+        &external_model_source(&hash, "models/OPA197.LIB", "KESSETSU_OPAMP_V1"),
+        CompileOptions::default(),
+        &valid_resource,
+    );
+    assert_eq!(collision.diagnostics[0].code, "KES-C013");
+}
+
+#[test]
+fn native_cli_resolves_and_simulates_a_source_relative_external_model() {
+    let bytes = external_model_fixture();
+    let hash = format!("{:x}", Sha256::digest(&bytes));
+    let source = external_model_source(&hash, "models/OPA197.LIB", "OPA_ALIAS");
+    let workspace = TestWorkspace::new("external-model-native");
+    workspace.write(
+        "models/OPA197.LIB",
+        std::str::from_utf8(&bytes).expect("fixture should be UTF-8"),
+    );
+    let source_path = workspace.write("circuit.kess", &source);
+    let source_arg = source_path.to_string_lossy().into_owned();
+    let output = workspace.run_cli(&[
+        "simulate",
+        &source_arg,
+        "--format",
+        "json",
+        "--include",
+        "models",
+    ]);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let value: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("CLI output should be JSON");
+    assert_eq!(value["status"], "success");
+    assert_eq!(
+        value["debug"]["models"]["manifest"]["models"][0]["external"]["resource"],
+        "models/OPA197.LIB"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(!stdout.contains("synthetic contract fixture"));
+    assert!(!stdout.contains("E1 OUT"));
+}
+
+#[test]
+fn cli_keeps_relative_external_dependencies_beside_the_source() {
+    let bytes = external_model_fixture();
+    let hash = format!("{:x}", Sha256::digest(&bytes));
+    let source = external_model_source(&hash, "models/OPA197.LIB", "OPA_ALIAS");
+    let workspace = TestWorkspace::new("external-model-output-location");
+    workspace.write(
+        "models/OPA197.LIB",
+        std::str::from_utf8(&bytes).expect("fixture should be UTF-8"),
+    );
+    let source_path = workspace.write("circuit.kess", &source);
+    workspace.write("other/.keep", "");
+    let output_path = workspace.path().join("other/circuit.spice");
+    let source_arg = source_path.to_string_lossy().into_owned();
+    let output_arg = output_path.to_string_lossy().into_owned();
+    let output = workspace.run_cli(&[
+        "compile",
+        &source_arg,
+        "--output",
+        &output_arg,
+        "--format",
+        "json",
+    ]);
+    assert_eq!(output.status.code(), Some(2));
+    let value: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("CLI output should be JSON");
+    assert_eq!(value["diagnostics"][0]["code"], "KES-I007");
+    assert!(!output_path.exists());
+}
+
+#[test]
+fn optional_official_opa197_runs_through_the_native_external_model_path() {
+    let Some(model_path) = std::env::var_os("KESSETSU_U6_MODEL") else {
+        return;
+    };
+    let bytes = std::fs::read(model_path).expect("configured OPA197 model should be readable");
+    let hash = format!("{:x}", Sha256::digest(&bytes));
+    assert_eq!(
+        hash, "fc5b020e63346e511bd808bf41c856b0150b000bcf8a41fe00eeececb1f422a5",
+        "optional integration must use the exact recorded TI OPAx197 Rev. D file"
+    );
+    let source = format!(
+        "external_subcircuit opamp OPA197 (in_p,in_n,vcc,vee,out) file=\"models/OPAx197.LIB\" entry=OPAx197 sha256={hash} version=\"Final 1.3\" license=\"TI terms\" source=\"https://www.ti.com/lit/zip/SBOMA34\" simulator=ngspice_ps redistribution=prohibited\n\
+         net GND\nnet VCC\nnet VEE\nnet IN\nnet FB\nnet OUT\nsource VP 6V\nsource VN 6V\nsource VIN sine_ac(0V,100mV,1kHz,1V)\n\
+         opamp U1 OPA197\nresistor RF 40k\nresistor RG 10k\nresistor RL 10k\n\
+         connect VP.minus to GND\nconnect VP.plus to VCC\nconnect VN.plus to GND\nconnect VN.minus to VEE\nconnect VIN.minus to GND\nconnect VIN.plus to IN\n\
+         connect U1.in_p to IN\nconnect U1.in_n to FB\nconnect U1.vcc to VCC\nconnect U1.vee to VEE\nconnect U1.out to OUT\n\
+         connect RF.p1 to OUT\nconnect RF.p2 to FB\nconnect RG.p1 to FB\nconnect RG.p2 to GND\nconnect RL.p1 to OUT\nconnect RL.p2 to GND\n\
+         simulate op\nsimulate ac dec 100 10Hz 1MHz\nsimulate tran 2us 10ms\n"
+    );
+    let workspace = TestWorkspace::new("official-opa197-native");
+    workspace.write(
+        "models/OPAx197.LIB",
+        std::str::from_utf8(&bytes).expect("official model should be UTF-8"),
+    );
+    let source_path = workspace.write("circuit.kess", &source);
+    let source_arg = source_path.to_string_lossy().into_owned();
+    let output = workspace.run_cli(&["simulate", &source_arg, "--format", "json"]);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let value: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("CLI output should be JSON");
+    assert_eq!(value["status"], "success");
+    assert_eq!(value["summary"]["analyses"], 3);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(!stdout.contains("Green-Williams-Lis"));
 }
 
 #[test]

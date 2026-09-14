@@ -10,6 +10,7 @@ pub fn parse_program(input: &str) -> Result<Program, pest::error::Error<Rule>> {
     let mut model_includes = Vec::new();
     let mut models = Vec::new();
     let mut subcircuits = Vec::new();
+    let mut external_subcircuits = Vec::new();
     let mut main_statements = Vec::new();
 
     let pairs = KessetsuParser::parse(Rule::program, input)?;
@@ -66,6 +67,9 @@ pub fn parse_program(input: &str) -> Result<Program, pest::error::Error<Rule>> {
                             Rule::subcircuit_decl => {
                                 subcircuits.push(parse_subcircuit_decl(inner));
                             }
+                            Rule::external_subcircuit_decl => {
+                                external_subcircuits.push(parse_external_subcircuit_decl(inner));
+                            }
                             _ => {}
                         }
                     }
@@ -81,6 +85,7 @@ pub fn parse_program(input: &str) -> Result<Program, pest::error::Error<Rule>> {
         model_includes,
         models,
         subcircuits,
+        external_subcircuits,
         statements: main_statements,
     })
 }
@@ -139,6 +144,25 @@ fn parse_subcircuit_decl(pair: pest::iterators::Pair<Rule>) -> SubcircuitDecl {
         .collect();
     let parameters = fields.map(parse_named_value).collect();
     SubcircuitDecl {
+        kind,
+        name,
+        pins,
+        parameters,
+    }
+}
+
+fn parse_external_subcircuit_decl(pair: pest::iterators::Pair<Rule>) -> ExternalSubcircuitDecl {
+    let mut fields = pair.into_inner();
+    let kind = fields.next().unwrap().as_str().to_string();
+    let name = fields.next().unwrap().as_str().to_string();
+    let pins = fields
+        .next()
+        .unwrap()
+        .into_inner()
+        .map(|pin| pin.as_str().to_string())
+        .collect();
+    let parameters = fields.map(parse_named_value).collect();
+    ExternalSubcircuitDecl {
         kind,
         name,
         pins,

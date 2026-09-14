@@ -13,7 +13,7 @@ The project is not limited to a particular educational scenario or circuit class
 ## Current capabilities
 
 - Rust parser, module flattening, and typed Circuit IR
-- Versioned `kessetsu.compile.v3` compile reports and the `kessetsu.schematic.v1` schematic contract
+- Versioned `kessetsu.compile.v4` compile reports and the `kessetsu.schematic.v2` schematic contract
 - Deterministic net naming and `KES-P/C/E/I/S/F` diagnostic namespaces
 - SPICE generation, simulator discovery/provenance, and a Windows Ngspice sidecar runtime
 - Typed OP/transient/AC/DC simulation results and PASS/FAIL/ERROR/SKIPPED assertion evaluation

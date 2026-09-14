@@ -303,7 +303,10 @@ pub fn generate_ltspice_asc(
             }
             let directive = match &model.definition {
                 ModelDefinition::Device { directive }
-                | ModelDefinition::Subcircuit { directive, .. } => directive,
+                | ModelDefinition::Subcircuit { directive, .. } => directive.clone(),
+                ModelDefinition::ExternalSubcircuit { metadata } => {
+                    format!(".include \"{}\"", metadata.resource)
+                }
             };
             for line in directive.lines().filter(|line| !line.trim().is_empty()) {
                 out.push_str(&format!("TEXT 32 {directive_y} Left 2 !{line}\n"));

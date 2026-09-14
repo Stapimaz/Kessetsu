@@ -8,7 +8,7 @@ test('opens the final power-amplifier source from a versioned URL and runs the f
     new URL('../../../core/tests/fixtures/benchmarks/power_amplifier.kess', import.meta.url),
     'utf8',
   );
-  const fragment = await encodeShareFragment(source, 'kessetsu.compile.v3', null);
+  const fragment = await encodeShareFragment(source, 'kessetsu.compile.v4', null);
   await page.goto(`/${fragment}`);
 
   await expect(page.getByTestId('compile-success')).toBeVisible();

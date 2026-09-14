@@ -164,3 +164,20 @@ fn unsupported_legacy_battery_and_connect_forms_are_rejected() {
     assert!(parse_program("battery B1 9V\n").is_err());
     assert!(parse_program("connect B1.plus R1.p1\n").is_err());
 }
+
+#[test]
+fn external_subcircuit_declaration_preserves_typed_fields() {
+    let source = "external_subcircuit opamp OPA197 (in_p,in_n,vcc,vee,out) file=\"models/OPAx197.LIB\" entry=OPAx197 sha256=fc5b020e63346e511bd808bf41c856b0150b000bcf8a41fe00eeececb1f422a5 version=\"Final 1.3\" license=\"TI terms\" source=\"https://www.ti.com/lit/zip/SBOMA34\" simulator=ngspice_ps redistribution=prohibited\n";
+    let program = parse_program(source).expect("typed external declaration should parse");
+    assert_eq!(program.external_subcircuits.len(), 1);
+    let declaration = &program.external_subcircuits[0];
+    assert_eq!(declaration.kind, "opamp");
+    assert_eq!(declaration.name, "OPA197");
+    assert_eq!(declaration.pins, ["in_p", "in_n", "vcc", "vee", "out"]);
+    assert!(
+        declaration
+            .parameters
+            .iter()
+            .any(|field| { field.name == "file" && field.value == "models/OPAx197.LIB" })
+    );
+}

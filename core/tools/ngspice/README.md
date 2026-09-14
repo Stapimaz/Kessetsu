@@ -38,6 +38,13 @@ part of Kessetsu's current runtime profile. `spinit` loads only the two modules
 above and explicitly disables the absent OSDI family. Any broader feature set
 requires a separate runtime-profile review and fixtures.
 
+When this packaged layout is detected, the native runner sets `SPICE_LIB_DIR`
+to the adjacent `share/ngspice` directory and starts Ngspice with `-n`. This
+selects the tracked `scripts/spinit` deterministically without reading a user's
+home-directory startup file. A declared `ngspice_ps` external subcircuit adds
+only `-D ngbehavior=ps`; source-controlled arbitrary command-line arguments are
+never accepted.
+
 ## Verification scope
 
 The base profile was verified on August 8, 2026, and its manufacturer-model

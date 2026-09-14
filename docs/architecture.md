@@ -38,7 +38,7 @@ Kessetsu Source (.kess)
 
 ### Single Compile Contract
 
-The canonical Core entry point is `compile_source(source, options) -> CompileReport`. This function does not write files, launch processes, or print logs; those side effects belong to frontends such as the CLI. The report is versioned as `kessetsu.compile.v3` and, depending on its options, can carry the flattened AST, typed IR, deterministic graph summary, SPICE, canonical `kessetsu.schematic.v1`, SVG, temporary legacy layout, and KiCad output.
+The canonical Core entry points are `compile_source(source, options) -> CompileReport` and its resource-aware form `compile_source_with_resources(source, options, resources) -> CompileReport`. Neither writes files, launches processes, or prints logs; frontends bind resource bytes and own those side effects. Reports are versioned as `kessetsu.compile.v4` and, depending on options, can carry the flattened AST, typed IR, deterministic graph summary, SPICE, canonical `kessetsu.schematic.v2`, SVG, temporary legacy layout, and KiCad output. External resource bytes never appear in the report.
 
 Parse, flattening, semantic, and ERC failures are normalized into the shared `Diagnostic` model. If any error-severity diagnostic exists, no backend output is produced. Warnings and informational diagnostics may accompany successful output. The CLI and WASM layers must remain adapters around this entry point and must not construct parallel compilation pipelines.
 
@@ -158,7 +158,9 @@ subcircuit opamp SafeOp (in_p,in_n,vcc,vee,out) version=1.0.0 license=MIT gain=1
 - Built-in, packaged, user-model, and subcircuit names share one case-insensitive namespace. Collisions produce `KES-C013`.
 - Simulator capability is recorded as `ngspice-35+`. Unsupported package or simulator versions fail closed with `KES-C011`.
 
-Exact packages are selected with syntax such as `model_include kessetsu_analog 1.0.0`; floating versions and ranges are not supported. Resolved models and packages appear in a `kessetsu.models.v1` manifest containing source, license, version, simulator capability, and a `sha256:` content hash. When file-based compile/simulate/test uses a model, a deterministic `kessetsu.lock` (`kessetsu.lock.v1`) is written beside the SPICE artifact and reported as a `model_lock` CLI artifact. Stdin-only calls do not write files; callers can request manifest and lock content through `--include models`.
+Exact packages are selected with syntax such as `model_include kessetsu_analog 1.0.0`; floating versions and ranges are not supported. Resolved models and packages appear in a `kessetsu.models.v2` manifest containing source, license, version, simulator capability, and a `sha256:` content hash. When file-based compile/simulate/test uses a model, a deterministic `kessetsu.lock` (`kessetsu.lock.v2`) is written beside the SPICE artifact and reported as a `model_lock` CLI artifact. Stdin-only calls do not write files; callers can request manifest and lock content through `--include models`.
+
+External op-amp subcircuits use the typed `external_subcircuit` contract from [ADR 0003](decisions/0003-external-subcircuit-references.md). The declaration carries a source-relative resource reference, exact SHA-256, `.SUBCKT` entry, canonical pin mapping, provenance, closed simulator-compatibility mode, and explicit redistribution policy. The native CLI resolves only files contained under the `.kess` source directory; Core validates bytes before producing IR. Simulation stages an exact temporary copy and maps `ngspice_ps` only to the bounded Ngspice compatibility option. The Web runtime currently reports unresolved external resources as unsupported; it neither uploads them nor substitutes a generic model.
 
 Attempts to hide `.control`, `.include`, shell syntax, or line breaks inside quoted parameters cannot cross typed numeric and metadata validation. When an error exists, the SPICE backend does not run. Regression tests protect this injection boundary.
 
@@ -239,7 +241,7 @@ Render/export ownership follows this boundary:
 
 ```text
 Circuit IR + Canonical Graph
-        → kessetsu.schematic.v1
+        → kessetsu.schematic.v2
         → SVG / PNG / PDF / Schematic JSON / KiCad / LTspice exporters
         → CLI artifact writer or Web download UI
 ```
@@ -251,7 +253,7 @@ The legacy `layout.rs` behavior below remains a characterization baseline during
 Schematic placement originally used a **chain-based vertical-layout** approach for assigning component x/y coordinates. DFS was one heuristic for traversal and initial ordering.
 
 - **Legacy heuristic:** Voltage-source rails, GND direction, through pins, and `is_signal_pin` affect chain order and rotation. Active devices such as BJTs and MOSFETs have separate placement behavior, but ideal orientation is not guaranteed for every topology.
-- **Canonical gate:** `kessetsu.schematic.v1` represents every connected graph pin with either a typed wire endpoint or a semantic net label. Missing or extra pins/nets fail closed with `KES-L001`.
+- **Canonical gate:** `kessetsu.schematic.v2` represents every connected graph pin with either a typed wire endpoint or a semantic net label and preserves model provenance metadata without model bodies. Missing or extra pins/nets fail closed with `KES-L001`.
 - **Placement and routing:** Deterministic layered placement, shared pin-side metadata, orthogonal cost-based routing, and semantic labels for high-fan-out/power nets are canonical. Symbol/wire/label collisions, crossings, and bend counts appear in the versioned quality report.
 - **Visual regression:** Deterministic SVG SHA-256 goldens for the schematic corpus are protected by Rust tests, and real-browser rendering is protected by the Playwright corpus.
 

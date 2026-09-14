@@ -129,6 +129,30 @@ pub enum ModelSource {
     Builtin,
     UserDefined,
     Package,
+    External,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SimulatorCompatibility {
+    Ngspice,
+    NgspicePs,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RedistributionPolicy {
+    Permitted,
+    Prohibited,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ExternalModelMetadata {
+    pub resource: String,
+    pub entry: String,
+    pub pins: Vec<String>,
+    pub simulator: SimulatorCompatibility,
+    pub redistribution: RedistributionPolicy,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -140,6 +164,9 @@ pub enum ModelDefinition {
     Subcircuit {
         directive: String,
         pins: Vec<String>,
+    },
+    ExternalSubcircuit {
+        metadata: ExternalModelMetadata,
     },
 }
 
@@ -173,6 +200,8 @@ pub struct ModelManifestEntry {
     pub kind: ComponentKind,
     pub source: ModelSource,
     pub provenance: ModelProvenance,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external: Option<ExternalModelMetadata>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -578,7 +607,14 @@ fn parse_analysis(
 }
 
 pub fn ast_to_ir(program: &Program) -> Result<CircuitIR, SemanticDiagnostic> {
-    let model_library = crate::models::resolve_program_models(program)?;
+    ast_to_ir_with_resources(program, &crate::models::ExternalModelResources::new())
+}
+
+pub fn ast_to_ir_with_resources(
+    program: &Program,
+    resources: &crate::models::ExternalModelResources,
+) -> Result<CircuitIR, SemanticDiagnostic> {
+    let model_library = crate::models::resolve_program_models_with_resources(program, resources)?;
     let mut components = Vec::new();
     let mut connections = Vec::new();
     let mut nets = Vec::new();

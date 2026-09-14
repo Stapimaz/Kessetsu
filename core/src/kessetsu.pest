@@ -44,6 +44,7 @@ model_polarity = { ^"npn" | ^"pnp" | ^"nmos" | ^"pmos" }
 model_decl = { "model" ~ model_kind ~ ident ~ model_polarity? ~ named_value+ }
 subcircuit_kind = { "opamp" }
 subcircuit_decl = { "subcircuit" ~ subcircuit_kind ~ ident ~ "(" ~ pin_list ~ ")" ~ named_value+ }
+external_subcircuit_decl = { "external_subcircuit" ~ subcircuit_kind ~ ident ~ "(" ~ pin_list ~ ")" ~ named_value+ }
 model_include = { "model_include" ~ ident ~ comp_value }
 
 statement = { (decl | net_stmt | use_stmt | connect | assert_stmt | sim_cmd) }
@@ -51,5 +52,5 @@ statement = { (decl | net_stmt | use_stmt | connect | assert_stmt | sim_cmd) }
 pin_list = { ident ~ ("," ~ ident)* }
 module_decl = { "module" ~ ident ~ "(" ~ pin_list? ~ ")" ~ "{" ~ NEWLINE* ~ (statement ~ NEWLINE+)* ~ "}" }
 
-top_level = { model_include | model_decl | subcircuit_decl | module_decl | statement }
+top_level = { model_include | model_decl | external_subcircuit_decl | subcircuit_decl | module_decl | statement }
 program = { SOI ~ NEWLINE* ~ (top_level ~ NEWLINE+)* ~ top_level? ~ NEWLINE* ~ EOI }

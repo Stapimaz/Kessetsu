@@ -318,6 +318,25 @@ pub fn export_report(
 
     let mut warnings = Vec::new();
     let mut losses = Vec::new();
+    let external_models = report
+        .ir
+        .as_ref()
+        .map(|circuit| {
+            circuit
+                .model_manifest
+                .models
+                .iter()
+                .filter_map(|model| {
+                    model.external.as_ref().map(|external| {
+                        format!(
+                            "{} requires user-owned '{}' ({})",
+                            model.name, external.resource, model.provenance.content_hash
+                        )
+                    })
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
     let (bytes, connectivity_verified) = match format {
         ExportFormat::Svg => {
             let schematic = schematic(report)?;
@@ -351,19 +370,27 @@ pub fn export_report(
             json.push(b'\n');
             (json, schematic.connectivity.verified)
         }
-        ExportFormat::Spice => (
-            report
-                .spice_netlist
-                .as_ref()
-                .ok_or_else(|| ExportError {
-                    code: "KES-X011".to_string(),
-                    message: "canonical SPICE is unavailable".to_string(),
-                    diagnostics: Vec::new(),
-                })?
-                .as_bytes()
-                .to_vec(),
-            true,
-        ),
+        ExportFormat::Spice => {
+            if !external_models.is_empty() {
+                warnings.push(format!(
+                    "keep these user-owned model files beside the export: {}",
+                    external_models.join("; ")
+                ));
+            }
+            (
+                report
+                    .spice_netlist
+                    .as_ref()
+                    .ok_or_else(|| ExportError {
+                        code: "KES-X011".to_string(),
+                        message: "canonical SPICE is unavailable".to_string(),
+                        diagnostics: Vec::new(),
+                    })?
+                    .as_bytes()
+                    .to_vec(),
+                true,
+            )
+        }
         ExportFormat::Kicad => {
             let schematic = schematic(report)?;
             if report.ir.as_ref().is_some_and(|ir| !ir.analyses.is_empty()) {
@@ -376,6 +403,12 @@ pub fn export_report(
                 "KiCad may report a symbol-table warning for portable embedded Kessetsu symbols; embedded definitions remain editable and connectivity-safe"
                     .to_string(),
             );
+            if !external_models.is_empty() {
+                losses.push(format!(
+                    "external model bodies are not embedded; {}",
+                    external_models.join("; ")
+                ));
+            }
             (
                 crate::kicad::generate_kicad_sch(schematic)?.into_bytes(),
                 schematic.connectivity.verified,
@@ -402,6 +435,12 @@ pub fn export_report(
                 "LTspice symbols use the standard bundled symbol library; keep the .kess source as the authoritative design"
                     .to_string(),
             );
+            if !external_models.is_empty() {
+                warnings.push(format!(
+                    "keep these user-owned model files beside the export: {}",
+                    external_models.join("; ")
+                ));
+            }
             (
                 crate::ltspice::generate_ltspice_asc(schematic, circuit)?.into_bytes(),
                 schematic.connectivity.verified,

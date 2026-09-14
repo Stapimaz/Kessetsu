@@ -1,15 +1,16 @@
 use crate::ast::Program;
 use crate::erc::{ErcDiagnostic, Severity as ErcSeverity, check_rules};
 use crate::graph::{NetId, NetlistGraph, generate_spice};
-use crate::ir::{CircuitIR, SemanticDiagnostic, ast_to_ir};
+use crate::ir::{CircuitIR, SemanticDiagnostic, ast_to_ir_with_resources};
 use crate::layout::LayoutResult;
+use crate::models::ExternalModelResources;
 use crate::parser::{Rule, parse_program};
 use crate::schematic::Schematic;
 use pest::error::LineColLocation;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const COMPILE_SCHEMA_VERSION: &str = "kessetsu.compile.v3";
+pub const COMPILE_SCHEMA_VERSION: &str = "kessetsu.compile.v4";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -277,6 +278,14 @@ impl GraphSummary {
 /// Every stage reports failures through `CompileReport::diagnostics`. Backend
 /// outputs are generated only when no error-severity diagnostic exists.
 pub fn compile_source(source: &str, options: CompileOptions) -> CompileReport {
+    compile_source_with_resources(source, options, &ExternalModelResources::new())
+}
+
+pub fn compile_source_with_resources(
+    source: &str,
+    options: CompileOptions,
+    resources: &ExternalModelResources,
+) -> CompileReport {
     let mut report = CompileReport::empty();
 
     let program = match parse_program(source) {
@@ -300,7 +309,7 @@ pub fn compile_source(source: &str, options: CompileOptions) -> CompileReport {
         report.ast = Some(flat_program.clone());
     }
 
-    let circuit = match ast_to_ir(&flat_program) {
+    let circuit = match ast_to_ir_with_resources(&flat_program, resources) {
         Ok(circuit) => circuit,
         Err(diagnostic) => {
             report.diagnostics.push(diagnostic.into());

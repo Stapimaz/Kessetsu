@@ -44,6 +44,13 @@ export interface ModelInfo {
     content_hash: string;
     simulator: string;
   };
+  external?: {
+    resource: string;
+    entry: string;
+    pins: string[];
+    simulator: 'ngspice' | 'ngspice_ps';
+    redistribution: 'permitted' | 'prohibited';
+  };
 }
 
 export type ExportFormat = 'svg' | 'png' | 'pdf' | 'schematic_json' | 'spice' | 'kicad' | 'ltspice';

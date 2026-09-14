@@ -1,11 +1,12 @@
 mod common;
 
 use common::{TestWorkspace, read_fixture};
-use kessetsu_core::ir::{AcScale, Analysis, Quantity, SIUnit};
+use kessetsu_core::ir::{AcScale, Analysis, Quantity, SIUnit, SimulatorCompatibility};
 use kessetsu_core::simulation::{
-    ArtifactPolicy, CancellationToken, Dataset, NgspiceRunner, SimulationRequest,
-    SimulationRunErrorKind, SimulationRunner, SimulationStatus,
+    ArtifactPolicy, CancellationToken, Dataset, NativeSimulationContext, NgspiceRunner,
+    SimulationRequest, SimulationRunErrorKind, SimulationRunner, SimulationStatus,
 };
+use std::collections::BTreeMap;
 use std::fs;
 use std::time::Duration;
 
@@ -59,6 +60,47 @@ fn native_runner_distinguishes_launch_and_simulator_failures() {
     assert_eq!(result.status, SimulationStatus::Failed);
     assert_eq!(result.process.exit_code, Some(9));
     assert_eq!(result.errors, ["Fatal error: singular matrix"]);
+}
+
+#[test]
+fn native_runner_stages_exact_external_bytes_only_inside_the_run_directory() {
+    let workspace = TestWorkspace::new("runner-external-resource");
+    let simulator = workspace.write_fake_simulator(
+        "external-resource-simulator",
+        "",
+        "Fatal error: retained fixture",
+        9,
+    );
+    let runner = NgspiceRunner::new(simulator);
+    let mut request =
+        SimulationRequest::new("* fixture\n.include \"models/fixture.lib\"\n.end\n", vec![]);
+    request.artifact_policy = ArtifactPolicy::RetainOnFailure;
+    let expected = b"private external model fixture".to_vec();
+    let context = NativeSimulationContext {
+        compatibility: SimulatorCompatibility::Ngspice,
+        resources: BTreeMap::from([("models/fixture.lib".to_string(), expected.clone())]),
+    };
+    let result = runner
+        .run_with_context(&request, &context, &CancellationToken::new())
+        .expect("simulator failure should remain structured");
+    assert_eq!(result.status, SimulationStatus::Failed);
+    let run_directory = result
+        .artifacts
+        .iter()
+        .find(|artifact| artifact.kind == "run_directory")
+        .map(|artifact| std::path::PathBuf::from(&artifact.path))
+        .expect("retained run directory should be reported");
+    assert!(
+        run_directory
+            .file_name()
+            .is_some_and(|name| name.to_string_lossy().starts_with("kessetsu-sim-"))
+    );
+    assert_eq!(
+        fs::read(run_directory.join("models/fixture.lib"))
+            .expect("staged resource should be readable"),
+        expected
+    );
+    fs::remove_dir_all(&run_directory).expect("owned retained test directory should be removable");
 }
 
 #[test]

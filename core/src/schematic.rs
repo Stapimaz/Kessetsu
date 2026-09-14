@@ -1,14 +1,14 @@
 use crate::component::{CatalogSymbol, PinFlow, PinSide, component_definition, through_pin};
 use crate::graph::{NetId, NetlistGraph, format_spice_number};
 use crate::ir::{
-    BJTPolarity, CircuitIR, ComponentKind, ComponentParams, FETPolarity, IRComponent, SIUnit,
-    SourceValue, Waveform,
+    BJTPolarity, CircuitIR, ComponentKind, ComponentParams, FETPolarity, IRComponent,
+    ModelDefinition, SIUnit, SourceValue, Waveform,
 };
 use serde::{Deserialize, Serialize};
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap, VecDeque};
 
-pub const SCHEMATIC_SCHEMA_VERSION: &str = "kessetsu.schematic.v1";
+pub const SCHEMATIC_SCHEMA_VERSION: &str = "kessetsu.schematic.v2";
 
 #[derive(
     Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
@@ -137,11 +137,24 @@ pub struct SchematicComponent {
     pub reference: String,
     pub value: Option<String>,
     pub model: Option<String>,
+    pub model_metadata: Option<SchematicModelMetadata>,
     pub orientation: Orientation,
     pub mirrored_x: bool,
     pub origin: Point,
     pub bounds: Rect,
     pub pins: Vec<PinAnchor>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SchematicModelMetadata {
+    pub source: String,
+    pub license: String,
+    pub version: String,
+    pub content_hash: String,
+    pub simulator: String,
+    pub resource: Option<String>,
+    pub entry: Option<String>,
+    pub redistribution: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -954,6 +967,29 @@ fn placed_component_mirrored(
         })
         .collect();
     let (value, model, variant) = component_labels(component);
+    let model_metadata = component.model.as_ref().map(|model| {
+        let (resource, entry, redistribution) = match &model.definition {
+            ModelDefinition::ExternalSubcircuit { metadata } => (
+                Some(metadata.resource.clone()),
+                Some(metadata.entry.clone()),
+                Some(match metadata.redistribution {
+                    crate::ir::RedistributionPolicy::Permitted => "permitted".to_string(),
+                    crate::ir::RedistributionPolicy::Prohibited => "prohibited".to_string(),
+                }),
+            ),
+            _ => (None, None, None),
+        };
+        SchematicModelMetadata {
+            source: model.provenance.source.clone(),
+            license: model.provenance.license.clone(),
+            version: model.provenance.version.clone(),
+            content_hash: model.provenance.content_hash.clone(),
+            simulator: model.provenance.simulator.clone(),
+            resource,
+            entry,
+            redistribution,
+        }
+    });
     SchematicComponent {
         id: component.id.clone(),
         symbol: definition.symbol,
@@ -961,6 +997,7 @@ fn placed_component_mirrored(
         reference: component.id.clone(),
         value,
         model,
+        model_metadata,
         orientation,
         mirrored_x,
         origin,

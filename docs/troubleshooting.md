@@ -8,6 +8,8 @@ Check the reported line/column against [language reference](language_reference.m
 
 Verify names, pin identifiers, physical units, one unambiguous `GND`, and that every required component pin is connected. Raw SPICE directives and unversioned model packages are intentionally rejected.
 
+For external subcircuits, `KES-C014` means the typed metadata, path, or compatibility value is invalid; `KES-C015` means the declared resource bytes were not supplied; `KES-C016` means their SHA-256 differs from the declaration; and `KES-C017` means the file is not valid UTF-8 or does not contain exactly one matching `.SUBCKT` entry with the declared terminal count. Native CLI commands resolve resources relative to a file-based `.kess` source. Stdin and the current browser runtime intentionally return `KES-C015` because neither has an external-byte binding; they never substitute a generic model.
+
 ## Simulator not found or exit 3
 
 Run the CLI with the release-provided simulator instructions, or set `KESSETSU_NGSPICE` to the full Ngspice executable path. Kessetsu probes the executable version before use; a directory or incompatible binary fails closed. Use `--include raw-log --format json` only when diagnosing simulator output.
@@ -19,6 +21,8 @@ The required analysis or signal is missing or incompatible. AC metrics need an A
 ## Output already exists
 
 Generated files are never silently overwritten. Pick a new path or add `--force` after confirming the target. The source file itself cannot be an output target even with `--force`.
+
+`KES-I007` means a SPICE or LTspice export depends on an external model file but the requested output directory differs from the source directory. Write the export beside the `.kess` source so its validated relative include remains usable. Kessetsu does not silently copy or redistribute the model.
 
 ## A shared URL will not open
 

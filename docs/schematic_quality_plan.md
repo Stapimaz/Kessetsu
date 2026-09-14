@@ -2,7 +2,7 @@
 
 - Status: Active — Phase 4 release blocker
 - Opened: 2026-08-13
-- Scope: Core-owned schematic analysis, placement, routing, rendering and every CLI/Web/export projection that consumes `kessetsu.schematic.v1`
+- Scope: Core-owned schematic analysis, placement, routing, rendering and every CLI/Web/export projection that consumes the current `kessetsu.schematic.v2` contract (the accepted visual baseline was originally recorded against v1)
 
 ## Why this work was reopened
 

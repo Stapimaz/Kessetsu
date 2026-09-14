@@ -35,6 +35,7 @@ Architecture Decision Records explain decisions that should remain understandabl
 
 - [ADR 0001: Phase 4 schematic and Web architecture](decisions/0001-phase-4-schematic-and-web-architecture.md)
 - [ADR 0002: browser simulation runtime](decisions/0002-browser-simulation-runtime.md)
+- [ADR 0003: external subcircuit references](decisions/0003-external-subcircuit-references.md)
 
 The [schematic quality plan](schematic_quality_plan.md) defines the current visual acceptance method. Its dated evidence is retained as a sequence:
 

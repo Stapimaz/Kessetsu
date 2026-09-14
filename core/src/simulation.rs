@@ -1,4 +1,4 @@
-use crate::ir::Analysis;
+use crate::ir::{Analysis, SimulatorCompatibility};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::sync::{
@@ -7,6 +7,21 @@ use std::sync::{
 };
 
 pub const SIMULATION_SCHEMA_VERSION: &str = "kessetsu.simulation.v1";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeSimulationContext {
+    pub compatibility: SimulatorCompatibility,
+    pub resources: BTreeMap<String, Vec<u8>>,
+}
+
+impl Default for NativeSimulationContext {
+    fn default() -> Self {
+        Self {
+            compatibility: SimulatorCompatibility::Ngspice,
+            resources: BTreeMap::new(),
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SimulationRequest {
@@ -285,12 +300,20 @@ mod native {
             };
             Ok(version.to_string())
         }
-    }
 
-    impl SimulationRunner for NgspiceRunner {
-        fn run(
+        pub fn run_with_context(
             &self,
             request: &SimulationRequest,
+            context: &NativeSimulationContext,
+            cancellation: &CancellationToken,
+        ) -> Result<SimulationResult, SimulationRunError> {
+            self.run_inner(request, context, cancellation)
+        }
+
+        fn run_inner(
+            &self,
+            request: &SimulationRequest,
+            context: &NativeSimulationContext,
             cancellation: &CancellationToken,
         ) -> Result<SimulationResult, SimulationRunError> {
             if request.schema_version != SIMULATION_SCHEMA_VERSION {
@@ -307,7 +330,8 @@ mod native {
                 return Ok(cancelled_before_launch(request, &self.executable));
             }
             let version = self.probe_version()?;
-            let mut run_directory = RunDirectory::create()?;
+            let run_directory = RunDirectory::create()?;
+            stage_resources(run_directory.path(), &context.resources)?;
             let netlist_path = run_directory.path().join("circuit.spice");
             fs::write(&netlist_path, &request.netlist).map_err(|error| {
                 run_error(
@@ -320,122 +344,182 @@ mod native {
             })?;
 
             let timeout = Duration::from_millis(request.timeout_ms.max(1));
+            let args = match context.compatibility {
+                SimulatorCompatibility::Ngspice => vec!["-n", "-b", "circuit.spice"],
+                SimulatorCompatibility::NgspicePs => {
+                    vec!["-D", "ngbehavior=ps", "-n", "-b", "circuit.spice"]
+                }
+            };
             let captured = execute_process(
                 &self.executable,
-                &["-b", "circuit.spice"],
+                &args,
                 Some(run_directory.path()),
                 timeout,
                 cancellation,
             )?;
 
-            let mut diagnostics = classify_simulator_log(&captured.stdout, &captured.stderr);
-            let measurements = match parse_measurements(&captured.stdout) {
-                Ok(measurements) => measurements,
-                Err(parse_errors) => {
-                    diagnostics.extend(parse_errors.into_iter().map(|error| {
-                        result_parse_diagnostic(format!("Could not parse measurement: {error}"))
-                    }));
-                    BTreeMap::new()
-                }
-            };
-            let mut datasets = Vec::new();
-            for (index, analysis) in request.analyses.iter().enumerate() {
-                let filename = analysis_data_filename(index, analysis);
-                let path = run_directory.path().join(&filename);
-                if path.is_file() {
-                    match fs::read_to_string(&path) {
-                        Ok(contents) => match parse_wrdata(analysis, &contents) {
-                            Ok(data) => datasets.push(AnalysisDataset {
-                                index,
-                                analysis: analysis.clone(),
-                                data,
-                            }),
-                            Err(error) => diagnostics.push(result_parse_diagnostic(format!(
-                                "Could not parse analysis dataset '{filename}': {error}"
-                            ))),
-                        },
-                        Err(error) => diagnostics.push(result_parse_diagnostic(format!(
-                            "Could not read analysis dataset '{filename}': {error}"
-                        ))),
-                    }
-                } else if request.netlist.contains(&format!("wrdata {filename} ")) {
-                    diagnostics.push(result_parse_diagnostic(format!(
-                        "Ngspice did not produce expected analysis dataset '{filename}'."
-                    )));
-                }
-            }
-
-            let has_diagnostic_errors = diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.severity == SimulatorDiagnosticSeverity::Error);
-            let status = if captured.cancelled {
-                SimulationStatus::Cancelled
-            } else if captured.timed_out {
-                SimulationStatus::TimedOut
-            } else if captured.success && !has_diagnostic_errors {
-                SimulationStatus::Succeeded
-            } else {
-                SimulationStatus::Failed
-            };
-
-            let mut warnings = diagnostics
-                .iter()
-                .filter(|diagnostic| diagnostic.severity == SimulatorDiagnosticSeverity::Warning)
-                .map(|diagnostic| diagnostic.message.clone())
-                .collect::<Vec<_>>();
-            let errors = diagnostics
-                .iter()
-                .filter(|diagnostic| diagnostic.severity == SimulatorDiagnosticSeverity::Error)
-                .map(|diagnostic| diagnostic.message.clone())
-                .collect::<Vec<_>>();
-
-            let mut artifacts = Vec::new();
-            if request.artifact_policy == ArtifactPolicy::RetainOnFailure
-                && status != SimulationStatus::Succeeded
-            {
-                run_directory.retain();
-                artifacts.push(SimulationArtifact {
-                    kind: "run_directory".to_string(),
-                    path: run_directory.path().to_string_lossy().into_owned(),
-                });
-            } else if let Err(error) = run_directory.cleanup() {
-                let message = format!(
-                    "Could not remove temporary simulation directory '{}': {error}",
-                    run_directory.path().display()
-                );
-                warnings.push(message.clone());
-                diagnostics.push(SimulatorDiagnostic {
-                    code: "KES-S003".to_string(),
-                    severity: SimulatorDiagnosticSeverity::Warning,
-                    kind: SimulatorDiagnosticKind::Warning,
-                    message,
-                });
-            }
-
-            Ok(SimulationResult {
-                schema_version: SIMULATION_SCHEMA_VERSION.to_string(),
-                status,
-                analyses: request.analyses.clone(),
-                simulator: SimulatorInfo {
-                    executable: self.executable.to_string_lossy().into_owned(),
-                    version,
-                },
-                process: SimulatorProcessStatus {
-                    exit_code: captured.exit_code,
-                    success: captured.success,
-                },
-                measurements,
-                datasets,
-                diagnostics,
-                warnings,
-                errors,
-                raw_log: SimulatorLog {
-                    stdout: captured.stdout,
-                    stderr: captured.stderr,
-                },
-                artifacts,
-            })
+            finish_run(request, captured, run_directory, &self.executable, version)
         }
+    }
+
+    impl SimulationRunner for NgspiceRunner {
+        fn run(
+            &self,
+            request: &SimulationRequest,
+            cancellation: &CancellationToken,
+        ) -> Result<SimulationResult, SimulationRunError> {
+            self.run_inner(request, &NativeSimulationContext::default(), cancellation)
+        }
+    }
+
+    fn stage_resources(
+        run_directory: &Path,
+        resources: &BTreeMap<String, Vec<u8>>,
+    ) -> Result<(), SimulationRunError> {
+        for (reference, bytes) in resources {
+            crate::models::validate_external_resource_reference(reference).map_err(|reason| {
+                run_error(
+                    SimulationRunErrorKind::Io,
+                    format!("Invalid external simulation resource '{reference}': {reason}"),
+                )
+            })?;
+            let destination = reference
+                .split('/')
+                .fold(run_directory.to_path_buf(), |path, segment| {
+                    path.join(segment)
+                });
+            if let Some(parent) = destination.parent() {
+                fs::create_dir_all(parent).map_err(|error| {
+                    run_error(
+                        SimulationRunErrorKind::Io,
+                        format!("Failed to create temporary external-model directory: {error}"),
+                    )
+                })?;
+            }
+            fs::write(&destination, bytes).map_err(|error| {
+                run_error(
+                    SimulationRunErrorKind::Io,
+                    format!("Failed to stage external simulation resource '{reference}': {error}"),
+                )
+            })?;
+        }
+        Ok(())
+    }
+
+    fn finish_run(
+        request: &SimulationRequest,
+        captured: CapturedProcess,
+        mut run_directory: RunDirectory,
+        executable: &Path,
+        version: String,
+    ) -> Result<SimulationResult, SimulationRunError> {
+        let mut diagnostics = classify_simulator_log(&captured.stdout, &captured.stderr);
+        let measurements = match parse_measurements(&captured.stdout) {
+            Ok(measurements) => measurements,
+            Err(parse_errors) => {
+                diagnostics.extend(parse_errors.into_iter().map(|error| {
+                    result_parse_diagnostic(format!("Could not parse measurement: {error}"))
+                }));
+                BTreeMap::new()
+            }
+        };
+        let mut datasets = Vec::new();
+        for (index, analysis) in request.analyses.iter().enumerate() {
+            let filename = analysis_data_filename(index, analysis);
+            let path = run_directory.path().join(&filename);
+            if path.is_file() {
+                match fs::read_to_string(&path) {
+                    Ok(contents) => match parse_wrdata(analysis, &contents) {
+                        Ok(data) => datasets.push(AnalysisDataset {
+                            index,
+                            analysis: analysis.clone(),
+                            data,
+                        }),
+                        Err(error) => diagnostics.push(result_parse_diagnostic(format!(
+                            "Could not parse analysis dataset '{filename}': {error}"
+                        ))),
+                    },
+                    Err(error) => diagnostics.push(result_parse_diagnostic(format!(
+                        "Could not read analysis dataset '{filename}': {error}"
+                    ))),
+                }
+            } else if request.netlist.contains(&format!("wrdata {filename} ")) {
+                diagnostics.push(result_parse_diagnostic(format!(
+                    "Ngspice did not produce expected analysis dataset '{filename}'."
+                )));
+            }
+        }
+
+        let has_diagnostic_errors = diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity == SimulatorDiagnosticSeverity::Error);
+        let status = if captured.cancelled {
+            SimulationStatus::Cancelled
+        } else if captured.timed_out {
+            SimulationStatus::TimedOut
+        } else if captured.success && !has_diagnostic_errors {
+            SimulationStatus::Succeeded
+        } else {
+            SimulationStatus::Failed
+        };
+
+        let mut warnings = diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.severity == SimulatorDiagnosticSeverity::Warning)
+            .map(|diagnostic| diagnostic.message.clone())
+            .collect::<Vec<_>>();
+        let errors = diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.severity == SimulatorDiagnosticSeverity::Error)
+            .map(|diagnostic| diagnostic.message.clone())
+            .collect::<Vec<_>>();
+
+        let mut artifacts = Vec::new();
+        if request.artifact_policy == ArtifactPolicy::RetainOnFailure
+            && status != SimulationStatus::Succeeded
+        {
+            run_directory.retain();
+            artifacts.push(SimulationArtifact {
+                kind: "run_directory".to_string(),
+                path: run_directory.path().to_string_lossy().into_owned(),
+            });
+        } else if let Err(error) = run_directory.cleanup() {
+            let message = format!(
+                "Could not remove temporary simulation directory '{}': {error}",
+                run_directory.path().display()
+            );
+            warnings.push(message.clone());
+            diagnostics.push(SimulatorDiagnostic {
+                code: "KES-S003".to_string(),
+                severity: SimulatorDiagnosticSeverity::Warning,
+                kind: SimulatorDiagnosticKind::Warning,
+                message,
+            });
+        }
+
+        Ok(SimulationResult {
+            schema_version: SIMULATION_SCHEMA_VERSION.to_string(),
+            status,
+            analyses: request.analyses.clone(),
+            simulator: SimulatorInfo {
+                executable: executable.to_string_lossy().into_owned(),
+                version,
+            },
+            process: SimulatorProcessStatus {
+                exit_code: captured.exit_code,
+                success: captured.success,
+            },
+            measurements,
+            datasets,
+            diagnostics,
+            warnings,
+            errors,
+            raw_log: SimulatorLog {
+                stdout: captured.stdout,
+                stderr: captured.stderr,
+            },
+            artifacts,
+        })
     }
 
     pub(super) struct RunDirectory {
@@ -525,6 +609,12 @@ mod native {
             .args(args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        if let Some(runtime_root) = executable.parent().and_then(Path::parent) {
+            let spice_library = runtime_root.join("share").join("ngspice");
+            if spice_library.join("scripts").join("spinit").is_file() {
+                command.env("SPICE_LIB_DIR", spice_library);
+            }
+        }
         if let Some(current_dir) = current_dir {
             command.current_dir(current_dir);
         }

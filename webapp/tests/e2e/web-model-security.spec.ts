@@ -55,3 +55,12 @@ test('keeps exact packages reproducible and rejects model directive injection in
   await expect(page.getByRole('button', { name: 'Run' })).toBeDisabled();
   await expect(page.locator('.spice-details pre')).toContainText('Waiting for a valid circuit');
 });
+
+test('fails closed when a browser design references user-owned external model bytes', async ({ page }) => {
+  await page.goto('/#editor');
+  await replaceSource(page, 'external_subcircuit opamp OPA197 (in_p,in_n,vcc,vee,out) file="models/OPAx197.LIB" entry=OPA197 sha256=fc5b020e63346e511bd808bf41c856b0150b000bcf8a41fe00eeececb1f422a5 version="Final 1.3" license="TI terms" source="https://www.ti.com/lit/zip/SBOMA34" simulator=ngspice_ps redistribution=prohibited\nopamp U1 OPA197\n');
+  const diagnostic = page.getByRole('button', { name: /KES-C015/ });
+  await expect(diagnostic).toContainText("external model resource 'models/OPAx197.LIB' was not supplied");
+  await expect(page.getByRole('button', { name: 'Run' })).toBeDisabled();
+  await expect(page.locator('.spice-details pre')).toContainText('Waiting for a valid circuit');
+});

@@ -1,17 +1,20 @@
-use crate::ast::{ModelDecl, ModelDeclKind, Program, SubcircuitDecl};
+use crate::ast::{ExternalSubcircuitDecl, ModelDecl, ModelDeclKind, Program, SubcircuitDecl};
 use crate::component::component_definition;
 use crate::graph::format_spice_number;
 use crate::ir::{
-    BJTPolarity, ComponentKind, FETPolarity, IRComponent, ModelDefinition, ModelManifest,
-    ModelManifestEntry, ModelProvenance, ModelRef, ModelSource, ResolvedModelPackage,
-    SemanticDiagnostic, parse_si_value,
+    BJTPolarity, ComponentKind, ExternalModelMetadata, FETPolarity, IRComponent, ModelDefinition,
+    ModelManifest, ModelManifestEntry, ModelProvenance, ModelRef, ModelSource,
+    RedistributionPolicy, ResolvedModelPackage, SemanticDiagnostic, SimulatorCompatibility,
+    parse_si_value,
 };
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub const MODEL_MANIFEST_SCHEMA_VERSION: &str = "kessetsu.models.v1";
-pub const MODEL_LOCK_SCHEMA_VERSION: &str = "kessetsu.lock.v1";
+pub const MODEL_MANIFEST_SCHEMA_VERSION: &str = "kessetsu.models.v2";
+pub const MODEL_LOCK_SCHEMA_VERSION: &str = "kessetsu.lock.v2";
 const SIMULATOR_CAPABILITY: &str = "ngspice-35+";
+pub const MAX_EXTERNAL_MODEL_BYTES: usize = 16 * 1024 * 1024;
+pub type ExternalModelResources = BTreeMap<String, Vec<u8>>;
 
 #[derive(Debug, Clone)]
 pub struct ModelLibrary {
@@ -38,6 +41,10 @@ impl ModelLibrary {
                 kind: model.kind.clone(),
                 source: model.source.clone(),
                 provenance: model.provenance.clone(),
+                external: match &model.definition {
+                    ModelDefinition::ExternalSubcircuit { metadata } => Some(metadata.clone()),
+                    _ => None,
+                },
             })
             .collect();
         ModelManifest {
@@ -49,6 +56,13 @@ impl ModelLibrary {
 }
 
 pub fn resolve_program_models(program: &Program) -> Result<ModelLibrary, SemanticDiagnostic> {
+    resolve_program_models_with_resources(program, &ExternalModelResources::new())
+}
+
+pub fn resolve_program_models_with_resources(
+    program: &Program,
+    resources: &ExternalModelResources,
+) -> Result<ModelLibrary, SemanticDiagnostic> {
     let mut library = ModelLibrary {
         models: builtin_models()
             .into_iter()
@@ -83,6 +97,10 @@ pub fn resolve_program_models(program: &Program) -> Result<ModelLibrary, Semanti
         let model = compile_user_subcircuit(declaration)?;
         insert_model(&mut library.models, model)?;
     }
+    for declaration in &program.external_subcircuits {
+        let model = compile_external_subcircuit(declaration, resources)?;
+        insert_model(&mut library.models, model)?;
+    }
     library
         .packages
         .sort_by(|left, right| left.name.cmp(&right.name));
@@ -99,8 +117,10 @@ pub fn validate_component_model_pins(
     kind: &ComponentKind,
     model: &ModelRef,
 ) -> Result<(), SemanticDiagnostic> {
-    let ModelDefinition::Subcircuit { pins, .. } = &model.definition else {
-        return Ok(());
+    let pins = match &model.definition {
+        ModelDefinition::Subcircuit { pins, .. } => pins,
+        ModelDefinition::ExternalSubcircuit { metadata } => &metadata.pins,
+        ModelDefinition::Device { .. } => return Ok(()),
     };
     let expected = component_definition(kind)
         .pins
@@ -117,6 +137,26 @@ pub fn validate_component_model_pins(
             Some(&model.name),
             "pins",
         ));
+    }
+    Ok(())
+}
+
+pub fn validate_external_resource_reference(reference: &str) -> Result<(), String> {
+    if reference.is_empty()
+        || reference.len() > 512
+        || reference.starts_with('/')
+        || reference.contains(['\\', ':', '"', '\'', '\0', '\r', '\n'])
+        || !reference.chars().all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '/' | '.' | '_' | '-' | ' ')
+        })
+        || reference.split('/').any(|segment| {
+            segment.is_empty() || segment.trim() != segment || matches!(segment, "." | "..")
+        })
+    {
+        return Err(
+            "file must be a source-relative forward-slash path without traversal or control characters"
+                .to_string(),
+        );
     }
     Ok(())
 }
@@ -356,6 +396,298 @@ fn compile_user_subcircuit(declaration: &SubcircuitDecl) -> Result<ModelRef, Sem
         gain,
         bandwidth,
     ))
+}
+
+fn compile_external_subcircuit(
+    declaration: &ExternalSubcircuitDecl,
+    resources: &ExternalModelResources,
+) -> Result<ModelRef, SemanticDiagnostic> {
+    if !declaration.kind.eq_ignore_ascii_case("opamp") {
+        return Err(error(
+            "KES-C014",
+            format!(
+                "unsupported external subcircuit kind '{}'",
+                declaration.kind
+            ),
+            Some(&declaration.name),
+            "kind",
+        ));
+    }
+    let expected_pins = component_definition(&ComponentKind::OpAmp)
+        .pins
+        .iter()
+        .map(|pin| pin.name.to_string())
+        .collect::<Vec<_>>();
+    if declaration.pins != expected_pins {
+        return Err(error(
+            "KES-C012",
+            format!(
+                "external opamp '{}' pins {:?} must exactly match catalog order {:?}",
+                declaration.name, declaration.pins, expected_pins
+            ),
+            Some(&declaration.name),
+            "pins",
+        ));
+    }
+
+    let allowed = [
+        "file",
+        "entry",
+        "sha256",
+        "version",
+        "license",
+        "source",
+        "simulator",
+        "redistribution",
+    ];
+    let mut values = BTreeMap::new();
+    for value in &declaration.parameters {
+        let key = value.name.to_ascii_lowercase();
+        if !allowed.contains(&key.as_str()) {
+            return Err(error(
+                "KES-C014",
+                format!(
+                    "unsupported external subcircuit field '{}'; allowed fields: {}",
+                    value.name,
+                    allowed.join(", ")
+                ),
+                Some(&declaration.name),
+                &value.name,
+            ));
+        }
+        if values.insert(key, value.value.clone()).is_some() {
+            return Err(error(
+                "KES-C014",
+                format!("duplicate external subcircuit field '{}'", value.name),
+                Some(&declaration.name),
+                &value.name,
+            ));
+        }
+    }
+    let mut required = |field: &str| {
+        values.remove(field).ok_or_else(|| {
+            error(
+                "KES-C014",
+                format!("external subcircuit requires {field} metadata"),
+                Some(&declaration.name),
+                field,
+            )
+        })
+    };
+    let resource = required("file")?;
+    let entry = required("entry")?;
+    let expected_hash = required("sha256")?.to_ascii_lowercase();
+    let version = required("version")?;
+    let license = required("license")?;
+    let source = required("source")?;
+    let simulator = match required("simulator")?.to_ascii_lowercase().as_str() {
+        "ngspice" => SimulatorCompatibility::Ngspice,
+        "ngspice_ps" => SimulatorCompatibility::NgspicePs,
+        value => {
+            return Err(error(
+                "KES-C014",
+                format!(
+                    "unsupported external simulator mode '{value}'; expected ngspice or ngspice_ps"
+                ),
+                Some(&declaration.name),
+                "simulator",
+            ));
+        }
+    };
+    let redistribution = match required("redistribution")?.to_ascii_lowercase().as_str() {
+        "permitted" => RedistributionPolicy::Permitted,
+        "prohibited" => RedistributionPolicy::Prohibited,
+        value => {
+            return Err(error(
+                "KES-C014",
+                format!(
+                    "unsupported redistribution policy '{value}'; expected permitted or prohibited"
+                ),
+                Some(&declaration.name),
+                "redistribution",
+            ));
+        }
+    };
+
+    validate_external_resource_reference(&resource).map_err(|reason| {
+        error(
+            "KES-C014",
+            format!("invalid external model file reference '{resource}': {reason}"),
+            Some(&declaration.name),
+            "file",
+        )
+    })?;
+    if !is_safe_identifier(&entry) {
+        return Err(error(
+            "KES-C014",
+            format!("invalid external subcircuit entry '{entry}'"),
+            Some(&declaration.name),
+            "entry",
+        ));
+    }
+    if expected_hash.len() != 64 || !expected_hash.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(error(
+            "KES-C014",
+            "external subcircuit sha256 must contain exactly 64 hexadecimal characters",
+            Some(&declaration.name),
+            "sha256",
+        ));
+    }
+    for (field, value) in [
+        ("version", &version),
+        ("license", &license),
+        ("source", &source),
+    ] {
+        if value.is_empty()
+            || value.len() > 1024
+            || value
+                .chars()
+                .any(|character| character.is_control() || matches!(character, '"' | '\''))
+        {
+            return Err(error(
+                "KES-C014",
+                format!("unsafe or invalid external {field} metadata"),
+                Some(&declaration.name),
+                field,
+            ));
+        }
+    }
+
+    let bytes = resources.get(&resource).ok_or_else(|| {
+        error(
+            "KES-C015",
+            format!("external model resource '{resource}' was not supplied"),
+            Some(&declaration.name),
+            "file",
+        )
+    })?;
+    if bytes.len() > MAX_EXTERNAL_MODEL_BYTES {
+        return Err(error(
+            "KES-C015",
+            format!(
+                "external model resource '{resource}' exceeds the {} byte limit",
+                MAX_EXTERNAL_MODEL_BYTES
+            ),
+            Some(&declaration.name),
+            "file",
+        ));
+    }
+    let actual_hash = format!("{:x}", Sha256::digest(bytes));
+    if actual_hash != expected_hash {
+        return Err(error(
+            "KES-C016",
+            format!(
+                "external model resource '{resource}' hash mismatch: expected sha256:{expected_hash}, got sha256:{actual_hash}"
+            ),
+            Some(&declaration.name),
+            "sha256",
+        ));
+    }
+    let text = std::str::from_utf8(bytes).map_err(|_| {
+        error(
+            "KES-C017",
+            format!("external model resource '{resource}' is not valid UTF-8"),
+            Some(&declaration.name),
+            "file",
+        )
+    })?;
+    validate_external_subcircuit_text(text, &entry, expected_pins.len(), &declaration.name)?;
+
+    let metadata = ExternalModelMetadata {
+        resource,
+        entry,
+        pins: expected_pins,
+        simulator,
+        redistribution,
+    };
+    Ok(ModelRef {
+        name: declaration.name.clone(),
+        kind: ComponentKind::OpAmp,
+        source: ModelSource::External,
+        definition: ModelDefinition::ExternalSubcircuit { metadata },
+        provenance: ModelProvenance {
+            source,
+            license,
+            version,
+            content_hash: format!("sha256:{actual_hash}"),
+            simulator: match simulator {
+                SimulatorCompatibility::Ngspice => "ngspice".to_string(),
+                SimulatorCompatibility::NgspicePs => "ngspice_ps".to_string(),
+            },
+        },
+    })
+}
+
+fn is_safe_identifier(value: &str) -> bool {
+    let mut characters = value.chars();
+    characters
+        .next()
+        .is_some_and(|character| character.is_ascii_alphabetic())
+        && characters.all(|character| character.is_ascii_alphanumeric() || character == '_')
+}
+
+fn validate_external_subcircuit_text(
+    text: &str,
+    entry: &str,
+    expected_pin_count: usize,
+    model_name: &str,
+) -> Result<(), SemanticDiagnostic> {
+    let mut declarations = Vec::new();
+    let mut endings = 0usize;
+    for line in text.trim_start_matches('\u{feff}').lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('*') {
+            continue;
+        }
+        let fields = trimmed.split_whitespace().collect::<Vec<_>>();
+        if fields
+            .first()
+            .is_some_and(|field| field.eq_ignore_ascii_case(".subckt"))
+            && fields
+                .get(1)
+                .is_some_and(|name| name.eq_ignore_ascii_case(entry))
+        {
+            declarations.push(fields[2..].to_vec());
+        }
+        if fields
+            .first()
+            .is_some_and(|field| field.eq_ignore_ascii_case(".ends"))
+            && fields
+                .get(1)
+                .is_some_and(|name| name.eq_ignore_ascii_case(entry))
+        {
+            endings += 1;
+        }
+    }
+    if declarations.len() != 1 || endings != 1 {
+        return Err(error(
+            "KES-C017",
+            format!(
+                "external model must contain exactly one '.SUBCKT {entry}' and one matching '.ENDS {entry}'"
+            ),
+            Some(model_name),
+            "entry",
+        ));
+    }
+    let terminals = &declarations[0];
+    if terminals.len() != expected_pin_count
+        || terminals.iter().any(|terminal| {
+            terminal.starts_with("params:")
+                || terminal.contains('=')
+                || terminal.chars().any(char::is_control)
+        })
+    {
+        return Err(error(
+            "KES-C012",
+            format!(
+                "external subcircuit '{entry}' declares {} positional terminals; expected {expected_pin_count}",
+                terminals.len()
+            ),
+            Some(model_name),
+            "pins",
+        ));
+    }
+    Ok(())
 }
 
 struct Metadata {
@@ -651,6 +983,9 @@ fn definition_text(definition: &ModelDefinition) -> &str {
     match definition {
         ModelDefinition::Device { directive } | ModelDefinition::Subcircuit { directive, .. } => {
             directive
+        }
+        ModelDefinition::ExternalSubcircuit { .. } => {
+            unreachable!("external model hashes are computed from separately bound bytes")
         }
     }
 }

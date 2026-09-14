@@ -1,20 +1,24 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use kessetsu_core::compiler::{
     COMPILE_SCHEMA_VERSION, CompileOptions, CompileReport, Diagnostic, DiagnosticSeverity,
-    DiagnosticStage, compile_source,
+    DiagnosticStage, compile_source_with_resources,
 };
 use kessetsu_core::exporter::{
     EXPORT_SCHEMA_VERSION, ExportArtifact, ExportCapability, ExportFormat, ExportOptions,
     RenderBackground, export_report,
 };
 use kessetsu_core::measurement::MEASUREMENT_SCHEMA_VERSION;
+use kessetsu_core::models::{
+    ExternalModelResources, MAX_EXTERNAL_MODEL_BYTES, validate_external_resource_reference,
+};
+use kessetsu_core::parse_program;
 use kessetsu_core::sim_result::{
     ASSERTION_SCHEMA_VERSION, AssertionReport, AssertionResult, AssertionStatus, AssertionSummary,
     format_quantity,
 };
 use kessetsu_core::simulation::{
-    CancellationToken, NgspiceRunner, SIMULATION_SCHEMA_VERSION, SimulationRequest,
-    SimulationResult, SimulationRunner,
+    CancellationToken, NativeSimulationContext, NgspiceRunner, SIMULATION_SCHEMA_VERSION,
+    SimulationRequest, SimulationResult,
 };
 use serde::Serialize;
 use serde_json::Value;
@@ -315,7 +319,24 @@ fn run(cli: Cli) -> i32 {
         generate_layout: needs_schematic,
         generate_kicad: false,
     };
-    let mut report = compile_source(&source, options);
+    let external_resources =
+        match load_external_model_resources(source_path, source_is_stdin, &source) {
+            Ok(resources) => resources,
+            Err(diagnostic) => {
+                emit(
+                    &cli.format,
+                    command,
+                    &includes,
+                    "error",
+                    CompileReport::failure(*diagnostic),
+                    None,
+                    None,
+                    None,
+                );
+                return 2;
+            }
+        };
+    let mut report = compile_source_with_resources(&source, options, &external_resources);
 
     if report.has_errors() {
         let exit_code = compile_failure_exit_code(&report);
@@ -415,6 +436,28 @@ fn run(cli: Cli) -> i32 {
         .to_string();
 
     if let Some(spice_path) = &spice_path
+        && let Err(diagnostic) = validate_external_model_output_location(
+            &report,
+            source_path,
+            spice_path,
+            ExportFormat::Spice,
+        )
+    {
+        report.diagnostics.push(*diagnostic);
+        emit(
+            &cli.format,
+            command,
+            &includes,
+            "error",
+            report,
+            None,
+            None,
+            None,
+        );
+        return 2;
+    }
+
+    if let Some(spice_path) = &spice_path
         && let Err(diagnostic) = write_spice(source_path, spice_path, &spice, output_command.force)
     {
         report.diagnostics.push(*diagnostic);
@@ -498,10 +541,26 @@ fn run(cli: Cli) -> i32 {
     }
 
     if matches!(cli.command, Commands::Simulate(_)) {
-        return run_simulate(&cli.format, command, &includes, report, spice_file, &spice);
+        return run_simulate(
+            &cli.format,
+            command,
+            &includes,
+            report,
+            spice_file,
+            &spice,
+            &external_resources,
+        );
     }
 
-    run_assertions(&cli.format, command, &includes, report, spice_file, &spice)
+    run_assertions(
+        &cli.format,
+        command,
+        &includes,
+        report,
+        spice_file,
+        &spice,
+        &external_resources,
+    )
 }
 
 fn command_name(command: &Commands) -> &'static str {
@@ -523,6 +582,92 @@ fn read_source(source_path: &Path) -> io::Result<String> {
     } else {
         fs::read_to_string(source_path)
     }
+}
+
+fn load_external_model_resources(
+    source_path: &Path,
+    source_is_stdin: bool,
+    source: &str,
+) -> Result<ExternalModelResources, Box<Diagnostic>> {
+    let Ok(program) = parse_program(source) else {
+        return Ok(ExternalModelResources::new());
+    };
+    if program.external_subcircuits.is_empty() || source_is_stdin {
+        return Ok(ExternalModelResources::new());
+    }
+    let source_directory = source_path
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .canonicalize()
+        .map_err(|error| {
+            Box::new(diagnostic(
+                "KES-I006",
+                DiagnosticStage::Io,
+                format!("Could not resolve the Kessetsu source directory: {error}"),
+            ))
+        })?;
+    let mut resources = ExternalModelResources::new();
+    for declaration in &program.external_subcircuits {
+        let Some(reference) = declaration
+            .parameters
+            .iter()
+            .find(|field| field.name.eq_ignore_ascii_case("file"))
+            .map(|field| field.value.as_str())
+        else {
+            continue;
+        };
+        if validate_external_resource_reference(reference).is_err()
+            || resources.contains_key(reference)
+        {
+            continue;
+        }
+        let candidate = reference
+            .split('/')
+            .fold(source_directory.clone(), |path, segment| path.join(segment));
+        let resolved = candidate.canonicalize().map_err(|error| {
+            Box::new(diagnostic(
+                "KES-I006",
+                DiagnosticStage::Io,
+                format!("Could not read external model resource '{reference}': {error}"),
+            ))
+        })?;
+        if !resolved.starts_with(&source_directory) || !resolved.is_file() {
+            return Err(Box::new(diagnostic(
+                "KES-I006",
+                DiagnosticStage::Io,
+                format!(
+                    "External model resource '{reference}' must resolve to a file inside the source directory"
+                ),
+            )));
+        }
+        let length = fs::metadata(&resolved)
+            .map_err(|error| {
+                Box::new(diagnostic(
+                    "KES-I006",
+                    DiagnosticStage::Io,
+                    format!("Could not inspect external model resource '{reference}': {error}"),
+                ))
+            })?
+            .len();
+        if length > MAX_EXTERNAL_MODEL_BYTES as u64 {
+            return Err(Box::new(diagnostic(
+                "KES-I006",
+                DiagnosticStage::Io,
+                format!(
+                    "External model resource '{reference}' exceeds the {MAX_EXTERNAL_MODEL_BYTES} byte limit"
+                ),
+            )));
+        }
+        let bytes = fs::read(&resolved).map_err(|error| {
+            Box::new(diagnostic(
+                "KES-I006",
+                DiagnosticStage::Io,
+                format!("Could not read external model resource '{reference}': {error}"),
+            ))
+        })?;
+        resources.insert(reference.to_string(), bytes);
+    }
+    Ok(resources)
 }
 
 fn command_path(command: &Commands) -> &Path {
@@ -653,6 +798,22 @@ fn run_artifact_command(
             return 2;
         }
     };
+    if let Err(diagnostic) =
+        validate_external_model_output_location(&report, source_path, &output_path, artifact_format)
+    {
+        report.diagnostics.push(*diagnostic);
+        emit(
+            output_format,
+            command,
+            includes,
+            "error",
+            report,
+            None,
+            None,
+            None,
+        );
+        return 2;
+    }
     let artifact = match export_report(&report, artifact_format, options) {
         Ok(artifact) => artifact,
         Err(error) => {
@@ -799,6 +960,42 @@ fn paths_refer_to_same_file(left: &Path, right: &Path) -> bool {
     }
 }
 
+fn validate_external_model_output_location(
+    report: &CompileReport,
+    source_path: &Path,
+    output_path: &Path,
+    format: ExportFormat,
+) -> Result<(), Box<Diagnostic>> {
+    let has_external_models = report.ir.as_ref().is_some_and(|circuit| {
+        circuit
+            .model_manifest
+            .models
+            .iter()
+            .any(|model| model.external.is_some())
+    });
+    if !has_external_models || !matches!(format, ExportFormat::Spice | ExportFormat::Ltspice) {
+        return Ok(());
+    }
+    let source_directory = source_path.parent().unwrap_or_else(|| Path::new("."));
+    let output_directory = output_path.parent().unwrap_or_else(|| Path::new("."));
+    let same_directory = match (
+        source_directory.canonicalize(),
+        output_directory.canonicalize(),
+    ) {
+        (Ok(source), Ok(output)) => source == output,
+        _ => source_directory == output_directory,
+    };
+    if same_directory {
+        Ok(())
+    } else {
+        Err(Box::new(diagnostic(
+            "KES-I007",
+            DiagnosticStage::Io,
+            "SPICE/LTspice output with an external model dependency must stay beside its .kess source so the validated relative model reference remains usable",
+        )))
+    }
+}
+
 fn run_simulate(
     format: &Format,
     command: &'static str,
@@ -806,12 +1003,13 @@ fn run_simulate(
     mut report: CompileReport,
     spice_file: Option<String>,
     spice: &str,
+    external_resources: &ExternalModelResources,
 ) -> i32 {
     if *format == Format::Human {
         println!("[INFO] Running ngspice simulation...");
     }
 
-    let simulation = match run_simulation(&report, spice) {
+    let simulation = match run_simulation(&report, spice, external_resources) {
         Ok(simulation) => simulation,
         Err(error) => {
             report.diagnostics.push(diagnostic(
@@ -908,6 +1106,7 @@ fn print_simulator_logs(simulation: &SimulationResult) {
 fn run_simulation(
     report: &CompileReport,
     spice: &str,
+    external_resources: &ExternalModelResources,
 ) -> Result<SimulationResult, kessetsu_core::simulation::SimulationRunError> {
     let analyses = report
         .ir
@@ -916,7 +1115,26 @@ fn run_simulation(
         .analyses
         .clone();
     let request = SimulationRequest::new(spice, analyses);
-    NgspiceRunner::discover().run(&request, &CancellationToken::new())
+    let mut context = NativeSimulationContext::default();
+    for model in &report
+        .ir
+        .as_ref()
+        .expect("successful compile report must preserve typed IR")
+        .model_manifest
+        .models
+    {
+        if let Some(external) = &model.external {
+            if external.simulator == kessetsu_core::ir::SimulatorCompatibility::NgspicePs {
+                context.compatibility = kessetsu_core::ir::SimulatorCompatibility::NgspicePs;
+            }
+            if let Some(bytes) = external_resources.get(&external.resource) {
+                context
+                    .resources
+                    .insert(external.resource.clone(), bytes.clone());
+            }
+        }
+    }
+    NgspiceRunner::discover().run_with_context(&request, &context, &CancellationToken::new())
 }
 
 fn run_assertions(
@@ -926,12 +1144,13 @@ fn run_assertions(
     mut report: CompileReport,
     spice_file: Option<String>,
     spice: &str,
+    external_resources: &ExternalModelResources,
 ) -> i32 {
     if *format == Format::Human {
         println!("[INFO] Running tests and assertions...");
     }
 
-    let simulation = match run_simulation(&report, spice) {
+    let simulation = match run_simulation(&report, spice, external_resources) {
         Ok(simulation) => simulation,
         Err(error) => {
             report.diagnostics.push(diagnostic(

@@ -13,6 +13,7 @@ First public-release candidate.
 - Agent-oriented CLI with stdin, `kessetsu.cli.v1` JSON, stable diagnostics/exit codes and safe artifact writes.
 - OP, transient, AC and DC sweep datasets; engineering metrics for gain, cutoff/bandwidth, phase/frequency, output power, efficiency, THD, clipping and dissipation.
 - Typed builtin/user/package models with exact versions, hashes, licenses and lockfile provenance.
+- Typed, hash-bound external op-amp subcircuit references for native CLI simulation, including safe source-relative resource binding, PSpice compatibility, deterministic lock/provenance metadata, and explicit no-embedding export behavior.
 - Deterministic Schematic IR with connectivity and visual-quality gates.
 - SVG, PNG, PDF, Schematic JSON, SPICE, KiCad and LTspice export.
 - RC, gain-stage and four-stage 8 Ω / approximately 2 W power-amplifier benchmark parity across CLI and Web.
@@ -27,4 +28,4 @@ First public-release candidate.
 
 ### Migration
 
-This is the first versioned release, so there is no earlier public schema to migrate. Prototype users should note that `render` is now functional, editable export uses `kess export --target ...`, compile reports are `kessetsu.compile.v3`, and browser share links require `kessetsu.share.v1`; unknown older payloads fail closed.
+This is the first versioned release, so there is no earlier public schema to migrate. Prototype users should note that `render` is now functional, editable export uses `kess export --target ...`, compile reports are `kessetsu.compile.v4`, and browser share links require `kessetsu.share.v1`; unknown older payloads fail closed.

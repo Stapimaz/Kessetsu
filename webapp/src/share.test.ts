@@ -7,9 +7,9 @@ import {
   encodeShareFragment,
 } from './share';
 
-const compileSchema = 'kessetsu.compile.v3';
+const compileSchema = 'kessetsu.compile.v4';
 const manifest: ModelManifest = {
-  schema_version: 'kessetsu.models.v1',
+  schema_version: 'kessetsu.models.v2',
   models: [],
   packages: [{ name: 'kessetsu_analog', version: '1.0.0' }],
 };

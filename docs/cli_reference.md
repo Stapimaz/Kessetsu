@@ -111,7 +111,7 @@ kess export circuit.kess --target ltspice --output circuit.asc
 
 ## JSON Contract
 
-JSON stdout is exactly one JSON object for every invocation. Progress and simulator logs are never written to stdout. The default agent envelope is `kessetsu.cli.v1`. Compile reports use `kessetsu.compile.v3`, canonical schematics use `kessetsu.schematic.v1`, simulation results use `kessetsu.simulation.v1`, engineering measurements use `kessetsu.measurement.v1`, and assertion reports use `kessetsu.assertion.v1`. Active subcontracts appear in `domain_versions`.
+JSON stdout is exactly one JSON object for every invocation. Progress and simulator logs are never written to stdout. The default agent envelope is `kessetsu.cli.v1`. Compile reports use `kessetsu.compile.v4`, canonical schematics use `kessetsu.schematic.v2`, model manifests/locks use `kessetsu.models.v2`/`kessetsu.lock.v2`, simulation results use `kessetsu.simulation.v1`, engineering measurements use `kessetsu.measurement.v1`, and assertion reports use `kessetsu.assertion.v1`. Active subcontracts appear in `domain_versions`.
 
 See the [engineering-measurement contract](engineering_measurements.md) for assertion primitives, derived-metric formulas, analysis requirements, and sign conventions.
 
@@ -125,7 +125,7 @@ Successful `check` summary:
   "command": "check",
   "status": "success",
   "domain_versions": {
-    "compile": "kessetsu.compile.v3",
+    "compile": "kessetsu.compile.v4",
     "simulation": null,
     "measurement": null,
     "assertion": null
@@ -205,6 +205,7 @@ model diode SafeD version=1.0.0 license=MIT Is=2e-9 Rs=0.5
 model bjt SafeN npn version=1.0.0 license=MIT Is=1e-12 Bf=100
 model mosfet SafeP pmos version=1.0.0 license=MIT Vto=-2 Kp=4
 subcircuit opamp SafeOp (in_p,in_n,vcc,vee,out) version=1.0.0 license=MIT gain=100k bandwidth=2MHz
+external_subcircuit opamp OPA197 (in_p,in_n,vcc,vee,out) file="models/OPAx197.LIB" entry=OPA197 sha256=<64-hex-digest> version="Final 1.3" license="vendor terms" source="vendor URL" simulator=ngspice_ps redistribution=prohibited
 ```
 
 Exact packaged-model selection:
@@ -214,7 +215,7 @@ model_include kessetsu_analog 1.0.0
 opamp U1 KESSETSU_PACKAGE_OPAMP
 ```
 
-`version` and `license` are required on user declarations; `source` is optional. Allowed parameters are restricted by kind. Unknown parameters, incorrect polarity/kind, invalid pin order, duplicate names, or raw-directive payloads produce structured `KES-C010..013` diagnostics during compilation. Built-in generic verification paths are `KESSETSU_OPAMP_V1`, `KESSETSU_PMOS_V1`, and `KESSETSU_POWER_NPN_V1`.
+`version` and `license` are required on user declarations; `source` is optional for generated typed models. Allowed parameters are restricted by kind. External declarations require every shown field, resolve `file` relative to a file-based `.kess` source, and verify its exact bytes and five-terminal `.SUBCKT` entry before IR. `ngspice_ps` is a closed compatibility value, not arbitrary simulator arguments. Stdin and the current Web runtime have no external-byte binding, so they fail with `KES-C015`; no generic fallback occurs. SPICE/LTspice output using the relative dependency must stay beside the source. Unknown parameters, incorrect polarity/kind, invalid pin order, duplicate names, resource/hash failures, or raw-directive payloads produce structured `KES-C010..017` diagnostics. Built-in generic verification paths remain available but are never substituted for a requested external model.
 
 ## Exit Codes
 

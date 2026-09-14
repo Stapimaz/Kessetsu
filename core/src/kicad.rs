@@ -144,6 +144,45 @@ fn instance(schematic: &Schematic, component: &SchematicComponent, root_uuid: &s
     if let Some(model) = &component.model {
         out.push_str(&property("Kessetsu_Model", model, &x, &y, true));
     }
+    if let Some(metadata) = &component.model_metadata
+        && metadata.resource.is_some()
+    {
+        out.push_str(&property(
+            "Kessetsu_Model_Hash",
+            &metadata.content_hash,
+            &x,
+            &y,
+            true,
+        ));
+        out.push_str(&property(
+            "Kessetsu_Model_Resource",
+            metadata.resource.as_deref().unwrap_or(""),
+            &x,
+            &y,
+            true,
+        ));
+        out.push_str(&property(
+            "Kessetsu_Model_Entry",
+            metadata.entry.as_deref().unwrap_or(""),
+            &x,
+            &y,
+            true,
+        ));
+        out.push_str(&property(
+            "Kessetsu_Model_Simulator",
+            &metadata.simulator,
+            &x,
+            &y,
+            true,
+        ));
+        out.push_str(&property(
+            "Kessetsu_Model_Redistribution",
+            metadata.redistribution.as_deref().unwrap_or(""),
+            &x,
+            &y,
+            true,
+        ));
+    }
     for (index, _) in component.pins.iter().enumerate() {
         out.push_str(&format!(
             "    (pin {} (uuid {}))\n",

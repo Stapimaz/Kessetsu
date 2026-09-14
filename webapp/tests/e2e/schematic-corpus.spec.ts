@@ -41,7 +41,7 @@ test('renders the canonical schematic corpus with verified quality', async ({ pa
     await expect(schematic).toHaveAttribute('data-quality', 'pass');
     const componentSymbol = schematic.locator(`g.component[data-component="${component}"]`);
     await expect(componentSymbol).toBeVisible();
-    await expect(schematic.locator('svg[data-schema="kessetsu.schematic.v1"]')).toBeVisible();
+    await expect(schematic.locator('svg[data-schema="kessetsu.schematic.v2"]')).toBeVisible();
 
     if (name === 'gain-stage') {
       const componentTexts = schematic.locator(`text[data-component="${component}"]`);

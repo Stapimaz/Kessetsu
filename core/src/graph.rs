@@ -229,6 +229,9 @@ impl NetlistGraph {
 
 fn format_spice_value(comp: &IRComponent) -> String {
     if let Some(m) = &comp.model {
+        if let ModelDefinition::ExternalSubcircuit { metadata } = &m.definition {
+            return metadata.entry.clone();
+        }
         return m.name.clone();
     }
     match &comp.parameters {
@@ -453,8 +456,15 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
                 ));
             }
             ComponentKind::OpAmp => {
+                let prefix = if comp.model.as_ref().is_some_and(|model| {
+                    matches!(model.definition, ModelDefinition::ExternalSubcircuit { .. })
+                }) {
+                    "X"
+                } else {
+                    "X_"
+                };
                 spice.push_str(&format!(
-                    "X_{} {} {} {} {} {} {}\n",
+                    "{prefix}{} {} {} {} {} {} {}\n",
                     comp.id, nets[0], nets[1], nets[2], nets[3], nets[4], value_str
                 ));
             }
@@ -475,11 +485,15 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
             ComponentKind::ModulePort => {}
         }
         if let Some(model) = &comp.model {
-            let directive = match &model.definition {
+            match &model.definition {
                 ModelDefinition::Device { directive }
-                | ModelDefinition::Subcircuit { directive, .. } => directive,
-            };
-            used_models.insert(directive.clone());
+                | ModelDefinition::Subcircuit { directive, .. } => {
+                    used_models.insert(directive.clone());
+                }
+                ModelDefinition::ExternalSubcircuit { metadata } => {
+                    used_models.insert(format!(".include \"{}\"", metadata.resource));
+                }
+            }
         }
     }
 

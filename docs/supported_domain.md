@@ -10,7 +10,7 @@ This document freezes the electrical scope advertised for Phase 4. â€œSupportedâ
 | Diode | Supported | `p1`, `p2` | Built-in or typed allowlisted model |
 | BJT NPN/PNP | Supported | `c`, `b`, `e` | Three-terminal model; no substrate or thermal pin |
 | MOSFET NMOS/PMOS | Supported | `d`, `g`, `s` | Three-terminal model; body is not a separate pin |
-| Op-amp | Supported | `in_p`, `in_n`, `vcc`, `vee`, `out` | Safe canonical subcircuit template; no arbitrary subcircuits |
+| Op-amp | Supported | `in_p`, `in_n`, `vcc`, `vee`, `out` | Safe canonical template or hash-bound native external subcircuit; no arbitrary raw directives |
 | Voltage/current source | Supported | `plus`, `minus` | Typed DC, `sine`, `pulse`, `ac`, and `sine_ac` waveforms |
 | Module port | Flattening-only element | Defined by the module | Not a public physical component |
 
@@ -19,10 +19,10 @@ This document freezes the electrical scope advertised for Phase 4. â€œSupportedâ
 - Built-ins: `2N3904`, `2N3906`, `2N2222`, `KESSETSU_POWER_NPN_V1`, `KESSETSU_POWER_PNP_V1`, `1N4148`, `1N4007`, `IRF540`, `KESSETSU_PMOS_V1`, and `KESSETSU_OPAMP_V1`.
 - Verified generic PMOS: `KESSETSU_PMOS_V1@1.0.1`, a portable Ngspice `MOS1` DC model with no manufacturer, datasheet, or parasitic-model claim.
 - User models: typed diode/BJT/MOSFET parameter allowlists.
-- User subcircuits: the typed op-amp template only.
+- User subcircuits: the typed op-amp template and native, source-relative, exact-hash external op-amp references. External model bodies remain user-owned and are never embedded in Kessetsu source, manifests, or exports.
 - Op-amp fidelity: the current generic template is a controlled voltage source with an RC pole. Its declared supply pins are unused internally; it does not model supply consumption, rail saturation, or a realistic output-current limit. Amplifier power, efficiency, and clipping assertions cover only the modeled circuit and supplied measurements, not those missing device effects.
-- Package imports: `kessetsu.models.v1`/`kessetsu.lock.v1` with an exact name and version, content hash, license, and simulator capability.
-- Unsupported: raw `.include`, `.model`, `.subckt`, or `.control`; floating package versions; arbitrary vendor script/model injection.
+- Package/model records: `kessetsu.models.v2`/`kessetsu.lock.v2` with exact identity, content hash, license, simulator capability, and external dependency metadata where applicable.
+- Unsupported: raw `.include`, `.model`, `.subckt`, or `.control`; floating package versions; arbitrary vendor script/model injection; external model upload or execution in the current browser runtime.
 
 ## Analysis, dataset, and measurement scope
 

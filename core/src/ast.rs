@@ -97,6 +97,14 @@ pub struct SubcircuitDecl {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ExternalSubcircuitDecl {
+    pub kind: String,
+    pub name: String,
+    pub pins: Vec<String>,
+    pub parameters: Vec<NamedValue>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ModelInclude {
     pub package: String,
     pub version: String,
@@ -125,6 +133,7 @@ pub struct Program {
     pub model_includes: Vec<ModelInclude>,
     pub models: Vec<ModelDecl>,
     pub subcircuits: Vec<SubcircuitDecl>,
+    pub external_subcircuits: Vec<ExternalSubcircuitDecl>,
     pub statements: Vec<Statement>,
 }
 
@@ -218,6 +227,7 @@ impl Program {
             model_includes: self.model_includes.clone(),
             models: self.models.clone(),
             subcircuits: self.subcircuits.clone(),
+            external_subcircuits: self.external_subcircuits.clone(),
             statements: flat_statements,
         })
     }

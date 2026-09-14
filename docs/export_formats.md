@@ -1,6 +1,6 @@
 # Export Contract and Format Matrix
 
-Kessetsu's export layer belongs to neither Web nor CLI. Every output is produced through the `kessetsu.export.v1` contract from connectivity-verified `kessetsu.schematic.v1`, which itself derives from typed Circuit IR. CLI and Web call only this shared Core API.
+Kessetsu's export layer belongs to neither Web nor CLI. Every output is produced through the `kessetsu.export.v1` contract from connectivity-verified `kessetsu.schematic.v2`, which itself derives from typed Circuit IR. CLI and Web call only this shared Core API.
 
 Every artifact reports the exporter name/version, MIME type and extension, byte length, SHA-256, `connectivity_verified`, capability fields, warnings, and known semantic losses. Unsupported topology or symbol geometry is never approximated silently; a `KES-Xxxx` diagnostic stops the export.
 
@@ -11,7 +11,7 @@ Every artifact reports the exporter name/version, MIME type and extension, byte 
 | SVG | Scalable visual, documentation, and Web | Yes | No | No | Semantic text, fixed `viewBox`, light export style |
 | PNG | Presentations, reports, and quick sharing | Visual projection | No | No | Pure-Rust canonical SVG raster; `0.25..8` scale, white or transparent background |
 | PDF | Printing and vector documents | Visual projection | No | No | One page, content bounds, automatic orientation, Schematic IR margin, deterministic vector glyphs; no multi-page output |
-| Schematic IR JSON | Lossless machine interchange | Yes | Yes | No | `kessetsu.schematic.v1`, deterministic pretty JSON |
+| Schematic IR JSON | Lossless machine interchange | Yes | Yes | No | `kessetsu.schematic.v2`, deterministic pretty JSON with model provenance but no external model body |
 | SPICE | Simulation and automation | Yes | Yes | Yes | Canonical Ngspice netlist |
 | KiCad `.kicad_sch` | Continued editing | Yes | Metadata | No | KiCad 10 parser/netlist/ERC smoke; portable embedded symbols may produce a symbol-table warning |
 | LTspice `.asc` | Editing and LTspice simulation | Yes | Yes | Yes | Real LTspice 24.1.9 `-netlist` smoke; assertions remain in the `.kess` source |
@@ -19,6 +19,8 @@ Every artifact reports the exporter name/version, MIME type and extension, byte 
 The PDF policy is deliberately single-page because splitting an electronic schematic makes connectivity harder to follow. For a very large circuit, Core must first produce readable Schematic IR; the exporter does not invent arbitrary page breaks. The first release uses a canonical content-sized media box rather than an A4/Letter frame, avoiding unused space and deriving orientation naturally from the content.
 
 Raster and vector font measurement does not depend on system fonts. The repository's SIL OFL 1.1-licensed Roboto Mono is loaded identically for native and WASM rendering. Semantic SVG text remains selectable in the browser; PNG is raster output, while PDF converts glyphs to deterministic vector paths to avoid platform-dependent font-subset identifiers.
+
+An external subcircuit remains a user-owned sidecar dependency. Schematic JSON and KiCad preserve its verified provenance, entry point, pin order, compatibility mode, redistribution policy, and content hash, but never embed the model body. SPICE and LTspice reference the validated relative file and therefore must be written beside the source `.kess` file; their export result includes an explicit dependency warning. Visual exports do not require or contain the model body.
 
 ## EDA verification
 

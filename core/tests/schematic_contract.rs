@@ -507,32 +507,32 @@ fn svg_visual_golden_hashes_are_cross_platform_stable() {
         (
             "minimal",
             CORPUS[0].1,
-            "4e88a92408d66e596a0cb187be7d5e578cd6b20b9f8bbbc10e499a028885ce46",
+            "6ae3ce6664bd549426e4bf1c146d60bea43c6a00dfec68a4e420e37266727442",
         ),
         (
             "rc_filter",
             CORPUS[1].1,
-            "86700a14bcd4d6c5c720f80e0ade260e21780f59d7ca78f91058a113d9d9f1fc",
+            "155784b86a832625fb8f00b48a8c2371f65c45f24e82d4a6ad1859da5b31cc75",
         ),
         (
             "wheatstone",
             CORPUS[2].1,
-            "d3e3dbe738ec0a03596a995593256329f344673e7e752e4e53c02ba174836d10",
+            "880dc758cc0d96fe4d3e60ad52975c8388ba76ba5e1830ba99bd573a8e5c48e2",
         ),
         (
             "gain_stage",
             CORPUS[3].1,
-            "98bec5e7f047cdeb983da25d555b9228d884e5512f04484e5496a4b2111bb551",
+            "bbaf1ace8c840c06cfa6d70c1245fcbc57874ab066777abab2266d3ff339c8d7",
         ),
         (
             "high_fanout",
             CORPUS[4].1,
-            "ee2ba278bfd5fa025bd56d221d5d09904bf2312b2b81aca2f0bc8ba25c3a16b3",
+            "eb9d596f041a7381770ab051b28501c5f4fdf1da8f514258ed7876c9e123bfc0",
         ),
         (
             "power_amplifier",
             CORPUS[5].1,
-            "e79b2cec7c71615f45babd72930468ea381e585cfdcbd5774caad25e8992c2c8",
+            "68f9cad058e4e1e69efdc4414892e73c915834decebd16e30b9cd07f3756ceab",
         ),
     ] {
         let actual = svg_hash(source);
