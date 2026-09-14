@@ -33,6 +33,7 @@ for (const required of [
   'COMMERCIAL_LICENSE.md',
   'licenses/eecircuit-engine-MIT.txt',
   'licenses/ngspice-COPYING.txt',
+  'licenses/inter-OFL.txt',
   'licenses/RobotoMono-OFL.txt',
   'licenses/npm-inventory.json',
 ]) {

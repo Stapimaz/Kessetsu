@@ -7,6 +7,11 @@ test('opens the landing page, enters Web Hub, initializes WASM and compiles the 
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Circuit engineering you can execute.' })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  const landingWordmark = page.locator('.landing-header').getByTestId('brand-wordmark');
+  await expect(landingWordmark).toHaveText('kessetsu');
+  await expect(landingWordmark.locator('.brand-wordmark-signal')).toBeVisible();
+  await expect(landingWordmark.locator('.brand-wordmark-node')).toBeVisible();
+  await expect.poll(() => page.evaluate(async () => (await document.fonts.load('650 20px "Kessetsu Wordmark"', 'kessetsu')).length)).toBe(1);
   expect(await page.locator('.landing-hero .eyebrow').evaluate((element) => (element as HTMLElement).innerText))
     .toBe('EXECUTABLE CIRCUIT ENGINEERING');
   await expect(page.getByText('First-release scope:')).toBeVisible();
@@ -20,6 +25,7 @@ test('opens the landing page, enters Web Hub, initializes WASM and compiles the 
   await expect(page).toHaveURL(/#editor$/);
 
   await expect(page.getByTestId('compile-success')).toBeVisible();
+  await expect(page.locator('.app-menubar').getByTestId('brand-wordmark')).toHaveText('kessetsu');
   await expect(page.locator('.monaco-editor')).toBeVisible();
   await page.getByRole('button', { name: 'View', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Circuit details…' }).click();

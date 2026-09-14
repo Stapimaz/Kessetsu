@@ -73,6 +73,7 @@ if ($brokenDocumentationLinks.Count -gt 0) {
 $noticeDirectory = Join-Path $stage "THIRD_PARTY_NOTICES"
 New-Item -ItemType Directory -Path $noticeDirectory | Out-Null
 Copy-Item -LiteralPath (Join-Path $repoRoot "core/assets/fonts/RobotoMono-OFL.txt") -Destination (Join-Path $noticeDirectory "RobotoMono-OFL.txt")
+Copy-Item -LiteralPath (Join-Path $repoRoot "webapp/public/licenses/inter-OFL.txt") -Destination (Join-Path $noticeDirectory "Inter-OFL.txt")
 $cargoMetadata = (& cargo metadata --manifest-path (Join-Path $repoRoot "core/Cargo.toml") --format-version 1 --locked | Out-String) | ConvertFrom-Json
 if ($LASTEXITCODE -ne 0) { throw "cargo metadata failed while producing license inventory" }
 $rustLicenses = [ordered]@{

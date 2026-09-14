@@ -1,5 +1,13 @@
 # Kessetsu Web Runtime — Third-Party Notices
 
+## Inter
+
+- Source: <https://github.com/rsms/inter>
+- Distribution: `@fontsource-variable/inter@5.3.0`
+- License: SIL Open Font License 1.1
+
+The Web Hub ships a 2.2 KiB subset containing only the lowercase Kessetsu wordmark glyphs. The full license is shipped at `licenses/inter-OFL.txt` and remains available through the pinned package.
+
 ## EEcircuit Engine 1.7.0
 
 - Source: <https://github.com/eelab-dev/EEcircuit-engine>

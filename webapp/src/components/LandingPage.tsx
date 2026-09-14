@@ -10,6 +10,7 @@ import {
 import { useEffect } from 'react';
 import productVersionSource from '../../../VERSION?raw';
 import '../landing.css';
+import { BrandWordmark } from './BrandWordmark';
 import { WebHubPreview } from './WebHubPreview';
 
 const exports = ['SVG', 'PNG', 'PDF', 'Schematic JSON', 'SPICE', 'KiCad', 'LTspice'];
@@ -25,8 +26,7 @@ export function LandingPage() {
     <main className="landing-page">
       <header className="landing-header">
         <a className="landing-wordmark" href="./" aria-label="Kessetsu home">
-          <CircuitBoard aria-hidden="true" size={22} />
-          <span>KESSETSU</span>
+          <BrandWordmark />
         </a>
         <nav className="landing-nav" aria-label="Main navigation">
           <a href="#agent-workflow">Agent workflow</a>

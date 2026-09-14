@@ -24,6 +24,7 @@ requireEqual(engineBytes.length, manifest.simulator.esm_bytes, 'runtime ESM byte
 for (const path of [
   'dist/licenses/eecircuit-engine-MIT.txt',
   'dist/licenses/ngspice-COPYING.txt',
+  'dist/licenses/inter-OFL.txt',
   'dist/THIRD_PARTY_NOTICES.md',
 ]) {
   if (statSync(resolve(root, path)).size === 0) throw new Error(`${path} is empty`);

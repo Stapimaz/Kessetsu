@@ -4,6 +4,7 @@ import productVersionSource from '../../../VERSION?raw';
 import { downloadTextFile, sanitizeFileStem } from '../document';
 import { useKessetsuWorkspace, examples, type ExampleId } from '../hooks/useKessetsuWorkspace';
 import { ArtifactBar } from './ArtifactBar';
+import { BrandWordmark } from './BrandWordmark';
 import { CircuitDetailsDialog } from './CircuitDetailsDialog';
 import { EditorPanel } from './EditorPanel';
 import { RenameDialog } from './RenameDialog';
@@ -125,7 +126,7 @@ export function WorkspaceApp() {
   return (
     <main className="app-shell">
       <header className="app-menubar">
-        <a className="wordmark" href="./" aria-label="Kessetsu home">KESSETSU</a>
+        <a className="wordmark" href="./" aria-label="Kessetsu home"><BrandWordmark /></a>
         <nav className="application-menus" aria-label="Application menu" ref={menusRef}>
           <div className="application-menu">
             <button aria-haspopup="menu" aria-expanded={openMenu === 'file'} onClick={() => toggleMenu('file')}>File</button>

@@ -1,3 +1,12 @@
+@font-face {
+  font-family: 'Kessetsu Wordmark';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('./assets/fonts/kessetsu-inter-wordmark.woff2?no-inline') format('woff2-variations');
+  unicode-range: U+0065, U+006B, U+0073-0075;
+}
+
 :root {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
   color: #dbe5f5;
@@ -64,7 +73,42 @@ button:focus-visible, select:focus-visible, a:focus-visible, [tabindex]:focus-vi
 }
 .share-button { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel-raised); cursor: pointer; }
 .share-button:disabled { cursor: not-allowed; opacity: .45; }
-.wordmark { font-size: 12px; font-weight: 850; letter-spacing: .16em; color: var(--accent); text-decoration: none; }
+.wordmark { color: inherit; text-decoration: none; }
+.brand-wordmark {
+  --brand-wordmark-size: 16px;
+  display: inline-flex;
+  align-items: flex-start;
+  flex-direction: column;
+  color: #edf3fa;
+  font-family: 'Kessetsu Wordmark', Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: var(--brand-wordmark-size);
+  font-variation-settings: 'wght' 650;
+  font-weight: 650;
+  letter-spacing: -.045em;
+  line-height: .86;
+  white-space: nowrap;
+}
+.brand-wordmark-text { display: block; }
+.brand-wordmark-signal {
+  position: relative;
+  width: 2.38em;
+  height: .085em;
+  min-height: 1.5px;
+  margin: .135em 0 0 .02em;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.brand-wordmark-node {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: .28em;
+  height: .28em;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translate(50%, -50%);
+}
+.wordmark .brand-wordmark { --brand-wordmark-size: 15px; }
 .icon-actions button { display: grid; place-items: center; width: 25px; height: 25px; border: 0; border-radius: 4px; background: transparent; cursor: pointer; }
 .icon-actions button:hover { background: #263247; }
 
@@ -252,6 +296,6 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 }
 
 @media (max-width: 560px) {
-  .wordmark { font-size: 10px; letter-spacing: .11em; }
+  .wordmark .brand-wordmark { --brand-wordmark-size: 13px; }
   .application-menu > button { padding-inline: 5px; }
 }

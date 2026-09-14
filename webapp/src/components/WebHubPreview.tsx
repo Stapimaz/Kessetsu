@@ -1,10 +1,11 @@
 import { Activity, Check, CircuitBoard, Code2 } from 'lucide-react';
+import { BrandWordmark } from './BrandWordmark';
 
 export function WebHubPreview() {
   return (
     <figure className="hub-preview" aria-label="Kessetsu Web Hub product preview">
       <div className="preview-header">
-        <span><CircuitBoard size={13} /> KESSETSU</span>
+        <BrandWordmark />
         <small>Connectivity verified</small>
       </div>
       <div className="preview-workspace">
