@@ -4,15 +4,17 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { editor } from 'monaco-editor';
 import type { CompileDiagnostic } from '../domain';
 import { monaco } from '../monaco';
+import { PanelHeader, type PanelWindowControls } from './PanelHeader';
 
 interface Props {
   code: string;
   diagnostics: CompileDiagnostic[];
   compileSucceeded: boolean;
   onCodeChange(code: string): void;
+  panelControls: PanelWindowControls;
 }
 
-export function EditorPanel({ code, diagnostics, compileSucceeded, onCodeChange }: Props) {
+export function EditorPanel({ code, diagnostics, compileSucceeded, onCodeChange, panelControls }: Props) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const modelRef = useRef<editor.ITextModel | null>(null);
 
@@ -51,9 +53,7 @@ export function EditorPanel({ code, diagnostics, compileSucceeded, onCodeChange 
 
   return (
     <section className="workspace-panel editor-panel" aria-label="Kessetsu source editor">
-      <header className="workspace-header">
-        <div className="header-title"><Code2 size={18} /><strong>Source</strong></div>
-      </header>
+      <PanelHeader controls={panelControls} icon={<Code2 size={15} />} title="Source" />
       <div className="editor-container">
         <Editor
           height="100%"

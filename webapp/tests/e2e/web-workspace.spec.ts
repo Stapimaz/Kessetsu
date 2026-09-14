@@ -11,13 +11,15 @@ test('supports edit, inline diagnostic navigation, fix, simulation, assertion an
   page.on('pageerror', (error) => console.log(`[workspace:error] ${error.stack ?? error.message}`));
   await page.goto('/#editor');
   await expect(page.getByTestId('compile-success')).toBeVisible();
+  await expect(page.getByLabel('Simulation results')).toContainText('Run a simulation to inspect results.');
   await replaceSource(page, 'resistor R1 nope\n');
   const diagnostic = page.getByRole('button', { name: /KES-C001/ });
   await expect(diagnostic).toContainText('L1:');
   await diagnostic.click();
   await expect(page.locator('.monaco-editor').getByRole('textbox').first()).toBeFocused();
 
-  await page.getByLabel('Example circuit').selectOption('rc');
+  await page.getByRole('button', { name: 'File', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'RC Low-pass', exact: true }).click();
   await expect(page.getByTestId('compile-success')).toBeVisible();
   await expect(page.getByTestId('canonical-schematic')).toHaveAttribute('data-quality', 'pass');
 
@@ -37,10 +39,12 @@ test('supports edit, inline diagnostic navigation, fix, simulation, assertion an
 
 test('offers corresponding source and license from the interactive Web Hub', async ({ page }) => {
   await page.goto('/#editor');
-  const sourceLink = page.getByRole('link', { name: /source code and AGPL license/i });
+  await page.getByRole('button', { name: 'Help', exact: true }).click();
+  const sourceLink = page.getByRole('menuitem', { name: /source code and AGPL license/i });
   await expect(sourceLink).toHaveAttribute('href', 'https://github.com/Stapimaz/Kessetsu');
-  await expect(sourceLink).toContainText('AGPLv3');
-  await page.getByText('Details', { exact: true }).click();
+  await expect(sourceLink).toContainText('Source and license');
+  await page.getByRole('button', { name: 'Help', exact: true }).click();
+  await page.getByLabel('Circuit details').click();
   await page.getByText('Legal', { exact: true }).click();
   await expect(page.getByText('AGPL-3.0-only free software, provided without warranty.')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Full license' })).toHaveAttribute('href', '/LICENSE.txt');
@@ -55,6 +59,6 @@ test('exposes keyboard controls and a usable mobile workspace', async ({ page })
   await page.getByLabel('Canonical schematic').locator('.schematic-surface').focus();
   await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('button', { name: 'Run' })).toBeEnabled();
-  await page.getByRole('button', { name: 'Change theme' }).click();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.getByRole('button', { name: /theme/i })).toHaveCount(0);
 });

@@ -43,7 +43,7 @@ const initialState: WorkspaceState = {
   exportMessage: '',
   shareMessage: '',
   simulationState: 'idle',
-  simulationMessage: 'Run ile simülasyonu başlatın',
+  simulationMessage: 'Run a simulation to inspect results.',
   evaluation: null,
 };
 
@@ -133,7 +133,7 @@ export function useKessetsuWorkspace() {
       kicadSch: '',
       modelManifest: null,
       simulationState: 'idle',
-      simulationMessage: 'Kaynak değişti; Run ile yeniden simüle edin',
+      simulationMessage: 'Source changed; run the simulation again.',
       evaluation: null,
       exportMessage: '',
       shareMessage: '',
@@ -144,10 +144,10 @@ export function useKessetsuWorkspace() {
 
   const run = useCallback(async () => {
     if (!state.wasmLoaded || !state.compileSucceeded || !runnerRef.current) return;
-    setState((current) => ({ ...current, evaluation: null, simulationState: 'running', simulationMessage: 'Hazırlanıyor…' }));
+    setState((current) => ({ ...current, evaluation: null, simulationState: 'running', simulationMessage: 'Preparing simulation…' }));
     try {
       const plan = prepare_browser_simulation(state.code) as BrowserSimulationPlan;
-      if (plan.analyses.length === 0) throw new Error('Devrede çalıştırılacak simulate komutu yok');
+      if (plan.analyses.length === 0) throw new Error('The circuit has no simulation command to run');
       const simulation = await runnerRef.current.run(plan, {
         timeoutMs: 90_000,
         onProgress: (progress) => setState((current) => ({ ...current, simulationMessage: progress.message })),
@@ -157,11 +157,11 @@ export function useKessetsuWorkspace() {
         ...current,
         evaluation,
         simulationState: 'succeeded',
-        simulationMessage: `${evaluation.simulation.datasets.length} analiz tamamlandı`,
+        simulationMessage: `${evaluation.simulation.datasets.length} analyses completed`,
       }));
     } catch (error: unknown) {
       if (error instanceof SimulationCancelledError) {
-        setState((current) => ({ ...current, simulationState: 'cancelled', simulationMessage: 'Simülasyon iptal edildi' }));
+        setState((current) => ({ ...current, simulationState: 'cancelled', simulationMessage: 'Simulation cancelled' }));
       } else {
         setState((current) => ({ ...current, simulationState: 'failed', simulationMessage: errorMessage(error) }));
       }
@@ -170,7 +170,7 @@ export function useKessetsuWorkspace() {
 
   const cancel = useCallback(() => {
     runnerRef.current?.cancel();
-    setState((current) => ({ ...current, simulationState: 'cancelled', simulationMessage: 'Simülasyon iptal edildi' }));
+    setState((current) => ({ ...current, simulationState: 'cancelled', simulationMessage: 'Simulation cancelled' }));
   }, []);
 
   const createExport = useCallback((format: ExportFormat, scale = 2, transparent = false): ExportArtifact => {

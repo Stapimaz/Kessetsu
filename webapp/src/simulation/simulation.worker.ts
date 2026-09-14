@@ -110,12 +110,12 @@ async function runPlan(id: number, plan: BrowserSimulationPlan, includeRawLog: b
   if (plan.schema_version !== 'kessetsu.simulation.v1') {
     throw new Error(`Unsupported simulation plan schema: ${plan.schema_version}`);
   }
-  send({ type: 'progress', id, completed: 0, total: plan.analyses.length, message: 'Simulator indiriliyor' });
+  send({ type: 'progress', id, completed: 0, total: plan.analyses.length, message: 'Loading simulator' });
   // Keep the Worker bootstrap tiny and observable. Importing the engine at the
   // module top level delays registration of the message handler until its
   // large embedded model library has been parsed.
   const { Simulation } = await import('eecircuit-engine');
-  send({ type: 'progress', id, completed: 0, total: plan.analyses.length, message: 'Simulator başlatılıyor' });
+  send({ type: 'progress', id, completed: 0, total: plan.analyses.length, message: 'Starting simulator' });
   const simulation = new Simulation();
   await simulation.start();
   const initInfo = simulation.getInitInfo();
@@ -129,7 +129,7 @@ async function runPlan(id: number, plan: BrowserSimulationPlan, includeRawLog: b
       id,
       completed: analysisPlan.index,
       total: plan.analyses.length,
-      message: `${analysisPlan.analysis.kind} çalışıyor`,
+      message: `Running ${analysisPlan.analysis.kind}`,
     });
     simulation.setNetList(analysisPlan.netlist);
     const result = (await simulation.runSim()) as EngineResult;

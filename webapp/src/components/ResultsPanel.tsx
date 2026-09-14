@@ -2,11 +2,13 @@ import { Activity, RotateCcw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { SimulationState } from '../domain';
 import type { AssertionResult, BrowserEvaluation, Dataset } from '../simulation/types';
+import { PanelHeader, type PanelWindowControls } from './PanelHeader';
 
 interface Props {
   state: SimulationState;
   message: string;
   evaluation: BrowserEvaluation | null;
+  panelControls: PanelWindowControls;
 }
 
 function engineering(value: number, unit = ''): string {
@@ -184,7 +186,7 @@ function DatasetView({ dataset, assertions }: { dataset: Dataset; assertions: As
   /></>;
 }
 
-export function ResultsPanel({ state, message, evaluation }: Props) {
+export function ResultsPanel({ state, message, evaluation, panelControls }: Props) {
   const [datasetIndex, setDatasetIndex] = useState(0);
   const datasets = evaluation?.simulation.datasets ?? [];
   const selected = datasets[datasetIndex] ?? datasets[0];
@@ -197,10 +199,9 @@ export function ResultsPanel({ state, message, evaluation }: Props) {
 
   return (
     <section className="workspace-panel results-panel" aria-label="Simulation results" data-testid="simulation-summary" data-state={state}>
-      <header className="workspace-header">
-        <div className="header-title"><Activity size={18} /><strong>Results</strong></div>
+      <PanelHeader controls={panelControls} icon={<Activity size={15} />} title="Results">
         <span className={`run-status status-${state}`}>{statusText}</span>
-      </header>
+      </PanelHeader>
       <div className="results-body">
         {datasets.length > 0 ? (
           <>

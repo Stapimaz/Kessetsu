@@ -1,4 +1,4 @@
-import { Download, X } from 'lucide-react';
+import { Download, MoreHorizontal, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import type { ExportArtifact, ExportDescriptor, ExportFormat, ModelManifest } from '../domain';
 
@@ -41,7 +41,7 @@ export function ArtifactBar({ spice, models, enabled, capabilities, message, onE
 
   return (
     <aside className="artifact-bar" aria-label="Exports">
-      <button disabled={!enabled} onClick={() => dialogRef.current?.showModal()} aria-haspopup="dialog"><Download size={15} /> Export</button>
+      <button disabled={!enabled} onClick={() => dialogRef.current?.showModal()} aria-haspopup="dialog" aria-label="Export"><Download size={15} /><span>Export</span></button>
       <dialog ref={dialogRef} className="export-dialog" aria-labelledby="export-title">
       <header><div><h2 id="export-title">Export circuit</h2><p>Choose a format to download.</p></div>
         <button aria-label="Close export" onClick={() => dialogRef.current?.close()}><X size={18} /></button>
@@ -81,7 +81,7 @@ export function ArtifactBar({ spice, models, enabled, capabilities, message, onE
       </details>
       {(error || message) && <span className={error ? 'export-status export-error' : 'export-status'} role="status">{error || message}</span>}
       </dialog>
-      <details className="circuit-details"><summary>Details</summary><div className="circuit-details-popover">
+      <details className="circuit-details"><summary aria-label="Circuit details" title="Circuit details"><MoreHorizontal size={16} /></summary><div className="circuit-details-popover">
       <details className="model-details" data-testid="model-manifest" data-manifest={models ? JSON.stringify(models) : ''}>
         <summary>Models ({models?.models.length ?? 0})</summary>
         <div className="model-popover">

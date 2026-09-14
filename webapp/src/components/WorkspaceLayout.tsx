@@ -1,18 +1,48 @@
+import { Activity, CircuitBoard, Code2 } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import type { PanelWindowControls } from './PanelHeader';
 
-const defaults = { horizontal: 40, vertical: 55, source: true, schematic: true, results: true };
-const storageKey = 'kessetsu.workspace-layout.v1';
 type Panel = 'source' | 'schematic' | 'results';
+type PanelRenderer = (controls: PanelWindowControls) => ReactNode;
+interface LayoutState {
+  horizontal: number;
+  vertical: number;
+  source: boolean;
+  schematic: boolean;
+  results: boolean;
+  maximized: Panel | null;
+}
+
+const defaults: LayoutState = {
+  horizontal: 40,
+  vertical: 55,
+  source: true,
+  schematic: true,
+  results: true,
+  maximized: null,
+};
+const storageKey = 'kessetsu.workspace-layout.v2';
+const legacyStorageKey = 'kessetsu.workspace-layout.v1';
 const panels: Panel[] = ['source', 'schematic', 'results'];
+const icons = { source: Code2, schematic: CircuitBoard, results: Activity };
 const clamp = (value: number) => Math.max(20, Math.min(80, value));
 
-function readLayout() {
+function readLayout(): LayoutState {
   try {
-    const saved = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
+    const raw = localStorage.getItem(storageKey) ?? localStorage.getItem(legacyStorageKey);
+    const saved = JSON.parse(raw ?? 'null');
+    const maximized = saved?.maximized === null || panels.includes(saved?.maximized)
+      ? saved.maximized as Panel | null
+      : null;
     if (saved && panels.every((key) => typeof saved[key] === 'boolean')
-      && panels.some((key) => saved[key])
       && Number.isFinite(saved.horizontal) && Number.isFinite(saved.vertical)) {
-      return { ...defaults, ...saved, horizontal: clamp(saved.horizontal), vertical: clamp(saved.vertical) } as typeof defaults;
+      return {
+        ...defaults,
+        ...saved,
+        maximized,
+        horizontal: clamp(saved.horizontal),
+        vertical: clamp(saved.vertical),
+      };
     }
   } catch { /* Storage is optional, including in private browsing. */ }
   return { ...defaults };
@@ -35,10 +65,15 @@ function Splitter({ axis, value, onChange }: { axis: 'horizontal' | 'vertical'; 
     onPointerMove={(event) => {
       if (!dragging.current) return;
       const rect = event.currentTarget.parentElement!.getBoundingClientRect();
-      const position = axis === 'horizontal' ? (event.clientX - rect.left) / rect.width : (event.clientY - rect.top) / rect.height;
+      const position = axis === 'horizontal'
+        ? (event.clientX - rect.left) / rect.width
+        : (event.clientY - rect.top) / rect.height;
       onChange(clamp(position * 100));
     }}
-    onPointerUp={(event) => { dragging.current = false; event.currentTarget.releasePointerCapture(event.pointerId); }}
+    onPointerUp={(event) => {
+      dragging.current = false;
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }}
     onLostPointerCapture={() => { dragging.current = false; }}
     onKeyDown={(event) => {
       const negative = axis === 'horizontal' ? 'ArrowLeft' : 'ArrowUp';
@@ -50,33 +85,78 @@ function Splitter({ axis, value, onChange }: { axis: 'horizontal' | 'vertical'; 
   />;
 }
 
-export function WorkspaceLayout({ source, schematic, results }: Record<Panel, ReactNode>) {
+interface Props {
+  source: PanelRenderer;
+  schematic: PanelRenderer;
+  results: PanelRenderer;
+  resetRequest: number;
+}
+
+export function WorkspaceLayout({ source, schematic, results, resetRequest }: Props) {
   const [layout, setLayout] = useState(readLayout);
+  const previousResetRequest = useRef(resetRequest);
+
   useEffect(() => {
     try { localStorage.setItem(storageKey, JSON.stringify(layout)); } catch { /* Nonessential preference. */ }
   }, [layout]);
-  const rightVisible = layout.schematic || layout.results;
-  const bothColumns = layout.source && rightVisible;
-  const bothRows = layout.schematic && layout.results;
+
+  useEffect(() => {
+    if (previousResetRequest.current !== resetRequest) {
+      previousResetRequest.current = resetRequest;
+      setLayout({ ...defaults });
+    }
+  }, [resetRequest]);
+
+  useEffect(() => {
+    const restore = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setLayout((current) => current.maximized ? { ...current, maximized: null } : current);
+    };
+    window.addEventListener('keydown', restore);
+    return () => window.removeEventListener('keydown', restore);
+  }, []);
+
+  const isVisible = (panel: Panel) => layout[panel] && (!layout.maximized || layout.maximized === panel);
+  const sourceVisible = isVisible('source');
+  const schematicVisible = isVisible('schematic');
+  const resultsVisible = isVisible('results');
+  const rightVisible = schematicVisible || resultsVisible;
+  const bothColumns = sourceVisible && rightVisible;
+  const bothRows = schematicVisible && resultsVisible;
+  const minimizedPanels = panels.filter((panel) => !layout[panel]);
+
+  const controls = (panel: Panel): PanelWindowControls => ({
+    panel,
+    maximized: layout.maximized === panel,
+    minimize: () => setLayout((current) => ({ ...current, [panel]: false, maximized: null })),
+    toggleMaximize: () => setLayout((current) => ({
+      ...current,
+      [panel]: true,
+      maximized: current.maximized === panel ? null : panel,
+    })),
+  });
 
   return <div className="workspace-layout">
-    <nav className="panel-toolbar" aria-label="Workspace panels">
-      <span>Panels</span>
-      {panels.map((panel) => <button key={panel} aria-pressed={layout[panel]}
-        aria-label={`${layout[panel] ? 'Minimize' : 'Restore'} ${panel} panel`}
-        disabled={layout[panel] && panels.filter((key) => layout[key]).length === 1}
-        onClick={() => setLayout((current) => ({ ...current, [panel]: !current[panel] }))}
-      >{panel}</button>)}
-      <button className="reset-layout" onClick={() => setLayout({ ...defaults })}>Reset layout</button>
-    </nav>
-    <div className="resizable-workspace" style={{ gridTemplateColumns: bothColumns ? `minmax(0, ${layout.horizontal}fr) 6px minmax(0, ${100 - layout.horizontal}fr)` : 'minmax(0, 1fr)' }}>
-      <div className="panel-slot source-slot" hidden={!layout.source}>{source}</div>
+    <div
+      className={`resizable-workspace${layout.maximized ? ' has-maximized-panel' : ''}`}
+      data-maximized-panel={layout.maximized ?? undefined}
+      style={{ gridTemplateColumns: bothColumns ? `minmax(0, ${layout.horizontal}fr) 5px minmax(0, ${100 - layout.horizontal}fr)` : 'minmax(0, 1fr)' }}
+    >
+      <div className="panel-slot source-slot" hidden={!sourceVisible}>{source(controls('source'))}</div>
       {bothColumns && <Splitter axis="horizontal" value={layout.horizontal} onChange={(horizontal) => setLayout((current) => ({ ...current, horizontal }))} />}
-      <div className="output-panels" hidden={!rightVisible} style={{ gridTemplateRows: bothRows ? `minmax(0, ${layout.vertical}fr) 6px minmax(0, ${100 - layout.vertical}fr)` : 'minmax(0, 1fr)' }}>
-        <div className="panel-slot" hidden={!layout.schematic}>{schematic}</div>
+      <div className="output-panels" hidden={!rightVisible} style={{ gridTemplateRows: bothRows ? `minmax(0, ${layout.vertical}fr) 5px minmax(0, ${100 - layout.vertical}fr)` : 'minmax(0, 1fr)' }}>
+        <div className="panel-slot" hidden={!schematicVisible}>{schematic(controls('schematic'))}</div>
         {bothRows && <Splitter axis="vertical" value={layout.vertical} onChange={(vertical) => setLayout((current) => ({ ...current, vertical }))} />}
-        <div className="panel-slot" hidden={!layout.results}>{results}</div>
+        <div className="panel-slot" hidden={!resultsVisible}>{results(controls('results'))}</div>
       </div>
+      {!sourceVisible && !rightVisible && <div className="workspace-empty">All panels are minimized.</div>}
     </div>
+    {minimizedPanels.length > 0 && <nav className="panel-dock" aria-label="Minimized panels">
+      {minimizedPanels.map((panel) => {
+        const Icon = icons[panel];
+        return <button key={panel} aria-label={`Restore minimized ${panel} panel`} onClick={() => setLayout((current) => ({ ...current, [panel]: true, maximized: null }))}>
+          <Icon size={13} /><span>{panel}</span>
+        </button>;
+      })}
+    </nav>}
   </div>;
 }
