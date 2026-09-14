@@ -30,7 +30,7 @@ test('opens the final power-amplifier source from a versioned URL and runs the f
   await page.getByRole('button', { name: 'Export', exact: true }).click();
   await page.locator('[data-export-format="svg"]').click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toBe('circuit.svg');
+  expect(download.suggestedFilename()).toBe('power-amplifier.svg');
   await page.getByRole('button', { name: 'Close export' }).click();
 
   await page.getByRole('button', { name: 'Share circuit' }).click();

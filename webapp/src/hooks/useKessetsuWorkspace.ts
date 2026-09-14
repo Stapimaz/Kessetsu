@@ -12,6 +12,14 @@ import rcFilter from '../../../core/tests/fixtures/benchmarks/rc_filter.kess?raw
 import gainStage from '../../../core/tests/fixtures/benchmarks/gain_stage.kess?raw';
 import powerAmplifier from '../../../core/tests/fixtures/benchmarks/power_amplifier.kess?raw';
 import type { CompileReport, ExportArtifact, ExportFormat, WorkspaceState } from '../domain';
+import {
+  decodeWorkspaceDraft,
+  documentNameFromFile,
+  encodeWorkspaceDraft,
+  MAX_DOCUMENT_SOURCE_BYTES,
+  normalizeDocumentName,
+  WEB_DRAFT_STORAGE_KEY,
+} from '../document';
 import { BrowserSimulationRunner, SimulationCancelledError } from '../simulation/browserRunner';
 import type { BrowserEvaluation, BrowserSimulationPlan } from '../simulation/types';
 import { assertSharedPackages, decodeShareFragment, encodeShareFragment, type ShareEnvelope } from '../share';
@@ -24,6 +32,8 @@ export const examples = {
 
 export type ExampleId = keyof typeof examples;
 
+const newCircuitSource = '// New Kessetsu circuit\n\nnet GND\n';
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -31,6 +41,8 @@ function errorMessage(error: unknown): string {
 const initialState: WorkspaceState = {
   code: rcFilter,
   circuitName: null,
+  isDirty: false,
+  draftRestored: false,
   diagnostics: [],
   compileState: 'loading',
   compileSucceeded: false,
@@ -53,6 +65,14 @@ export function useKessetsuWorkspace() {
   const runnerRef = useRef<BrowserSimulationRunner | null>(null);
   const sharedEnvelopeRef = useRef<ShareEnvelope | null>(null);
 
+  const leaveSharedUrl = useCallback(() => {
+    sharedEnvelopeRef.current = null;
+    if (!globalThis.location.hash.startsWith('#kessetsu=')) return;
+    const url = new URL(globalThis.location.href);
+    url.hash = 'editor';
+    globalThis.history.replaceState(null, '', url);
+  }, []);
+
   useEffect(() => {
     let mounted = true;
     void init()
@@ -61,11 +81,21 @@ export function useKessetsuWorkspace() {
         const capabilities = supported_export_capabilities();
         const shareFragment = globalThis.location.hash.startsWith('#kessetsu=') ? globalThis.location.hash : '';
         const shared = await decodeShareFragment(shareFragment, compile_schema_version());
+        let draft: ReturnType<typeof decodeWorkspaceDraft> = null;
+        if (!shared) {
+          try {
+            draft = decodeWorkspaceDraft(globalThis.localStorage.getItem(WEB_DRAFT_STORAGE_KEY));
+          } catch {
+            // Local storage is an optional recovery layer; the editor remains usable without it.
+          }
+        }
         sharedEnvelopeRef.current = shared;
         setState((current) => ({
           ...current,
-          code: shared?.source ?? current.code,
-          circuitName: shared?.name ?? null,
+          code: shared?.source ?? draft?.source ?? current.code,
+          circuitName: shared?.name ?? draft?.name ?? null,
+          isDirty: draft?.dirty ?? false,
+          draftRestored: draft?.dirty ?? false,
           wasmLoaded: true,
           compileState: 'checking',
           exportCapabilities: capabilities as WorkspaceState['exportCapabilities'],
@@ -83,6 +113,21 @@ export function useKessetsuWorkspace() {
       runner.dispose();
     };
   }, []);
+
+  useEffect(() => {
+    if (!state.wasmLoaded) return;
+    const timeout = globalThis.setTimeout(() => {
+      try {
+        globalThis.localStorage.setItem(
+          WEB_DRAFT_STORAGE_KEY,
+          encodeWorkspaceDraft(state.circuitName, state.code, state.isDirty),
+        );
+      } catch {
+        // Compilation and file downloads must not depend on storage availability.
+      }
+    }, 400);
+    return () => globalThis.clearTimeout(timeout);
+  }, [state.circuitName, state.code, state.isDirty, state.wasmLoaded]);
 
   const compile = useCallback(() => {
     if (!state.wasmLoaded) return;
@@ -129,10 +174,13 @@ export function useKessetsuWorkspace() {
   }, [compile]);
 
   const setCode = useCallback((code: string) => {
+    leaveSharedUrl();
     runnerRef.current?.cancel();
     setState((current) => ({
       ...current,
       code,
+      isDirty: true,
+      draftRestored: false,
       compileState: 'checking',
       compileSucceeded: false,
       diagnostics: [],
@@ -146,12 +194,94 @@ export function useKessetsuWorkspace() {
       evaluation: null,
       exportMessage: '',
     }));
-  }, []);
+  }, [leaveSharedUrl]);
 
   const loadExample = useCallback((id: ExampleId) => {
-    setCode(examples[id].source);
-    setState((current) => ({ ...current, circuitName: null }));
-  }, [setCode]);
+    leaveSharedUrl();
+    runnerRef.current?.cancel();
+    setState((current) => ({
+      ...current,
+      code: examples[id].source,
+      circuitName: examples[id].label,
+      isDirty: false,
+      draftRestored: false,
+      compileState: 'checking',
+      compileSucceeded: false,
+      diagnostics: [],
+      schematic: null,
+      schematicSvg: '',
+      spiceNetlist: '',
+      kicadSch: '',
+      modelManifest: null,
+      simulationState: 'idle',
+      simulationMessage: 'Run a simulation to inspect results.',
+      evaluation: null,
+      exportMessage: '',
+    }));
+  }, [leaveSharedUrl]);
+
+  const newDocument = useCallback(() => {
+    leaveSharedUrl();
+    runnerRef.current?.cancel();
+    setState((current) => ({
+      ...current,
+      code: newCircuitSource,
+      circuitName: null,
+      isDirty: false,
+      draftRestored: false,
+      compileState: 'checking',
+      compileSucceeded: false,
+      diagnostics: [],
+      schematic: null,
+      schematicSvg: '',
+      spiceNetlist: '',
+      kicadSch: '',
+      modelManifest: null,
+      simulationState: 'idle',
+      simulationMessage: 'Add a simulation command, then run it to inspect results.',
+      evaluation: null,
+      exportMessage: '',
+    }));
+  }, [leaveSharedUrl]);
+
+  const openDocument = useCallback(async (file: File) => {
+    if (file.size > MAX_DOCUMENT_SOURCE_BYTES) throw new Error('Circuit source exceeds the 1 MiB browser file limit');
+    const source = await file.text();
+    if (new TextEncoder().encode(source).byteLength > MAX_DOCUMENT_SOURCE_BYTES) {
+      throw new Error('Circuit source exceeds the 1 MiB browser file limit');
+    }
+    const name = documentNameFromFile(file.name);
+    leaveSharedUrl();
+    runnerRef.current?.cancel();
+    setState((current) => ({
+      ...current,
+      code: source,
+      circuitName: name,
+      isDirty: false,
+      draftRestored: false,
+      compileState: 'checking',
+      compileSucceeded: false,
+      diagnostics: [],
+      schematic: null,
+      schematicSvg: '',
+      spiceNetlist: '',
+      kicadSch: '',
+      modelManifest: null,
+      simulationState: 'idle',
+      simulationMessage: 'Run a simulation to inspect results.',
+      evaluation: null,
+      exportMessage: '',
+    }));
+  }, [leaveSharedUrl]);
+
+  const markSaved = useCallback(() => {
+    setState((current) => ({ ...current, isDirty: false, draftRestored: false }));
+  }, []);
+
+  const renameDocument = useCallback((name: string) => {
+    const normalized = normalizeDocumentName(name);
+    setState((current) => ({ ...current, circuitName: normalized, isDirty: true, draftRestored: false }));
+  }, []);
 
   const run = useCallback(async () => {
     if (!state.wasmLoaded || !state.compileSucceeded || !runnerRef.current) return;
@@ -208,9 +338,27 @@ export function useKessetsuWorkspace() {
     const url = new URL(globalThis.location.href);
     url.hash = fragment.slice(1);
     globalThis.history.replaceState(null, '', url);
-    setState((current) => ({ ...current, circuitName }));
+    setState((current) => ({
+      ...current,
+      circuitName,
+      isDirty: current.isDirty || current.circuitName !== circuitName,
+      draftRestored: false,
+    }));
     return url.href;
   }, [state.code, state.compileSucceeded, state.modelManifest, state.wasmLoaded]);
 
-  return { state, setCode, loadExample, compile, run, cancel, createExport, share };
+  return {
+    state,
+    setCode,
+    loadExample,
+    newDocument,
+    openDocument,
+    markSaved,
+    renameDocument,
+    compile,
+    run,
+    cancel,
+    createExport,
+    share,
+  };
 }

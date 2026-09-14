@@ -20,6 +20,7 @@ test('supports edit, inline diagnostic navigation, fix, simulation, assertion an
   await diagnostic.click();
   await expect(page.locator('.monaco-editor').getByRole('textbox').first()).toBeFocused();
 
+  page.once('dialog', (dialog) => void dialog.accept());
   await page.getByRole('button', { name: 'File', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Examples', exact: true }).click();
   await page.getByRole('menuitem', { name: 'RC Low-pass', exact: true }).click();

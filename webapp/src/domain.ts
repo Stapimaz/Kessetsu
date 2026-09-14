@@ -90,6 +90,8 @@ export type CompileState = 'loading' | 'checking' | 'valid' | 'invalid';
 export interface WorkspaceState {
   code: string;
   circuitName: string | null;
+  isDirty: boolean;
+  draftRestored: boolean;
   diagnostics: CompileDiagnostic[];
   compileState: CompileState;
   compileSucceeded: boolean;

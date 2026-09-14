@@ -1,9 +1,11 @@
 import { CheckCircle2, ChevronRight, CircleAlert, LoaderCircle, Share2, Square, Zap } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { downloadTextFile, sanitizeFileStem } from '../document';
 import { useKessetsuWorkspace, examples, type ExampleId } from '../hooks/useKessetsuWorkspace';
 import { ArtifactBar } from './ArtifactBar';
 import { CircuitDetailsDialog } from './CircuitDetailsDialog';
 import { EditorPanel } from './EditorPanel';
+import { RenameDialog } from './RenameDialog';
 import { ResultsPanel } from './ResultsPanel';
 import { SchematicPanel } from './SchematicPanel';
 import { ShareDialog } from './ShareDialog';
@@ -12,13 +14,19 @@ import { WorkspaceLayout } from './WorkspaceLayout';
 type MenuId = 'file' | 'view' | 'help';
 
 export function WorkspaceApp() {
-  const { state, setCode, loadExample, run, cancel, createExport, share } = useKessetsuWorkspace();
+  const {
+    state, setCode, loadExample, newDocument, openDocument, markSaved, renameDocument,
+    run, cancel, createExport, share,
+  } = useKessetsuWorkspace();
   const [openMenu, setOpenMenu] = useState<MenuId | null>(null);
   const [examplesOpen, setExamplesOpen] = useState(false);
   const [resetRequest, setResetRequest] = useState(0);
   const [circuitDetailsOpen, setCircuitDetailsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [documentError, setDocumentError] = useState('');
   const menusRef = useRef<HTMLElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const selectedExample = Object.entries(examples).find(([, example]) => example.source === state.code)?.[0] as ExampleId | undefined;
   const documentName = state.circuitName ?? (selectedExample ? examples[selectedExample].label : 'Untitled circuit');
   const errorCount = state.diagnostics.filter((diagnostic) => diagnostic.severity === 'error').length;
@@ -39,8 +47,8 @@ export function WorkspaceApp() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = 'dark';
-    document.title = `${documentName} — Kessetsu`;
-  }, [documentName]);
+    document.title = `${state.isDirty ? '● ' : ''}${documentName} — Kessetsu`;
+  }, [documentName, state.isDirty]);
 
   useEffect(() => {
     const closeOutside = (event: PointerEvent) => {
@@ -80,10 +88,37 @@ export function WorkspaceApp() {
     setOpenMenu((current) => current === menu ? null : menu);
   };
   const selectExample = (id: ExampleId) => {
+    if (state.isDirty && !globalThis.confirm('Replace the current unsaved circuit with this example?')) return;
     loadExample(id);
     setExamplesOpen(false);
     setOpenMenu(null);
   };
+  const startNewDocument = () => {
+    if (state.isDirty && !globalThis.confirm('Discard the current unsaved changes and create a new circuit?')) return;
+    newDocument();
+    setOpenMenu(null);
+  };
+  const chooseDocument = () => {
+    if (state.isDirty && !globalThis.confirm('Discard the current unsaved changes and open another circuit?')) return;
+    setOpenMenu(null);
+    fileInputRef.current?.click();
+  };
+  const saveDocument = useCallback(() => {
+    downloadTextFile(state.code, `${sanitizeFileStem(documentName)}.kess`);
+    markSaved();
+    setOpenMenu(null);
+  }, [documentName, markSaved, state.code]);
+
+  useEffect(() => {
+    const saveShortcut = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        saveDocument();
+      }
+    };
+    window.addEventListener('keydown', saveShortcut);
+    return () => window.removeEventListener('keydown', saveShortcut);
+  }, [saveDocument]);
 
   return (
     <main className="app-shell">
@@ -93,6 +128,11 @@ export function WorkspaceApp() {
           <div className="application-menu">
             <button aria-haspopup="menu" aria-expanded={openMenu === 'file'} onClick={() => toggleMenu('file')}>File</button>
             {openMenu === 'file' && <div className="menu-popover file-menu" role="menu" aria-label="File menu">
+              <button role="menuitem" onClick={startNewDocument}><span>New circuit</span></button>
+              <button role="menuitem" onClick={chooseDocument}><span>Open .kess…</span></button>
+              <button role="menuitem" onClick={saveDocument}><span>Save source</span><kbd>Ctrl+S</kbd></button>
+              <button role="menuitem" onClick={() => { setRenameOpen(true); setOpenMenu(null); }}><span>Rename…</span></button>
+              <div className="menu-separator" role="separator" />
               <div className="menu-submenu">
                 <button role="menuitem" aria-haspopup="menu" aria-expanded={examplesOpen} onClick={() => setExamplesOpen((current) => !current)}>
                   <span>Examples</span><ChevronRight size={14} />
@@ -133,7 +173,11 @@ export function WorkspaceApp() {
             </div>}
           </div>
         </nav>
-        <div className="document-title" title={documentName}>{documentName}</div>
+        <div
+          className={`document-title${state.isDirty ? ' document-dirty' : ''}`}
+          title={`${documentName}${state.isDirty ? ' — unsaved changes' : ''}`}
+          aria-label={`${documentName}${state.isDirty ? ', unsaved changes' : ''}`}
+        >{documentName}</div>
         <div className="global-actions">
           <span className={`compile-status compile-${state.compileState}`} role="status" aria-label={`Automatic circuit check: ${compileStatus}`} data-testid="compile-status" title={compileStatus}>
             <CompileStatusIcon size={14} /><span>{compileStatus}</span>
@@ -142,12 +186,31 @@ export function WorkspaceApp() {
             ? <button className="run-button cancel-button" aria-label="Cancel" onClick={cancel}><Square size={13} /> <span>Cancel</span></button>
             : <button className="run-button" aria-label="Run" onClick={() => void run()} disabled={!state.compileSucceeded}><Zap size={15} /> <span>Run</span></button>}
           <ArtifactBar enabled={state.compileSucceeded}
-            capabilities={state.exportCapabilities} message={state.exportMessage} onExport={createExport} />
+            capabilities={state.exportCapabilities} message={state.exportMessage}
+            filenameStem={sanitizeFileStem(documentName)} onExport={createExport} />
           <button className="share-button" onClick={() => setShareOpen(true)} disabled={!state.compileSucceeded} aria-label="Share circuit">
             <Share2 size={15} /> <span>Share</span>
           </button>
         </div>
       </header>
+      <input
+        ref={fileInputRef}
+        className="sr-only"
+        type="file"
+        accept=".kess,text/plain"
+        aria-label="Open Kessetsu source file"
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = '';
+          if (!file) return;
+          setDocumentError('');
+          void openDocument(file).catch((cause: unknown) => {
+            setDocumentError(cause instanceof Error ? cause.message : String(cause));
+          });
+        }}
+      />
+      {state.draftRestored && <div className="draft-notice" role="status">Unsaved browser draft restored. Save the source when you want a portable file.</div>}
+      {documentError && <div className="global-error" role="alert">Could not open circuit: {documentError}</div>}
       {state.wasmError && <div className="global-error" role="alert">Core failed to initialize: {state.wasmError}</div>}
       <CircuitDetailsDialog
         open={circuitDetailsOpen}
@@ -160,6 +223,12 @@ export function WorkspaceApp() {
         currentName={documentName}
         onClose={() => setShareOpen(false)}
         onCreateLink={share}
+      />
+      <RenameDialog
+        open={renameOpen}
+        currentName={documentName}
+        onClose={() => setRenameOpen(false)}
+        onRename={renameDocument}
       />
       <WorkspaceLayout
         resetRequest={resetRequest}

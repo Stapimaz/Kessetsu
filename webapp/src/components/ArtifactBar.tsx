@@ -6,6 +6,7 @@ interface Props {
   enabled: boolean;
   capabilities: ExportDescriptor[];
   message: string;
+  filenameStem: string;
   onExport: (format: ExportFormat) => ExportArtifact;
 }
 
@@ -15,23 +16,23 @@ const formatDescriptions: Record<ExportFormat, string> = {
   kicad: 'Editable KiCad schematic', ltspice: 'Editable LTspice schematic',
 };
 
-function downloadArtifact(artifact: ExportArtifact) {
+function downloadArtifact(artifact: ExportArtifact, filenameStem: string) {
   const blob = new Blob([new Uint8Array(artifact.bytes)], { type: artifact.mime_type });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = `circuit.${artifact.extension}`;
+  anchor.download = `${filenameStem}.${artifact.extension}`;
   anchor.click();
   URL.revokeObjectURL(url);
 }
 
-export function ArtifactBar({ enabled, capabilities, message, onExport }: Props) {
+export function ArtifactBar({ enabled, capabilities, message, filenameStem, onExport }: Props) {
   const [error, setError] = useState('');
   const dialogRef = useRef<HTMLDialogElement>(null);
   const exportOne = (format: ExportFormat) => {
     try {
       setError('');
-      downloadArtifact(onExport(format));
+      downloadArtifact(onExport(format), filenameStem);
     } catch (cause: unknown) {
       setError(cause instanceof Error ? cause.message : String(cause));
     }

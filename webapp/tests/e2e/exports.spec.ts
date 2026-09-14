@@ -30,7 +30,7 @@ test('downloads every advertised artifact from the shared Core contract', async 
     if (format === 'pdf') expect(bytes.subarray(0, 5).toString()).toBe('%PDF-');
     if (format === 'kicad') expect(bytes.toString('utf8', 0, 10)).toContain('(kicad_sch');
     if (format === 'ltspice') expect(bytes.toString('utf8', 0, 20)).toContain('Version 4');
-    expect(suggested).toContain('circuit.');
+    expect(suggested).toContain('rc-low-pass.');
     const nativePath = resolve(`test-results/native-export-${format}.${suggested.split('.').slice(1).join('.')}`);
     writeFileSync(resolve(`test-results/browser-export-${format}.${suggested.split('.').slice(1).join('.')}`), bytes);
     if (['svg', 'png', 'pdf'].includes(format)) {
