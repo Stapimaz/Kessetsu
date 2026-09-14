@@ -87,6 +87,8 @@ fn external_subcircuit_is_hash_bound_without_serializing_its_body() {
         .expect("LTspice export should exist");
     let ltspice_text = std::str::from_utf8(&ltspice.bytes).expect("LTspice should be text");
     assert!(ltspice_text.contains(".include \"models/OPA197.LIB\""));
+    assert!(ltspice_text.contains("SYMATTR Value OPA197"));
+    assert!(!ltspice_text.contains("SYMATTR Value OPA_ALIAS"));
     assert!(!ltspice_text.contains("synthetic contract fixture"));
     assert!(
         ltspice

@@ -1,6 +1,6 @@
 # Unseen-Design Gate Summary — 2026-09-13
 
-Status: the six-task comparison with the first accessible model is complete. Product recommendation: **continue, interoperability-first**, with one evidence-selected manufacturer-model blocker to close before the 4.6V gate passes.
+Status: the six-task comparison with the first accessible model is complete. Product recommendation: **continue, interoperability-first**. The manufacturer-model blocker selected here was subsequently closed by the versioned 2026-09-14 U6 follow-up; the original results below remain unchanged.
 
 ## Comparative result
 
@@ -40,3 +40,7 @@ Continue the project with an interoperability-first positioning: Kessetsu should
 The selected blocker is external manufacturer subcircuit support. Before 4.6V closes, implement a bounded typed reference/import contract that preserves exact content hash, provenance, pin order, license/redistribution status, and simulator capability; keeps Circuit IR authoritative; never treats raw model text as Kessetsu source; and fails closed when the model or required runtime mode is absent. Then run a versioned U6 follow-up without replacing the original negative result.
 
 The owner previously directed the project to continue toward a complete private release candidate and deferred broad interface review until after the technical phases. This evidence supports that direction while narrowing the strongest public claim to the value actually demonstrated.
+
+## Follow-up addendum — 2026-09-14
+
+Commit `1128e1b` added the bounded typed external-subcircuit path selected by this comparison. Three fresh `gpt-5.6-sol`/medium Kessetsu attempts then passed the exact hash-verified TI OPA197 evaluator 3/3 and produced complete automatic visual/editable artifact sets. Original PNGs passed visual review; KiCad opened/netlisted with zero ERC errors beyond the known embedded-symbol warnings. Real LTspice review found that the first exports used the model alias rather than the library entry; that adapter defect was fixed, regression-tested, disclosed, and the same immutable candidate sources were deterministically re-exported. Corrected files opened and preserved the exact entry and sidecar dependency. See `docs/evals/unseen-design-u6-followup-2026-09-14.md`. This closes the selected blocker without replacing the original 3/3 unsupported record or expanding the broader claims above.

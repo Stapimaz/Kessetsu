@@ -184,6 +184,11 @@ fn component_value(component: &SchematicComponent, circuit: &CircuitIR) -> Strin
             .or_else(|| component.value.clone())
             .unwrap_or_else(|| "Kessetsu".to_string());
     };
+    if let Some(model) = &ir.model
+        && let ModelDefinition::ExternalSubcircuit { metadata } = &model.definition
+    {
+        return metadata.entry.clone();
+    }
     match &ir.parameters {
         ComponentParams::TwoPinPassive { value } => format_spice_number(value.value),
         ComponentParams::VoltageSource { value } | ComponentParams::CurrentSource { value } => {
