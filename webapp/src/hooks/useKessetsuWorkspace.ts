@@ -30,6 +30,7 @@ function errorMessage(error: unknown): string {
 
 const initialState: WorkspaceState = {
   code: rcFilter,
+  circuitName: null,
   diagnostics: [],
   compileState: 'loading',
   compileSucceeded: false,
@@ -42,7 +43,6 @@ const initialState: WorkspaceState = {
   modelManifest: null,
   exportCapabilities: [],
   exportMessage: '',
-  shareMessage: '',
   simulationState: 'idle',
   simulationMessage: 'Run a simulation to inspect results.',
   evaluation: null,
@@ -65,10 +65,10 @@ export function useKessetsuWorkspace() {
         setState((current) => ({
           ...current,
           code: shared?.source ?? current.code,
+          circuitName: shared?.name ?? null,
           wasmLoaded: true,
           compileState: 'checking',
           exportCapabilities: capabilities as WorkspaceState['exportCapabilities'],
-          shareMessage: shared ? 'Shared circuit loaded · package versions will be verified' : '',
         }));
       })
       .catch((error: unknown) => mounted && setState((current) => ({
@@ -145,11 +145,13 @@ export function useKessetsuWorkspace() {
       simulationMessage: 'Source changed; run the simulation again.',
       evaluation: null,
       exportMessage: '',
-      shareMessage: '',
     }));
   }, []);
 
-  const loadExample = useCallback((id: ExampleId) => setCode(examples[id].source), [setCode]);
+  const loadExample = useCallback((id: ExampleId) => {
+    setCode(examples[id].source);
+    setState((current) => ({ ...current, circuitName: null }));
+  }, [setCode]);
 
   const run = useCallback(async () => {
     if (!state.wasmLoaded || !state.compileSucceeded || !runnerRef.current) return;
@@ -199,18 +201,15 @@ export function useKessetsuWorkspace() {
     return artifact;
   }, [state.code, state.compileSucceeded, state.wasmLoaded]);
 
-  const share = useCallback(async () => {
+  const share = useCallback(async (name: string): Promise<string> => {
     if (!state.wasmLoaded || !state.compileSucceeded) throw new Error('Compile must succeed before sharing');
-    const fragment = await encodeShareFragment(state.code, compile_schema_version(), state.modelManifest);
+    const circuitName = name.trim();
+    const fragment = await encodeShareFragment(state.code, compile_schema_version(), state.modelManifest, circuitName);
     const url = new URL(globalThis.location.href);
     url.hash = fragment.slice(1);
     globalThis.history.replaceState(null, '', url);
-    try {
-      await globalThis.navigator.clipboard.writeText(url.href);
-      setState((current) => ({ ...current, shareMessage: 'Share URL copied · source and package versions embedded' }));
-    } catch {
-      setState((current) => ({ ...current, shareMessage: 'Share URL ready in the address bar · source and package versions embedded' }));
-    }
+    setState((current) => ({ ...current, circuitName }));
+    return url.href;
   }, [state.code, state.compileSucceeded, state.modelManifest, state.wasmLoaded]);
 
   return { state, setCode, loadExample, compile, run, cancel, createExport, share };

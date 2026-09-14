@@ -89,6 +89,7 @@ export type CompileState = 'loading' | 'checking' | 'valid' | 'invalid';
 
 export interface WorkspaceState {
   code: string;
+  circuitName: string | null;
   diagnostics: CompileDiagnostic[];
   compileState: CompileState;
   compileSucceeded: boolean;
@@ -101,7 +102,6 @@ export interface WorkspaceState {
   modelManifest: ModelManifest | null;
   exportCapabilities: ExportDescriptor[];
   exportMessage: string;
-  shareMessage: string;
   simulationState: SimulationState;
   simulationMessage: string;
   evaluation: BrowserEvaluation | null;

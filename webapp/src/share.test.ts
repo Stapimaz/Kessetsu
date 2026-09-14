@@ -17,10 +17,16 @@ const manifest: ModelManifest = {
 describe('versioned circuit share URLs', () => {
   it('round-trips UTF-8 source and exact package versions', async () => {
     const source = 'model_include kessetsu_analog 1.0.0\n// Ω ölçümü\n';
-    const fragment = await encodeShareFragment(source, compileSchema, manifest);
+    const fragment = await encodeShareFragment(source, compileSchema, manifest, 'Precision filter');
     const decoded = await decodeShareFragment(fragment, compileSchema);
-    expect(decoded).toMatchObject({ source, packages: manifest.packages });
+    expect(decoded).toMatchObject({ name: 'Precision filter', source, packages: manifest.packages });
     expect(() => assertSharedPackages(decoded!, manifest)).not.toThrow();
+  });
+
+  it('keeps unnamed version-one links compatible and validates optional names', async () => {
+    const decoded = await decodeShareFragment(await encodeShareFragment('net GND\n', compileSchema, null), compileSchema);
+    expect(decoded?.name).toBeUndefined();
+    await expect(encodeShareFragment('net GND\n', compileSchema, null, '   ')).rejects.toThrow(/circuit name/);
   });
 
   it.each(['#kessetsu=2.abc', '#kessetsu=1.***', '#anything'])('rejects malformed or unsupported input: %s', async (fragment) => {

@@ -3,6 +3,7 @@ import type { ModelManifest } from './domain';
 export const SHARE_SCHEMA_VERSION = 'kessetsu.share.v1';
 export const MAX_SHARE_SOURCE_BYTES = 64 * 1024;
 export const MAX_SHARE_COMPRESSED_BYTES = 64 * 1024;
+export const MAX_SHARE_NAME_LENGTH = 80;
 const MAX_SHARE_ENVELOPE_BYTES = 96 * 1024;
 const PREFIX = '#kessetsu=1.';
 
@@ -14,8 +15,23 @@ export interface SharePackage {
 export interface ShareEnvelope {
   schema_version: typeof SHARE_SCHEMA_VERSION;
   compile_schema_version: string;
+  name?: string;
   source: string;
   packages: SharePackage[];
+}
+
+function normalizeName(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string') throw new Error('Share payload circuit name must be text');
+  const name = value.trim();
+  const hasControlCharacter = Array.from(name).some((character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return codePoint < 32 || codePoint === 127;
+  });
+  if (!name || Array.from(name).length > MAX_SHARE_NAME_LENGTH || hasControlCharacter) {
+    throw new Error(`Share payload circuit name must be 1-${MAX_SHARE_NAME_LENGTH} printable characters`);
+  }
+  return name;
 }
 
 function utf8Length(value: string): number {
@@ -90,11 +106,13 @@ export async function encodeShareFragment(
   source: string,
   compileSchemaVersion: string,
   manifest: ModelManifest | null,
+  name?: string,
 ): Promise<string> {
   if (utf8Length(source) > MAX_SHARE_SOURCE_BYTES) throw new Error('Circuit source exceeds the 64 KiB share limit');
   const envelope: ShareEnvelope = {
     schema_version: SHARE_SCHEMA_VERSION,
     compile_schema_version: compileSchemaVersion,
+    ...(name === undefined ? {} : { name: normalizeName(name) }),
     source,
     packages: normalizePackages(manifest?.packages ?? []),
   };
@@ -143,7 +161,7 @@ export async function decodeShareFragment(fragment: string, expectedCompileSchem
     throw new Error('Shared circuit source is missing or exceeds 64 KiB');
   }
   if (!Array.isArray(value.packages)) throw new Error('Share payload package manifest is missing');
-  return { ...value, packages: normalizePackages(value.packages) } as ShareEnvelope;
+  return { ...value, name: normalizeName(value.name), packages: normalizePackages(value.packages) } as ShareEnvelope;
 }
 
 export function assertSharedPackages(envelope: ShareEnvelope, manifest: ModelManifest | null): void {

@@ -43,14 +43,10 @@ test('supports edit, inline diagnostic navigation, fix, simulation, assertion an
 test('offers corresponding source and license from the interactive Web Hub', async ({ page }) => {
   await page.goto('/#editor');
   await page.getByRole('button', { name: 'Help', exact: true }).click();
-  const sourceLink = page.getByRole('menuitem', { name: /source code and AGPL license/i });
+  const sourceLink = page.getByRole('menuitem', { name: /corresponding source code/i });
   await expect(sourceLink).toHaveAttribute('href', 'https://github.com/Stapimaz/Kessetsu');
-  await expect(sourceLink).toContainText('Source and license');
-  await page.getByRole('button', { name: 'Help', exact: true }).click();
-  await page.getByLabel('Circuit details').click();
-  await page.getByText('Legal', { exact: true }).click();
-  await expect(page.getByText('AGPL-3.0-only free software, provided without warranty.')).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Full license' })).toHaveAttribute('href', '/LICENSE.txt');
+  await expect(sourceLink).toContainText('Corresponding source');
+  await expect(page.getByRole('menuitem', { name: 'License', exact: true })).toHaveAttribute('href', '/LICENSE.txt');
 });
 
 test('exposes keyboard controls and a usable mobile workspace', async ({ page }) => {

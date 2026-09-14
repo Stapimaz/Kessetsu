@@ -49,7 +49,6 @@ button:focus-visible, select:focus-visible, a:focus-visible, [tabindex]:focus-vi
 .menu-heading + .menu-group-label { border-top: 0; }
 .document-title { min-width: 0; overflow: hidden; color: #7f8ea4; text-align: center; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 .global-actions { display: flex; align-items: center; gap: 6px; }
-.share-status { color: var(--muted); font-size: 11px; max-width: 360px; text-align: right; }
 .compile-status { min-width: 84px; height: 30px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 8px; color: var(--muted); white-space: nowrap; font-size: 10px; }
 .compile-valid { color: var(--success); }
 .compile-invalid { color: var(--error); }
@@ -176,43 +175,50 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .artifact-bar { display: flex; align-items: center; gap: 4px; }
 .artifact-bar button { padding: 4px 8px; font-size: 11px; }
 .export-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-block: 16px; }
-.export-dialog { width: min(520px, calc(100vw - 24px)); max-height: calc(100dvh - 40px); overflow: auto; padding: 22px; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 24px 80px #0006; }
-.export-dialog::backdrop { background: #0008; }
-.export-dialog header { display: flex; align-items: flex-start; justify-content: space-between; }
-.export-dialog h2 { margin: 0 0 6px; font-size: 20px; }
-.export-dialog p { margin: 0; color: var(--muted); font-size: 13px; }
+.app-dialog { width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 40px); overflow: auto; padding: 22px; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 24px 80px #0008; }
+.app-dialog::backdrop { background: #000a; }
+.app-dialog header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
+.app-dialog header button { width: 30px; min-width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 5px; color: var(--muted); background: transparent; cursor: pointer; }
+.app-dialog header button:hover { color: var(--text); background: var(--panel-raised); }
+.app-dialog h2 { margin: 0 0 6px; font-size: 19px; }
+.app-dialog header p { margin: 0; color: var(--muted); font-size: 12px; }
+.export-dialog { width: min(520px, calc(100vw - 24px)); }
 .export-dialog .export-buttons button { height: auto; min-height: 58px; display: flex; align-items: flex-start; flex-direction: column; gap: 6px; padding: 11px 14px; text-align: left; background: var(--panel-raised); }
 .export-buttons small { color: var(--muted); font-size: 11px; }
 .export-dialog .export-status { display: block; max-width: none; white-space: normal; font-size: 12px; margin-top: 14px; }
-.circuit-details { position: relative; font-size: 12px; }
-.circuit-details > summary { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); background: var(--panel); cursor: pointer; list-style: none; }
-.circuit-details > summary::-webkit-details-marker { display: none; }
-.circuit-details > summary:hover { color: var(--text); background: var(--panel-raised); }
-.circuit-details-popover { position: absolute; z-index: 20; top: 28px; right: 0; width: min(440px, calc(100vw - 28px)); max-height: 65dvh; overflow: auto; padding: 16px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 12px 30px #0005; }
-.circuit-details-popover > details { padding: 8px 0; margin: 0; }
 .export-status { max-width: 320px; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .export-error { color: #fca5a5; }
-.model-details, .spice-details, .export-details, .legal-details { position: relative; font-size: 11px; }
-.model-details { margin-left: auto; }
-.spice-details { margin-left: 6px; }
-.model-details summary,
-.spice-details summary,
-.export-details summary,
-.legal-details summary { cursor: pointer; color: var(--muted); }
-.model-popover,
-.export-popover,
-.legal-popover,
-.spice-details pre { position: absolute; z-index: 10; right: 0; bottom: 24px; width: min(680px, 80vw); max-height: 360px; overflow: auto; margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; color: #fbbf24; background: #0b1019; font: 11px ui-monospace, monospace; }
-.model-popover, .export-popover { width: min(440px, 80vw); color: var(--text); }
-.legal-popover { width: min(380px, 80vw); display: grid; gap: 6px; color: var(--text); }
-.legal-popover span { color: var(--muted); }
-.legal-popover a { color: var(--accent); }
-.circuit-details-popover .model-popover, .circuit-details-popover .legal-popover, .circuit-details-popover .spice-details pre, .export-dialog .export-popover { position: static; width: 100%; margin-top: 8px; background: var(--panel-raised); }
-.circuit-details-popover .spice-details pre { white-space: pre-wrap; overflow-wrap: anywhere; }
-.model-popover p { margin-top: 0; color: var(--muted); }
-.model-popover article, .export-popover article { display: grid; gap: 2px; padding: 7px 0; border-top: 1px solid var(--border); }
-.model-popover article span, .export-popover article span { color: var(--accent); }
-.model-popover article small, .export-popover article small { color: var(--muted); }
+.export-details { position: relative; font-size: 11px; }
+.export-details summary { cursor: pointer; color: var(--muted); }
+.export-popover { width: 100%; max-height: 360px; overflow: auto; margin-top: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--panel-raised); font: 11px ui-monospace, monospace; }
+.export-popover article { display: grid; gap: 2px; padding: 7px 0; border-top: 1px solid var(--border); }
+.export-popover article span { color: var(--accent); }
+.export-popover article small { color: var(--muted); }
+.circuit-details-dialog { width: min(720px, calc(100vw - 24px)); }
+.circuit-details-dialog section + section { margin-top: 20px; }
+.dialog-section-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.dialog-section-heading h3 { margin: 0; font-size: 12px; }
+.dialog-section-heading > span { min-width: 20px; padding: 2px 6px; border-radius: 10px; color: var(--muted); background: var(--panel-raised); text-align: center; font-size: 10px; }
+.model-details > p { margin: 0 0 8px; color: var(--muted); font-size: 11px; }
+.model-list { border: 1px solid var(--border); border-radius: 7px; background: var(--panel-raised); }
+.model-list article { display: grid; gap: 3px; padding: 10px 12px; border-top: 1px solid var(--border); font-size: 11px; }
+.model-list article:first-child { border-top: 0; }
+.model-list article span { color: var(--accent); }
+.model-list article small, .empty-detail { color: var(--muted); }
+.empty-detail { display: block; padding: 12px; font-size: 11px; }
+.spice-details pre { max-height: 330px; overflow: auto; margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: 7px; color: #f5c768; background: #0b1019; white-space: pre; font: 11px/1.55 ui-monospace, monospace; }
+.share-dialog { width: min(500px, calc(100vw - 24px)); }
+.field-label, .share-url > span { display: block; margin-bottom: 6px; color: #b9c6d8; font-size: 11px; font-weight: 650; }
+.share-dialog input { width: 100%; height: 36px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: #0b1019; font: 12px Inter, ui-sans-serif, system-ui, sans-serif; }
+.share-dialog input:focus { border-color: var(--accent); outline: 1px solid var(--accent); }
+.share-privacy { margin: 10px 0 16px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.share-url { display: block; margin-bottom: 16px; }
+.share-url input { color: var(--muted); font: 10px ui-monospace, monospace; }
+.dialog-footer { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.dialog-footer button { min-height: 32px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 11px; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 11px; }
+.dialog-secondary { color: var(--muted); background: transparent; }
+.dialog-primary { border-color: #228f80 !important; color: #d5fff8; background: #17665b; }
+.dialog-status { min-width: 0; display: inline-flex; align-items: center; gap: 5px; margin-right: auto; color: var(--muted); font-size: 11px; }
 .global-error { padding: 8px; color: #fecdd3; background: #7f1d1d; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
@@ -230,7 +236,6 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   .global-actions > button span,
   .global-actions .artifact-bar > button span,
   .compile-status > span { display: none; }
-  .share-status { display: none; }
   .workspace-layout, .resizable-workspace, .output-panels { display: flex; flex-direction: column; }
   .workspace-splitter { display: none; }
   .panel-slot > .workspace-panel { height: 480px; }

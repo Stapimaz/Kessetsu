@@ -18,7 +18,8 @@ test('opens the landing page, enters Web Hub, initializes WASM and compiles the 
 
   await expect(page.getByTestId('compile-success')).toBeVisible();
   await expect(page.locator('.monaco-editor')).toBeVisible();
-  await page.getByLabel('Circuit details').click();
+  await page.getByRole('button', { name: 'View', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Circuit details…' }).click();
   await expect(page.getByText('Generated SPICE Netlist', { exact: true })).toBeVisible();
   await expect(page.getByText('Unsupported compile report schema')).toHaveCount(0);
   await expect(page.locator('svg polyline')).not.toHaveCount(0);

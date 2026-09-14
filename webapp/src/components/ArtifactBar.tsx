@@ -1,10 +1,8 @@
-import { Download, MoreHorizontal, X } from 'lucide-react';
+import { Download, X } from 'lucide-react';
 import { useRef, useState } from 'react';
-import type { ExportArtifact, ExportDescriptor, ExportFormat, ModelManifest } from '../domain';
+import type { ExportArtifact, ExportDescriptor, ExportFormat } from '../domain';
 
 interface Props {
-  spice: string;
-  models: ModelManifest | null;
   enabled: boolean;
   capabilities: ExportDescriptor[];
   message: string;
@@ -27,7 +25,7 @@ function downloadArtifact(artifact: ExportArtifact) {
   URL.revokeObjectURL(url);
 }
 
-export function ArtifactBar({ spice, models, enabled, capabilities, message, onExport }: Props) {
+export function ArtifactBar({ enabled, capabilities, message, onExport }: Props) {
   const [error, setError] = useState('');
   const dialogRef = useRef<HTMLDialogElement>(null);
   const exportOne = (format: ExportFormat) => {
@@ -42,7 +40,7 @@ export function ArtifactBar({ spice, models, enabled, capabilities, message, onE
   return (
     <aside className="artifact-bar" aria-label="Exports">
       <button disabled={!enabled} onClick={() => dialogRef.current?.showModal()} aria-haspopup="dialog" aria-label="Export"><Download size={15} /><span>Export</span></button>
-      <dialog ref={dialogRef} className="export-dialog" aria-labelledby="export-title">
+      <dialog ref={dialogRef} className="app-dialog export-dialog" aria-labelledby="export-title">
       <header><div><h2 id="export-title">Export circuit</h2><p>Choose a format to download.</p></div>
         <button aria-label="Close export" onClick={() => dialogRef.current?.close()}><X size={18} /></button>
       </header>
@@ -81,37 +79,6 @@ export function ArtifactBar({ spice, models, enabled, capabilities, message, onE
       </details>
       {(error || message) && <span className={error ? 'export-status export-error' : 'export-status'} role="status">{error || message}</span>}
       </dialog>
-      <details className="circuit-details"><summary aria-label="Circuit details" title="Circuit details"><MoreHorizontal size={16} /></summary><div className="circuit-details-popover">
-      <details className="model-details" data-testid="model-manifest" data-manifest={models ? JSON.stringify(models) : ''}>
-        <summary>Models ({models?.models.length ?? 0})</summary>
-        <div className="model-popover">
-          <p>Models are selected only through typed Kessetsu declarations or exact package imports.</p>
-          {models?.models.map((model) => (
-            <article key={model.name}>
-              <strong>{model.name}</strong>
-              <span>{model.provenance.version} · {model.provenance.license} · {model.provenance.simulator}</span>
-              <small>{model.provenance.source}</small>
-            </article>
-          ))}
-        </div>
-      </details>
-      <details className="spice-details">
-        <summary>Generated SPICE Netlist</summary>
-        <pre>{spice || 'Waiting for a valid circuit…'}</pre>
-      </details>
-      <details className="legal-details">
-        <summary>Legal</summary>
-        <div className="legal-popover">
-          <strong>Kessetsu © 2026 Stapimaz</strong>
-          <span>AGPL-3.0-only free software, provided without warranty.</span>
-          <span>
-            <a href="https://github.com/Stapimaz/Kessetsu" target="_blank" rel="noreferrer">Corresponding Source</a>
-            {' · '}
-            <a href={`${import.meta.env.BASE_URL}LICENSE.txt`} target="_blank" rel="noreferrer">Full license</a>
-          </span>
-        </div>
-      </details>
-      </div></details>
     </aside>
   );
 }

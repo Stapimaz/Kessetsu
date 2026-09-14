@@ -2,9 +2,11 @@ import { CheckCircle2, ChevronRight, CircleAlert, LoaderCircle, Share2, Square, 
 import { useEffect, useRef, useState } from 'react';
 import { useKessetsuWorkspace, examples, type ExampleId } from '../hooks/useKessetsuWorkspace';
 import { ArtifactBar } from './ArtifactBar';
+import { CircuitDetailsDialog } from './CircuitDetailsDialog';
 import { EditorPanel } from './EditorPanel';
 import { ResultsPanel } from './ResultsPanel';
 import { SchematicPanel } from './SchematicPanel';
+import { ShareDialog } from './ShareDialog';
 import { WorkspaceLayout } from './WorkspaceLayout';
 
 type MenuId = 'file' | 'view' | 'help';
@@ -14,9 +16,11 @@ export function WorkspaceApp() {
   const [openMenu, setOpenMenu] = useState<MenuId | null>(null);
   const [examplesOpen, setExamplesOpen] = useState(false);
   const [resetRequest, setResetRequest] = useState(0);
+  const [circuitDetailsOpen, setCircuitDetailsOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const menusRef = useRef<HTMLElement>(null);
   const selectedExample = Object.entries(examples).find(([, example]) => example.source === state.code)?.[0] as ExampleId | undefined;
-  const documentName = selectedExample ? examples[selectedExample].label : 'Untitled circuit';
+  const documentName = state.circuitName ?? (selectedExample ? examples[selectedExample].label : 'Untitled circuit');
   const errorCount = state.diagnostics.filter((diagnostic) => diagnostic.severity === 'error').length;
   const compileStatus = state.compileState === 'loading'
     ? 'Loading Core'
@@ -112,6 +116,9 @@ export function WorkspaceApp() {
           <div className="application-menu">
             <button aria-haspopup="menu" aria-expanded={openMenu === 'view'} onClick={() => toggleMenu('view')}>View</button>
             {openMenu === 'view' && <div className="menu-popover" role="menu" aria-label="View menu">
+              <button role="menuitem" onClick={() => { setCircuitDetailsOpen(true); setOpenMenu(null); }}>
+                <span>Circuit details…</span>
+              </button>
               <button role="menuitem" onClick={() => { setResetRequest((current) => current + 1); setOpenMenu(null); }}>
                 <span>Reset panel layout</span>
               </button>
@@ -121,27 +128,39 @@ export function WorkspaceApp() {
             <button aria-haspopup="menu" aria-expanded={openMenu === 'help'} onClick={() => toggleMenu('help')}>Help</button>
             {openMenu === 'help' && <div className="menu-popover" role="menu" aria-label="Help menu">
               <a role="menuitem" href="https://github.com/Stapimaz/Kessetsu/blob/main/docs/README.md" target="_blank" rel="noreferrer">Documentation</a>
-              <a role="menuitem" href="https://github.com/Stapimaz/Kessetsu" target="_blank" rel="noreferrer" aria-label="Kessetsu source code and AGPL license">Source and license</a>
+              <a role="menuitem" href="https://github.com/Stapimaz/Kessetsu" target="_blank" rel="noreferrer" aria-label="Kessetsu corresponding source code">Corresponding source</a>
+              <a role="menuitem" href={`${import.meta.env.BASE_URL}LICENSE.txt`} target="_blank" rel="noreferrer">License</a>
             </div>}
           </div>
         </nav>
         <div className="document-title" title={documentName}>{documentName}</div>
         <div className="global-actions">
-          <span className="share-status" role="status">{state.shareMessage}</span>
           <span className={`compile-status compile-${state.compileState}`} role="status" aria-label={`Automatic circuit check: ${compileStatus}`} data-testid="compile-status" title={compileStatus}>
             <CompileStatusIcon size={14} /><span>{compileStatus}</span>
           </span>
           {state.simulationState === 'running'
             ? <button className="run-button cancel-button" aria-label="Cancel" onClick={cancel}><Square size={13} /> <span>Cancel</span></button>
             : <button className="run-button" aria-label="Run" onClick={() => void run()} disabled={!state.compileSucceeded}><Zap size={15} /> <span>Run</span></button>}
-          <ArtifactBar spice={state.spiceNetlist} models={state.modelManifest} enabled={state.compileSucceeded}
+          <ArtifactBar enabled={state.compileSucceeded}
             capabilities={state.exportCapabilities} message={state.exportMessage} onExport={createExport} />
-          <button className="share-button" onClick={() => void share()} disabled={!state.compileSucceeded} aria-label="Share circuit">
+          <button className="share-button" onClick={() => setShareOpen(true)} disabled={!state.compileSucceeded} aria-label="Share circuit">
             <Share2 size={15} /> <span>Share</span>
           </button>
         </div>
       </header>
       {state.wasmError && <div className="global-error" role="alert">Core failed to initialize: {state.wasmError}</div>}
+      <CircuitDetailsDialog
+        open={circuitDetailsOpen}
+        spice={state.spiceNetlist}
+        models={state.modelManifest}
+        onClose={() => setCircuitDetailsOpen(false)}
+      />
+      <ShareDialog
+        open={shareOpen}
+        currentName={documentName}
+        onClose={() => setShareOpen(false)}
+        onCreateLink={share}
+      />
       <WorkspaceLayout
         resetRequest={resetRequest}
         source={(panelControls) => <EditorPanel
