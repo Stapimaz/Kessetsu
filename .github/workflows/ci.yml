@@ -45,6 +45,10 @@ jobs:
       - name: Install Ngspice
         run: sudo apt-get update && sudo apt-get install --yes ngspice
 
+      - name: Install Web dependencies
+        working-directory: webapp
+        run: npm ci
+
       - name: Install browser runtime
         working-directory: webapp
         run: npx playwright install --with-deps chromium
@@ -54,4 +58,4 @@ jobs:
 
       - name: Run repository verification
         shell: pwsh
-        run: ./scripts/verify.ps1
+        run: ./scripts/verify.ps1 -SkipNpmInstall

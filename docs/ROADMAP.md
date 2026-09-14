@@ -492,6 +492,11 @@ The local CLI and no-account local-browser workspace remain free core surfaces. 
 
 ### 4.7 — Cross-Platform Packaging and Public Release Gate
 
+- [ ] Stabilize the release CI before publication: install the lockfile-defined Playwright package before its matching browser runtime, eliminate the Linux fake-simulator `ETXTBSY` race, and require a green remote run from the final candidate commit.
+- [ ] Complete the Web document lifecycle: new/open/save `.kess`, versioned local draft recovery, explicit document naming, and name-derived source/export filenames without server storage.
+- [ ] Establish one product-version source and prepare `1.0.0`: synchronize Cargo/npm/package/release metadata, verify SemVer consistency in the canonical gate, maintain an `[Unreleased]` changelog, expose version/What’s New in Web, and publish only the selected version’s release notes.
+- [ ] Close newcomer documentation and package gaps: platform install/PATH steps, a practical built-in/package/external-model recipe, truthful Web defaults, and self-contained or explicitly online-safe release documentation links.
+- [ ] Finish public-site readiness without publishing: visible first-release scope, support/source/changelog navigation, canonical/social/search metadata for `kessetsu.com`, a measured cold-load/simulation payload budget, and current product screenshots.
 - [x] Restore and rerun the current full verification gate before release. _Latest run 2026-09-14 after the owner-requested editor polish: full canonical `scripts/verify.ps1` passed, including Rust/WASM, Web lint/10 unit tests/build, 16 Chromium E2E, dependency/license/artifact audits, replay, all required evaluator contracts, packaging, clean-artifact simulation, and installed KiCad/LTspice smoke. The optional user-owned TI OPA197 executions were not bound in this shell and skipped; the earlier exact-hash run and recorded U6 follow-up remain preserved. Npm audit reports zero vulnerabilities. Accepted RustSec maintenance warnings and documented KiCad ERC/export warnings remain; this is not a claim of warning-free EDA interoperability. Rerun against the final release candidate._
 - [x] Define CLI artifacts for Windows x86-64, Linux x86-64, macOS Intel, and macOS Apple Silicon.
 - [x] Include simulator discovery/provenance, license notices, checksums, release manifests, and version probes.

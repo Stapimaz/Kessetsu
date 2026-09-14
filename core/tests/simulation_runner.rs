@@ -8,6 +8,8 @@ use kessetsu_core::simulation::{
 };
 use std::collections::BTreeMap;
 use std::fs;
+#[cfg(unix)]
+use std::fs::OpenOptions;
 use std::time::Duration;
 
 #[test]
@@ -60,6 +62,32 @@ fn native_runner_distinguishes_launch_and_simulator_failures() {
     assert_eq!(result.status, SimulationStatus::Failed);
     assert_eq!(result.process.exit_code, Some(9));
     assert_eq!(result.errors, ["Fatal error: singular matrix"]);
+}
+
+#[cfg(unix)]
+#[test]
+fn native_runner_retries_a_transient_text_file_busy_launch() {
+    let workspace = TestWorkspace::new("runner-text-file-busy");
+    let simulator = workspace.write_fake_simulator("busy-simulator", "", "", 0);
+    let held_executable = OpenOptions::new()
+        .write(true)
+        .open(&simulator)
+        .expect("fake simulator should be held open for writing");
+    let release = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(25));
+        drop(held_executable);
+    });
+
+    let result = NgspiceRunner::new(simulator)
+        .run(
+            &SimulationRequest::new("* fixture\n.end\n", vec![]),
+            &CancellationToken::new(),
+        )
+        .expect("a transient ETXTBSY launch should be retried");
+    release.join().expect("writer release thread should finish");
+
+    assert_eq!(result.status, SimulationStatus::Succeeded);
+    assert_eq!(result.simulator.version, "ngspice-test-1");
 }
 
 #[test]

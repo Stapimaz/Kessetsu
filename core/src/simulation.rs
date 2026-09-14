@@ -618,7 +618,7 @@ mod native {
         if let Some(current_dir) = current_dir {
             command.current_dir(current_dir);
         }
-        let mut child = command.spawn().map_err(|error| {
+        let mut child = spawn_process(&mut command).map_err(|error| {
             run_error(
                 SimulationRunErrorKind::Launch,
                 format!(
@@ -695,6 +695,29 @@ mod native {
             stdout: String::from_utf8_lossy(&stdout).into_owned(),
             stderr: String::from_utf8_lossy(&stderr).into_owned(),
         })
+    }
+
+    #[cfg(unix)]
+    fn spawn_process(command: &mut Command) -> std::io::Result<std::process::Child> {
+        for attempt in 0..=7 {
+            match command.spawn() {
+                Ok(child) => return Ok(child),
+                Err(error) if error.raw_os_error() == Some(26) && attempt < 7 => {
+                    // Linux can briefly return ETXTBSY when an executable script has just
+                    // been created or replaced (notably on overlay filesystems used by CI).
+                    // Retry only that transient kernel error; every other launch failure
+                    // retains the fail-fast KES-S001 behavior.
+                    thread::sleep(Duration::from_millis(10));
+                }
+                Err(error) => return Err(error),
+            }
+        }
+        unreachable!("bounded process launch loop always returns")
+    }
+
+    #[cfg(not(unix))]
+    fn spawn_process(command: &mut Command) -> std::io::Result<std::process::Child> {
+        command.spawn()
     }
 
     fn read_stream(mut stream: impl Read) -> Result<Vec<u8>, SimulationRunError> {
