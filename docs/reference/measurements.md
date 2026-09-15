@@ -63,6 +63,6 @@ Derived metrics validate argument count, physical units, target component type, 
 
 The canonical real-simulator fixtures are:
 
-- [`examples/rc_low_pass.kess`](../examples/rc_low_pass.kess): cutoff and AC phase/response.
-- [`examples/gain_stage.kess`](../examples/gain_stage.kess): bias, closed-loop gain, bandwidth and clipping.
-- [`examples/power_amplifier.kess`](../examples/power_amplifier.kess): four stages, 8 Ω output power, gain, THD, clipping, dissipation, and device stress.
+- [`examples/rc_low_pass.kess`](../../examples/rc_low_pass.kess): cutoff and AC phase/response.
+- [`examples/gain_stage.kess`](../../examples/gain_stage.kess): bias, closed-loop gain, bandwidth and clipping.
+- [`examples/power_amplifier.kess`](../../examples/power_amplifier.kess): four stages, 8 Ω output power, gain, THD, clipping, dissipation, and device stress.

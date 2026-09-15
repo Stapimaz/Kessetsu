@@ -84,7 +84,7 @@ Simulator discovery checks packaged executable locations and system fallbacks. A
   - `assert max(V(out)) < 3.3V`
   - `assert peak(I(D1)) < 100mA`
   - `assert output_power(V(out),RL) > 2W`
-  - The canonical definitions of primitive and derived metrics, analysis requirements, and sign semantics are in `docs/engineering_measurements.md`.
+  - The canonical definitions of primitive and derived metrics, analysis requirements, and sign semantics are in `docs/reference/measurements.md`.
 
 ## 3. Circuit IR (Intermediate Representation)
 
@@ -278,7 +278,7 @@ The heart of the project. Parser, IR, ERC, SPICE generation, and layout live in 
 An offline-capable Rust CLI for compilation, ERC, SPICE generation, simulation, testing, and export. Windows x86-64 releases package Ngspice as a sidecar. Linux x86-64 and macOS Intel/Apple Silicon releases discover a version-probed system Ngspice and support an explicit executable override.
 
 - **Current distribution:** Four platform artifacts, SHA-256/release manifests, and clean-machine simulation smoke tests. `cargo install` and a VS Code extension are later distribution targets.
-- **Use:** AI agents and hardware engineers use the CLI to compile circuits, test requirements, and consume structured diagnostics. See the [CLI Reference](cli_reference.md).
+- **Use:** AI agents and hardware engineers use the CLI to compile circuits, test requirements, and consume structured diagnostics. See the [CLI Reference](reference/cli.md).
 - **TDD loop:** An agent can use assertions like software tests, consume structured failures, revise the circuit, and repeat.
 
 ### 3. Kessetsu Web Hub — Showcase and Playground for Humans
@@ -291,4 +291,4 @@ A no-account, no-install interface that runs the Rust Core in the browser throug
 
 **Security note:** The Web playground never inserts user input directly into a SPICE netlist. All input crosses typed IR validation. Any future raw-SPICE escape hatch such as `unsafe spice_raw {}` remains disabled by default on the Web.
 
-**In summary:** Kessetsu is not merely a drawing application. It is a circuit compiler and verification platform. The current product offers agent-oriented compile/test/export feedback through the CLI and a Web workspace—using the same Core—for compile, simulation, measurements, schematics, exports, and sharing. Remaining product gates include independent unseen-design evaluation, resolution of demonstrated model/workflow blockers, owner acceptance of the revised workspace, production deployment proof, and the final authorized public-release transaction. See the roadmap for current evidence and execution order; passing regression tests alone does not establish comparative product value or hardware fidelity.
+**In summary:** Kessetsu is not merely a drawing application. It is a circuit compiler and verification platform. The current product offers agent-oriented compile/test/export feedback through the CLI and a Web workspace—using the same Core—for compile, simulation, measurements, schematics, exports, and sharing. The bounded unseen-design gate, its selected external-model blocker, and owner workspace review are complete; production deployment proof and the final authorized public-release transaction remain. See the roadmap for current evidence and execution order; passing regression tests alone does not establish universal product superiority or hardware fidelity.

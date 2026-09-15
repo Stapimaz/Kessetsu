@@ -24,11 +24,11 @@ The form is `assert metric(arguments) comparator threshold`. Comparators are `<`
 
 Unsupported metric names and invalid argument shapes fail semantic validation with `KES-C006` before a simulator starts. Strict inequalities are not loosened. Equality and inclusive comparisons use the versioned absolute/relative tolerance reported with `kessetsu.assertion.v1`.
 
-For supervised agents and CI, the same assertions may live in an evaluator-owned `.kessreq` file and be supplied with `kess test design.kess --requirements limits.kessreq`. This mode forbids inline assertions in the design, records the exact requirement-file SHA-256, and optionally verifies `--requirements-sha256`. See [ADR 0004](decisions/0004-evaluator-owned-requirements.md) for the ownership and threat boundary.
+For supervised agents and CI, the same assertions may live in an evaluator-owned `.kessreq` file and be supplied with `kess test design.kess --requirements limits.kessreq`. This mode forbids inline assertions in the design, records the exact requirement-file SHA-256, and optionally verifies `--requirements-sha256`. See [ADR 0004](../decisions/0004-evaluator-owned-requirements.md) for the ownership and threat boundary.
 
 ## Measurements
 
-Primitive reductions include `value`, `min`, `max`, absolute `peak`, `average`/`avg` and `rms`. Derived metrics include gain, low-pass bandwidth/cutoff, frequency, phase, output power, efficiency, THD, clipping and device dissipation. Exact formulas, windows, required datasets, current polarity and power sign are normative in [engineering measurements](engineering_measurements.md).
+Primitive reductions include `value`, `min`, `max`, absolute `peak`, `average`/`avg` and `rms`. Derived metrics include gain, low-pass bandwidth/cutoff, frequency, phase, output power, efficiency, THD, clipping and device dissipation. Exact formulas, windows, required datasets, current polarity and power sign are normative in [engineering measurements](measurements.md).
 
 ## CLI examples
 

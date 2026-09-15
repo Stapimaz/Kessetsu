@@ -2,7 +2,7 @@
 
 ## `KES-P...`: parse error
 
-Check the reported line/column against [language reference](language_reference.md). Kessetsu is line-oriented; commas belong between connection pins and `to` is required.
+Check the reported line/column against [language reference](../reference/language.md). Kessetsu is line-oriented; commas belong between connection pins and `to` is required.
 
 ## `KES-C...` or `KES-E...`: compile/ERC error
 
@@ -16,7 +16,7 @@ Run the CLI with the release-provided simulator instructions, or set `KESSETSU_N
 
 ## Assertion returns `ERROR`
 
-The required analysis or signal is missing or incompatible. AC metrics need an AC source; transient metrics need enough samples, and THD needs at least two fundamental periods. The message on the assertion explains the exact missing condition. See [simulation and assertions](simulation_and_assertions.md).
+The required analysis or signal is missing or incompatible. AC metrics need an AC source; transient metrics need enough samples, and THD needs at least two fundamental periods. The message on the assertion explains the exact missing condition. See [simulation and assertions](../reference/simulation-and-assertions.md).
 
 ## Output already exists
 

@@ -2,9 +2,9 @@
 
 > This document is the **single source of truth** for Kessetsu development status, the active milestone, acceptance gates, and task order.
 >
-> Use `docs/architecture.md` for architectural rules and `docs/cli_reference.md` for the public CLI contract. If these documents conflict, this roadmap governs development status and the conflict must be resolved in the active milestone.
+> Use `docs/architecture.md` for architectural rules and `docs/reference/cli.md` for the public CLI contract. If these documents conflict, this roadmap governs development status and the conflict must be resolved in the active milestone.
 >
-> Last comprehensive repository audit: **2026-08-14**
+> Last comprehensive repository audit: **2026-09-15**
 >
 > Active milestone: **Phase 4 — Professional Schematics, Web Hub, and Release**
 >
@@ -59,7 +59,7 @@ The existing Rust Core, shared CLI/Web semantics, executable requirements, and r
 - Three canonical simulation benchmarks and thirteen schematic fixtures establish bounded coverage, not general circuit-design or arbitrary-layout quality.
 - The model boundary accepts allowlisted discrete-device parameters and one op-amp template. It does not import arbitrary manufacturer IC/subcircuit models. Passing generic-model assertions does not establish that a purchasable part or physical board meets the same requirements.
 - In `core/src/models.rs`, the op-amp template declares `vcc`/`vee` but does not use them internally; it implements a controlled source and an RC pole. Supply-current accounting, rail saturation, and realistic output-current limits are not represented by that template. The amplifier's reported efficiency and clipping must be interpreted within this restricted model, not as full hardware validation.
-- Assertions currently live beside the candidate source. A design agent could weaken them or alter a fixed load/supply. Product evaluations must keep the requirement oracle outside the agent's editable candidate.
+- At the time of the review, assertions lived beside the candidate source, so a design agent could weaken them or alter a fixed load/supply. The later `kessetsu.requirements.v1`/`.kessreq` contract now separates evaluator-owned assertions; fixed topology, load, supply, and model conditions still require an evaluator-owned harness where applicable.
 - August verification records remain historical evidence. This review is not a new comprehensive implementation audit or a new competitive benchmark.
 
 **Market evidence checked on 2026-09-10:** [GPT-6 Astra](https://developers.openai.com/api/docs/models/gpt-6-astra) and [Claude Fable 5.1](https://www.anthropic.com/claude/fable) document stronger agent capabilities, but these pages do not establish general PCB correctness. [Flux](https://www.flux.ai/p/blog/simulate-circuits-with-a-prompt) already describes AI-driven SPICE simulation and specification-based iteration. [tscircuit](https://docs.tscircuit.com/) documents code-based schematic, PCB, simulation, and manufacturing workflows. [Quilter](https://docs.quilter.ai/using-quilter/introduction) automates placement/routing and validation from a schematic and starter board. These are documented capabilities, not comparative hands-on results. AI plus simulation is already a competitive category.
@@ -88,7 +88,7 @@ The existing Rust Core, shared CLI/Web semantics, executable requirements, and r
 ### Identity and Release Decisions
 
 - [x] Set the product and repository name to **Kessetsu**, the canonical CLI command to `kess`, and the source extension to `.kess`.
-- [x] Complete the unpublished-project identity migration without legacy aliases. _Migration record: `docs/kessetsu_migration.md`; repository: `Stapimaz/Kessetsu`._
+- [x] Complete the unpublished-project identity migration without legacy aliases. _Completed before public release; repository: `Stapimaz/Kessetsu`. The one-time migration plan is retained in Git history rather than the active documentation tree._
 - [x] Keep the embedded Web AI/chat experience outside the Phase 4 critical path; record it as a provider-independent Phase 5+ direction.
 - [x] Keep schematics and EDA exports in the shared Core rather than making them Web-only features.
 - [x] Define the first release as one integrated product rather than publishing disconnected subsystems early.
@@ -136,7 +136,7 @@ The intended golden/regression and typed-IR work was completed as part of Phase 
 #### 2.5.0 — Roadmap and Status Contract
 
 - [x] Remove the incorrect early Phase 3 completion status and define evidence-based milestone states.
-- [x] Audit the repository and align `architecture.md`, `cli_reference.md`, and this roadmap with real behavior.
+- [x] Audit the repository and align `architecture.md`, `reference/cli.md`, and this roadmap with real behavior.
 - [x] Separate later datasheet-limit and confidence work from the simulation-runtime milestone.
 
 #### 2.5.1 — Repository and Build Hygiene
@@ -280,7 +280,7 @@ Replace prototype subprocess and `.meas` behavior with versioned simulation, dat
 - [x] Define typed node voltage, branch/device current, terminal-pair voltage, and power primitives.
 - [x] Define reductions, time windows, frequency/phase semantics, gain, bandwidth/cutoff, output RMS power, efficiency, THD, clipping, and dissipation.
 - [x] Make derived measurements assertion-safe and fail closed on missing or incompatible data.
-- [x] Document formulas, units, signs, windows, and analysis requirements in `docs/engineering_measurements.md`.
+- [x] Document formulas, units, signs, windows, and analysis requirements in `docs/reference/measurements.md`.
 - [x] Verify canonical RC-filter cutoff and AC response.
 - [x] Verify gain-stage bias, gain, bandwidth, and clipping behavior.
 - [x] Verify a four-stage power amplifier at 8 Ω for output power, gain, THD, clipping, efficiency, device stress, and dissipation.
@@ -316,7 +316,7 @@ Phase 4 is organized as vertical product slices rather than isolated subsystem w
 - [x] Make Web discover the Core compile schema and fail closed on unknown versions.
 - [x] Characterize legacy schematic behavior on minimal, RC, Wheatstone, gain-stage, high-fan-out, and power-amplifier fixtures.
 - [x] Record independent reuse/refactor/rewrite decisions for the Web shell, SVG renderer, Schematic IR, and layout engine. _ADR 0001._
-- [x] Freeze the first-release supported-domain matrix. _`docs/supported_domain.md`._
+- [x] Freeze the first-release supported-domain matrix. _`docs/reference/supported-domain.md`._
 - [x] Select RC as the first vertical and the 8 Ω power amplifier as the principal product/evaluation scenario.
 - [x] Measure browser-simulation options and select a dedicated Worker around exact `eecircuit-engine` 1.7.0. _ADR 0002._
 - [x] Record Circuit IR → Schematic IR → exporter ownership in the architecture constitution.
@@ -336,7 +336,7 @@ Phase 4 is organized as vertical product slices rather than isolated subsystem w
 
 ### 4.1R — Professional Schematic Readability Remediation (Complete)
 
-The first technically passing candidate was reopened after real PNG review exposed poor visual composition. The detailed method is in `docs/schematic_quality_plan.md`; dated evidence is in `docs/evals/`.
+The first technically passing candidate was reopened after real PNG review exposed poor visual composition. The detailed method and dated evidence are in `docs/evals/`.
 
 - [x] SQ-1 — Build a reproducible thirteen-circuit Core/CLI/Web capture and scorecard harness.
 - [x] SQ-2 — Expand hard and soft quality metrics without allowing labels to game connectivity/readability scores.
@@ -398,7 +398,7 @@ The first technically passing candidate was reopened after real PNG review expos
 ### 4.5 — Professional Render and EDA Export
 
 - [x] Define `kessetsu.export.v1` so every exporter consumes verified typed artifacts rather than rebuilding semantics.
-- [x] Record the first-release format matrix and explicit exclusions in `docs/export_formats.md`.
+- [x] Record the first-release format matrix and explicit exclusions in `docs/reference/exports.md`.
 - [x] Generate SVG, PNG, and single-page vector PDF only from canonical Schematic IR.
 - [x] Expose canonical SPICE and Schematic IR JSON as machine-readable artifacts.
 - [x] Generate editable KiCad and LTspice schematics.
@@ -421,14 +421,14 @@ The first technically passing candidate was reopened after real PNG review expos
 - [x] Round-trip UTF-8 source, compile schema, and exact package/version manifest.
 - [x] Present RC, gain-stage, and power-amplifier examples with clear purposes.
 - [x] Complete language, simulation/assertion, measurement, supported-domain, tutorial, cookbook, and troubleshooting documentation.
-- [x] Explain measurable differences from raw SPICE, traditional simulators, and code-based circuit tools using current primary sources. _`docs/why_kessetsu.md`._
+- [x] Explain measurable differences from raw SPICE, traditional simulators, and code-based circuit tools using current primary sources. _`docs/guides/why-kessetsu.md`._
 - [x] Record a versioned, reproducible external-LLM power-amplifier evaluation. _16 Ω candidate: `KES-T003`, 997.7 mW → 8 Ω revision: 12/12 PASS._
 - [x] Store model/version, prompt, tool calls, iterations, final source, and assertion provenance without making a nondeterministic live call a CI gate.
 - [x] Open the final source from a shared URL and verify schematic, simulation, 12/12 assertions, export, and re-sharing in Chromium.
 - [x] State clearly that the first release uses CLI/tool contracts for AI agents and the Web Hub for humans; embedded AI chat is deferred.
 - [x] Add a simple responsive product landing page that leads to the Web Hub and demonstrates requirement → CLI failure → revision → pass.
 - [x] Audit documentation by audience and lifecycle, create `docs/README.md`, and define English as the primary language.
-- [x] Translate the authoritative `docs/architecture.md`, `docs/cli_reference.md`, and `docs/ROADMAP.md` to English without changing their contracts. _Completed section by section on 2026-08-20; the roadmap's historical evidence was consolidated while all active scope and release gates remained explicit._
+- [x] Translate the authoritative `docs/architecture.md`, `docs/reference/cli.md`, and `docs/ROADMAP.md` to English without changing their contracts. _Completed section by section on 2026-08-20; the roadmap's historical evidence was consolidated while all active scope and release gates remained explicit._
 
 ### 4.6V — Unseen Design and Incremental-Value Gate
 
@@ -499,16 +499,17 @@ The owner approved this bounded gate on 2026-09-15 after the final editor review
 
 ### Release Execution Order and Commercial Direction
 
-1. Restore the 4.7 local verification prerequisites and patch the reported development dependency advisory.
-2. Freeze 4.6V task specifications and implement evaluator-owned requirements and reproducible records before generating candidate designs.
-3. Complete evaluator coverage and resolve demonstrated model/verification/interchange blockers; repeat affected evidence. _Owner ordering decision, 2026-09-10: comparative runs and interface/release closure come last; do not divert this implementation work into UI revisions or publication._
-4. Run accessible comparisons and document model-access gaps; resolve any new blockers before closing 4.6V.
-5. Finish owner-facing interface review, production deployment/rollback proof, and the explicitly authorized integrated public release.
+1. The owner changes repository visibility to public from the verified private candidate.
+2. Verify the real production Web Hub, headers, MIME types, CSP, and rollback path.
+3. Activate GitHub Pages/custom-domain DNS and HTTPS for `kessetsu.com`.
+4. Run the four-platform release matrix, create the immutable `v1.0.0` tag and GitHub Release, then verify public assets and the live site once more.
 
 The local CLI and no-account local-browser workspace remain free core surfaces. Commercial hypotheses are optional managed compute/automation, team workflows, and commercial licensing; pricing and implementation follow evidence of demand. Before release, define a privacy-respecting way to collect voluntary feedback and distinguish repeat usage from willingness to pay. Paid infrastructure, accounts, or artificial export restrictions are not first-release prerequisites.
 
 ### 4.7 — Cross-Platform Packaging and Public Release Gate
 
+- [ ] Complete final public-repository hygiene: organize active documentation by audience, remove completed one-time plans from the active tree, verify English/current claims and local links, audit tracked files and high-confidence credential patterns, and pass canonical local plus remote Linux verification. _Local portion completed 2026-09-15: the docs root now contains only its index and the architecture/roadmap contracts; guides, references, maintainer operations, decisions, evidence, and assets have explicit homes. The completed identity-migration plan moved to Git history, all 45 Markdown files passed local-link audit, active text is English with no former-brand/path residue, and high-confidence credential scans found no matches. The full canonical gate passed, including the packaged documentation/newcomer flow and installed EDA smoke. Awaiting the exact cleanup commit's remote Linux result._
+- [ ] Purge accidentally committed build outputs from Git history before changing visibility, then verify a fresh clone and force-push the rewritten private `main`. _The active tree is clean and a high-confidence history scan found no credential matches, but the private repository still contains 2,679 historical `core/target` blobs and is approximately 301 MiB remotely. Rewriting history changes commit identities and therefore requires explicit owner authorization before execution._
 - [x] Stabilize the release CI before publication: install the lockfile-defined Playwright package before its matching browser runtime, eliminate the Linux fake-simulator `ETXTBSY` race, and require a green remote run from the final candidate commit. _Completed 2026-09-14 and reconfirmed 2026-09-15: CI installs the lockfile-defined Web dependencies before the matching Playwright browser; the simulator runner retries only Linux `ETXTBSY` launch races with bounded fail-fast behavior preserved elsewhere; remote Linux run `34871602877` first proved the repair, commit `2e2012d` passed run `34873765006`, and the branded final-candidate commit `cca5123` passed run `34904319476` including all 17 Chromium scenarios._
 - [x] Complete the Web document lifecycle: new/open/save `.kess`, versioned local draft recovery, explicit document naming, and name-derived source/export filenames without server storage. _Completed 2026-09-14 and hardened 2026-09-15: `File` owns guarded New/Open/Save/Save As/Rename flows; native file-handle browsers write in place while Firefox and other unsupported browsers distinguish browser-local Save from an explicit portable `.kess` download. Only successful persistence clears the dirty marker. Local files and every Core export use deterministic name-derived filenames; stale share fragments are left when editing or replacing their source; and a bounded `kessetsu.web-draft.v1` record restores unsaved browser work without an account or upload. Contract unit and Chromium lifecycle coverage protect handle reuse, explicit Save As, cancellation, fallback persistence/downloads, and dirty-state transitions._
 - [x] Establish one product-version source and prepare `1.0.0`: synchronize Cargo/npm/package/release metadata, verify SemVer consistency in the canonical gate, maintain an `[Unreleased]` changelog, expose version/What’s New in Web, and publish only the selected version’s release notes. _Completed 2026-09-14: root `VERSION` is authoritative and verified against Cargo plus both npm records; the CLI/Web/package report 1.0.0; changelog extraction is version-scoped; Web exposes version/What’s New; and the Windows v1.0.0 archive passed manifest/binary version agreement plus the 12/12 real-simulation smoke. No tag or GitHub release was created._
@@ -521,7 +522,7 @@ The local CLI and no-account local-browser workspace remain free core surfaces. 
 - [ ] Verify a real production Web Hub deployment, including cache headers, WASM/Worker MIME types, CSP, telemetry boundary, and rollback. _Workflow, `/Kessetsu/` content-hash audit, CSP, zero-telemetry policy, and tag/ref rollback are prepared; actual deployment remains blocked while the repository is private._
 - [x] Include real-browser E2E, schematic visual/connectivity, benchmark parity, host release smoke, and EDA application smoke in canonical verification.
 - [x] Make KiCad application smoke fail on every ERC error and every warning except the characterized `lib_symbol_issues` limitation of the self-contained single-file export. _Completed 2026-09-11: all three canonical exports open and netlist successfully with zero ERC errors. The only accepted warnings are one missing external `Kessetsu` library-table entry per portable embedded symbol; unexpected types or summary/count drift now fail verification. A warning-free multi-file KiCad project bundle would be a separate export format, not a silent change to the current `.kicad_sch` contract._
-- [x] Make security, dependency/license, and generated-artifact audits release gates. _Zero known vulnerabilities; two bounded-input transitive unmaintained notices remain visible in `docs/security_audit.md`._
+- [x] Make security, dependency/license, and generated-artifact audits release gates. _Zero known vulnerabilities; two bounded-input transitive unmaintained notices remain visible in `docs/maintainers/security-audit.md`._
 - [x] Add verified install paths, screenshots, Web Hub links, and support boundaries to the root README.
 - [ ] Create the final release tag/changelog/migration record and make the repository/Web Hub public only after every acceptance criterion passes. _`CHANGELOG.md`, migration notes, release workflow, AGPL-3.0-only text, commercial-license notice, Corresponding Source link, and contributor boundary are prepared. Do not create the tag or change visibility yet._
 
@@ -616,6 +617,6 @@ For every development session:
 
 ### Current Next Task
 
-**4.7 — Execute the owner-controlled public release transaction.**
+**4.7 — Finish repository hygiene before the owner-controlled public release transaction.**
 
-The pre-public implementation and verification gates are closed on exact candidate commit `6c971fc`, including local canonical verification and remote Linux CI run `35016922389`. The next work begins only when the owner starts the coordinated publication transaction: change repository visibility, verify the real production Web Hub and rollback path, activate DNS/Pages for `kessetsu.com`, then create the final tag and GitHub Release from the verified commit. Phase 5 remains blocked until those Phase 4 release gates close.
+The functional pre-public implementation gates are closed on commit `6c971fc`, including local canonical verification and remote Linux CI run `35016922389`. The active-tree documentation/repository cleanup has passed its full local gate and awaits remote Linux verification. After that, the remaining pre-visibility task is an owner-authorized history rewrite that removes previously committed build outputs and is verified from a fresh clone. Only then should the owner change repository visibility and begin production Web Hub, rollback, DNS/Pages, tag, and GitHub Release verification. Phase 5 remains blocked until those Phase 4 release gates close.

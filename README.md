@@ -1,6 +1,6 @@
 # Kessetsu
 
-[Web Hub](https://kessetsu.com/) · [CLI releases](https://github.com/Stapimaz/Kessetsu/releases) · [Documentation](docs/README.md) · [Tutorial](docs/tutorial.md) · [Supported domain](docs/supported_domain.md)
+[Web Hub](https://kessetsu.com/) · [CLI releases](https://github.com/Stapimaz/Kessetsu/releases) · [Documentation](docs/README.md) · [Tutorial](docs/guides/tutorial.md) · [Supported domain](docs/reference/supported-domain.md)
 
 Kessetsu is an agent-driven circuit engineering platform for describing circuits as text, compiling and simulating them like software, and verifying them with engineering assertions. The CLI's human mode serves engineers, its versioned JSON mode serves AI agents and automation, and the zero-friction Web Hub serves browser users. Every surface uses the same Rust Core: typed Circuit IR, deterministic graph/ERC, SPICE netlists, schematics, and EDA outputs all derive from shared semantics.
 
@@ -26,7 +26,7 @@ The project is not limited to a particular educational scenario or circuit class
 - SVG, PNG, PDF, Schematic JSON, SPICE, KiCad, and LTspice exports
 - Versioned, compressed, package-aware share URLs
 
-The [roadmap](docs/ROADMAP.md) defines current work and gates. The [architecture](docs/architecture.md), [supported domain](docs/supported_domain.md), and [engineering measurement contract](docs/engineering_measurements.md) are the normative references for implementation boundaries and formulas.
+The [roadmap](docs/ROADMAP.md) defines current work and gates. The [architecture](docs/architecture.md), [supported domain](docs/reference/supported-domain.md), and [engineering measurement contract](docs/reference/measurements.md) are the normative references for implementation boundaries and formulas.
 
 ## Web Hub
 
@@ -114,7 +114,7 @@ Machine-readable output:
 cargo run --release -- check ../examples/rc_low_pass.kess --format json
 ```
 
-Existing output files are not overwritten by default; intentional replacement requires `--force`. The [CLI reference](docs/cli_reference.md) defines commands, JSON fields, and exit codes. Continue with the [tutorial](docs/tutorial.md), [cookbook](docs/cookbook.md), [troubleshooting guide](docs/troubleshooting.md), or [Why Kessetsu?](docs/why_kessetsu.md).
+Existing output files are not overwritten by default; intentional replacement requires `--force`. The [CLI reference](docs/reference/cli.md) defines commands, JSON fields, and exit codes. Continue with the [tutorial](docs/guides/tutorial.md), [cookbook](docs/guides/cookbook.md), [troubleshooting guide](docs/guides/troubleshooting.md), or [Why Kessetsu?](docs/guides/why-kessetsu.md).
 
 ## Build and verification
 
@@ -150,7 +150,7 @@ npm.cmd run build
 - `core/`: Rust library, CLI, WASM adapter, test corpus, and Windows Ngspice runtime
 - `examples/`: polished, runnable `.kess` circuits for new users
 - `webapp/`: React/TypeScript zero-friction Web Hub
-- `docs/`: documentation index, roadmap, architecture, language/simulation/export contracts, and guides
+- `docs/`: indexed guides, reference contracts, maintainer records, decisions, and evaluation evidence
 - `scripts/verify.ps1`: root quality gate
 
 ## Important boundaries
@@ -159,7 +159,7 @@ npm.cmd run build
 - Generated output does not replace physical validation or engineering review.
 - Embedded-runtime provenance and licensing notes live in the [Ngspice runtime README](core/tools/ngspice/README.md).
 - The first release targets schematic-level analog/mixed-signal work; it does not provide PCB layout/DRC, RF/EM, thermal/reliability, Monte Carlo, or laboratory validation.
-- [SECURITY.md](SECURITY.md) defines vulnerability reporting; the [release contract](docs/release.md) defines release, rollback, and telemetry boundaries.
+- [SECURITY.md](SECURITY.md) defines vulnerability reporting; the [release contract](docs/maintainers/release.md) defines release, rollback, and telemetry boundaries.
 
 ## License
 

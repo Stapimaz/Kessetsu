@@ -1,6 +1,6 @@
 # Release Security Audit
 
-Audit date: 2026-08-13. This is an engineering dependency review, not a legal opinion or proof that the software has no vulnerabilities.
+Audit date: 2026-09-15. This is an engineering dependency review, not a legal opinion or proof that the software has no vulnerabilities.
 
 ## Automated gates
 
@@ -9,7 +9,7 @@ Audit date: 2026-08-13. This is an engineering dependency review, not a legal op
 - `npm audit --omit=dev`: zero known production vulnerabilities.
 - RustSec `cargo-audit 0.22.2`: zero vulnerability advisories affecting the locked 128-crate graph.
 - Rust license metadata: all 127 third-party crates declare a license; no GPL/AGPL/SSPL identifier detected.
-- npm license metadata: all 81 installed packages declare a license; no GPL/AGPL/SSPL identifier detected.
+- npm license metadata: all 82 installed packages declare a license; no GPL/AGPL/SSPL identifier detected.
 - Generated artifact audit: only intentional golden/simulation fixtures are tracked.
 - Runtime integrity: exact npm lock/integrity plus SHA-256 for the browser simulator entry; complete Ngspice and font notices bundled.
 

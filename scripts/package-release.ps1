@@ -37,7 +37,7 @@ Copy-Item -LiteralPath (Join-Path $repoRoot ".nvmrc") -Destination (Join-Path $s
 Copy-Item -LiteralPath (Join-Path $repoRoot "LICENSE") -Destination (Join-Path $stage "LICENSE")
 Copy-Item -LiteralPath (Join-Path $repoRoot "NOTICE") -Destination (Join-Path $stage "NOTICE")
 Copy-Item -LiteralPath (Join-Path $repoRoot "COMMERCIAL_LICENSE.md") -Destination (Join-Path $stage "COMMERCIAL_LICENSE.md")
-Copy-Item -LiteralPath (Join-Path $repoRoot "docs/supported_domain.md") -Destination (Join-Path $stage "SUPPORTED_DOMAIN.md")
+Copy-Item -LiteralPath (Join-Path $repoRoot "docs/reference/supported-domain.md") -Destination (Join-Path $stage "SUPPORTED_DOMAIN.md")
 Copy-Item -LiteralPath (Join-Path $repoRoot "docs") -Destination (Join-Path $stage "docs") -Recurse
 $examplesDirectory = Join-Path $stage "examples"
 New-Item -ItemType Directory -Path $examplesDirectory | Out-Null
@@ -120,7 +120,7 @@ The full upstream license inventory is under tools\ngspice\docs.
 Override only with a trusted executable: `$env:KESSETSU_NGSPICE='C:\full\path\ngspice_con.exe'
 
 Optional PATH setup: move this entire extracted folder to a permanent location, then add that folder (not the executable itself) to your user PATH. Open a new terminal and run: kess --version
-Start with README.md and docs\tutorial.md. Supported engineering limits are in SUPPORTED_DOMAIN.md.
+Start with README.md and docs\guides\tutorial.md. Supported engineering limits are in SUPPORTED_DOMAIN.md.
 "@
 } else {
 @"
@@ -138,7 +138,7 @@ Kessetsu discovers `ngspice` on PATH. Override only with a trusted full path via
 The simulator executable and reported version are included in each simulation result.
 
 Optional PATH setup: place `kess` in a directory already on PATH, or add this extracted directory to PATH. Then open a new terminal and run: kess --version
-Start with README.md and docs/tutorial.md. Supported engineering limits are in SUPPORTED_DOMAIN.md.
+Start with README.md and docs/guides/tutorial.md. Supported engineering limits are in SUPPORTED_DOMAIN.md.
 "@
 }
 $install | Set-Content -LiteralPath (Join-Path $stage "INSTALL.txt") -Encoding UTF8

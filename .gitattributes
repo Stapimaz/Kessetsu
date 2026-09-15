@@ -1,0 +1,8 @@
+* text=auto eol=lf
+
+*.cm binary
+*.dll binary
+*.exe binary
+*.png binary
+*.ttf binary
+*.woff2 binary

@@ -118,13 +118,13 @@ kess export circuit.kess --target kicad --output circuit.kicad_sch
 kess export circuit.kess --target ltspice --output circuit.asc
 ```
 
-`render` and `export` stop without creating output and emit a `KES-X...` diagnostic when canonical connectivity is not verified or when the target cannot safely represent a required feature. Replacing an existing file requires `--force`. With `--format json`, artifacts report schema/version, MIME type, SHA-256, byte length, connectivity, capability, warnings, and known losses. See the [export matrix](export_formats.md) for format boundaries.
+`render` and `export` stop without creating output and emit a `KES-X...` diagnostic when canonical connectivity is not verified or when the target cannot safely represent a required feature. Replacing an existing file requires `--force`. With `--format json`, artifacts report schema/version, MIME type, SHA-256, byte length, connectivity, capability, warnings, and known losses. See the [export matrix](exports.md) for format boundaries.
 
 ## JSON Contract
 
 JSON stdout is exactly one JSON object for every invocation. Progress and simulator logs are never written to stdout. The default agent envelope is `kessetsu.cli.v1`. Compile reports use `kessetsu.compile.v4`, canonical schematics use `kessetsu.schematic.v2`, model manifests/locks use `kessetsu.models.v2`/`kessetsu.lock.v2`, simulation results use `kessetsu.simulation.v1`, engineering measurements use `kessetsu.measurement.v1`, assertion reports use `kessetsu.assertion.v1`, and external requirement sets use `kessetsu.requirements.v1`. Active subcontracts appear in `domain_versions`.
 
-See the [engineering-measurement contract](engineering_measurements.md) for assertion primitives, derived-metric formulas, analysis requirements, and sign conventions.
+See the [engineering-measurement contract](measurements.md) for assertion primitives, derived-metric formulas, analysis requirements, and sign conventions.
 
 Default output is intentionally compact. In addition to command/schema metadata, it contains only `status`, diagnostics, summary, measurements, assertions, and artifact references. Canonical AST/IR/graph/SPICE, analysis datasets, model manifest/lock content, and raw logs appear under `debug` only when selected through the corresponding `--include` option.
 

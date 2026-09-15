@@ -26,7 +26,7 @@ source VIN sine_ac(0V,100mV,1kHz,1V)
 current_source IBIAS 1mA
 ```
 
-Source waveforms are typed: scalar DC, `sine(offset,amplitude,frequency)`, `pulse(low,high,delay,rise,fall,width,period)`, `pwl(time,value,...)`, `ac(amplitude)` and `sine_ac(offset,amplitude,frequency,ac_amplitude)`. PWL requires at least two time/value pairs with non-negative, strictly increasing times. See [supported domain](supported_domain.md) for component and model limits.
+Source waveforms are typed: scalar DC, `sine(offset,amplitude,frequency)`, `pulse(low,high,delay,rise,fall,width,period)`, `pwl(time,value,...)`, `ac(amplitude)` and `sine_ac(offset,amplitude,frequency,ac_amplitude)`. PWL requires at least two time/value pairs with non-negative, strictly increasing times. See [supported domain](supported-domain.md) for component and model limits.
 
 ## Connections and pins
 
@@ -52,7 +52,7 @@ assert rms(V(OUT),2ms,5ms) < 6V
 assert peak(V(Q1.c,Q1.e)) < 40V
 ```
 
-Analysis arguments and assertions are dimension checked. Operating-point, transient, and AC analyses may each appear once; a DC sweep may appear once per independent source. Unsupported assertion metrics and ambiguous repeated analyses fail semantic validation before simulation. Missing signals or incompatible datasets become explicit errors, never implicit zeroes. Full formulas and sign conventions are in [engineering measurements](engineering_measurements.md); execution behavior is in [simulation and assertions](simulation_and_assertions.md).
+Analysis arguments and assertions are dimension checked. Operating-point, transient, and AC analyses may each appear once; a DC sweep may appear once per independent source. Unsupported assertion metrics and ambiguous repeated analyses fail semantic validation before simulation. Missing signals or incompatible datasets become explicit errors, never implicit zeroes. Full formulas and sign conventions are in [engineering measurements](measurements.md); execution behavior is in [simulation and assertions](simulation-and-assertions.md).
 
 An evaluator-owned `.kessreq` file uses the same assertion syntax but permits only comments and one or more `assert` statements. It is supplied to `kess test` with `--requirements`; a design using that option must not also define inline assertions. This is a CLI composition contract, not a second language or a backend bypass.
 
@@ -81,7 +81,7 @@ model_include kessetsu_analog 1.0.0
 external_subcircuit opamp OPA197 (in_p,in_n,vcc,vee,out) file="models/OPAx197.LIB" entry=OPAx197 sha256=<64-hex-digest> version="Final 1.3" license="vendor terms" source="vendor URL" simulator=ngspice_ps redistribution=prohibited
 ```
 
-Raw `.include`, `.model`, `.subckt` and `.control` injection is intentionally rejected. Model kinds have parameter allowlists; package imports require an exact version and produce a provenance-bearing `kessetsu.lock`. External op-amp declarations bind a user-owned source-relative file by exact SHA-256, entry name, canonical pin order, provenance, simulator mode, and redistribution policy. Kessetsu validates but does not embed or redistribute that file. The native CLI supports the binding; stdin and the current browser runtime report it as unavailable without fallback. The [model cookbook](cookbook.md#choose-and-verify-a-component-model) shows the complete directory, hash and command workflow.
+Raw `.include`, `.model`, `.subckt` and `.control` injection is intentionally rejected. Model kinds have parameter allowlists; package imports require an exact version and produce a provenance-bearing `kessetsu.lock`. External op-amp declarations bind a user-owned source-relative file by exact SHA-256, entry name, canonical pin order, provenance, simulator mode, and redistribution policy. Kessetsu validates but does not embed or redistribute that file. The native CLI supports the binding; stdin and the current browser runtime report it as unavailable without fallback. The [model cookbook](../guides/cookbook.md#choose-and-verify-a-component-model) shows the complete directory, hash and command workflow.
 
 ## Compatibility rule
 

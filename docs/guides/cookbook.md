@@ -46,7 +46,7 @@ Get-Content candidate.kess | kess check - --format json
 Get-Content candidate.kess | kess test - --format json
 ```
 
-Read `diagnostics[]`, `assertions.assertions[]` and `assertions.summary`; do not scrape terminal sentences. The replayable [power-amplifier agent eval](evals/power-amplifier-agent-v1.json) shows a failing 16 Ω candidate revised to the required 8 Ω load.
+Read `diagnostics[]`, `assertions.assertions[]` and `assertions.summary`; do not scrape terminal sentences. The replayable [power-amplifier agent eval](../evals/power-amplifier-agent-v1.json) shows a failing 16 Ω candidate revised to the required 8 Ω load.
 
 ## Choose an export
 
@@ -55,7 +55,7 @@ Read `diagnostics[]`, `assertions.assertions[]` and `assertions.summary`; do not
 - PDF: one-page vector document.
 - Schematic JSON: lossless versioned Kessetsu interchange.
 - SPICE: canonical simulation netlist.
-- KiCad/LTspice: editable handoff with the loss/capability report documented in [export formats](export_formats.md).
+- KiCad/LTspice: editable handoff with the loss/capability report documented in [export formats](../reference/exports.md).
 
 ## Choose and verify a component model
 
@@ -120,4 +120,4 @@ kess compile .\design.kess --output .\design.spice --format json --include model
 kess test .\design.kess --format json --include models
 ```
 
-The digest, `.SUBCKT` entry, canonical five-pin mapping, license and compatibility mode must all match. The current Web Hub and stdin-only CLI cannot bind external file bytes and fail closed instead of substituting a generic model. See [language reference](language_reference.md#typed-models-and-packages) for the complete contract.
+The digest, `.SUBCKT` entry, canonical five-pin mapping, license and compatibility mode must all match. The current Web Hub and stdin-only CLI cannot bind external file bytes and fail closed instead of substituting a generic model. See [language reference](../reference/language.md#typed-models-and-packages) for the complete contract.
