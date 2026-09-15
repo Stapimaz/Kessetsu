@@ -25,11 +25,11 @@ export function PanelHeader({ controls, icon, title, children }: Props) {
       <div className="header-title">{icon}<strong>{title}</strong></div>
       {children}
       <div className="panel-window-actions" aria-label={`${title} panel window controls`}>
-        <button aria-label={`Minimize ${controls.panel} panel`} title="Minimize panel" onClick={controls.minimize}>
+        <button aria-label={`Minimize ${title.toLowerCase()} panel`} title="Minimize panel" onClick={controls.minimize}>
           <Minus size={14} />
         </button>
         <button
-          aria-label={controls.maximized ? `Restore ${controls.panel} panel from full workspace` : `Maximize ${controls.panel} panel`}
+          aria-label={controls.maximized ? `Restore ${title.toLowerCase()} panel from full workspace` : `Maximize ${title.toLowerCase()} panel`}
           title={controls.maximized ? 'Restore panel' : 'Maximize panel'}
           onClick={controls.toggleMaximize}
         >

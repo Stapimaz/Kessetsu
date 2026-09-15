@@ -50,6 +50,10 @@ function filePickerHost(): FilePickerHost {
   return globalThis as unknown as FilePickerHost;
 }
 
+export function nativeFileSavingSupported(): boolean {
+  return typeof filePickerHost().showSaveFilePicker === 'function';
+}
+
 function isPickerCancellation(cause: unknown): boolean {
   return cause instanceof DOMException && cause.name === 'AbortError';
 }
@@ -141,6 +145,15 @@ export function encodeWorkspaceDraft(name: string | null, source: string, dirty:
     dirty,
   };
   return JSON.stringify(draft);
+}
+
+export function writeWorkspaceDraft(
+  storage: Pick<Storage, 'setItem'>,
+  name: string | null,
+  source: string,
+  dirty: boolean,
+): void {
+  storage.setItem(WEB_DRAFT_STORAGE_KEY, encodeWorkspaceDraft(name, source, dirty));
 }
 
 export function decodeWorkspaceDraft(raw: string | null): WorkspaceDraft | null {

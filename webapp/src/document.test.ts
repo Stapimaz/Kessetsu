@@ -4,11 +4,13 @@ import {
   documentNameFromFile,
   encodeWorkspaceDraft,
   MAX_DOCUMENT_SOURCE_BYTES,
+  nativeFileSavingSupported,
   normalizeDocumentName,
   saveWithNativeFilePicker,
   sanitizeFileStem,
   type KessetsuFileHandle,
   WEB_DRAFT_SCHEMA_VERSION,
+  writeWorkspaceDraft,
 } from './document';
 
 describe('Web document contract', () => {
@@ -34,6 +36,21 @@ describe('Web document contract', () => {
     expect(decodeWorkspaceDraft('{"schema_version":"future"}')).toBeNull();
     expect(decodeWorkspaceDraft('{broken')).toBeNull();
     expect(() => encodeWorkspaceDraft(null, 'x'.repeat(MAX_DOCUMENT_SOURCE_BYTES + 1), true)).toThrow(/1 MiB/);
+  });
+
+  it('stores an explicit browser checkpoint and detects native file saving separately', () => {
+    const setItem = vi.fn();
+    writeWorkspaceDraft({ setItem }, 'Browser Filter', 'net GND\n', false);
+    expect(setItem).toHaveBeenCalledOnce();
+    expect(setItem.mock.calls[0][0]).toBe('kessetsu.workspace.draft.v1');
+    expect(decodeWorkspaceDraft(setItem.mock.calls[0][1])).toMatchObject({
+      name: 'Browser Filter',
+      source: 'net GND\n',
+      dirty: false,
+    });
+    expect(nativeFileSavingSupported()).toBe(false);
+    vi.stubGlobal('showSaveFilePicker', async () => undefined);
+    expect(nativeFileSavingSupported()).toBe(true);
   });
 
   it('reuses a selected native handle for Save and repicks only for Save As', async () => {

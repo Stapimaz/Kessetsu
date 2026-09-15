@@ -12,7 +12,7 @@ test('supports edit, inline diagnostic navigation, fix, simulation, assertion an
   await page.goto('/#editor');
   await expect(page.getByTestId('compile-success')).toBeVisible();
   await expect(page.getByTestId('compile-status')).toHaveText('Checked');
-  await expect(page.getByLabel('Simulation results')).toContainText('Run a simulation to inspect results.');
+  await expect(page.getByLabel('Circuit simulation')).toContainText('Run the simulation to inspect plots and requirements.');
   await replaceSource(page, 'resistor R1 nope\n');
   await expect(page.getByTestId('compile-status')).toHaveText('1 error');
   const diagnostic = page.getByRole('button', { name: /KES-C001/ });
@@ -57,7 +57,7 @@ test('exposes keyboard controls and a usable mobile workspace', async ({ page })
   await page.goto('/#editor');
   await expect(page.getByLabel('Kessetsu source editor')).toBeVisible();
   await expect(page.getByLabel('Canonical schematic')).toBeVisible();
-  await expect(page.getByLabel('Simulation results')).toBeVisible();
+  await expect(page.getByLabel('Circuit simulation')).toBeVisible();
   await page.getByLabel('Canonical schematic').locator('.schematic-surface').focus();
   await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('button', { name: 'Run' })).toBeEnabled();

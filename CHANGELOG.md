@@ -14,7 +14,8 @@ First public-release candidate.
 
 - One Rust Core shared by native CLI and WebAssembly.
 - Zero-account Web Hub with live compile/ERC, canonical schematic, real browser Ngspice simulation, plots, assertions, seven export formats and versioned share URLs.
-- Local Web document workflow with `.kess` open, in-place Save and Save As where the browser supports native file handles, portable download fallback, explicit naming, deterministic export filenames and versioned browser draft recovery.
+- Local Web document workflow with `.kess` open, native in-place Save and Save As on Chromium, browser-local Save plus explicit `.kess` download on Firefox and other fallback browsers, explicit naming, deterministic export filenames and versioned draft recovery.
+- Project-level actions stay in the global toolbar, while the Simulation panel owns Run/Cancel, execution state, plots and requirement results.
 - Selected lowercase Kessetsu wordmark, signal-line identity and matching favicon with a self-hosted, license-bundled Inter glyph subset.
 - Agent-oriented CLI with stdin, `kessetsu.cli.v1` JSON, stable diagnostics/exit codes and safe artifact writes.
 - OP, transient, AC and DC sweep datasets; engineering metrics for gain, cutoff/bandwidth, phase/frequency, output power, efficiency, THD, clipping and dissipation.

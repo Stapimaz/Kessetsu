@@ -25,6 +25,7 @@ const storageKey = 'kessetsu.workspace-layout.v2';
 const legacyStorageKey = 'kessetsu.workspace-layout.v1';
 const panels: Panel[] = ['source', 'schematic', 'results'];
 const icons = { source: Code2, schematic: CircuitBoard, results: Activity };
+const labels = { source: 'Source', schematic: 'Schematic', results: 'Simulation' };
 const clamp = (value: number) => Math.max(20, Math.min(80, value));
 
 function readLayout(): LayoutState {
@@ -153,8 +154,8 @@ export function WorkspaceLayout({ source, schematic, results, resetRequest }: Pr
     {minimizedPanels.length > 0 && <nav className="panel-dock" aria-label="Minimized panels">
       {minimizedPanels.map((panel) => {
         const Icon = icons[panel];
-        return <button key={panel} aria-label={`Restore minimized ${panel} panel`} onClick={() => setLayout((current) => ({ ...current, [panel]: true, maximized: null }))}>
-          <Icon size={13} /><span>{panel}</span>
+        return <button key={panel} aria-label={`Restore minimized ${labels[panel].toLowerCase()} panel`} onClick={() => setLayout((current) => ({ ...current, [panel]: true, maximized: null }))}>
+          <Icon size={13} /><span>{labels[panel]}</span>
         </button>;
       })}
     </nav>}

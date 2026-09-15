@@ -15,9 +15,9 @@ import type { CompileReport, ExportArtifact, ExportFormat, WorkspaceState } from
 import {
   decodeWorkspaceDraft,
   documentNameFromFile,
-  encodeWorkspaceDraft,
   MAX_DOCUMENT_SOURCE_BYTES,
   normalizeDocumentName,
+  writeWorkspaceDraft,
   WEB_DRAFT_STORAGE_KEY,
 } from '../document';
 import { BrowserSimulationRunner, SimulationCancelledError } from '../simulation/browserRunner';
@@ -56,7 +56,7 @@ const initialState: WorkspaceState = {
   exportCapabilities: [],
   exportMessage: '',
   simulationState: 'idle',
-  simulationMessage: 'Run a simulation to inspect results.',
+  simulationMessage: 'Run the simulation to inspect plots and requirements.',
   evaluation: null,
 };
 
@@ -122,10 +122,7 @@ export function useKessetsuWorkspace() {
     if (!state.wasmLoaded) return;
     const timeout = globalThis.setTimeout(() => {
       try {
-        globalThis.localStorage.setItem(
-          WEB_DRAFT_STORAGE_KEY,
-          encodeWorkspaceDraft(state.circuitName, state.code, state.isDirty),
-        );
+        writeWorkspaceDraft(globalThis.localStorage, state.circuitName, state.code, state.isDirty);
       } catch {
         // Compilation and file downloads must not depend on storage availability.
       }
@@ -194,7 +191,7 @@ export function useKessetsuWorkspace() {
       kicadSch: '',
       modelManifest: null,
       simulationState: 'idle',
-      simulationMessage: 'Source changed; run the simulation again.',
+      simulationMessage: 'Simulation results are out of date. Run again.',
       evaluation: null,
       exportMessage: '',
     }));
@@ -218,7 +215,7 @@ export function useKessetsuWorkspace() {
       kicadSch: '',
       modelManifest: null,
       simulationState: 'idle',
-      simulationMessage: 'Run a simulation to inspect results.',
+      simulationMessage: 'Run the simulation to inspect plots and requirements.',
       evaluation: null,
       exportMessage: '',
     }));
@@ -242,7 +239,7 @@ export function useKessetsuWorkspace() {
       kicadSch: '',
       modelManifest: null,
       simulationState: 'idle',
-      simulationMessage: 'Add a simulation command, then run it to inspect results.',
+      simulationMessage: 'Add a simulation command, then run it.',
       evaluation: null,
       exportMessage: '',
     }));
@@ -272,7 +269,7 @@ export function useKessetsuWorkspace() {
       kicadSch: '',
       modelManifest: null,
       simulationState: 'idle',
-      simulationMessage: 'Run a simulation to inspect results.',
+      simulationMessage: 'Run the simulation to inspect plots and requirements.',
       evaluation: null,
       exportMessage: '',
     }));
@@ -281,6 +278,11 @@ export function useKessetsuWorkspace() {
   const markSaved = useCallback(() => {
     setState((current) => ({ ...current, isDirty: false, draftRestored: false }));
   }, []);
+
+  const saveBrowserDocument = useCallback(() => {
+    writeWorkspaceDraft(globalThis.localStorage, state.circuitName, state.code, false);
+    markSaved();
+  }, [markSaved, state.circuitName, state.code]);
 
   const renameDocument = useCallback((name: string) => {
     const normalized = normalizeDocumentName(name);
@@ -358,6 +360,7 @@ export function useKessetsuWorkspace() {
     newDocument,
     openDocument,
     markSaved,
+    saveBrowserDocument,
     renameDocument,
     compile,
     run,

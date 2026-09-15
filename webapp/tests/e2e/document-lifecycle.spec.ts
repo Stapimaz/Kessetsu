@@ -4,7 +4,7 @@ async function openFileMenu(page: import('@playwright/test').Page) {
   await page.getByRole('button', { name: 'File', exact: true }).click();
 }
 
-test('names, saves, restores, opens and creates local Kessetsu documents', async ({ page }) => {
+test('uses clear browser-local Save and explicit download when native file handles are unavailable', async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(window, 'showOpenFilePicker', { configurable: true, value: undefined });
     Object.defineProperty(window, 'showSaveFilePicker', { configurable: true, value: undefined });
@@ -20,24 +20,30 @@ test('names, saves, restores, opens and creates local Kessetsu documents', async
   await expect(page.locator('.document-title')).toContainText('Precision / Filter');
 
   await openFileMenu(page);
-  const sourceDownloadPromise = page.waitForEvent('download');
-  await page.getByRole('menuitem', { name: 'Save', exact: true }).click();
-  const sourceDownload = await sourceDownloadPromise;
-  expect(sourceDownload.suggestedFilename()).toBe('precision-filter.kess');
-  const sourceStream = await sourceDownload.createReadStream();
-  const chunks: Buffer[] = [];
-  for await (const chunk of sourceStream) chunks.push(Buffer.from(chunk));
-  expect(Buffer.concat(chunks).toString('utf8')).toContain('Canonical first-order RC low-pass');
+  await expect(page.getByText('Saved projects stay in this browser.')).toBeVisible();
+  await page.getByRole('menuitem', { name: 'Save in browser', exact: true }).click();
+  await expect(page.getByText('Saved in this browser', { exact: true })).toBeVisible();
   await expect(page.locator('.document-title')).not.toHaveAttribute('aria-label', /unsaved changes/);
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('kessetsu.workspace.draft.v1') ?? '{}').dirty)).toBe(false);
 
   await page.locator('.monaco-editor').click();
   await page.keyboard.press('ControlOrMeta+End');
   await page.keyboard.insertText('\n// saved edit');
   await expect(page.locator('.document-title')).toHaveAttribute('aria-label', /unsaved changes/);
-  const shortcutDownloadPromise = page.waitForEvent('download');
   await page.keyboard.press('ControlOrMeta+s');
-  await shortcutDownloadPromise;
+  await expect(page.getByText('Saved in this browser', { exact: true })).toBeVisible();
   await expect(page.locator('.document-title')).not.toHaveAttribute('aria-label', /unsaved changes/);
+
+  await openFileMenu(page);
+  const sourceDownloadPromise = page.waitForEvent('download');
+  await page.getByRole('menuitem', { name: 'Download .kess', exact: true }).click();
+  const sourceDownload = await sourceDownloadPromise;
+  expect(sourceDownload.suggestedFilename()).toBe('precision-filter.kess');
+  const sourceStream = await sourceDownload.createReadStream();
+  const chunks: Buffer[] = [];
+  for await (const chunk of sourceStream) chunks.push(Buffer.from(chunk));
+  expect(Buffer.concat(chunks).toString('utf8')).toContain('// saved edit');
+  await expect(page.getByText('Downloaded precision-filter.kess', { exact: true })).toBeVisible();
 
   await page.locator('.monaco-editor').click();
   await page.keyboard.press('ControlOrMeta+End');
@@ -66,7 +72,8 @@ test('names, saves, restores, opens and creates local Kessetsu documents', async
   await expect(page.locator('.view-lines')).toContainText('New Kessetsu circuit');
 });
 
-test('Save retains a native file handle while Save As selects a new destination', async ({ page }) => {
+test('Save retains a native file handle while Save As selects a new destination', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'Native File System Access save is a Chromium capability.');
   await page.addInitScript(() => {
     const state = { pickerCalls: 0, writes: [] as string[], suggestedNames: [] as string[] };
     Object.defineProperty(window, '__kessetsuFsTest', { configurable: true, value: state });
@@ -89,6 +96,11 @@ test('Save retains a native file handle while Save As selects a new destination'
   });
   await page.goto('/#editor');
   await expect(page.getByTestId('compile-success')).toBeVisible();
+  await openFileMenu(page);
+  await expect(page.getByRole('menuitem', { name: 'Save', exact: true })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Save As', exact: true })).toBeVisible();
+  await expect(page.getByText('Saved projects stay in this browser.')).toHaveCount(0);
+  await page.getByRole('button', { name: 'File', exact: true }).click();
 
   await openFileMenu(page);
   await page.getByRole('menuitem', { name: 'Rename…' }).click();
@@ -101,6 +113,7 @@ test('Save retains a native file handle while Save As selects a new destination'
   await page.keyboard.insertText('\n// native save one');
   await page.keyboard.press('ControlOrMeta+s');
   await expect(page.locator('.document-title')).not.toHaveAttribute('aria-label', /unsaved changes/);
+  await expect(page.getByText('Saved to native-filter.kess', { exact: true })).toBeVisible();
 
   await page.keyboard.insertText('\n// native save two');
   await page.keyboard.press('ControlOrMeta+s');

@@ -58,8 +58,8 @@ test('opens the landing page, enters Web Hub, initializes WASM and compiles the 
   expect(headerActionSizes).toEqual([
     { width: 76, height: 30 },
     { width: 76, height: 30 },
-    { width: 76, height: 30 },
   ]);
+  await expect(page.getByRole('button', { name: 'Run simulation' })).toBeVisible();
   await expect(page.locator('.monaco-editor')).toBeVisible();
   await page.getByRole('button', { name: 'View', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Circuit details…' }).click();

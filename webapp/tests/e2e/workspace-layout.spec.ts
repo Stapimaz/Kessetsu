@@ -22,11 +22,11 @@ test('resizes, minimizes, maximizes and persists panels without losing circuit s
   await expect(page.getByRole('button', { name: 'Restore minimized source panel' })).toBeVisible();
   await page.getByRole('button', { name: 'Restore minimized source panel' }).click();
 
-  await page.getByRole('button', { name: 'Run', exact: true }).click();
+  await page.getByRole('button', { name: 'Run simulation', exact: true }).click();
   await expect(page.getByTestId('simulation-summary')).toHaveAttribute('data-state', 'succeeded');
   const circuit = await page.locator('.view-lines').innerText();
 
-  for (const panel of ['source', 'schematic', 'results']) {
+  for (const panel of ['source', 'schematic', 'simulation']) {
     await page.getByRole('button', { name: `Minimize ${panel} panel` }).click();
     await expect(page.getByRole('button', { name: `Restore minimized ${panel} panel` })).toBeVisible();
     await page.getByRole('button', { name: `Restore minimized ${panel} panel` }).click();
@@ -42,7 +42,7 @@ test('resizes, minimizes, maximizes and persists panels without losing circuit s
   await page.getByRole('button', { name: 'Restore schematic panel from full workspace' }).click();
   await expect(page.locator('.resizable-workspace')).not.toHaveAttribute('data-maximized-panel');
   await expect(page.getByLabel('Kessetsu source editor')).toBeVisible();
-  await page.getByRole('button', { name: 'Maximize results panel' }).click();
+  await page.getByRole('button', { name: 'Maximize simulation panel' }).click();
   await page.keyboard.press('Escape');
   await expect(page.locator('.resizable-workspace')).not.toHaveAttribute('data-maximized-panel');
 
@@ -76,7 +76,7 @@ test('allows every panel to minimize and keeps menus and restore dock usable on 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/#editor');
   await expect(page.getByTestId('compile-success')).toBeVisible();
-  for (const panel of ['source', 'schematic', 'results']) {
+  for (const panel of ['source', 'schematic', 'simulation']) {
     await page.getByRole('button', { name: `Minimize ${panel} panel` }).click();
   }
   await expect(page.getByText('All panels are minimized.')).toBeVisible();

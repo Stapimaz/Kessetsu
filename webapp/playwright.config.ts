@@ -16,5 +16,10 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
+    {
+      name: 'firefox-document',
+      testMatch: /document-lifecycle\.spec\.ts/,
+      use: { ...devices['Desktop Firefox'] },
+    },
   ],
 });

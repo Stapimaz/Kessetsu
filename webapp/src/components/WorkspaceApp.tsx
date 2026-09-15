@@ -1,8 +1,9 @@
-import { CheckCircle2, ChevronRight, CircleAlert, LoaderCircle, Share2, Square, Zap } from 'lucide-react';
+import { CheckCircle2, ChevronRight, CircleAlert, LoaderCircle, Share2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import productVersionSource from '../../../VERSION?raw';
 import {
   downloadTextFile,
+  nativeFileSavingSupported,
   openWithNativeFilePicker,
   saveWithNativeFilePicker,
   sanitizeFileStem,
@@ -24,7 +25,7 @@ const productVersion = productVersionSource.trim();
 
 export function WorkspaceApp() {
   const {
-    state, setCode, loadExample, newDocument, openDocument, markSaved, renameDocument,
+    state, setCode, loadExample, newDocument, openDocument, markSaved, saveBrowserDocument, renameDocument,
     run, cancel, createExport, share,
   } = useKessetsuWorkspace();
   const [openMenu, setOpenMenu] = useState<MenuId | null>(null);
@@ -34,9 +35,12 @@ export function WorkspaceApp() {
   const [shareOpen, setShareOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [documentError, setDocumentError] = useState('');
+  const [documentNotice, setDocumentNotice] = useState('');
   const menusRef = useRef<HTMLElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileHandleRef = useRef<KessetsuFileHandle | null>(null);
+  const noticeTimeoutRef = useRef<number | null>(null);
+  const nativeFileSaving = nativeFileSavingSupported();
   const selectedExample = Object.entries(examples).find(([, example]) => example.source === state.code)?.[0] as ExampleId | undefined;
   const documentName = state.circuitName ?? (selectedExample ? examples[selectedExample].label : 'Untitled circuit');
   const errorCount = state.diagnostics.filter((diagnostic) => diagnostic.severity === 'error').length;
@@ -59,6 +63,20 @@ export function WorkspaceApp() {
     document.documentElement.dataset.theme = 'dark';
     document.title = `${state.isDirty ? '● ' : ''}${documentName} — Kessetsu`;
   }, [documentName, state.isDirty]);
+
+  useEffect(() => () => {
+    if (noticeTimeoutRef.current !== null) globalThis.clearTimeout(noticeTimeoutRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (state.isDirty) setDocumentNotice('');
+  }, [state.isDirty]);
+
+  const showDocumentNotice = useCallback((message: string) => {
+    if (noticeTimeoutRef.current !== null) globalThis.clearTimeout(noticeTimeoutRef.current);
+    setDocumentNotice(message);
+    noticeTimeoutRef.current = globalThis.setTimeout(() => setDocumentNotice(''), 2600);
+  }, []);
 
   useEffect(() => {
     const closeOutside = (event: PointerEvent) => {
@@ -133,6 +151,17 @@ export function WorkspaceApp() {
     setDocumentError('');
     const fileName = `${sanitizeFileStem(documentName)}.kess`;
     try {
+      if (!nativeFileSaving) {
+        if (forceSaveAs) {
+          downloadTextFile(state.code, fileName);
+          markSaved();
+          showDocumentNotice(`Downloaded ${fileName}`);
+        } else {
+          saveBrowserDocument();
+          showDocumentNotice('Saved in this browser');
+        }
+        return;
+      }
       const result = await saveWithNativeFilePicker(
         state.code,
         fileName,
@@ -141,16 +170,18 @@ export function WorkspaceApp() {
       );
       if (result.status === 'cancelled') return;
       if (result.status === 'unsupported') {
-        downloadTextFile(state.code, fileName);
+        saveBrowserDocument();
         fileHandleRef.current = null;
+        showDocumentNotice('Saved in this browser');
       } else {
         fileHandleRef.current = result.handle;
+        markSaved();
+        showDocumentNotice(`Saved to ${result.handle.name}`);
       }
-      markSaved();
     } catch (cause: unknown) {
       setDocumentError(`Could not save circuit: ${cause instanceof Error ? cause.message : String(cause)}`);
     }
-  }, [documentName, markSaved, state.code]);
+  }, [documentName, markSaved, nativeFileSaving, saveBrowserDocument, showDocumentNotice, state.code]);
 
   const renameCurrentDocument = useCallback((name: string) => {
     fileHandleRef.current = null;
@@ -183,9 +214,14 @@ export function WorkspaceApp() {
             {openMenu === 'file' && <div className="menu-popover file-menu" role="menu" aria-label="File menu">
               <button role="menuitem" onClick={startNewDocument}><span>New circuit</span></button>
               <button role="menuitem" onClick={chooseDocument}><span>Open .kess…</span></button>
-              <button role="menuitem" aria-label="Save" onClick={() => void saveDocument()}><span>Save</span><kbd>Ctrl+S</kbd></button>
-              <button role="menuitem" aria-label="Save As" onClick={() => void saveDocument(true)}><span>Save As...</span><kbd>Ctrl+Shift+S</kbd></button>
+              <button role="menuitem" aria-label={nativeFileSaving ? 'Save' : 'Save in browser'} onClick={() => void saveDocument()}>
+                <span>{nativeFileSaving ? 'Save' : 'Save in browser'}</span><kbd>Ctrl+S</kbd>
+              </button>
+              <button role="menuitem" aria-label={nativeFileSaving ? 'Save As' : 'Download .kess'} onClick={() => void saveDocument(true)}>
+                <span>{nativeFileSaving ? 'Save As...' : 'Download .kess…'}</span><kbd>Ctrl+Shift+S</kbd>
+              </button>
               <button role="menuitem" onClick={() => { setRenameOpen(true); setOpenMenu(null); }}><span>Rename…</span></button>
+              {!nativeFileSaving && <p className="menu-note">Saved projects stay in this browser. Download a .kess copy to use elsewhere.</p>}
               <div className="menu-separator" role="separator" />
               <div className="menu-submenu">
                 <button role="menuitem" aria-haspopup="menu" aria-expanded={examplesOpen} onClick={() => setExamplesOpen((current) => !current)}>
@@ -238,9 +274,6 @@ export function WorkspaceApp() {
           <span className={`compile-status compile-${state.compileState}`} role="status" aria-label={`Automatic circuit check: ${compileStatus}`} data-testid="compile-status" title={compileStatus}>
             <CompileStatusIcon size={14} /><span>{compileStatus}</span>
           </span>
-          {state.simulationState === 'running'
-            ? <button className="header-action-button run-button cancel-button" aria-label="Cancel" onClick={cancel}><Square size={13} /> <span>Cancel</span></button>
-            : <button className="header-action-button run-button" aria-label="Run" onClick={() => void run()} disabled={!state.compileSucceeded}><Zap size={15} /> <span>Run</span></button>}
           <ArtifactBar enabled={state.compileSucceeded}
             capabilities={state.exportCapabilities} message={state.exportMessage}
             filenameStem={sanitizeFileStem(documentName)} onExport={createExport} />
@@ -266,8 +299,9 @@ export function WorkspaceApp() {
           });
         }}
       />
-      {state.draftRestored && <div className="draft-notice" role="status">Unsaved browser draft restored. Save the source when you want a portable file.</div>}
+      {state.draftRestored && <div className="draft-notice" role="status">Unsaved browser draft restored. Use File to save it here or download a portable .kess copy.</div>}
       {documentError && <div className="global-error" role="alert">{documentError}</div>}
+      {documentNotice && <div className="workspace-toast" role="status">{documentNotice}</div>}
       {state.wasmError && <div className="global-error" role="alert">Core failed to initialize: {state.wasmError}</div>}
       <CircuitDetailsDialog
         open={circuitDetailsOpen}
@@ -301,6 +335,9 @@ export function WorkspaceApp() {
           state={state.simulationState}
           message={state.simulationMessage}
           evaluation={state.evaluation}
+          compileSucceeded={state.compileSucceeded}
+          onRun={() => void run()}
+          onCancel={cancel}
           panelControls={panelControls}
         />}
       />

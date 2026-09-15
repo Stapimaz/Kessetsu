@@ -55,7 +55,7 @@ assert cutoff(V(OUT),V(IN)) > 990Hz`}</pre>
             </svg>
           </section>
           <section className="preview-results" aria-label="Simulation result preview">
-            <strong><Activity size={13} /> Results</strong>
+            <strong><Activity size={13} /> Simulation</strong>
             <div>
               <span><Check size={12} /> 5 / 5 requirements passed</span>
               <code>cutoff = 1.000 kHz</code>

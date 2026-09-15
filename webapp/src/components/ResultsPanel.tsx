@@ -1,4 +1,4 @@
-import { Activity, RotateCcw } from 'lucide-react';
+import { Activity, RotateCcw, Square, Zap } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { SimulationState } from '../domain';
 import type { AssertionResult, BrowserEvaluation, Dataset } from '../simulation/types';
@@ -8,6 +8,9 @@ interface Props {
   state: SimulationState;
   message: string;
   evaluation: BrowserEvaluation | null;
+  compileSucceeded: boolean;
+  onRun(): void;
+  onCancel(): void;
   panelControls: PanelWindowControls;
 }
 
@@ -186,21 +189,31 @@ function DatasetView({ dataset, assertions }: { dataset: Dataset; assertions: As
   /></>;
 }
 
-export function ResultsPanel({ state, message, evaluation, panelControls }: Props) {
+export function ResultsPanel({ state, message, evaluation, compileSucceeded, onRun, onCancel, panelControls }: Props) {
   const [datasetIndex, setDatasetIndex] = useState(0);
   const datasets = evaluation?.simulation.datasets ?? [];
   const selected = datasets[datasetIndex] ?? datasets[0];
   useEffect(() => setDatasetIndex(0), [evaluation]);
   const summary = evaluation?.assertions.summary;
   const statusText = useMemo(() => {
-    if (!summary) return message;
-    return `${summary.passed}/${summary.total} requirements passed · ${evaluation?.simulation.simulator.version}`;
-  }, [evaluation?.simulation.simulator.version, message, summary]);
+    if (summary) return `${summary.passed}/${summary.total} requirements passed · ${evaluation?.simulation.simulator.version}`;
+    if (state === 'running') return message;
+    if (state === 'failed') return 'Failed';
+    if (state === 'cancelled') return 'Cancelled';
+    if (message.startsWith('Simulation results are out of date')) return 'Results out of date';
+    if (message.startsWith('Add a simulation command')) return 'Not configured';
+    return 'Ready';
+  }, [evaluation?.simulation.simulator.version, message, state, summary]);
 
   return (
-    <section className="workspace-panel results-panel" aria-label="Simulation results" data-testid="simulation-summary" data-state={state}>
-      <PanelHeader controls={panelControls} icon={<Activity size={15} />} title="Results">
-        <span className={`run-status status-${state}`}>{statusText}</span>
+    <section className="workspace-panel results-panel" aria-label="Circuit simulation" data-testid="simulation-summary" data-state={state}>
+      <PanelHeader controls={panelControls} icon={<Activity size={15} />} title="Simulation">
+        <div className="simulation-toolbar">
+          <span className={`run-status status-${state}`}>{statusText}</span>
+          {state === 'running'
+            ? <button className="simulation-run-button cancel-button" aria-label="Cancel simulation" onClick={onCancel}><Square size={12} /><span>Cancel</span></button>
+            : <button className="simulation-run-button run-button" aria-label="Run simulation" onClick={onRun} disabled={!compileSucceeded}><Zap size={13} /><span>Run</span></button>}
+        </div>
       </PanelHeader>
       <div className="results-body">
         {datasets.length > 0 ? (

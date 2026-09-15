@@ -51,7 +51,7 @@ jobs:
 
       - name: Install browser runtime
         working-directory: webapp
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium firefox
 
       - name: Install RustSec audit tool
         run: cargo install cargo-audit --version 0.22.2 --locked
