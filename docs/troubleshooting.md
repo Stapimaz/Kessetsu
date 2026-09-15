@@ -24,6 +24,8 @@ Generated files are never silently overwritten. Pick a new path or add `--force`
 
 `KES-I007` means a SPICE or LTspice export depends on an external model file but the requested output directory differs from the source directory. Write the export beside the `.kess` source so its validated relative include remains usable. Kessetsu does not silently copy or redistribute the model.
 
+`KES-I008` means the external `.kessreq` file could not be read. Check the filename and permissions; Kessetsu does not fall back to inline assertions when an external requirement path was requested.
+
 ## A shared URL will not open
 
 Kessetsu accepts only `kessetsu.share.v1`, limits compressed input and decompressed source size, and verifies the embedded Core schema and package versions. A truncated URL, older/newer schema or modified package manifest is rejected instead of partially loading. Ask the sender for a URL created by the same public release.

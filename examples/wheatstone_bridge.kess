@@ -1,0 +1,14 @@
+// Resistive Wheatstone bridge with a cross-bridge resistor.
+source V1 10V
+resistor R1 10k
+resistor R2 20k
+resistor R3 10k
+resistor R4 10k
+resistor Rx 5k
+
+connect V1.plus, R1.p1 to R3.p1
+connect R1.p2, R2.p1 to Rx.p1
+connect R3.p2, R4.p1 to Rx.p2
+connect R2.p2, R4.p2 to V1.minus
+
+simulate op

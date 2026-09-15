@@ -32,7 +32,15 @@ export const examples = {
 
 export type ExampleId = keyof typeof examples;
 
-const newCircuitSource = '// New Kessetsu circuit\n\nnet GND\n';
+const newCircuitSource = `// New Kessetsu circuit: a valid 5 V source with a 1 kOhm load.
+net GND
+net OUT
+source V1 5V
+resistor R1 1k
+connect V1.plus, R1.p1 to OUT
+connect V1.minus, R1.p2 to GND
+simulate op
+`;
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

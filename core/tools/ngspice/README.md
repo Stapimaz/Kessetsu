@@ -52,7 +52,7 @@ extension on September 11, 2026:
 
 1. In a clean temporary directory containing only the runtime files above,
    `ngspice_con.exe --version` reported version 46.
-2. The SPICE netlist generated from `examples/test_features.kess` ran in batch
+2. The SPICE netlist generated from `core/tests/fixtures/valid/feature_matrix.kess` ran in batch
    mode with exit code 0.
 3. Measurement output produced `max_v_my_signal = 6.20001e-08` with no missing
    initialization, code-model, or OSDI-file errors.

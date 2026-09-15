@@ -477,6 +477,31 @@ pub fn parse_waveform(val: &str, value_unit: SIUnit) -> Result<Option<Waveform>,
         }));
     }
 
+    if name.eq_ignore_ascii_case("pwl") {
+        if parts.len() < 4 || !parts.len().is_multiple_of(2) {
+            return Err(format!(
+                "PWL expects at least 2 time/value pairs, got {} parameters",
+                parts.len()
+            ));
+        }
+        let mut points = Vec::with_capacity(parts.len() / 2);
+        for pair in parts.chunks_exact(2) {
+            let time = parse_quantity(pair[0], SIUnit::Second)?;
+            let value = parse_quantity(pair[1], value_unit)?;
+            if time.value < 0.0 {
+                return Err("PWL times must be non-negative".to_string());
+            }
+            if points
+                .last()
+                .is_some_and(|previous: &(Quantity, Quantity)| previous.0.value >= time.value)
+            {
+                return Err("PWL times must be strictly increasing".to_string());
+            }
+            points.push((time, value));
+        }
+        return Ok(Some(Waveform::PWL { points }));
+    }
+
     Err(format!("unsupported waveform '{name}'"))
 }
 

@@ -191,7 +191,7 @@ fn warning_diagnostics_do_not_turn_a_successful_report_into_an_error() {
 
 #[test]
 fn shared_web_default_example_compiles_every_browser_output() {
-    let source = include_str!("../../examples/demo_circuit.kess");
+    let source = include_str!("fixtures/benchmarks/rc_filter.kess");
     assert!(!source.contains("battery"));
 
     let report = compile_source(source, CompileOptions::all_outputs());
@@ -203,6 +203,26 @@ fn shared_web_default_example_compiles_every_browser_output() {
     assert!(report.spice_netlist.is_some());
     assert!(report.layout.is_some());
     assert!(report.kicad_sch.is_some());
+}
+
+#[test]
+fn public_engineering_examples_match_the_canonical_web_benchmarks() {
+    for (public, benchmark) in [
+        (
+            include_str!("../../examples/rc_low_pass.kess"),
+            include_str!("fixtures/benchmarks/rc_filter.kess"),
+        ),
+        (
+            include_str!("../../examples/gain_stage.kess"),
+            include_str!("fixtures/benchmarks/gain_stage.kess"),
+        ),
+        (
+            include_str!("../../examples/power_amplifier.kess"),
+            include_str!("fixtures/benchmarks/power_amplifier.kess"),
+        ),
+    ] {
+        assert_eq!(public, benchmark);
+    }
 }
 
 #[test]

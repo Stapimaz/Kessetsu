@@ -32,7 +32,7 @@ fn every_repository_example_parses_and_flattens() {
 
     assert_eq!(
         files.len(),
-        5,
+        6,
         "example matrix changed; review the new fixture"
     );
     for path in files {
@@ -48,7 +48,11 @@ fn every_repository_example_parses_and_flattens() {
 #[test]
 fn valid_fixture_corpus_parses_and_flattens() {
     let files = kess_files(&fixture_path("valid"));
-    assert_eq!(files.len(), 3);
+    assert_eq!(
+        files.len(),
+        5,
+        "valid fixture matrix changed; review the new fixture"
+    );
 
     for path in files {
         let source = fs::read_to_string(&path).expect("valid fixture must be readable");

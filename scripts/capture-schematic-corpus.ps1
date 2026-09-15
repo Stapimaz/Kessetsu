@@ -49,7 +49,7 @@ New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 $corpus = @(
     @{ name = 'minimal'; source = 'core/tests/fixtures/valid/minimal.kess'; family = 'minimal' },
     @{ name = 'rc-filter'; source = 'core/tests/fixtures/benchmarks/rc_filter.kess'; family = 'passive-filter' },
-    @{ name = 'wheatstone'; source = 'examples/wheatstone.kess'; family = 'bridge' },
+    @{ name = 'wheatstone'; source = 'examples/wheatstone_bridge.kess'; family = 'bridge' },
     @{ name = 'gain-stage'; source = 'core/tests/fixtures/benchmarks/gain_stage.kess'; family = 'feedback' },
     @{ name = 'high-fanout'; source = 'core/tests/fixtures/schematic/high_fanout.kess'; family = 'fanout' },
     @{ name = 'power-amplifier'; source = 'core/tests/fixtures/benchmarks/power_amplifier.kess'; family = 'multi-stage' },

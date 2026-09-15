@@ -70,6 +70,9 @@ test('uses clear browser-local Save and explicit download when native file handl
   await page.getByRole('menuitem', { name: 'New circuit' }).click();
   await expect(page.locator('.document-title')).toHaveText('Untitled circuit');
   await expect(page.locator('.view-lines')).toContainText('New Kessetsu circuit');
+  await expect(page.getByTestId('compile-success')).toBeVisible();
+  await expect(page.locator('svg g.component[data-component="V1"]')).toBeVisible();
+  await expect(page.locator('svg g.component[data-component="R1"]')).toBeVisible();
 });
 
 test('Save retains a native file handle while Save As selects a new destination', async ({ page, browserName }) => {

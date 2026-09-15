@@ -12,9 +12,8 @@ use VoltageDivider myDiv
 transistor Q1 NPN
 resistor R3 1k
 
-// Floating pin hatasi olmasi icin Q1.c yi bilerek bos birakiyoruz
+// Q1.c and both R3 pins are intentionally floating for the ERC fixture.
 connect B1.plus to myDiv.in
 connect B1.minus to myDiv.gnd
-
 connect myDiv.out to Q1.b
 connect Q1.e to B1.minus

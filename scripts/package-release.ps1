@@ -42,9 +42,7 @@ Copy-Item -LiteralPath (Join-Path $repoRoot "docs") -Destination (Join-Path $sta
 $examplesDirectory = Join-Path $stage "examples"
 New-Item -ItemType Directory -Path $examplesDirectory | Out-Null
 Copy-Item -Path (Join-Path $repoRoot "examples/*.kess") -Destination $examplesDirectory
-$benchmarkDirectory = Join-Path $stage "core/tests/fixtures/benchmarks"
-New-Item -ItemType Directory -Path $benchmarkDirectory -Force | Out-Null
-Copy-Item -Path (Join-Path $repoRoot "core/tests/fixtures/benchmarks/*.kess") -Destination $benchmarkDirectory
+Copy-Item -Path (Join-Path $repoRoot "examples/*.kessreq") -Destination $examplesDirectory
 $webDocumentationDirectory = Join-Path $stage "webapp"
 New-Item -ItemType Directory -Path (Join-Path $webDocumentationDirectory "public") -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $repoRoot "webapp/README.md") -Destination (Join-Path $webDocumentationDirectory "README.md")
@@ -114,8 +112,8 @@ Kessetsu $Version / $Target
 
 1. Extract the complete archive to a normal folder. Keep kess.exe and tools together.
 2. Open PowerShell in that folder and verify: .\kess.exe --version
-3. Check the included example: .\kess.exe check .\examples\demo_circuit.kess
-4. Run its assertions: .\kess.exe test .\examples\demo_circuit.kess
+3. Check the included example: .\kess.exe check .\examples\rc_low_pass.kess
+4. Run its assertions: .\kess.exe test .\examples\rc_low_pass.kess
 
 Simulation runtime: bundled tools\ngspice\bin\ngspice_con.exe (Ngspice 46); no separate simulator install is required.
 The full upstream license inventory is under tools\ngspice\docs.
@@ -133,8 +131,8 @@ Kessetsu $Version / $Target
 3. Install Ngspice, then verify it: ngspice -v
    Ubuntu/Debian: sudo apt-get install ngspice
    macOS/Homebrew: brew install ngspice
-4. Check the included example: ./kess check ./examples/demo_circuit.kess
-5. Run its assertions: ./kess test ./examples/demo_circuit.kess
+4. Check the included example: ./kess check ./examples/rc_low_pass.kess
+5. Run its assertions: ./kess test ./examples/rc_low_pass.kess
 
 Kessetsu discovers `ngspice` on PATH. Override only with a trusted full path via KESSETSU_NGSPICE.
 The simulator executable and reported version are included in each simulation result.

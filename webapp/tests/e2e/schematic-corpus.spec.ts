@@ -5,7 +5,7 @@ import { join } from 'node:path';
 const corpus = [
   ['minimal', '../../../core/tests/fixtures/valid/minimal.kess', 'V1'],
   ['rc-filter', '../../../core/tests/fixtures/benchmarks/rc_filter.kess', 'C1'],
-  ['wheatstone', '../../../examples/wheatstone.kess', 'Rx'],
+  ['wheatstone', '../../../examples/wheatstone_bridge.kess', 'Rx'],
   ['gain-stage', '../../../core/tests/fixtures/benchmarks/gain_stage.kess', 'RF'],
   ['high-fanout', '../../../core/tests/fixtures/schematic/high_fanout.kess', 'R8'],
   ['power-amplifier', '../../../core/tests/fixtures/benchmarks/power_amplifier.kess', 'QP'],

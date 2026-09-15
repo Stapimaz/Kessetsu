@@ -68,7 +68,7 @@ Known generic parts need no declaration:
 ```kessetsu
 diode D1 1N4148
 transistor Q1 npn 2N3904
-mosfet M1 nmos IRF540
+mosfet M1 IRF540
 opamp U1 KESSETSU_OPAMP_V1
 ```
 

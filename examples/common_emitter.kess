@@ -1,0 +1,22 @@
+// Common-emitter BJT amplifier with divider bias, coupling capacitors and emitter bypass.
+source Vcc 12V
+source Vin 1V
+transistor Q1 2N3904
+resistor R1 10k
+resistor R2 2.2k
+resistor Rc 1k
+resistor Re 100
+resistor Rload 10k
+capacitor Cin 10uF
+capacitor Cout 10uF
+capacitor Ce 100uF
+
+connect Vcc.plus, R1.p1 to Rc.p1
+connect Vcc.minus, R2.p2, Re.p2, Ce.p2, Vin.minus to Rload.p2
+connect R1.p2, R2.p1, Q1.b to Cin.p2
+connect Vin.plus to Cin.p1
+connect Rc.p2, Q1.c to Cout.p1
+connect Cout.p2 to Rload.p1
+connect Q1.e, Re.p1 to Ce.p1
+
+simulate op

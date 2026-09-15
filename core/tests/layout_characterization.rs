@@ -20,7 +20,7 @@ const CORPUS: &[Fixture] = &[
     },
     Fixture {
         name: "wheatstone",
-        source: include_str!("../../examples/wheatstone.kess"),
+        source: include_str!("../../examples/wheatstone_bridge.kess"),
         component_count: 6,
     },
     Fixture {

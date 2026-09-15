@@ -11,7 +11,7 @@ This document freezes the electrical scope advertised for Phase 4. â€œSupportedâ
 | BJT NPN/PNP | Supported | `c`, `b`, `e` | Three-terminal model; no substrate or thermal pin |
 | MOSFET NMOS/PMOS | Supported | `d`, `g`, `s` | Three-terminal model; body is not a separate pin |
 | Op-amp | Supported | `in_p`, `in_n`, `vcc`, `vee`, `out` | Safe canonical template or hash-bound native external subcircuit; no arbitrary raw directives |
-| Voltage/current source | Supported | `plus`, `minus` | Typed DC, `sine`, `pulse`, `ac`, and `sine_ac` waveforms |
+| Voltage/current source | Supported | `plus`, `minus` | Typed DC, `sine`, `pulse`, `pwl`, `ac`, and `sine_ac` waveforms |
 | Module port | Flattening-only element | Defined by the module | Not a public physical component |
 
 ## Model scope

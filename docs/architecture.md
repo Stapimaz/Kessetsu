@@ -193,7 +193,9 @@ Attempts to hide `.control`, `.include`, shell syntax, or line breaks inside quo
 | KES-S005 | Error | Fatal or aborted simulator output |
 | KES-S006 | Error | Measurement or analysis-dataset parse failure |
 
-Assertion results are separate from simulation diagnostics and use the versioned `kessetsu.assertion.v1` report. Every assertion receives a deterministic `KES-T001`, `KES-T002`, and so on in source order, with one of `PASS`, `FAIL`, `ERROR`, or `SKIPPED`. Missing or unsupported measurements never become `NaN`; they produce an explanatory `ERROR`. If simulation does not finish successfully, Kessetsu does not fabricate assertion results and reports them as `SKIPPED`.
+Assertion results are separate from simulation diagnostics and use the versioned `kessetsu.assertion.v1` report. Every assertion receives a deterministic `KES-T001`, `KES-T002`, and so on in source order, with one of `PASS`, `FAIL`, `ERROR`, or `SKIPPED`. Missing measurements never become `NaN`; they produce an explanatory `ERROR`. Unsupported metric names and invalid argument shapes fail semantic compilation before simulation. If simulation does not finish successfully, Kessetsu does not fabricate assertion results and reports them as `SKIPPED`. An empty assertion report is never successful: `kess test` emits `KES-T000` before simulator discovery, while `kess simulate` remains valid without assertions.
+
+Evaluator-owned requirements use the assertion-only `kessetsu.requirements.v1` contract defined in [ADR 0004](decisions/0004-evaluator-owned-requirements.md). Core parses exact `.kessreq` bytes, enforces the same typed assertion semantics, and returns their SHA-256 identity. Native CLI attaches the resulting assertions to the already compiled `CircuitIR` before simulation; measurement and assertion backends consume that IR and never parse the external file directly. Inline and external assertions cannot be mixed. Optional expected-hash pinning fails closed before simulation. This records and separates requirement ownership but does not replace caller-controlled filesystem permissions.
 
 ### Simulation Domain and Runner Boundary
 

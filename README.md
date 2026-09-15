@@ -18,6 +18,7 @@ The project is not limited to a particular educational scenario or circuit class
 - SPICE generation, simulator discovery/provenance, and a Windows Ngspice sidecar runtime
 - Typed OP/transient/AC/DC simulation results and PASS/FAIL/ERROR/SKIPPED assertion evaluation
 - Compact `kessetsu.cli.v1` JSON, stdin-based agent loops, and opt-in debug fields through `--include`
+- Evaluator-owned, exact-hash `.kessreq` files for agent loops that must not rewrite their own acceptance criteria
 - Typed user/package model and subcircuit resolution, provenance manifests, and `kessetsu.lock`
 - Human/JSON CLI modes with safe output, overwrite, and exit-code contracts
 - A React Web Hub with WASM Core and real in-browser simulation
@@ -73,11 +74,21 @@ Download the archive for your platform, extract the complete directory, then fol
 
 ```powershell
 .\kess.exe --version
-.\kess.exe check .\examples\demo_circuit.kess
-.\kess.exe test .\examples\demo_circuit.kess
+.\kess.exe check .\examples\rc_low_pass.kess
+.\kess.exe test .\examples\rc_low_pass.kess
 ```
 
 The Windows archive includes Ngspice. Linux and macOS users install `ngspice` with their package manager, run `ngspice -v`, and use the same commands with `./kess`. To make `kess` available from any directory, keep the extracted bundle in a permanent location and add that directory to user `PATH`; the bundled `INSTALL.txt` gives platform-specific details.
+
+For a supervised agent loop, keep acceptance criteria separate from the design and optionally pin their exact hash:
+
+```powershell
+.\kess.exe test .\examples\agent_rc_design.kess `
+  --requirements .\examples\agent_rc_requirements.kessreq `
+  --format json
+```
+
+The response records `requirements.sha256`; pass that value back with `--requirements-sha256` when the supervising process must detect changed criteria.
 
 ### Build from source
 
@@ -93,14 +104,14 @@ Build the CLI and check an example circuit:
 ```powershell
 cd core
 cargo build --release
-cargo run --release -- check ../examples/demo_circuit.kess
-cargo run --release -- compile ../examples/demo_circuit.kess --output ../examples/demo_circuit.spice
+cargo run --release -- check ../examples/rc_low_pass.kess
+cargo run --release -- compile ../examples/rc_low_pass.kess --output ../examples/rc_low_pass.spice
 ```
 
 Machine-readable output:
 
 ```powershell
-cargo run --release -- check ../examples/demo_circuit.kess --format json
+cargo run --release -- check ../examples/rc_low_pass.kess --format json
 ```
 
 Existing output files are not overwritten by default; intentional replacement requires `--force`. The [CLI reference](docs/cli_reference.md) defines commands, JSON fields, and exit codes. Continue with the [tutorial](docs/tutorial.md), [cookbook](docs/cookbook.md), [troubleshooting guide](docs/troubleshooting.md), or [Why Kessetsu?](docs/why_kessetsu.md).
@@ -137,7 +148,7 @@ npm.cmd run build
 ## Repository structure
 
 - `core/`: Rust library, CLI, WASM adapter, test corpus, and Windows Ngspice runtime
-- `examples/`: canonical `.kess` examples
+- `examples/`: polished, runnable `.kess` circuits for new users
 - `webapp/`: React/TypeScript zero-friction Web Hub
 - `docs/`: documentation index, roadmap, architecture, language/simulation/export contracts, and guides
 - `scripts/verify.ps1`: root quality gate

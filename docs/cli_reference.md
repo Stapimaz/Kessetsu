@@ -12,8 +12,8 @@ kess [--format human|json] [--schema-version kessetsu.cli.v1] \
 `--format` is a true global option and can appear before or after the subcommand:
 
 ```bash
-kess --format json check examples/demo_circuit.kess
-kess check examples/demo_circuit.kess --format json
+kess --format json check examples/rc_low_pass.kess
+kess check examples/rc_low_pass.kess --format json
 ```
 
 `--schema-version` and `--include` are also global options. `--include` accepts a comma-separated list or repeated uses. An unknown schema version is rejected with `KES-F002` and exit code `2` before the source is read or any output is created.
@@ -40,7 +40,7 @@ Side-effect-free stdin plus JSON is idempotent for agent retries: the same sourc
 Runs parsing, semantic validation, and ERC without producing a file.
 
 ```bash
-kess check examples/demo_circuit.kess
+kess check examples/rc_low_pass.kess
 ```
 
 ### `compile`
@@ -48,14 +48,14 @@ kess check examples/demo_circuit.kess
 Generates a SPICE netlist after all checks pass.
 
 ```bash
-kess compile examples/demo_circuit.kess
-kess compile examples/demo_circuit.kess --output build/demo.spice
+kess compile examples/rc_low_pass.kess
+kess compile examples/rc_low_pass.kess --output build/rc-low-pass.spice
 ```
 
 The default destination is the source path with a `.spice` extension. Existing files are never overwritten silently; intentional replacement requires `--force`:
 
 ```bash
-kess compile examples/demo_circuit.kess --force
+kess compile examples/rc_low_pass.kess --force
 ```
 
 The `--output` path is resolved relative to the working directory. If the destination is the source file itself, the operation is rejected even with `--force`. The CLI does not create missing parent directories automatically.
@@ -67,7 +67,7 @@ Compiles the source, writes the SPICE file under the same output policy, and run
 The language supports `op`, `tran`, `ac`, and `dc` sweeps of independent voltage/current sources. Analysis arguments and physical units are validated during semantic conversion. Operating-point, transient, and AC analyses are unique; DC sweeps are unique per source. Unsupported, malformed, or ambiguous repeated analyses produce source-located `KES-C009`, and the simulator does not start.
 
 ```bash
-kess simulate examples/demo_circuit.kess --force
+kess simulate examples/rc_low_pass.kess --force
 ```
 
 ### `test`
@@ -75,8 +75,19 @@ kess simulate examples/demo_circuit.kess --force
 Evaluates source assertions after compilation and simulation. A simulation failure returns exit code `3`; an unsuccessful assertion result returns exit code `4`. A source with no assertions fails before simulator launch with `KES-T000` and exit code `4`; use `simulate` when no verification contract is intended.
 
 ```bash
-kess test examples/test_features.kess --force
+kess test examples/rc_low_pass.kess --force
 ```
+
+For a supervised agent or CI loop, keep requirements outside the editable design and pass an assertion-only `.kessreq` file:
+
+```bash
+kess test design.kess --requirements limits.kessreq --format json --force
+kess test design.kess --requirements limits.kessreq \
+  --requirements-sha256 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
+  --format json --force
+```
+
+External requirements use `kessetsu.requirements.v1`, allow only comments and `assert` statements, and are compiled by the same Core assertion semantics. The design must contain no inline assertions when `--requirements` is present; mixed ownership fails with `KES-R003`. JSON records the exact-byte SHA-256, count, and whether the caller pinned an expected digest. A mismatched or malformed digest fails with `KES-R004` before simulation. Keep the file or expected digest outside the design agent's write authority when tamper resistance matters.
 
 Each assertion receives a deterministic `KES-Txxx` code in source order. Results are separated into `PASS`, `FAIL`, `ERROR`, and `SKIPPED`: an unmet threshold is `FAIL`; a missing measurement is `ERROR`; and an incomplete simulation produces `SKIPPED`. Unsupported metric names and invalid argument shapes are semantic `KES-C006` errors and never reach the simulator. If any non-passing assertion state exists, the command returns exit code `4`.
 
@@ -111,7 +122,7 @@ kess export circuit.kess --target ltspice --output circuit.asc
 
 ## JSON Contract
 
-JSON stdout is exactly one JSON object for every invocation. Progress and simulator logs are never written to stdout. The default agent envelope is `kessetsu.cli.v1`. Compile reports use `kessetsu.compile.v4`, canonical schematics use `kessetsu.schematic.v2`, model manifests/locks use `kessetsu.models.v2`/`kessetsu.lock.v2`, simulation results use `kessetsu.simulation.v1`, engineering measurements use `kessetsu.measurement.v1`, and assertion reports use `kessetsu.assertion.v1`. Active subcontracts appear in `domain_versions`.
+JSON stdout is exactly one JSON object for every invocation. Progress and simulator logs are never written to stdout. The default agent envelope is `kessetsu.cli.v1`. Compile reports use `kessetsu.compile.v4`, canonical schematics use `kessetsu.schematic.v2`, model manifests/locks use `kessetsu.models.v2`/`kessetsu.lock.v2`, simulation results use `kessetsu.simulation.v1`, engineering measurements use `kessetsu.measurement.v1`, assertion reports use `kessetsu.assertion.v1`, and external requirement sets use `kessetsu.requirements.v1`. Active subcontracts appear in `domain_versions`.
 
 See the [engineering-measurement contract](engineering_measurements.md) for assertion primitives, derived-metric formulas, analysis requirements, and sign conventions.
 
@@ -128,7 +139,9 @@ Successful `check` summary:
     "compile": "kessetsu.compile.v4",
     "simulation": null,
     "measurement": null,
-    "assertion": null
+    "assertion": null,
+    "requirements": null,
+    "export": null
   },
   "diagnostics": [],
   "summary": {
@@ -141,6 +154,7 @@ Successful `check` summary:
   },
   "measurements": {},
   "assertions": null,
+  "requirements": null,
   "artifacts": []
 }
 ```
@@ -234,7 +248,8 @@ No separate daemon or dedicated Agent API is required. An agent can implement th
 1. Run `check - --format json` to obtain syntax, semantic, and ERC diagnostics.
 2. Run `compile - --format json --include spice` when inspection of the canonical netlist is needed.
 3. Run `simulate - --format json` to read typed measurements and the analysis summary.
-4. Read `assertions[].status`, `actual`, `threshold`, and summary fields from `test - --format json` to determine the remaining target difference.
-5. Revise the source and repeat the same stdin call.
+4. Run `test - --requirements frozen.kessreq --format json` when the supervising process, rather than the design source, owns acceptance criteria. Optionally pin `--requirements-sha256`; record `requirements.sha256` from the response.
+5. Read `assertions[].status`, `actual`, `threshold`, and summary fields to determine the remaining target difference.
+6. Revise only the design source and repeat the same stdin call.
 
 The repository contract suite verifies this flow with a cross-platform fixture: it reads the measured 200 mA result from a failing 10 Ω candidate, revises the resistor to 100 Ω, and passes the assertion at 20 mA. The test never parses human terminal text.

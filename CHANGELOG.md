@@ -18,6 +18,9 @@ First public-release candidate.
 - Project-level actions stay in the global toolbar, while the Simulation panel owns Run/Cancel, execution state, plots and requirement results.
 - Selected lowercase Kessetsu wordmark, signal-line identity and matching favicon with a self-hosted, license-bundled Inter glyph subset.
 - Agent-oriented CLI with stdin, `kessetsu.cli.v1` JSON, stable diagnostics/exit codes and safe artifact writes.
+- Evaluator-owned `kessetsu.requirements.v1` files with exact-byte SHA-256 provenance and optional pinning for supervised agent/CI loops.
+- Fail-closed test semantics: zero assertions cannot pass, unknown metrics fail before simulation, and ambiguous repeated analyses are rejected without breaking distinct DC-source sweeps.
+- Complete typed PWL source parsing with dimensional values and non-negative, strictly increasing time points.
 - OP, transient, AC and DC sweep datasets; engineering metrics for gain, cutoff/bandwidth, phase/frequency, output power, efficiency, THD, clipping and dissipation.
 - Typed builtin/user/package models with exact versions, hashes, licenses and lockfile provenance.
 - Typed, hash-bound external op-amp subcircuit references for native CLI simulation, including safe source-relative resource binding, PSpice compatibility, deterministic lock/provenance metadata, and explicit no-embedding export behavior.

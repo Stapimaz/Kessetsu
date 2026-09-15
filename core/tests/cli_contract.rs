@@ -2,6 +2,7 @@ mod common;
 
 use common::{TestWorkspace, read_fixture};
 use kessetsu_core::compiler::{COMPILE_SCHEMA_VERSION, CompileOptions, compile_source};
+use kessetsu_core::requirements::{REQUIREMENTS_SCHEMA_VERSION, compile_requirements};
 use serde_json::Value;
 use std::fs;
 use std::path::Path;
@@ -491,17 +492,154 @@ fn test_without_assertions_fails_before_launching_the_simulator() {
 }
 
 #[test]
+fn external_requirements_are_hash_bound_and_evaluated_as_the_only_authority() {
+    let workspace = TestWorkspace::new("external-requirements");
+    let source = workspace.write("design.kess", &read_fixture("valid/minimal.kess"));
+    let requirements_source = "// Held by the evaluator\nassert peak(I(V1)) < 300mA\n";
+    let requirements = workspace.write("limits.kessreq", requirements_source);
+    let digest = compile_requirements(requirements_source.as_bytes())
+        .expect("fixture requirements should compile")
+        .sha256;
+    let source_arg = path_argument(&source);
+    let requirements_arg = path_argument(&requirements);
+    let simulator = workspace.write_fake_simulator("requirements-simulator", "", "", 0);
+
+    let output = workspace.run_cli_with_env(
+        &[
+            "test",
+            &source_arg,
+            "--requirements",
+            &requirements_arg,
+            "--requirements-sha256",
+            &digest,
+            "--format",
+            "json",
+            "--force",
+        ],
+        "KESSETSU_NGSPICE",
+        &simulator,
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    assert!(output.stderr.is_empty());
+    let value: Value = serde_json::from_slice(&output.stdout).expect("result should be JSON only");
+    assert_eq!(value["status"], "success");
+    assert_eq!(
+        value["domain_versions"]["requirements"],
+        REQUIREMENTS_SCHEMA_VERSION
+    );
+    assert_eq!(
+        value["requirements"]["schema_version"],
+        REQUIREMENTS_SCHEMA_VERSION
+    );
+    assert_eq!(value["requirements"]["sha256"], digest);
+    assert_eq!(value["requirements"]["assertion_count"], 1);
+    assert_eq!(value["requirements"]["hash_pinned"], true);
+    assert_eq!(value["assertions"]["summary"]["passed"], 1);
+}
+
+#[test]
+fn external_requirement_tampering_and_mixed_authority_fail_before_simulation() {
+    let workspace = TestWorkspace::new("external-requirements-rejected");
+    let source = workspace.write("design.kess", &read_fixture("valid/minimal.kess"));
+    let requirements = workspace.write("limits.kessreq", "assert peak(I(V1)) < 300mA\n");
+    let source_arg = path_argument(&source);
+    let requirements_arg = path_argument(&requirements);
+    let missing_simulator = workspace.path().join("must-not-run-ngspice");
+
+    let mismatch = workspace.run_cli_with_env(
+        &[
+            "test",
+            &source_arg,
+            "--requirements",
+            &requirements_arg,
+            "--requirements-sha256",
+            &"0".repeat(64),
+            "--format",
+            "json",
+            "--force",
+        ],
+        "KESSETSU_NGSPICE",
+        &missing_simulator,
+    );
+    assert_eq!(mismatch.status.code(), Some(1));
+    let mismatch: Value =
+        serde_json::from_slice(&mismatch.stdout).expect("hash mismatch should be JSON only");
+    assert_eq!(mismatch["diagnostics"][0]["code"], "KES-R004");
+    assert_eq!(mismatch["diagnostics"][0]["stage"], "requirements");
+
+    let mixed_source = workspace.write(
+        "mixed.kess",
+        &format!(
+            "{}assert peak(I(V1)) < 500mA\n",
+            read_fixture("valid/minimal.kess")
+        ),
+    );
+    let mixed_source_arg = path_argument(&mixed_source);
+    let mixed = workspace.run_cli_with_env(
+        &[
+            "test",
+            &mixed_source_arg,
+            "--requirements",
+            &requirements_arg,
+            "--format",
+            "json",
+            "--force",
+        ],
+        "KESSETSU_NGSPICE",
+        &missing_simulator,
+    );
+    assert_eq!(mixed.status.code(), Some(1));
+    let mixed: Value =
+        serde_json::from_slice(&mixed.stdout).expect("mixed authority should be JSON only");
+    assert_eq!(mixed["diagnostics"][0]["code"], "KES-R003");
+
+    let missing_requirements = workspace.path().join("missing.kessreq");
+    let missing_requirements_arg = path_argument(&missing_requirements);
+    let missing = workspace.run_cli_with_env(
+        &[
+            "test",
+            &source_arg,
+            "--requirements",
+            &missing_requirements_arg,
+            "--format",
+            "json",
+            "--force",
+        ],
+        "KESSETSU_NGSPICE",
+        &missing_simulator,
+    );
+    assert_eq!(missing.status.code(), Some(2));
+    let missing: Value =
+        serde_json::from_slice(&missing.stdout).expect("missing requirements should be JSON only");
+    assert_eq!(missing["diagnostics"][0]["code"], "KES-I008");
+}
+
+#[test]
 fn every_repository_example_has_an_explicit_cli_check_and_compile_outcome() {
     let workspace = TestWorkspace::new("example-matrix");
     let examples = Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples");
 
-    for name in [
-        "demo_circuit.kess",
-        "test_features.kess",
-        "test_nc.kess",
-        "wheatstone.kess",
-    ] {
-        let source = examples.join(name);
+    let mut sources = fs::read_dir(&examples)
+        .expect("public examples directory should exist")
+        .map(|entry| entry.expect("example entry should be readable").path())
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "kess")
+        })
+        .collect::<Vec<_>>();
+    sources.sort();
+    assert!(!sources.is_empty());
+
+    for source in sources {
+        let name = source
+            .file_name()
+            .and_then(|name| name.to_str())
+            .expect("example filename should be UTF-8");
         let source_arg = path_argument(&source);
         let check = workspace.run_cli(&["check", &source_arg, "--format", "json"]);
         assert_eq!(check.status.code(), Some(0), "check failed for {name}");
@@ -520,7 +658,8 @@ fn every_repository_example_has_an_explicit_cli_check_and_compile_outcome() {
         assert!(output_path.is_file(), "missing SPICE output for {name}");
     }
 
-    let intentionally_invalid = examples.join("test_amp.kess");
+    let intentionally_invalid = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/invalid/semantic/floating_transistor.kess");
     let invalid_arg = path_argument(&intentionally_invalid);
     let output = workspace.run_cli(&["check", &invalid_arg, "--format", "json"]);
     assert_eq!(output.status.code(), Some(1));

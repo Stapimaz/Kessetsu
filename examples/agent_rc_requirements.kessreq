@@ -1,0 +1,6 @@
+// Evaluator-owned acceptance criteria for agent_rc_design.kess.
+assert gain(V(OUT),V(IN)) > 0.99
+assert cutoff(V(OUT),V(IN)) > 990Hz
+assert cutoff(V(OUT),V(IN)) < 1010Hz
+assert phase(V(OUT),V(IN),1kHz) > -46deg
+assert phase(V(OUT),V(IN),1kHz) < -44deg

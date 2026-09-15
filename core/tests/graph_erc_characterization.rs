@@ -140,7 +140,7 @@ fn disconnected_source_ground_fallback_is_lexicographically_stable() {
 
 #[test]
 fn standard_models_and_full_netlist_are_byte_stable_across_rebuilds() {
-    let source = include_str!("../../examples/test_features.kess");
+    let source = include_str!("fixtures/valid/feature_matrix.kess");
     let circuit = circuit_from(source);
     let baseline = generate_spice(&circuit, &NetlistGraph::build(&circuit));
 

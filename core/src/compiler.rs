@@ -31,6 +31,7 @@ pub enum DiagnosticStage {
     Cli,
     Simulation,
     Assertion,
+    Requirements,
     Schematic,
 }
 

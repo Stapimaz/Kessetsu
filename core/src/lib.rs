@@ -15,6 +15,7 @@ pub mod ltspice;
 pub mod measurement;
 pub mod models;
 pub mod parser;
+pub mod requirements;
 pub mod schematic;
 pub mod schematic_svg;
 pub mod sim_result;

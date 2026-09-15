@@ -12,6 +12,9 @@ use kessetsu_core::models::{
     ExternalModelResources, MAX_EXTERNAL_MODEL_BYTES, validate_external_resource_reference,
 };
 use kessetsu_core::parse_program;
+use kessetsu_core::requirements::{
+    REQUIREMENTS_SCHEMA_VERSION, RequirementSet, compile_requirements,
+};
 use kessetsu_core::sim_result::{
     ASSERTION_SCHEMA_VERSION, AssertionReport, AssertionResult, AssertionStatus, AssertionSummary,
     TolerancePolicy, format_quantity,
@@ -63,7 +66,7 @@ enum Commands {
     /// Parse, ERC, generate a netlist, and run Ngspice
     Simulate(OutputCommand),
     /// Parse, ERC, generate a netlist, simulate, and evaluate assertions
-    Test(OutputCommand),
+    Test(TestCommand),
     /// Render the canonical schematic to SVG, PNG, or PDF
     Render(RenderCommand),
     /// Export a machine-readable or editable circuit artifact
@@ -119,6 +122,20 @@ struct OutputCommand {
     /// Allow overwriting an existing output file
     #[arg(long)]
     force: bool,
+}
+
+#[derive(Args)]
+struct TestCommand {
+    #[command(flatten)]
+    output: OutputCommand,
+
+    /// Evaluate an external assertion-only .kessreq file instead of inline assertions
+    #[arg(long)]
+    requirements: Option<PathBuf>,
+
+    /// Require the external requirements file to match this SHA-256 digest
+    #[arg(long, requires = "requirements")]
+    requirements_sha256: Option<String>,
 }
 
 #[derive(Clone, Copy, ValueEnum, PartialEq, Eq)]
@@ -185,6 +202,7 @@ struct JsonOutput {
     summary: JsonSummary,
     measurements: BTreeMap<String, f64>,
     assertions: Option<AssertionReport>,
+    requirements: Option<JsonRequirements>,
     artifacts: Vec<JsonArtifact>,
     #[serde(skip_serializing_if = "Option::is_none")]
     debug: Option<BTreeMap<String, Value>>,
@@ -196,7 +214,16 @@ struct DomainVersions {
     simulation: Option<&'static str>,
     measurement: Option<&'static str>,
     assertion: Option<&'static str>,
+    requirements: Option<&'static str>,
     export: Option<&'static str>,
+}
+
+#[derive(Clone, Serialize)]
+struct JsonRequirements {
+    schema_version: String,
+    sha256: String,
+    assertion_count: usize,
+    hash_pinned: bool,
 }
 
 #[derive(Serialize)]
@@ -352,6 +379,29 @@ fn run(cli: Cli) -> i32 {
         );
         return exit_code;
     }
+
+    let requirements = if let Commands::Test(test) = &cli.command {
+        match attach_external_requirements(test, &mut report) {
+            Ok(requirements) => requirements,
+            Err(diagnostic) => {
+                report.diagnostics.push(*diagnostic);
+                let exit_code = compile_failure_exit_code(&report);
+                emit(
+                    &cli.format,
+                    command,
+                    &includes,
+                    "error",
+                    report,
+                    None,
+                    None,
+                    None,
+                );
+                return exit_code;
+            }
+        }
+    } else {
+        None
+    };
 
     if matches!(cli.command, Commands::Check { .. }) {
         if cli.format == Format::Human {
@@ -560,6 +610,7 @@ fn run(cli: Cli) -> i32 {
         spice_file,
         &spice,
         &external_resources,
+        requirements,
     )
 }
 
@@ -675,19 +726,108 @@ fn command_path(command: &Commands) -> &Path {
         Commands::Check { file } => file,
         Commands::Render(command) => &command.file,
         Commands::Export(command) => &command.file,
-        Commands::Compile(command) | Commands::Simulate(command) | Commands::Test(command) => {
-            &command.file
-        }
+        Commands::Compile(command) | Commands::Simulate(command) => &command.file,
+        Commands::Test(command) => &command.output.file,
     }
 }
 
 fn output_command(command: &Commands) -> Option<&OutputCommand> {
     match command {
-        Commands::Compile(command) | Commands::Simulate(command) | Commands::Test(command) => {
-            Some(command)
-        }
+        Commands::Compile(command) | Commands::Simulate(command) => Some(command),
+        Commands::Test(command) => Some(&command.output),
         Commands::Check { .. } | Commands::Render(_) | Commands::Export(_) => None,
     }
+}
+
+fn attach_external_requirements(
+    command: &TestCommand,
+    report: &mut CompileReport,
+) -> Result<Option<JsonRequirements>, Box<Diagnostic>> {
+    let Some(path) = command.requirements.as_deref() else {
+        return Ok(None);
+    };
+    if report
+        .ir
+        .as_ref()
+        .is_some_and(|circuit| !circuit.assertions.is_empty())
+    {
+        return Err(Box::new(diagnostic(
+            "KES-R003",
+            DiagnosticStage::Requirements,
+            "a test cannot combine inline assertions with --requirements; keep exactly one requirement authority",
+        )));
+    }
+
+    let bytes = fs::read(path).map_err(|error| {
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("requirements file");
+        Box::new(diagnostic(
+            "KES-I008",
+            DiagnosticStage::Io,
+            format!("Could not read requirements file '{name}': {error}"),
+        ))
+    })?;
+    let RequirementSet {
+        schema_version,
+        sha256,
+        assertions,
+    } = compile_requirements(&bytes).map_err(|error| {
+        Box::new(Diagnostic {
+            code: error.code,
+            severity: DiagnosticSeverity::Error,
+            stage: DiagnosticStage::Requirements,
+            message: error.message,
+            component: None,
+            pin: None,
+            field: None,
+            line: error.line,
+            column: error.column,
+        })
+    })?;
+
+    let hash_pinned = command.requirements_sha256.is_some();
+    if let Some(expected) = command.requirements_sha256.as_deref() {
+        let expected = normalize_sha256(expected).map_err(|message| {
+            Box::new(diagnostic(
+                "KES-R004",
+                DiagnosticStage::Requirements,
+                message,
+            ))
+        })?;
+        if expected != sha256 {
+            return Err(Box::new(diagnostic(
+                "KES-R004",
+                DiagnosticStage::Requirements,
+                format!("requirements hash mismatch: expected {expected}, got {sha256}"),
+            )));
+        }
+    }
+
+    let assertion_count = assertions.len();
+    report
+        .ir
+        .as_mut()
+        .expect("successful compile report must preserve typed IR")
+        .assertions = assertions;
+    Ok(Some(JsonRequirements {
+        schema_version,
+        sha256,
+        assertion_count,
+        hash_pinned,
+    }))
+}
+
+fn normalize_sha256(value: &str) -> Result<String, String> {
+    let digest = value.strip_prefix("sha256:").unwrap_or(value);
+    if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(
+            "--requirements-sha256 must contain exactly 64 hexadecimal characters, optionally prefixed by 'sha256:'"
+                .to_string(),
+        );
+    }
+    Ok(format!("sha256:{}", digest.to_ascii_lowercase()))
 }
 
 fn render_format(command: &RenderCommand) -> Result<ExportFormat, String> {
@@ -865,7 +1005,9 @@ fn run_artifact_command(
             println!("[LOSS] {loss}");
         }
     } else {
-        let mut output = build_json_output(command, includes, "success", &report, None, None, None);
+        let mut output = build_json_output(
+            command, includes, "success", &report, None, None, None, None,
+        );
         output.domain_versions.export = Some(EXPORT_SCHEMA_VERSION);
         output.artifacts.push(json_export_artifact(
             &artifact,
@@ -1137,6 +1279,7 @@ fn run_simulation(
     NgspiceRunner::discover().run_with_context(&request, &context, &CancellationToken::new())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_assertions(
     format: &Format,
     command: &'static str,
@@ -1145,7 +1288,22 @@ fn run_assertions(
     spice_file: Option<String>,
     spice: &str,
     external_resources: &ExternalModelResources,
+    requirements: Option<JsonRequirements>,
 ) -> i32 {
+    if *format == Format::Human
+        && let Some(requirements) = &requirements
+    {
+        println!(
+            "[INFO] Loaded {} external requirement(s), {}{}.",
+            requirements.assertion_count,
+            requirements.sha256,
+            if requirements.hash_pinned {
+                " (hash pinned)"
+            } else {
+                ""
+            }
+        );
+    }
     if report
         .ir
         .as_ref()
@@ -1162,7 +1320,7 @@ fn run_assertions(
             assertions: Vec::new(),
             summary: AssertionSummary::default(),
         };
-        emit(
+        emit_with_requirements(
             format,
             command,
             includes,
@@ -1171,6 +1329,7 @@ fn run_assertions(
             spice_file,
             None,
             Some(assertion_report),
+            requirements,
         );
         return 4;
     }
@@ -1187,7 +1346,7 @@ fn run_assertions(
                 DiagnosticStage::Simulation,
                 error.to_string(),
             ));
-            emit(
+            emit_with_requirements(
                 format,
                 command,
                 includes,
@@ -1196,6 +1355,7 @@ fn run_assertions(
                 spice_file,
                 None,
                 None,
+                requirements,
             );
             return 3;
         }
@@ -1214,7 +1374,7 @@ fn run_assertions(
         report
             .diagnostics
             .push(diagnostic("KES-S002", DiagnosticStage::Simulation, details));
-        emit(
+        emit_with_requirements(
             format,
             command,
             includes,
@@ -1223,6 +1383,7 @@ fn run_assertions(
             spice_file,
             Some(simulation),
             None,
+            requirements,
         );
         return 3;
     }
@@ -1241,7 +1402,7 @@ fn run_assertions(
 
     let status = if all_passed { "success" } else { "test_failed" };
     if *format == Format::Json {
-        emit(
+        emit_with_requirements(
             format,
             command,
             includes,
@@ -1250,6 +1411,7 @@ fn run_assertions(
             spice_file,
             Some(simulation),
             Some(assertion_report),
+            requirements,
         );
     } else if all_passed {
         println!("\n[SUCCESS] All assertions passed.");
@@ -1324,6 +1486,23 @@ fn emit(
     simulation: Option<SimulationResult>,
     assertions: Option<AssertionReport>,
 ) {
+    emit_with_requirements(
+        format, command, includes, status, report, spice_file, simulation, assertions, None,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_with_requirements(
+    format: &Format,
+    command: &'static str,
+    includes: &BTreeSet<Include>,
+    status: &str,
+    report: CompileReport,
+    spice_file: Option<String>,
+    simulation: Option<SimulationResult>,
+    assertions: Option<AssertionReport>,
+    requirements: Option<JsonRequirements>,
+) {
     if *format == Format::Json {
         let output = build_json_output(
             command,
@@ -1333,6 +1512,7 @@ fn emit(
             spice_file,
             simulation.as_ref(),
             assertions,
+            requirements,
         );
         match serde_json::to_string_pretty(&output) {
             Ok(json) => println!("{json}"),
@@ -1354,6 +1534,7 @@ fn build_json_output(
     spice_file: Option<String>,
     simulation: Option<&SimulationResult>,
     assertions: Option<AssertionReport>,
+    requirements: Option<JsonRequirements>,
 ) -> JsonOutput {
     let mut diagnostics = report
         .diagnostics
@@ -1429,12 +1610,14 @@ fn build_json_output(
             simulation: simulation.map(|_| SIMULATION_SCHEMA_VERSION),
             measurement: simulation.map(|_| MEASUREMENT_SCHEMA_VERSION),
             assertion: assertions.as_ref().map(|_| ASSERTION_SCHEMA_VERSION),
+            requirements: requirements.as_ref().map(|_| REQUIREMENTS_SCHEMA_VERSION),
             export: None,
         },
         diagnostics,
         summary,
         measurements,
         assertions,
+        requirements,
         artifacts,
         debug: build_debug(includes, report, simulation),
     }

@@ -18,7 +18,7 @@ capacitor C1 159.154943nF
 inductor L1 10mH
 diode D1 1N4148
 transistor Q1 npn 2N3904
-mosfet M1 nmos IRF540
+mosfet M1 IRF540
 opamp U1 KESSETSU_OPAMP_V1
 
 source VDC 5V
@@ -26,7 +26,7 @@ source VIN sine_ac(0V,100mV,1kHz,1V)
 current_source IBIAS 1mA
 ```
 
-Source waveforms are typed: scalar DC, `sine(offset,amplitude,frequency)`, `pulse(low,high,delay,rise,fall,width,period)`, `ac(amplitude)` and `sine_ac(offset,amplitude,frequency,ac_amplitude)`. See [supported domain](supported_domain.md) for component and model limits.
+Source waveforms are typed: scalar DC, `sine(offset,amplitude,frequency)`, `pulse(low,high,delay,rise,fall,width,period)`, `pwl(time,value,...)`, `ac(amplitude)` and `sine_ac(offset,amplitude,frequency,ac_amplitude)`. PWL requires at least two time/value pairs with non-negative, strictly increasing times. See [supported domain](supported_domain.md) for component and model limits.
 
 ## Connections and pins
 
@@ -53,6 +53,8 @@ assert peak(V(Q1.c,Q1.e)) < 40V
 ```
 
 Analysis arguments and assertions are dimension checked. Operating-point, transient, and AC analyses may each appear once; a DC sweep may appear once per independent source. Unsupported assertion metrics and ambiguous repeated analyses fail semantic validation before simulation. Missing signals or incompatible datasets become explicit errors, never implicit zeroes. Full formulas and sign conventions are in [engineering measurements](engineering_measurements.md); execution behavior is in [simulation and assertions](simulation_and_assertions.md).
+
+An evaluator-owned `.kessreq` file uses the same assertion syntax but permits only comments and one or more `assert` statements. It is supplied to `kess test` with `--requirements`; a design using that option must not also define inline assertions. This is a CLI composition contract, not a second language or a backend bypass.
 
 ## Modules
 

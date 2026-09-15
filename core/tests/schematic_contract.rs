@@ -12,7 +12,10 @@ const CORPUS: &[(&str, &str)] = &[
         "rc_filter",
         include_str!("fixtures/benchmarks/rc_filter.kess"),
     ),
-    ("wheatstone", include_str!("../../examples/wheatstone.kess")),
+    (
+        "wheatstone",
+        include_str!("../../examples/wheatstone_bridge.kess"),
+    ),
     (
         "gain_stage",
         include_str!("fixtures/benchmarks/gain_stage.kess"),

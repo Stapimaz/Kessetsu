@@ -33,10 +33,8 @@ fn valid_repository_examples_match_canonical_spice_snapshots() {
         .join("..")
         .join("examples");
     let cases = [
-        ("demo_circuit.kess", "golden/demo_circuit.spice"),
-        ("wheatstone.kess", "golden/wheatstone.spice"),
-        ("test_features.kess", "golden/test_features.spice"),
-        ("test_nc.kess", "golden/test_nc.spice"),
+        ("common_emitter.kess", "golden/demo_circuit.spice"),
+        ("wheatstone_bridge.kess", "golden/wheatstone.spice"),
     ];
 
     for (source_name, golden_name) in cases {
@@ -44,6 +42,15 @@ fn valid_repository_examples_match_canonical_spice_snapshots() {
         let source = fs::read_to_string(&source_path)
             .unwrap_or_else(|error| panic!("could not read '{}': {error}", source_path.display()));
         let actual = generate(&source);
+        let expected = normalize_text(&read_fixture(golden_name));
+        assert_eq!(actual, expected, "golden mismatch for {source_name}");
+    }
+
+    for (source_name, golden_name) in [
+        ("valid/feature_matrix.kess", "golden/test_features.spice"),
+        ("valid/named_nc.kess", "golden/test_nc.spice"),
+    ] {
+        let actual = generate(&read_fixture(source_name));
         let expected = normalize_text(&read_fixture(golden_name));
         assert_eq!(actual, expected, "golden mismatch for {source_name}");
     }
