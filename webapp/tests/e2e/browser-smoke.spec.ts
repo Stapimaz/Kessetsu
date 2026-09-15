@@ -9,9 +9,10 @@ test('opens the landing page, enters Web Hub, initializes WASM and compiles the 
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   const landingWordmark = page.locator('.landing-header').getByTestId('brand-wordmark');
   await expect(landingWordmark).toHaveText('kessetsu');
+  await expect(landingWordmark).toHaveCSS('font-size', '22px');
   await expect(landingWordmark.locator('.brand-wordmark-signal')).toBeVisible();
   await expect(landingWordmark.locator('.brand-wordmark-node')).toBeVisible();
-  await expect.poll(() => page.evaluate(async () => (await document.fonts.load('650 20px "Kessetsu Wordmark"', 'kessetsu')).length)).toBe(1);
+  await expect.poll(() => page.evaluate(async () => (await document.fonts.load('650 22px "Kessetsu Wordmark"', 'kessetsu')).length)).toBe(1);
   const nodeAlignmentError = await landingWordmark.evaluate((wordmark) => {
     const text = wordmark.querySelector<HTMLElement>('.brand-wordmark-text');
     const node = wordmark.querySelector<HTMLElement>('.brand-wordmark-node');
@@ -44,7 +45,9 @@ test('opens the landing page, enters Web Hub, initializes WASM and compiles the 
   await expect(page).toHaveURL(/#editor$/);
 
   await expect(page.getByTestId('compile-success')).toBeVisible();
-  await expect(page.locator('.app-menubar').getByTestId('brand-wordmark')).toHaveText('kessetsu');
+  const editorWordmark = page.locator('.app-menubar').getByTestId('brand-wordmark');
+  await expect(editorWordmark).toHaveText('kessetsu');
+  await expect(editorWordmark).toHaveCSS('font-size', '15px');
   await expect(page.locator('.monaco-editor')).toBeVisible();
   await page.getByRole('button', { name: 'View', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Circuit details…' }).click();
