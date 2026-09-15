@@ -1,6 +1,6 @@
 # U6 External-Model Follow-up v1
 
-Status: frozen before follow-up candidate generation on 2026-09-14. This protocol preserves the original U6 specification and its three unsupported Kessetsu attempts. It changes only the supplied Kessetsu capability: commit `1128e1b` adds a typed, hash-bound external-subcircuit reference. There is no new direct-arm run because the original direct arm already passed 3/3 with the same exact model and evaluator-owned measurements.
+Status: frozen before follow-up candidate generation on 2026-09-14. This protocol preserves the original U6 specification and its three unsupported Kessetsu attempts. It changes only the supplied Kessetsu capability: rewritten commit `71d9634` adds a typed, hash-bound external-subcircuit reference. There is no new direct-arm run because the original direct arm already passed 3/3 with the same exact model and evaluator-owned measurements.
 
 ## Common prompt
 

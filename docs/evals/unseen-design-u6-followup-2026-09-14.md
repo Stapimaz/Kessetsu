@@ -5,7 +5,7 @@ Status: **PASS after one disclosed post-run exporter correction.** Three fresh K
 ## Configuration
 
 - Frozen follow-up specification: `docs/evals/unseen-design-u6-followup-v1.md`, SHA-256 `b46d817be10aea4b14592cf99c084cd1b72d501130fcc4810dbbb82aecf18938`
-- Capability/harness checkpoint: commit `a4a0801`; original unsupported U6 evidence remains unchanged
+- Capability/harness checkpoint: rewritten commit `506b534`; original unsupported U6 evidence remains unchanged
 - Model: `gpt-5.6-sol`, medium reasoning, fresh ephemeral Codex CLI sessions authenticated through ChatGPT; no API key, API call, network access, or human intervention during an attempt
 - Codex CLI: `0.154.0-alpha.6.2`, SHA-256 `2271526227b06ca13ab2b975b88546460fc61b2a29225b6dda0fdc803024ccc9`
 - Scored Kessetsu CLI: `kess 0.1.0`, SHA-256 `1bd44a4b49290223c2773410eeda30ccec47c51c3729005c43124ff7e25b84cb`
@@ -36,7 +36,7 @@ The initial KiCad artifacts opened in KiCad 10, retained every component, genera
 
 ### Disclosed post-run correction
 
-The three scored agents ran against commit `a4a0801`. Their original LTspice files used `SYMATTR Value OPA197`, the local typed alias, while the included library defines `.SUBCKT OPAx197`. The real application smoke exposed this semantic mismatch after all three electrical evaluations had passed. The original files and hashes remain under `.artifacts/agent-comparison-v1/U6-followup-v1/eda-review/*-pre-entry-fix.asc`. Core now derives the LTspice symbol value from `ExternalSubcircuit.metadata.entry`; a regression test distinguishes alias from entry. Only `.asc` files were deterministically regenerated after the fix. Candidate source, simulator input, evaluator output, PNG/SVG/Schematic JSON, and KiCad artifacts were not revised.
+The three scored agents ran against rewritten commit `506b534`. Their original LTspice files used `SYMATTR Value OPA197`, the local typed alias, while the included library defines `.SUBCKT OPAx197`. The real application smoke exposed this semantic mismatch after all three electrical evaluations had passed. The original files and hashes remain under `.artifacts/agent-comparison-v1/U6-followup-v1/eda-review/*-pre-entry-fix.asc`. Core now derives the LTspice symbol value from `ExternalSubcircuit.metadata.entry`; a regression test distinguishes alias from entry. Only `.asc` files were deterministically regenerated after the fix. Candidate source, simulator input, evaluator output, PNG/SVG/Schematic JSON, and KiCad artifacts were not revised.
 
 ## Decision
 

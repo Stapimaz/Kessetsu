@@ -1,7 +1,7 @@
 # Schematic Quality Candidate — 2026-08-14
 
 - Status: **Accepted visual golden on 2026-08-20 after explicit owner review of RC, gain-stage and power-amplifier**
-- Accepted implementation: `5308f3b` (`Fix schematic and plot pointer geometry`)
+- Accepted implementation: rewritten commit `dbb02cf` (`Fix schematic and plot pointer geometry`)
 - Remote verification: GitHub Actions run `31850078955`, successful on the accepted commit
 - Source of truth: Circuit IR → `kessetsu.schematic.v1` → Core render/export projections
 - Harness: `scripts/capture-schematic-corpus.ps1`
@@ -71,5 +71,5 @@ After the owner's second review, all thirteen exported PNGs and the linked-highl
 ## Acceptance record
 
 1. The full local canonical gate passed on the accepted implementation, including 13 Chromium E2E tests, release smoke and installed KiCad/LTspice smoke.
-2. Remote CI run `31850078955` passed on exact commit `5308f3b`.
+2. Remote CI run `31850078955` passed on exact rewritten commit `dbb02cf`.
 3. The owner accepted all three required Web examples. This acceptance freezes the current output as the regression baseline; it does not prohibit future schematic improvements or fixes when a new defect is reported.
