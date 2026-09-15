@@ -31,7 +31,8 @@ test('opens the landing page, enters Web Hub, initializes WASM and compiles the 
     const nodeCenter = nodeBounds.left + nodeBounds.width / 2;
     return Math.abs(nodeCenter - (previousSCenter + followingECenter) / 2);
   });
-  expect(nodeAlignmentError).toBeLessThan(0.35);
+  // Chromium's platform font rasterizer can move the measured glyph midpoint by a subpixel.
+  expect(nodeAlignmentError).toBeLessThanOrEqual(0.5);
   expect(await page.locator('.landing-hero .eyebrow').evaluate((element) => (element as HTMLElement).innerText))
     .toBe('EXECUTABLE CIRCUIT ENGINEERING');
   await expect(page.getByText('First-release scope:')).toBeVisible();
