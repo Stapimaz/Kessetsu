@@ -12,6 +12,25 @@ test('opens the landing page, enters Web Hub, initializes WASM and compiles the 
   await expect(landingWordmark.locator('.brand-wordmark-signal')).toBeVisible();
   await expect(landingWordmark.locator('.brand-wordmark-node')).toBeVisible();
   await expect.poll(() => page.evaluate(async () => (await document.fonts.load('650 20px "Kessetsu Wordmark"', 'kessetsu')).length)).toBe(1);
+  const nodeAlignmentError = await landingWordmark.evaluate((wordmark) => {
+    const text = wordmark.querySelector<HTMLElement>('.brand-wordmark-text');
+    const node = wordmark.querySelector<HTMLElement>('.brand-wordmark-node');
+    if (!(text?.firstChild instanceof Text) || !node) throw new Error('Wordmark geometry is incomplete');
+
+    const characterCenter = (index: number) => {
+      const range = document.createRange();
+      range.setStart(text.firstChild!, index);
+      range.setEnd(text.firstChild!, index + 1);
+      const bounds = range.getBoundingClientRect();
+      return bounds.left + bounds.width / 2;
+    };
+    const previousSCenter = characterCenter(3);
+    const followingECenter = characterCenter(4);
+    const nodeBounds = node.getBoundingClientRect();
+    const nodeCenter = nodeBounds.left + nodeBounds.width / 2;
+    return Math.abs(nodeCenter - (previousSCenter + followingECenter) / 2);
+  });
+  expect(nodeAlignmentError).toBeLessThan(0.35);
   expect(await page.locator('.landing-hero .eyebrow').evaluate((element) => (element as HTMLElement).innerText))
     .toBe('EXECUTABLE CIRCUIT ENGINEERING');
   await expect(page.getByText('First-release scope:')).toBeVisible();

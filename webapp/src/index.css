@@ -91,7 +91,7 @@ button:focus-visible, select:focus-visible, a:focus-visible, [tabindex]:focus-vi
 .brand-wordmark-text { display: block; }
 .brand-wordmark-signal {
   position: relative;
-  width: 2.38em;
+  width: 2.065em;
   height: .085em;
   min-height: 1.5px;
   margin: .135em 0 0 .02em;
