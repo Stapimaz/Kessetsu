@@ -48,6 +48,17 @@ test('opens the landing page, enters Web Hub, initializes WASM and compiles the 
   const editorWordmark = page.locator('.app-menubar').getByTestId('brand-wordmark');
   await expect(editorWordmark).toHaveText('kessetsu');
   await expect(editorWordmark).toHaveCSS('font-size', '15px');
+  const headerActionSizes = await page.locator('.global-actions .header-action-button').evaluateAll((buttons) => (
+    buttons.map((button) => {
+      const bounds = button.getBoundingClientRect();
+      return { width: Math.round(bounds.width), height: Math.round(bounds.height) };
+    })
+  ));
+  expect(headerActionSizes).toEqual([
+    { width: 76, height: 30 },
+    { width: 76, height: 30 },
+    { width: 76, height: 30 },
+  ]);
   await expect(page.locator('.monaco-editor')).toBeVisible();
   await page.getByRole('button', { name: 'View', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Circuit details…' }).click();

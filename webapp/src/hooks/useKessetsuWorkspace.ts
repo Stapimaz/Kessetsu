@@ -40,7 +40,7 @@ function errorMessage(error: unknown): string {
 
 const initialState: WorkspaceState = {
   code: rcFilter,
-  circuitName: null,
+  circuitName: examples.rc.label,
   isDirty: false,
   draftRestored: false,
   diagnostics: [],
@@ -90,16 +90,20 @@ export function useKessetsuWorkspace() {
           }
         }
         sharedEnvelopeRef.current = shared;
-        setState((current) => ({
-          ...current,
-          code: shared?.source ?? draft?.source ?? current.code,
-          circuitName: shared?.name ?? draft?.name ?? null,
-          isDirty: draft?.dirty ?? false,
-          draftRestored: draft?.dirty ?? false,
-          wasmLoaded: true,
-          compileState: 'checking',
-          exportCapabilities: capabilities as WorkspaceState['exportCapabilities'],
-        }));
+        setState((current) => {
+          const source = shared?.source ?? draft?.source ?? current.code;
+          const exampleName = Object.values(examples).find((example) => example.source === source)?.label ?? null;
+          return {
+            ...current,
+            code: source,
+            circuitName: shared?.name ?? draft?.name ?? exampleName,
+            isDirty: draft?.dirty ?? false,
+            draftRestored: draft?.dirty ?? false,
+            wasmLoaded: true,
+            compileState: 'checking',
+            exportCapabilities: capabilities as WorkspaceState['exportCapabilities'],
+          };
+        });
       })
       .catch((error: unknown) => mounted && setState((current) => ({
         ...current,

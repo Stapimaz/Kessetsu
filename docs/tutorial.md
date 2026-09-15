@@ -49,6 +49,6 @@ kess export rc.kess --target kicad -o rc.kicad_sch
 kess export rc.kess --target ltspice -o rc.asc
 ```
 
-Existing targets are not overwritten unless `--force` is explicit. Open the source in Web Hub to inspect the schematic and Bode result. **File → Save source** downloads a portable `.kess` file, while the versioned local browser draft protects unsaved work across reloads. Press **Share** to create a URL fragment containing a compressed copy of the source and exact model-package versions. No project upload or account is required.
+Existing targets are not overwritten unless `--force` is explicit. Open the source in Web Hub to inspect the schematic and Bode result. In browsers with the File System Access API, **File → Save** or **Ctrl+S** writes back to the selected `.kess` file and **Save As...** chooses a new destination. Other browsers download a portable `.kess` file instead. A successful save clears the unsaved marker; cancelling or failing a save does not. The versioned local browser draft still protects unsaved work across reloads. Press **Share** to create a URL fragment containing a compressed copy of the source and exact model-package versions. No project upload or account is required.
 
 Next try the canonical [gain stage](../core/tests/fixtures/benchmarks/gain_stage.kess) and [8 Ω power amplifier](../core/tests/fixtures/benchmarks/power_amplifier.kess). The supported physical boundary is documented in [supported domain](supported_domain.md).

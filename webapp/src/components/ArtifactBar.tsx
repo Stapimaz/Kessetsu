@@ -40,7 +40,7 @@ export function ArtifactBar({ enabled, capabilities, message, filenameStem, onEx
 
   return (
     <aside className="artifact-bar" aria-label="Exports">
-      <button disabled={!enabled} onClick={() => dialogRef.current?.showModal()} aria-haspopup="dialog" aria-label="Export"><Download size={15} /><span>Export</span></button>
+      <button className="header-action-button export-button" disabled={!enabled} onClick={() => dialogRef.current?.showModal()} aria-haspopup="dialog" aria-label="Export"><Download size={15} /><span>Export</span></button>
       <dialog ref={dialogRef} className="app-dialog export-dialog" aria-labelledby="export-title">
       <header><div><h2 id="export-title">Export circuit</h2><p>Choose a format to download.</p></div>
         <button aria-label="Close export" onClick={() => dialogRef.current?.close()}><X size={18} /></button>

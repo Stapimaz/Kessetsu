@@ -11,6 +11,91 @@ export interface WorkspaceDraft {
   dirty: boolean;
 }
 
+export interface KessetsuFileHandle {
+  readonly name: string;
+  getFile(): Promise<File>;
+  createWritable(): Promise<{
+    write(data: Blob): Promise<void>;
+    close(): Promise<void>;
+  }>;
+}
+
+type FilePickerHost = typeof globalThis & {
+  showOpenFilePicker?: (options: {
+    multiple: false;
+    types: Array<{ description: string; accept: Record<string, string[]> }>;
+  }) => Promise<KessetsuFileHandle[]>;
+  showSaveFilePicker?: (options: {
+    suggestedName: string;
+    types: Array<{ description: string; accept: Record<string, string[]> }>;
+  }) => Promise<KessetsuFileHandle>;
+};
+
+export type NativeOpenResult =
+  | { status: 'unsupported' }
+  | { status: 'cancelled' }
+  | { status: 'selected'; file: File; handle: KessetsuFileHandle };
+
+export type NativeSaveResult =
+  | { status: 'unsupported' }
+  | { status: 'cancelled' }
+  | { status: 'saved'; handle: KessetsuFileHandle };
+
+const kessetsuFilePickerTypes = [{
+  description: 'Kessetsu circuit',
+  accept: { 'text/plain': ['.kess'] },
+}];
+
+function filePickerHost(): FilePickerHost {
+  return globalThis as unknown as FilePickerHost;
+}
+
+function isPickerCancellation(cause: unknown): boolean {
+  return cause instanceof DOMException && cause.name === 'AbortError';
+}
+
+export async function openWithNativeFilePicker(): Promise<NativeOpenResult> {
+  const picker = filePickerHost().showOpenFilePicker;
+  if (!picker) return { status: 'unsupported' };
+  try {
+    const [handle] = await picker({ multiple: false, types: kessetsuFilePickerTypes });
+    if (!handle) return { status: 'cancelled' };
+    return { status: 'selected', handle, file: await handle.getFile() };
+  } catch (cause: unknown) {
+    if (isPickerCancellation(cause)) return { status: 'cancelled' };
+    throw cause;
+  }
+}
+
+export async function saveWithNativeFilePicker(
+  source: string,
+  suggestedName: string,
+  currentHandle: KessetsuFileHandle | null,
+  forceSaveAs: boolean,
+): Promise<NativeSaveResult> {
+  let handle = forceSaveAs ? null : currentHandle;
+  if (!handle) {
+    const picker = filePickerHost().showSaveFilePicker;
+    if (!picker) return { status: 'unsupported' };
+    try {
+      handle = await picker({ suggestedName, types: kessetsuFilePickerTypes });
+    } catch (cause: unknown) {
+      if (isPickerCancellation(cause)) return { status: 'cancelled' };
+      throw cause;
+    }
+  }
+
+  try {
+    const writable = await handle.createWritable();
+    await writable.write(new Blob([source], { type: 'text/plain;charset=utf-8' }));
+    await writable.close();
+    return { status: 'saved', handle };
+  } catch (cause: unknown) {
+    if (isPickerCancellation(cause)) return { status: 'cancelled' };
+    throw cause;
+  }
+}
+
 function utf8Length(value: string): number {
   return new TextEncoder().encode(value).byteLength;
 }

@@ -5,6 +5,10 @@ async function openFileMenu(page: import('@playwright/test').Page) {
 }
 
 test('names, saves, restores, opens and creates local Kessetsu documents', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'showOpenFilePicker', { configurable: true, value: undefined });
+    Object.defineProperty(window, 'showSaveFilePicker', { configurable: true, value: undefined });
+  });
   await page.goto('/#editor');
   await expect(page.getByTestId('compile-success')).toBeVisible();
 
@@ -17,13 +21,23 @@ test('names, saves, restores, opens and creates local Kessetsu documents', async
 
   await openFileMenu(page);
   const sourceDownloadPromise = page.waitForEvent('download');
-  await page.getByRole('menuitem', { name: 'Save source' }).click();
+  await page.getByRole('menuitem', { name: 'Save', exact: true }).click();
   const sourceDownload = await sourceDownloadPromise;
   expect(sourceDownload.suggestedFilename()).toBe('precision-filter.kess');
   const sourceStream = await sourceDownload.createReadStream();
   const chunks: Buffer[] = [];
   for await (const chunk of sourceStream) chunks.push(Buffer.from(chunk));
   expect(Buffer.concat(chunks).toString('utf8')).toContain('Canonical first-order RC low-pass');
+  await expect(page.locator('.document-title')).not.toHaveAttribute('aria-label', /unsaved changes/);
+
+  await page.locator('.monaco-editor').click();
+  await page.keyboard.press('ControlOrMeta+End');
+  await page.keyboard.insertText('\n// saved edit');
+  await expect(page.locator('.document-title')).toHaveAttribute('aria-label', /unsaved changes/);
+  const shortcutDownloadPromise = page.waitForEvent('download');
+  await page.keyboard.press('ControlOrMeta+s');
+  await shortcutDownloadPromise;
+  await expect(page.locator('.document-title')).not.toHaveAttribute('aria-label', /unsaved changes/);
 
   await page.locator('.monaco-editor').click();
   await page.keyboard.press('ControlOrMeta+End');
@@ -50,4 +64,59 @@ test('names, saves, restores, opens and creates local Kessetsu documents', async
   await page.getByRole('menuitem', { name: 'New circuit' }).click();
   await expect(page.locator('.document-title')).toHaveText('Untitled circuit');
   await expect(page.locator('.view-lines')).toContainText('New Kessetsu circuit');
+});
+
+test('Save retains a native file handle while Save As selects a new destination', async ({ page }) => {
+  await page.addInitScript(() => {
+    const state = { pickerCalls: 0, writes: [] as string[], suggestedNames: [] as string[] };
+    Object.defineProperty(window, '__kessetsuFsTest', { configurable: true, value: state });
+    Object.defineProperty(window, 'showSaveFilePicker', {
+      configurable: true,
+      value: async (options: { suggestedName: string }) => {
+        state.pickerCalls += 1;
+        state.suggestedNames.push(options.suggestedName);
+        const handleId = state.pickerCalls;
+        return {
+          name: options.suggestedName,
+          getFile: async () => new File([], options.suggestedName, { type: 'text/plain' }),
+          createWritable: async () => ({
+            write: async (data: Blob) => { state.writes.push(`${handleId}:${await data.text()}`); },
+            close: async () => undefined,
+          }),
+        };
+      },
+    });
+  });
+  await page.goto('/#editor');
+  await expect(page.getByTestId('compile-success')).toBeVisible();
+
+  await openFileMenu(page);
+  await page.getByRole('menuitem', { name: 'Rename…' }).click();
+  const rename = page.getByRole('dialog', { name: 'Rename circuit' });
+  await rename.getByLabel('Circuit name').fill('Native Filter');
+  await rename.getByRole('button', { name: 'Rename', exact: true }).click();
+
+  await page.locator('.monaco-editor').click();
+  await page.keyboard.press('ControlOrMeta+End');
+  await page.keyboard.insertText('\n// native save one');
+  await page.keyboard.press('ControlOrMeta+s');
+  await expect(page.locator('.document-title')).not.toHaveAttribute('aria-label', /unsaved changes/);
+
+  await page.keyboard.insertText('\n// native save two');
+  await page.keyboard.press('ControlOrMeta+s');
+  await expect(page.locator('.document-title')).not.toHaveAttribute('aria-label', /unsaved changes/);
+
+  await openFileMenu(page);
+  await page.getByRole('menuitem', { name: 'Save As', exact: true }).click();
+  await expect(page.locator('.document-title')).not.toHaveAttribute('aria-label', /unsaved changes/);
+
+  const nativeState = await page.evaluate(() => (
+    window as unknown as { __kessetsuFsTest: { pickerCalls: number; writes: string[]; suggestedNames: string[] } }
+  ).__kessetsuFsTest);
+  expect(nativeState.pickerCalls).toBe(2);
+  expect(nativeState.suggestedNames).toEqual(['native-filter.kess', 'native-filter.kess']);
+  expect(nativeState.writes).toHaveLength(3);
+  expect(nativeState.writes[0]).toContain('// native save one');
+  expect(nativeState.writes[1]).toContain('// native save two');
+  expect(nativeState.writes[2]).toContain('// native save two');
 });

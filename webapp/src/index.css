@@ -71,8 +71,8 @@ button:focus-visible, select:focus-visible, a:focus-visible, [tabindex]:focus-vi
   .compile-loading svg,
   .compile-checking svg { animation: none; }
 }
-.share-button { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel-raised); cursor: pointer; }
-.share-button:disabled { cursor: not-allowed; opacity: .45; }
+.header-action-button { min-width: 76px; height: 30px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); cursor: pointer; font-size: 11px; line-height: 1; }
+.share-button { background: var(--panel-raised); }
 .wordmark { color: inherit; text-decoration: none; }
 .brand-wordmark {
   --brand-wordmark-size: 16px;
@@ -136,7 +136,7 @@ button:focus-visible, select:focus-visible, a:focus-visible, [tabindex]:focus-vi
 .panel-window-actions button { width: 25px; height: 24px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 3px; color: #91a0b5; background: transparent; cursor: pointer; }
 .panel-window-actions button:hover { color: var(--text); background: #29364a; }
 select { max-width: 180px; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; }
-.secondary-button, .run-button, .artifact-bar button { height: 30px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); padding: 0 9px; cursor: pointer; font-size: 11px; }
+.secondary-button, .artifact-bar button { height: 30px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); padding: 0 9px; cursor: pointer; font-size: 11px; }
 button:disabled { opacity: .45; cursor: not-allowed; }
 .editor-container { min-height: 0; flex: 1; }
 
@@ -178,7 +178,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .schematic-surface .schematic-document .net-label.signal path { fill: #203b54; stroke: #74a9d8; }
 .empty-state, .result-empty { margin: auto; color: var(--muted); }
 
-.run-button { border-color: #228f80; color: #d5fff8; background: #17665b; font-weight: 700; min-width: 82px; }
+.run-button { border-color: #228f80; color: #d5fff8; background: #17665b; font-weight: 700; }
 .cancel-button { border-color: #9f3d50; background: #702737; }
 .status-failed { color: var(--error); }
 .status-succeeded { color: var(--success); }
@@ -221,6 +221,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 
 .artifact-bar { display: flex; align-items: center; gap: 4px; }
 .artifact-bar button { padding: 4px 8px; font-size: 11px; }
+.artifact-bar > .header-action-button { padding: 0 10px; }
 .export-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-block: 16px; }
 .app-dialog { width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 40px); overflow: auto; padding: 22px; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 24px 80px #0008; }
 .app-dialog::backdrop { background: #000a; }

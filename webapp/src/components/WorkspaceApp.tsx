@@ -1,7 +1,13 @@
 import { CheckCircle2, ChevronRight, CircleAlert, LoaderCircle, Share2, Square, Zap } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import productVersionSource from '../../../VERSION?raw';
-import { downloadTextFile, sanitizeFileStem } from '../document';
+import {
+  downloadTextFile,
+  openWithNativeFilePicker,
+  saveWithNativeFilePicker,
+  sanitizeFileStem,
+  type KessetsuFileHandle,
+} from '../document';
 import { useKessetsuWorkspace, examples, type ExampleId } from '../hooks/useKessetsuWorkspace';
 import { ArtifactBar } from './ArtifactBar';
 import { BrandWordmark } from './BrandWordmark';
@@ -30,6 +36,7 @@ export function WorkspaceApp() {
   const [documentError, setDocumentError] = useState('');
   const menusRef = useRef<HTMLElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileHandleRef = useRef<KessetsuFileHandle | null>(null);
   const selectedExample = Object.entries(examples).find(([, example]) => example.source === state.code)?.[0] as ExampleId | undefined;
   const documentName = state.circuitName ?? (selectedExample ? examples[selectedExample].label : 'Untitled circuit');
   const errorCount = state.diagnostics.filter((diagnostic) => diagnostic.severity === 'error').length;
@@ -92,31 +99,74 @@ export function WorkspaceApp() {
   };
   const selectExample = (id: ExampleId) => {
     if (state.isDirty && !globalThis.confirm('Replace the current unsaved circuit with this example?')) return;
+    fileHandleRef.current = null;
     loadExample(id);
     setExamplesOpen(false);
     setOpenMenu(null);
   };
   const startNewDocument = () => {
     if (state.isDirty && !globalThis.confirm('Discard the current unsaved changes and create a new circuit?')) return;
+    fileHandleRef.current = null;
     newDocument();
     setOpenMenu(null);
   };
   const chooseDocument = () => {
     if (state.isDirty && !globalThis.confirm('Discard the current unsaved changes and open another circuit?')) return;
     setOpenMenu(null);
-    fileInputRef.current?.click();
+    setDocumentError('');
+    void openWithNativeFilePicker()
+      .then(async (result) => {
+        if (result.status === 'unsupported') {
+          fileInputRef.current?.click();
+          return;
+        }
+        if (result.status === 'cancelled') return;
+        await openDocument(result.file);
+        fileHandleRef.current = result.handle;
+      })
+      .catch((cause: unknown) => {
+        setDocumentError(`Could not open circuit: ${cause instanceof Error ? cause.message : String(cause)}`);
+      });
   };
-  const saveDocument = useCallback(() => {
-    downloadTextFile(state.code, `${sanitizeFileStem(documentName)}.kess`);
-    markSaved();
+  const saveDocument = useCallback(async (forceSaveAs = false) => {
     setOpenMenu(null);
+    setDocumentError('');
+    const fileName = `${sanitizeFileStem(documentName)}.kess`;
+    try {
+      const result = await saveWithNativeFilePicker(
+        state.code,
+        fileName,
+        fileHandleRef.current,
+        forceSaveAs,
+      );
+      if (result.status === 'cancelled') return;
+      if (result.status === 'unsupported') {
+        downloadTextFile(state.code, fileName);
+        fileHandleRef.current = null;
+      } else {
+        fileHandleRef.current = result.handle;
+      }
+      markSaved();
+    } catch (cause: unknown) {
+      setDocumentError(`Could not save circuit: ${cause instanceof Error ? cause.message : String(cause)}`);
+    }
   }, [documentName, markSaved, state.code]);
+
+  const renameCurrentDocument = useCallback((name: string) => {
+    fileHandleRef.current = null;
+    renameDocument(name);
+  }, [renameDocument]);
+
+  const shareCircuit = useCallback(async (name: string) => {
+    if (name.trim() !== documentName) fileHandleRef.current = null;
+    return share(name);
+  }, [documentName, share]);
 
   useEffect(() => {
     const saveShortcut = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
         event.preventDefault();
-        saveDocument();
+        void saveDocument(event.shiftKey);
       }
     };
     window.addEventListener('keydown', saveShortcut);
@@ -133,7 +183,8 @@ export function WorkspaceApp() {
             {openMenu === 'file' && <div className="menu-popover file-menu" role="menu" aria-label="File menu">
               <button role="menuitem" onClick={startNewDocument}><span>New circuit</span></button>
               <button role="menuitem" onClick={chooseDocument}><span>Open .kess…</span></button>
-              <button role="menuitem" onClick={saveDocument}><span>Save source</span><kbd>Ctrl+S</kbd></button>
+              <button role="menuitem" aria-label="Save" onClick={() => void saveDocument()}><span>Save</span><kbd>Ctrl+S</kbd></button>
+              <button role="menuitem" aria-label="Save As" onClick={() => void saveDocument(true)}><span>Save As...</span><kbd>Ctrl+Shift+S</kbd></button>
               <button role="menuitem" onClick={() => { setRenameOpen(true); setOpenMenu(null); }}><span>Rename…</span></button>
               <div className="menu-separator" role="separator" />
               <div className="menu-submenu">
@@ -188,12 +239,12 @@ export function WorkspaceApp() {
             <CompileStatusIcon size={14} /><span>{compileStatus}</span>
           </span>
           {state.simulationState === 'running'
-            ? <button className="run-button cancel-button" aria-label="Cancel" onClick={cancel}><Square size={13} /> <span>Cancel</span></button>
-            : <button className="run-button" aria-label="Run" onClick={() => void run()} disabled={!state.compileSucceeded}><Zap size={15} /> <span>Run</span></button>}
+            ? <button className="header-action-button run-button cancel-button" aria-label="Cancel" onClick={cancel}><Square size={13} /> <span>Cancel</span></button>
+            : <button className="header-action-button run-button" aria-label="Run" onClick={() => void run()} disabled={!state.compileSucceeded}><Zap size={15} /> <span>Run</span></button>}
           <ArtifactBar enabled={state.compileSucceeded}
             capabilities={state.exportCapabilities} message={state.exportMessage}
             filenameStem={sanitizeFileStem(documentName)} onExport={createExport} />
-          <button className="share-button" onClick={() => setShareOpen(true)} disabled={!state.compileSucceeded} aria-label="Share circuit">
+          <button className="header-action-button share-button" onClick={() => setShareOpen(true)} disabled={!state.compileSucceeded} aria-label="Share circuit">
             <Share2 size={15} /> <span>Share</span>
           </button>
         </div>
@@ -209,13 +260,14 @@ export function WorkspaceApp() {
           event.currentTarget.value = '';
           if (!file) return;
           setDocumentError('');
+          fileHandleRef.current = null;
           void openDocument(file).catch((cause: unknown) => {
-            setDocumentError(cause instanceof Error ? cause.message : String(cause));
+            setDocumentError(`Could not open circuit: ${cause instanceof Error ? cause.message : String(cause)}`);
           });
         }}
       />
       {state.draftRestored && <div className="draft-notice" role="status">Unsaved browser draft restored. Save the source when you want a portable file.</div>}
-      {documentError && <div className="global-error" role="alert">Could not open circuit: {documentError}</div>}
+      {documentError && <div className="global-error" role="alert">{documentError}</div>}
       {state.wasmError && <div className="global-error" role="alert">Core failed to initialize: {state.wasmError}</div>}
       <CircuitDetailsDialog
         open={circuitDetailsOpen}
@@ -227,13 +279,13 @@ export function WorkspaceApp() {
         open={shareOpen}
         currentName={documentName}
         onClose={() => setShareOpen(false)}
-        onCreateLink={share}
+        onCreateLink={shareCircuit}
       />
       <RenameDialog
         open={renameOpen}
         currentName={documentName}
         onClose={() => setRenameOpen(false)}
-        onRename={renameDocument}
+        onRename={renameCurrentDocument}
       />
       <WorkspaceLayout
         resetRequest={resetRequest}
