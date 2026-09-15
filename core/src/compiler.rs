@@ -160,32 +160,27 @@ fn annotate_source_location(source: &str, diagnostic: &mut Diagnostic) {
     if diagnostic.line.is_some() {
         return;
     }
-    let needle = diagnostic
-        .component
-        .as_deref()
-        .or(diagnostic.field.as_deref())
-        .or_else(|| {
-            diagnostic
-                .message
-                .split(|character: char| {
-                    character.is_whitespace() || matches!(character, '\'' | '"' | ':' | ',' | '.')
-                })
-                .find(|token| {
-                    !token.is_empty()
-                        && source.lines().any(|line| {
-                            line.split(|character: char| {
-                                !character.is_ascii_alphanumeric() && character != '_'
-                            })
-                            .any(|candidate| candidate.eq_ignore_ascii_case(token))
-                        })
-                })
-        });
-    let Some(needle) = needle else { return };
-    for (line_index, line) in source.lines().enumerate() {
-        if let Some(column) = line.to_ascii_lowercase().find(&needle.to_ascii_lowercase()) {
-            diagnostic.line = Some(line_index + 1);
-            diagnostic.column = Some(column + 1);
-            return;
+    let mut needles = Vec::new();
+    if let Some(component) = diagnostic.component.as_deref() {
+        needles.push(component);
+    }
+    if let Some(field) = diagnostic.field.as_deref() {
+        needles.push(field);
+        if field == "analysis" {
+            needles.push("simulate");
+        }
+    }
+    needles.extend(diagnostic.message.split(|character: char| {
+        character.is_whitespace() || matches!(character, '\'' | '"' | ':' | ',' | '.')
+    }));
+
+    for needle in needles.into_iter().filter(|needle| !needle.is_empty()) {
+        for (line_index, line) in source.lines().enumerate() {
+            if let Some(column) = line.to_ascii_lowercase().find(&needle.to_ascii_lowercase()) {
+                diagnostic.line = Some(line_index + 1);
+                diagnostic.column = Some(column + 1);
+                return;
+            }
         }
     }
 }

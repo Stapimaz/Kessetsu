@@ -64,7 +64,7 @@ The `--output` path is resolved relative to the working directory. If the destin
 
 Compiles the source, writes the SPICE file under the same output policy, and runs Ngspice in batch mode through the shared simulation runner. The runner probes the executable version, creates a unique temporary directory for every run, and applies a default 30-second timeout. A failed simulator process status or fatal/error output returns exit code `3`. Human and JSON renderers use the same typed `SimulationResult`; raw simulator logs appear only through explicit `--include raw-log`.
 
-The language supports `op`, `tran`, `ac`, and `dc` sweeps of independent voltage/current sources. Analysis arguments and physical units are validated during semantic conversion. Unsupported or malformed analyses produce `KES-C009`, and the simulator does not start.
+The language supports `op`, `tran`, `ac`, and `dc` sweeps of independent voltage/current sources. Analysis arguments and physical units are validated during semantic conversion. Operating-point, transient, and AC analyses are unique; DC sweeps are unique per source. Unsupported, malformed, or ambiguous repeated analyses produce source-located `KES-C009`, and the simulator does not start.
 
 ```bash
 kess simulate examples/demo_circuit.kess --force
@@ -72,13 +72,13 @@ kess simulate examples/demo_circuit.kess --force
 
 ### `test`
 
-Evaluates source assertions after compilation and simulation. A simulation failure returns exit code `3`; an unsuccessful assertion result returns exit code `4`.
+Evaluates source assertions after compilation and simulation. A simulation failure returns exit code `3`; an unsuccessful assertion result returns exit code `4`. A source with no assertions fails before simulator launch with `KES-T000` and exit code `4`; use `simulate` when no verification contract is intended.
 
 ```bash
 kess test examples/test_features.kess --force
 ```
 
-Each assertion receives a deterministic `KES-Txxx` code in source order. Results are separated into `PASS`, `FAIL`, `ERROR`, and `SKIPPED`: an unmet threshold is `FAIL`; a missing measurement or unsupported metric is `ERROR`; and an incomplete simulation produces `SKIPPED`. If any of these non-passing states exists, the command returns exit code `4`.
+Each assertion receives a deterministic `KES-Txxx` code in source order. Results are separated into `PASS`, `FAIL`, `ERROR`, and `SKIPPED`: an unmet threshold is `FAIL`; a missing measurement is `ERROR`; and an incomplete simulation produces `SKIPPED`. Unsupported metric names and invalid argument shapes are semantic `KES-C006` errors and never reach the simulator. If any non-passing assertion state exists, the command returns exit code `4`.
 
 Supported primitive metrics are `value`, `min`, `max`, `peak`, `average`/`avg`, and `rms`. `peak` means `max(abs(x))`, not the signed maximum. In OP analysis, `value`, `min`, `max`, and `average` return the signed scalar value, while `peak` and `rms` return its magnitude. Equality and inclusive comparators use defined absolute/relative tolerances for small numeric differences; strict `<` and `>` boundaries are not relaxed.
 

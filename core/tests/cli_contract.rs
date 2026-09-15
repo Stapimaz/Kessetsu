@@ -460,6 +460,37 @@ fn failed_assertion_has_structured_result_and_exit_code_four() {
 }
 
 #[test]
+fn test_without_assertions_fails_before_launching_the_simulator() {
+    let workspace = TestWorkspace::new("zero-assertions");
+    let source = workspace.write("circuit.kess", &read_fixture("valid/minimal.kess"));
+    let source_arg = path_argument(&source);
+    let missing_simulator = workspace.path().join("must-not-run-ngspice");
+
+    let human = workspace.run_cli_with_env(
+        &["test", &source_arg, "--force"],
+        "KESSETSU_NGSPICE",
+        &missing_simulator,
+    );
+    assert_eq!(human.status.code(), Some(4));
+    assert!(String::from_utf8_lossy(&human.stderr).contains("KES-T000"));
+    assert!(String::from_utf8_lossy(&human.stderr).contains("no assertions"));
+
+    let json = workspace.run_cli_with_env(
+        &["test", &source_arg, "--format", "json", "--force"],
+        "KESSETSU_NGSPICE",
+        &missing_simulator,
+    );
+    assert_eq!(json.status.code(), Some(4));
+    assert!(json.stderr.is_empty());
+    let value: Value = serde_json::from_slice(&json.stdout).expect("failure should be JSON only");
+    assert_eq!(value["status"], "test_failed");
+    assert_eq!(value["diagnostics"][0]["code"], "KES-T000");
+    assert_eq!(value["diagnostics"][0]["stage"], "assertion");
+    assert_eq!(value["assertions"]["summary"]["total"], 0);
+    assert_eq!(value["summary"]["assertions"]["total"], 0);
+}
+
+#[test]
 fn every_repository_example_has_an_explicit_cli_check_and_compile_outcome() {
     let workspace = TestWorkspace::new("example-matrix");
     let examples = Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples");

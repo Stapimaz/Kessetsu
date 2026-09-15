@@ -376,3 +376,22 @@ fn unsupported_or_malformed_analyses_fail_closed() {
         assert_eq!(diagnostic.field.as_deref(), Some("analysis"));
     }
 }
+
+#[test]
+fn duplicate_analysis_kinds_fail_closed_until_selectors_exist() {
+    for source in [
+        "simulate op\nsimulate op\n",
+        "simulate tran 1us 1ms\nsimulate tran 10us 2ms\n",
+        "simulate ac dec 10 1Hz 1kHz\nsimulate ac lin 20 10Hz 2kHz\n",
+        "source V1 5V\nsimulate dc V1 0V 5V 1V\nsimulate dc V1 0V 3V 500mV\n",
+    ] {
+        let program = parse_program(source).expect("duplicate analysis syntax should parse");
+        let diagnostic = ast_to_ir(&program).expect_err("duplicate analysis kind reached typed IR");
+        assert_eq!(
+            diagnostic.code, "KES-C009",
+            "unexpected error for {source:?}"
+        );
+        assert_eq!(diagnostic.field.as_deref(), Some("analysis"));
+        assert!(diagnostic.message.contains("duplicate"));
+    }
+}

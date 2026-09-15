@@ -82,6 +82,39 @@ fn semantic_failure_preserves_ast_but_blocks_graph_and_backends() {
 }
 
 #[test]
+fn unsupported_assertion_metric_is_a_source_located_semantic_error() {
+    let report = compile_source(
+        "source V1 5V\nsimulate op\nassert settle(V(V1.plus)) < 1V\n",
+        CompileOptions::default(),
+    );
+
+    assert!(report.has_errors());
+    assert_eq!(report.diagnostics[0].code, "KES-C006");
+    assert_eq!(report.diagnostics[0].stage, DiagnosticStage::Semantic);
+    assert_eq!(report.diagnostics[0].line, Some(3));
+    assert_eq!(report.diagnostics[0].column, Some(8));
+    assert!(
+        report.diagnostics[0]
+            .message
+            .contains("unsupported assertion metric 'settle'")
+    );
+    assert!(report.ir.is_none());
+}
+
+#[test]
+fn malformed_analysis_is_source_located_on_the_simulate_statement() {
+    let report = compile_source(
+        "source V1 5V\nsimulate tran 1V 2ms\n",
+        CompileOptions::default(),
+    );
+
+    assert!(report.has_errors());
+    assert_eq!(report.diagnostics[0].code, "KES-C009");
+    assert_eq!(report.diagnostics[0].line, Some(2));
+    assert_eq!(report.diagnostics[0].column, Some(1));
+}
+
+#[test]
 fn erc_failure_preserves_ir_and_graph_but_blocks_backends() {
     let source = "resistor R1 1k\nconnect Missing.p1 to R1.p1\n";
     let report = compile_source(source, CompileOptions::all_outputs());

@@ -885,6 +885,17 @@ pub fn ast_to_ir_with_resources(
             }
             Statement::Assert(assert) => {
                 let metric = assert.metric.to_ascii_lowercase();
+                if !is_supported_assertion_metric(&metric) {
+                    return Err(semantic_error(
+                        "KES-C006",
+                        format!(
+                            "unsupported assertion metric '{}'; expected value, min, max, peak, average, avg, rms, gain, bandwidth, cutoff, frequency, phase, output_power, dissipation, efficiency, thd or clipping",
+                            assert.metric
+                        ),
+                        None,
+                        Some("signal"),
+                    ));
+                }
                 let arguments = split_assertion_arguments(&assert.signal);
                 let signal_unit = assertion_result_unit(&metric, &arguments).ok_or_else(|| {
                     semantic_error(
@@ -932,6 +943,29 @@ pub fn ast_to_ir_with_resources(
         .iter()
         .map(|analysis| parse_analysis(analysis, &components))
         .collect::<Result<Vec<_>, _>>()?;
+    let mut analysis_keys = std::collections::BTreeSet::new();
+    for analysis in &analyses {
+        let key = match analysis {
+            Analysis::DcSweep { source, .. } => {
+                format!("dc:{}", source.to_ascii_lowercase())
+            }
+            _ => analysis.kind_name().to_string(),
+        };
+        if !analysis_keys.insert(key) {
+            let subject = match analysis {
+                Analysis::DcSweep { source, .. } => format!("dc analysis for source '{source}'"),
+                _ => format!("'{}' analysis", analysis.kind_name()),
+            };
+            return Err(semantic_error(
+                "KES-C009",
+                format!(
+                    "duplicate {subject}; ambiguous repeated analyses require named analysis selectors"
+                ),
+                None,
+                Some("analysis"),
+            ));
+        }
+    }
 
     let model_manifest = model_library.manifest(&components);
     Ok(CircuitIR {
@@ -982,8 +1016,38 @@ fn signal_unit(signal: &str) -> Option<SIUnit> {
     }
 }
 
+fn is_supported_assertion_metric(metric: &str) -> bool {
+    matches!(
+        metric,
+        "value"
+            | "min"
+            | "max"
+            | "peak"
+            | "average"
+            | "avg"
+            | "rms"
+            | "gain"
+            | "bandwidth"
+            | "cutoff"
+            | "frequency"
+            | "phase"
+            | "output_power"
+            | "dissipation"
+            | "efficiency"
+            | "thd"
+            | "clipping"
+    )
+}
+
 fn assertion_result_unit(metric: &str, arguments: &[&str]) -> Option<SIUnit> {
     match metric {
+        "value" | "min" | "max" | "peak" | "average" | "avg" | "rms" => {
+            if matches!(arguments.len(), 1 | 3) {
+                signal_unit(arguments[0])
+            } else {
+                None
+            }
+        }
         "gain" => (arguments.len() == 2).then_some(SIUnit::Ratio),
         "bandwidth" | "cutoff" => (arguments.len() == 2).then_some(SIUnit::Hertz),
         "frequency" => (arguments.len() == 1).then_some(SIUnit::Hertz),
@@ -993,12 +1057,6 @@ fn assertion_result_unit(metric: &str, arguments: &[&str]) -> Option<SIUnit> {
         "efficiency" => matches!(arguments.len(), 4 | 6 | 8).then_some(SIUnit::Percent),
         "thd" => (arguments.len() == 5).then_some(SIUnit::Percent),
         "clipping" => (arguments.len() == 3).then_some(SIUnit::Percent),
-        _ => {
-            if matches!(arguments.len(), 1 | 3) {
-                signal_unit(arguments[0])
-            } else {
-                None
-            }
-        }
+        _ => None,
     }
 }

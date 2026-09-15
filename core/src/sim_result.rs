@@ -68,7 +68,10 @@ pub struct AssertionReport {
 
 impl AssertionReport {
     pub fn all_passed(&self) -> bool {
-        self.summary.failed == 0 && self.summary.errors == 0 && self.summary.skipped == 0
+        self.summary.total > 0
+            && self.summary.failed == 0
+            && self.summary.errors == 0
+            && self.summary.skipped == 0
     }
 }
 

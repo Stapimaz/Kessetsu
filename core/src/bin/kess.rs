@@ -14,7 +14,7 @@ use kessetsu_core::models::{
 use kessetsu_core::parse_program;
 use kessetsu_core::sim_result::{
     ASSERTION_SCHEMA_VERSION, AssertionReport, AssertionResult, AssertionStatus, AssertionSummary,
-    format_quantity,
+    TolerancePolicy, format_quantity,
 };
 use kessetsu_core::simulation::{
     CancellationToken, NativeSimulationContext, NgspiceRunner, SIMULATION_SCHEMA_VERSION,
@@ -1146,6 +1146,35 @@ fn run_assertions(
     spice: &str,
     external_resources: &ExternalModelResources,
 ) -> i32 {
+    if report
+        .ir
+        .as_ref()
+        .is_some_and(|circuit| circuit.assertions.is_empty())
+    {
+        report.diagnostics.push(diagnostic(
+            "KES-T000",
+            DiagnosticStage::Assertion,
+            "test requires at least one assertion, but this circuit defines no assertions; use 'kess simulate' to run without verification or add an assert statement",
+        ));
+        let assertion_report = AssertionReport {
+            schema_version: ASSERTION_SCHEMA_VERSION.to_string(),
+            tolerance: TolerancePolicy::default(),
+            assertions: Vec::new(),
+            summary: AssertionSummary::default(),
+        };
+        emit(
+            format,
+            command,
+            includes,
+            "test_failed",
+            report,
+            spice_file,
+            None,
+            Some(assertion_report),
+        );
+        return 4;
+    }
+
     if *format == Format::Human {
         println!("[INFO] Running tests and assertions...");
     }

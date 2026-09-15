@@ -109,6 +109,21 @@ fn failed_simulation_skips_assertions_instead_of_fabricating_failures() {
 }
 
 #[test]
+fn empty_assertion_report_is_not_a_successful_test() {
+    let circuit = circuit("");
+    let simulation = simulation(
+        SimulationStatus::Succeeded,
+        Dataset::OperatingPoint {
+            values: BTreeMap::new(),
+        },
+    );
+
+    let report = evaluate_assertions(&circuit, &simulation);
+    assert_eq!(report.summary.total, 0);
+    assert!(!report.all_passed());
+}
+
+#[test]
 fn equality_and_inclusive_comparators_use_explicit_absolute_relative_tolerance() {
     let circuit = circuit(
         "assert value(V(out)) == 5V\nassert value(V(out)) <= 5V\nassert value(V(out)) >= 5V\n",
@@ -148,8 +163,9 @@ fn peak_is_absolute_while_operating_point_current_preserves_ngspice_sign() {
 }
 
 #[test]
-fn unsupported_metric_and_complex_ac_reduction_are_typed_errors() {
-    let unsupported = circuit("assert settle(V(out)) < 1V\n");
+fn runtime_dispatch_remains_defensive_for_an_invalid_ir_metric() {
+    let mut unsupported = circuit("assert peak(V(out)) < 1V\n");
+    unsupported.assertions[0].metric = "settle".to_string();
     let simulation = simulation(
         SimulationStatus::Succeeded,
         Dataset::OperatingPoint {

@@ -52,7 +52,7 @@ assert rms(V(OUT),2ms,5ms) < 6V
 assert peak(V(Q1.c,Q1.e)) < 40V
 ```
 
-Analysis arguments and assertions are dimension checked. Missing signals or incompatible datasets become explicit errors, never implicit zeroes. Full formulas and sign conventions are in [engineering measurements](engineering_measurements.md); execution behavior is in [simulation and assertions](simulation_and_assertions.md).
+Analysis arguments and assertions are dimension checked. Operating-point, transient, and AC analyses may each appear once; a DC sweep may appear once per independent source. Unsupported assertion metrics and ambiguous repeated analyses fail semantic validation before simulation. Missing signals or incompatible datasets become explicit errors, never implicit zeroes. Full formulas and sign conventions are in [engineering measurements](engineering_measurements.md); execution behavior is in [simulation and assertions](simulation_and_assertions.md).
 
 ## Modules
 

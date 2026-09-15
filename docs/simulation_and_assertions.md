@@ -11,7 +11,7 @@ Kessetsu compiles each source to canonical SPICE and runs the same typed analysi
 | `simulate ac dec|lin|oct <points> <start> <stop>` | complex frequency series | gain, phase and low-pass cutoff |
 | `simulate dc <source> <start> <stop> <step>` | swept real series | transfer curve |
 
-Each argument must be positive and dimensionally valid; DC sweep supports independent voltage/current sources. Multiple analyses may coexist in one source. The browser runs them independently in a cancellable Worker and Core combines them into `kessetsu.simulation.v1`.
+Each argument must be positive and dimensionally valid; DC sweep supports independent voltage/current sources. Multiple analysis kinds may coexist in one source. Operating-point, transient, and AC analyses are unique, while DC sweeps are unique per source; ambiguous repetitions fail semantic validation with `KES-C009`. The browser runs valid analyses independently in a cancellable Worker and Core combines them into `kessetsu.simulation.v1`.
 
 ## Assertions
 
@@ -22,7 +22,7 @@ The form is `assert metric(arguments) comparator threshold`. Comparators are `<`
 - `ERROR`: the metric could not be evaluated from the available typed data.
 - `SKIPPED`: simulation did not complete, so the assertion was not evaluated.
 
-Strict inequalities are not loosened. Equality and inclusive comparisons use the versioned absolute/relative tolerance reported with `kessetsu.assertion.v1`.
+Unsupported metric names and invalid argument shapes fail semantic validation with `KES-C006` before a simulator starts. Strict inequalities are not loosened. Equality and inclusive comparisons use the versioned absolute/relative tolerance reported with `kessetsu.assertion.v1`.
 
 ## Measurements
 
@@ -36,7 +36,7 @@ kess test circuit.kess --format json
 Get-Content circuit.kess | kess test - --format json
 ```
 
-Exit `3` denotes simulator/runtime failure; exit `4` denotes assertion `FAIL`, `ERROR` or `SKIPPED`. JSON stdout remains one parseable object. Use `--include datasets,raw-log` only for debugging large/raw data.
+Exit `3` denotes simulator/runtime failure; exit `4` denotes assertion `FAIL`, `ERROR` or `SKIPPED`. `kess test` also returns exit `4` and `KES-T000` without launching the simulator when no assertions are defined; use `kess simulate` when verification is not intended. JSON stdout remains one parseable object. Use `--include datasets,raw-log` only for debugging large/raw data.
 
 ## Reproducibility boundary
 
