@@ -47,6 +47,9 @@ $webDocumentationDirectory = Join-Path $stage "webapp"
 New-Item -ItemType Directory -Path (Join-Path $webDocumentationDirectory "public") -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $repoRoot "webapp/README.md") -Destination (Join-Path $webDocumentationDirectory "README.md")
 Copy-Item -LiteralPath (Join-Path $repoRoot "webapp/public/THIRD_PARTY_NOTICES.md") -Destination (Join-Path $webDocumentationDirectory "public/THIRD_PARTY_NOTICES.md")
+foreach ($installer in @('install.ps1', 'install.sh')) {
+    Copy-Item -LiteralPath (Join-Path $repoRoot "webapp/public/$installer") -Destination (Join-Path $webDocumentationDirectory "public/$installer")
+}
 $runtimeDocumentationDirectory = Join-Path $stage "core/tools/ngspice"
 New-Item -ItemType Directory -Path $runtimeDocumentationDirectory -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $repoRoot "core/tools/ngspice/README.md") -Destination (Join-Path $runtimeDocumentationDirectory "README.md")
