@@ -1,0 +1,25 @@
+// Each branch exercises a builtin diode; DDEFAULT also checks the omitted-model path.
+net GND
+net SUPPLY
+net DEFAULT_OUT
+net SMALL_OUT
+net RECTIFIER_OUT
+source VS 5V
+resistor RDEFAULT 1k
+resistor RSMALL 1k
+resistor RRECTIFIER 1k
+diode DDEFAULT
+diode DSMALL 1N4148
+diode DRECTIFIER 1N4007
+connect VS.plus, RDEFAULT.p1, RSMALL.p1, RRECTIFIER.p1 to SUPPLY
+connect RDEFAULT.p2, DDEFAULT.p1 to DEFAULT_OUT
+connect RSMALL.p2, DSMALL.p1 to SMALL_OUT
+connect RRECTIFIER.p2, DRECTIFIER.p1 to RECTIFIER_OUT
+connect VS.minus, DDEFAULT.p2, DSMALL.p2, DRECTIFIER.p2 to GND
+simulate op
+assert value(V(DEFAULT_OUT)) > 0.3V
+assert value(V(DEFAULT_OUT)) < 0.9V
+assert value(V(SMALL_OUT)) > 0.3V
+assert value(V(SMALL_OUT)) < 0.9V
+assert value(V(RECTIFIER_OUT)) > 0.3V
+assert value(V(RECTIFIER_OUT)) < 0.9V

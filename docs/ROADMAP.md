@@ -1,7 +1,7 @@
 # Kessetsu Roadmap
 
 This is the public product roadmap, not a release promise or an internal execution log.
-Last updated: 2026-09-16.
+Last updated: 2026-09-17.
 
 ## Released
 
@@ -27,6 +27,8 @@ published binary releases and tags remain immutable.
 
 ## In development
 
+- [ ] Builtin diode portability repair, verified in native/browser source tests but not
+  yet included in published downloads or the deployed Web Hub.
 - [ ] Named quantities and reusable parameterized circuits. The first source-only slice
   supports typed top-level parameters and passive/DC-source expressions; it is not in
   published 1.1.0 binaries or the deployed Web Hub. Module overrides and broader numeric

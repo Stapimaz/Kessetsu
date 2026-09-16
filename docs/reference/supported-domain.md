@@ -17,6 +17,12 @@ This document freezes the electrical scope advertised for Phase 4. â€œSupportedâ
 ## Model scope
 
 - Built-ins: `2N3904`, `2N3906`, `2N2222`, `KESSETSU_POWER_NPN_V1`, `KESSETSU_POWER_PNP_V1`, `1N4148`, `1N4007`, `IRF540`, `KESSETSU_PMOS_V1`, and `KESSETSU_OPAMP_V1`.
+- Known 1.1.0 issue: builtin `1N4148`/`1N4007` (including the default diode) contain
+  fields that abort standard Ngspice simulation. The unreleased source repair removes
+  descriptive/non-enforced rating fields and records model version `1.0.1` with new
+  hashes, without changing electrical coefficients or legacy provenance. It is not yet
+  in published downloads or the deployed Web Hub; an explicit typed user diode model is
+  a workaround for 1.1.0. This repair does not provide datasheet-limit enforcement.
 - Verified generic PMOS: `KESSETSU_PMOS_V1@1.0.1`, a portable Ngspice `MOS1` DC model with no manufacturer, datasheet, or parasitic-model claim.
 - User models: typed diode/BJT/MOSFET parameter allowlists.
 - User subcircuits: the typed op-amp template and native, source-relative, exact-hash external op-amp references. External model bodies remain user-owned and are never embedded in Kessetsu source, manifests, or exports.

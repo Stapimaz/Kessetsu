@@ -4,6 +4,16 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### Builtin diode portability
+
+- Corrected `1N4148`, `1N4007` and the default diode path to use portable Ngspice diode
+  directives without descriptive or non-enforced rating fields. Electrical coefficients
+  are unchanged; repaired builtin models have provenance version `1.0.1` and new content
+  hashes, retaining their legacy/unverified attribution. Exact model packages are unchanged.
+- Added real native/browser OP regression coverage for both named models and the default.
+
+This repair is not yet included in published downloads or the live Web Hub.
+
 ### Parameterized circuit foundation
 
 - Top-level typed `param` declarations and bounded, unit-checked arithmetic in passive and DC-source values.

@@ -474,3 +474,39 @@ connect U1.in_p to GND\nconnect U1.in_n to OOUT\nconnect U1.vcc to VDD\nconnect 
     );
     assert_eq!(result.datasets.len(), 1);
 }
+
+#[test]
+fn builtin_diodes_and_default_model_run_with_versioned_legacy_provenance() {
+    let source = include_str!("fixtures/models/builtin_diodes.kess");
+    let report = compile_source(source, CompileOptions::default());
+    assert!(!report.has_errors(), "{:?}", report.diagnostics);
+    assert_eq!(
+        report.model_lock,
+        compile_source(source, CompileOptions::default()).model_lock
+    );
+    let circuit = report.ir.expect("valid diode circuit should reach IR");
+    assert_eq!(circuit.model_manifest.models.len(), 2);
+    for model in &circuit.model_manifest.models {
+        assert_eq!(model.provenance.version, "1.0.1");
+        assert_eq!(model.provenance.license, "legacy-provenance");
+        assert_eq!(model.source, ModelSource::Builtin);
+        assert!(model.provenance.content_hash.starts_with("sha256:"));
+    }
+    let netlist = report.spice_netlist.expect("SPICE should exist");
+    for unsupported in ["mfg=", "type=silicon", "Iave=", "Vpk="] {
+        assert!(!netlist.contains(unsupported));
+    }
+    let request = SimulationRequest::new(netlist, circuit.analyses.clone());
+    let result = NgspiceRunner::discover()
+        .run(&request, &CancellationToken::new())
+        .expect("Ngspice should launch");
+    assert!(
+        result.succeeded(),
+        "{:?}; {:?}",
+        result.errors,
+        result.raw_log
+    );
+    let assertions = kessetsu_core::sim_result::evaluate_assertions(&circuit, &result);
+    assert_eq!(assertions.summary.total, 6);
+    assert_eq!(assertions.summary.passed, 6, "{:?}", assertions);
+}

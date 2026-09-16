@@ -834,15 +834,17 @@ fn builtin_models() -> Vec<ModelRef> {
             ".model KESSETSU_POWER_PNP_V1 PNP (Is=1e-12 Bf=80 Vaf=60 Cje=300p Cjc=150p Tf=1u Tr=5u)",
             "1.0.0",
         ),
-        device_model(
+        versioned_device_model(
             "1N4148",
             ComponentKind::Diode,
-            ".model 1N4148 D (Is=2.52n Rs=.568 N=1.752 Cjo=4p M=.4 tt=20n Iave=200m Vpk=75 mfg=OnSemi type=silicon)",
+            ".model 1N4148 D (Is=2.52n Rs=.568 N=1.752 Cjo=4p M=.4 tt=20n)",
+            "1.0.1",
         ),
-        device_model(
+        versioned_device_model(
             "1N4007",
             ComponentKind::Diode,
-            ".model 1N4007 D (Is=7.02767n Rs=0.0341512 N=1.80803 Cjo=10p M=0.3333 VJ=0.75 Iave=1 Vpk=1000 mfg=Motorola type=silicon)",
+            ".model 1N4007 D (Is=7.02767n Rs=0.0341512 N=1.80803 Cjo=10p M=0.3333 VJ=0.75)",
+            "1.0.1",
         ),
         device_model(
             "IRF540",
@@ -868,6 +870,16 @@ fn builtin_models() -> Vec<ModelRef> {
 }
 
 fn device_model(name: &str, kind: ComponentKind, directive: &str) -> ModelRef {
+    versioned_device_model(name, kind, directive, "1.0.0")
+}
+
+// Preserve legacy provenance: a portability repair is not manufacturer validation.
+fn versioned_device_model(
+    name: &str,
+    kind: ComponentKind,
+    directive: &str,
+    version: &str,
+) -> ModelRef {
     model_ref(
         name,
         kind,
@@ -877,7 +889,7 @@ fn device_model(name: &str, kind: ComponentKind, directive: &str) -> ModelRef {
         },
         "Kessetsu built-in model registry".to_string(),
         "legacy-provenance".to_string(),
-        "1.0.0".to_string(),
+        version.to_string(),
     )
 }
 
