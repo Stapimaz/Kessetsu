@@ -13,6 +13,7 @@
     "test:unit": "vitest run",
     "build": "npm run build:wasm && npm run build:web",
     "test:e2e": "playwright test",
+    "test:production": "playwright test --config playwright.production.config.ts",
     "lint": "oxlint",
     "preview": "vite preview"
   },

@@ -31,6 +31,8 @@ The prepared repository state does not itself publish anything. Execute the exte
 4. Manually dispatch **Release matrix** and require all four clean package smokes. Create the immutable annotated `v1.0.0` tag only after both production and package evidence pass; the tag publishes the selected changelog section and rebuilds the same Web source.
 5. Verify the GitHub Release assets/checksums and `https://kessetsu.com/` once more. If any gate fails, do not move the tag; redeploy a known verified ref and publish a new patch version after correction.
 
+The repeatable live-product smoke is `npm run test:production` from `webapp/`, after building the matching native release CLI. It uses real Chromium against `https://kessetsu.com/`, with no local preview server, and checks desktop/mobile entry, native/browser benchmark parity, Worker simulation/cancellation, all seven exports, and named sharing. Run it after the initial deployment, rollback/redeploy, and final release deployment. It does not upload circuit projects and is separate from canonical CI because the public network is an external dependency.
+
 ## Release gates
 
 1. Canonical `scripts/verify.ps1` passes without changing tracked files.
