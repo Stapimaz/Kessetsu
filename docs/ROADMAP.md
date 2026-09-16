@@ -6,6 +6,7 @@ Last updated: 2026-09-16.
 ## Released
 
 - [x] **1.0.0:** shared Rust Core, native CLI and no-account browser workspace.
+- [x] **1.0.1:** corrected LTspice analyses/DC-source references and portable Windows ZIP packaging.
 - [x] Typed circuit definitions, deterministic SPICE, semantic validation and ERC.
 - [x] Ngspice simulation, engineering measurements and executable assertions.
 - [x] Separate evaluator-owned `.kessreq` requirements with optional hash pinning.
@@ -14,6 +15,7 @@ Last updated: 2026-09-16.
 - [x] Windows x86-64, Linux x86-64 and macOS Intel/Apple Silicon CLI packages.
 - [x] Browser editor, local saving/downloads, simulation plots and source-based sharing.
 - [x] Guided [installation](https://kessetsu.com/install/) with verified per-user installers and update instructions.
+- [x] Crawlable landing/install HTML and [public guides](https://kessetsu.com/docs/) generated from reviewed sources, with per-page metadata and sitemap coverage.
 - [x] Separate public product documentation from internal planning and operational notes.
 
 See the [changelog](../CHANGELOG.md) and [releases](https://github.com/Stapimaz/Kessetsu/releases)
