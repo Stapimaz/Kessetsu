@@ -1,4 +1,7 @@
 import { expect, test } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+
+const productVersion = readFileSync(new URL('../../../VERSION', import.meta.url), 'utf8').trim();
 
 test('opens the landing page, enters Web Hub, initializes WASM and compiles the canonical example', async ({ page }) => {
   const pageErrors: string[] = [];
@@ -36,7 +39,7 @@ test('opens the landing page, enters Web Hub, initializes WASM and compiles the 
   expect(await page.locator('.landing-hero .eyebrow').evaluate((element) => (element as HTMLElement).innerText))
     .toBe('EXECUTABLE CIRCUIT ENGINEERING');
   await expect(page.getByText('First-release scope:')).toBeVisible();
-  await expect(page.getByRole('contentinfo')).toContainText('Kessetsu 1.0.0');
+  await expect(page.getByRole('contentinfo')).toContainText(`Kessetsu ${productVersion}`);
   await expect(page.getByRole('navigation', { name: 'Footer navigation' }).getByRole('link')).toHaveCount(5);
   await expect(page.locator('.monaco-editor')).toHaveCount(0);
   if (process.env.KESSETSU_E2E_SCREENSHOTS) {

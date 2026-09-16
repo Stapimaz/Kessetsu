@@ -34,7 +34,7 @@ analysis and preserves the rest as visible comments with an explicit artifact wa
 select the desired analysis in LTspice before running. This target-specific behavior follows
 the [LTspice schematic reference](https://analogdevicesinc.github.io/ltspice-reference/ai_ref/SCHEMATIC-REFERENCE.html#common-spice-analysis-commands).
 
-Maintenance note: these analysis corrections are recorded under `[Unreleased]` in the
+Maintenance note: these analysis corrections are included in `1.0.1` in the
 [changelog](../../CHANGELOG.md). The immutable `1.0.0` CLI downloads are unchanged; for their
 LTspice exports, correct/choose the dotted analysis directive in LTspice before simulation.
 Source names without the target's V/I prefix receive an ASCII prefix (for example,

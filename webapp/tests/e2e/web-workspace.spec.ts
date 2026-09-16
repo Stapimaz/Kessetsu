@@ -1,4 +1,7 @@
 import { expect, test } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+
+const productVersion = readFileSync(new URL('../../../VERSION', import.meta.url), 'utf8').trim();
 
 async function replaceSource(page: import('@playwright/test').Page, source: string) {
   await page.locator('.monaco-editor').click();
@@ -47,8 +50,8 @@ test('offers corresponding source and license from the interactive Web Hub', asy
   const sourceLink = page.getByRole('menuitem', { name: /corresponding source code/i });
   await expect(sourceLink).toHaveAttribute('href', 'https://github.com/Stapimaz/Kessetsu');
   await expect(sourceLink).toContainText('Corresponding source');
-  await expect(page.getByRole('menuitem', { name: 'What’s new in 1.0.0' })).toHaveAttribute('href', 'https://github.com/Stapimaz/Kessetsu/blob/main/CHANGELOG.md');
-  await expect(page.locator('.menu-version')).toHaveText('Kessetsu 1.0.0');
+  await expect(page.getByRole('menuitem', { name: `What’s new in ${productVersion}` })).toHaveAttribute('href', 'https://github.com/Stapimaz/Kessetsu/blob/main/CHANGELOG.md');
+  await expect(page.locator('.menu-version')).toHaveText(`Kessetsu ${productVersion}`);
   await expect(page.getByRole('menuitem', { name: 'License', exact: true })).toHaveAttribute('href', '/LICENSE.txt');
 });
 

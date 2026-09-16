@@ -4,6 +4,8 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+## [1.0.1] — 2026-09-16
+
 ### Distribution
 
 - Guided CLI installation page with OS selection, copyable commands, first-circuit download, simulator prerequisites, updates, and manual fallback.
@@ -12,6 +14,7 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 ### Fixed
 
 - LTspice export emits dotted analysis directives and correct DC-source references. The first analysis is active; additional analyses remain selectable comments with an explicit warning. Target-application smoke compares pin connectivity and component data rather than reference presence alone.
+- Windows ZIP packaging uses portable slash-separated entries on both Windows PowerShell 5 and PowerShell 7, preserving strict installer path validation.
 
 ### Documentation
 

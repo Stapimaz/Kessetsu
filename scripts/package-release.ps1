@@ -156,7 +156,21 @@ New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
 if ($isWindowsTarget) {
     $archive = Join-Path $outputRoot "$bundleName.zip"
     if (Test-Path -LiteralPath $archive) { Remove-Item -LiteralPath $archive -Force }
-    Compress-Archive -LiteralPath $stage -DestinationPath $archive -CompressionLevel Optimal
+    # Windows PowerShell 5 Compress-Archive writes backslash entry names, while
+    # PowerShell 7 writes portable slash names. Keep the installer's strict path
+    # validation and produce the same ZIP path convention on either host.
+    Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+    $zip = [System.IO.Compression.ZipFile]::Open($archive, [System.IO.Compression.ZipArchiveMode]::Create)
+    try {
+        foreach ($file in Get-ChildItem -LiteralPath $stage -File -Recurse -Force | Sort-Object FullName) {
+            $entryName = $file.FullName.Substring($outputRoot.TrimEnd('\', '/').Length + 1).Replace('\', '/')
+            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+                $zip, $file.FullName, $entryName, [System.IO.Compression.CompressionLevel]::Optimal
+            ) | Out-Null
+        }
+    } finally {
+        $zip.Dispose()
+    }
 } else {
     $archive = Join-Path $outputRoot "$bundleName.tar.gz"
     if (Test-Path -LiteralPath $archive) { Remove-Item -LiteralPath $archive -Force }
