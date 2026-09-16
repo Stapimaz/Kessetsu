@@ -37,7 +37,7 @@ pub fn parse_program(input: &str) -> Result<Program, pest::error::Error<Rule>> {
                                             }
                                         }
                                         Rule::statement => {
-                                            if let Some(stmt) = parse_statement(module_item) {
+                                            if let Some(stmt) = parse_statement(module_item)? {
                                                 statements.push(stmt);
                                             }
                                         }
@@ -52,7 +52,7 @@ pub fn parse_program(input: &str) -> Result<Program, pest::error::Error<Rule>> {
                                 });
                             }
                             Rule::statement => {
-                                if let Some(stmt) = parse_statement(inner) {
+                                if let Some(stmt) = parse_statement(inner)? {
                                     main_statements.push(stmt);
                                 }
                             }
@@ -170,9 +170,59 @@ fn parse_external_subcircuit_decl(pair: pest::iterators::Pair<Rule>) -> External
     }
 }
 
-fn parse_statement(statement_pair: pest::iterators::Pair<Rule>) -> Option<Statement> {
+fn expression_pair(
+    pair: &pest::iterators::Pair<Rule>,
+    braced: bool,
+) -> Result<crate::expression::Expression, pest::error::Error<Rule>> {
+    let text = pair.as_str();
+    let text = if braced {
+        &text[1..text.len() - 1]
+    } else {
+        text
+    };
+    crate::expression::parse_expression(text).map_err(|cause| {
+        pest::error::Error::new_from_span(
+            pest::error::ErrorVariant::CustomError {
+                message: format!("{} (expression byte {})", cause.message, cause.offset + 1),
+            },
+            pair.as_span(),
+        )
+    })
+}
+
+fn numeric_expression(
+    pair: &pest::iterators::Pair<Rule>,
+) -> Result<Option<crate::expression::Expression>, pest::error::Error<Rule>> {
+    if pair.as_str().starts_with('{') {
+        expression_pair(pair, true).map(Some)
+    } else {
+        Ok(None)
+    }
+}
+
+fn parse_statement(
+    statement_pair: pest::iterators::Pair<Rule>,
+) -> Result<Option<Statement>, pest::error::Error<Rule>> {
     let inner = statement_pair.into_inner().next().unwrap();
-    match inner.as_rule() {
+    Ok(match inner.as_rule() {
+        Rule::param_decl => {
+            let (line, column) = inner.as_span().start_pos().line_col();
+            let mut fields = inner.into_inner();
+            let name = fields.next().unwrap().as_str().to_string();
+            let type_pair = fields.next().unwrap();
+            let unit = crate::expression::parameter_unit(type_pair.as_str()).ok_or_else(|| pest::error::Error::new_from_span(
+                pest::error::ErrorVariant::CustomError { message: format!("Unknown parameter type '{}'; use Ohm, F, H, V, A, Hz, s, W, ratio, percent or deg", type_pair.as_str()) },
+                type_pair.as_span(),
+            ))?;
+            let expression = expression_pair(&fields.next().unwrap(), false)?;
+            Some(Statement::Param(crate::expression::ParameterDecl {
+                name,
+                unit,
+                expression,
+                line,
+                column,
+            }))
+        }
         Rule::decl => {
             let decl_inner = inner.into_inner().next().unwrap();
             match decl_inner.as_rule() {
@@ -189,7 +239,13 @@ fn parse_statement(statement_pair: pest::iterators::Pair<Rule>) -> Option<Statem
                         _ => unreachable!(),
                     };
                     let name = inner_rules.next().unwrap().as_str().to_string();
-                    let value = inner_rules.next().map(|v| {
+                    let value_pair = inner_rules.next();
+                    let value_expression = value_pair
+                        .as_ref()
+                        .map(numeric_expression)
+                        .transpose()?
+                        .flatten();
+                    let value = value_pair.map(|v| {
                         let mut val = v.as_str().to_string();
                         if val.starts_with('"') && val.ends_with('"') {
                             val = val[1..val.len() - 1].to_string();
@@ -202,6 +258,7 @@ fn parse_statement(statement_pair: pest::iterators::Pair<Rule>) -> Option<Statem
                         name,
                         subtype: None,
                         value,
+                        value_expression,
                     }))
                 }
                 Rule::transistor_decl => {
@@ -229,6 +286,7 @@ fn parse_statement(statement_pair: pest::iterators::Pair<Rule>) -> Option<Statem
                         name,
                         subtype,
                         value,
+                        value_expression: None,
                     }))
                 }
                 Rule::source_decl => {
@@ -240,13 +298,16 @@ fn parse_statement(statement_pair: pest::iterators::Pair<Rule>) -> Option<Statem
                         ComponentType::Source
                     };
                     let name = inner_rules.next().unwrap().as_str().to_string();
-                    let value = Some(inner_rules.next().unwrap().as_str().to_string());
+                    let value_pair = inner_rules.next().unwrap();
+                    let value_expression = numeric_expression(&value_pair)?;
+                    let value = Some(value_pair.as_str().to_string());
 
                     Some(Statement::Decl(ComponentDecl {
                         comp_type,
                         name,
                         subtype: None,
                         value,
+                        value_expression,
                     }))
                 }
                 _ => unreachable!(),
@@ -326,5 +387,5 @@ fn parse_statement(statement_pair: pest::iterators::Pair<Rule>) -> Option<Statem
             Some(Statement::Simulate(SimulateStmt { cmd, args }))
         }
         _ => None,
-    }
+    })
 }

@@ -4,7 +4,15 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
-No unreleased changes.
+### Parameterized circuit foundation
+
+- Top-level typed `param` declarations and bounded, unit-checked arithmetic in passive and DC-source values.
+- Parameter/dependency and resolved-field provenance in `kessetsu.parameters.v1`; all electrical and drawing backends still consume resolved Circuit IR.
+- Source completion/highlighting without new editor panels; compile contract v5 with explicit v4 source-share compatibility and unchanged exact-package checks.
+- Prefix/exponent overflow/underflow validation and bounded module recursion/expansion diagnostics.
+
+These changes are in source only, not in published 1.1.0 downloads or the live Web Hub.
+Module parameters/overrides, waveform/analysis/assertion expressions and CLI parameter overrides are not yet supported.
 
 ## [1.1.0] — 2026-09-16
 

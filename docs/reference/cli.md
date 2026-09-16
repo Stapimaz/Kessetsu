@@ -2,6 +2,9 @@
 
 The Kessetsu CLI sends `.kess` source through the shared Rust compilation pipeline and provides ERC, SPICE generation, Ngspice execution, and assertion evaluation commands. Human output is intended for people; versioned JSON output is intended for automation and AI agents.
 
+Current source uses compile contract v5 and includes the unreleased top-level parameter
+foundation. Published 1.1.0 uses v4 and does not accept parameter declarations yet.
+
 ## Usage
 
 ```bash
@@ -146,7 +149,7 @@ kess export circuit.kess --target ltspice --output circuit.asc
 
 ## JSON Contract
 
-JSON stdout is exactly one JSON object for every invocation. Progress and simulator logs are never written to stdout. The default agent envelope is `kessetsu.cli.v1`. Compile reports use `kessetsu.compile.v4`, canonical schematics use `kessetsu.schematic.v2`, model manifests/locks use `kessetsu.models.v2`/`kessetsu.lock.v2`, simulation results use `kessetsu.simulation.v1`, engineering measurements use `kessetsu.measurement.v1`, assertion reports use `kessetsu.assertion.v1`, and external requirement sets use `kessetsu.requirements.v1`. Active subcontracts appear in `domain_versions`.
+JSON stdout is exactly one JSON object for every invocation. Progress and simulator logs are never written to stdout. The default agent envelope is `kessetsu.cli.v1`. Current source compile reports use `kessetsu.compile.v5`, canonical schematics use `kessetsu.schematic.v2`, model manifests/locks use `kessetsu.models.v2`/`kessetsu.lock.v2`, simulation results use `kessetsu.simulation.v1`, engineering measurements use `kessetsu.measurement.v1`, assertion reports use `kessetsu.assertion.v1`, and external requirement sets use `kessetsu.requirements.v1`. Active subcontracts appear in `domain_versions`. Resolved parameter/field provenance (`kessetsu.parameters.v1`) is opt-in through `--include ir`, not additional default JSON bulk.
 
 See the [engineering-measurement contract](measurements.md) for assertion primitives, derived-metric formulas, analysis requirements, and sign conventions.
 
@@ -160,7 +163,7 @@ Successful `check` summary:
   "command": "check",
   "status": "success",
   "domain_versions": {
-    "compile": "kessetsu.compile.v4",
+    "compile": "kessetsu.compile.v5",
     "simulation": null,
     "measurement": null,
     "assertion": null,

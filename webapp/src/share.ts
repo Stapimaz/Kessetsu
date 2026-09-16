@@ -156,7 +156,13 @@ export async function decodeShareFragment(fragment: string, expectedCompileSchem
     throw new Error('Share payload is not valid UTF-8 JSON');
   }
   const value = migrateShareEnvelope(raw);
-  if (value.compile_schema_version !== expectedCompileSchema) throw new Error('Shared circuit requires an unsupported Core schema');
+  // v5 preserves v4 source semantics. Recompile normally and still require exact packages.
+  // This deliberately does not accept arbitrary historical or future schemas.
+  const compatibleLegacy = expectedCompileSchema === 'kessetsu.compile.v5'
+    && value.compile_schema_version === 'kessetsu.compile.v4';
+  if (value.compile_schema_version !== expectedCompileSchema && !compatibleLegacy) {
+    throw new Error('Shared circuit requires an unsupported Core schema');
+  }
   if (typeof value.source !== 'string' || utf8Length(value.source) > MAX_SHARE_SOURCE_BYTES) {
     throw new Error('Shared circuit source is missing or exceeds 64 KiB');
   }

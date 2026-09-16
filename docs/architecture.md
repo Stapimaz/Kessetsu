@@ -38,7 +38,7 @@ Kessetsu Source (.kess)
 
 ### Single Compile Contract
 
-The canonical Core entry points are `compile_source(source, options) -> CompileReport` and its resource-aware form `compile_source_with_resources(source, options, resources) -> CompileReport`. Neither writes files, launches processes, or prints logs; frontends bind resource bytes and own those side effects. Reports are versioned as `kessetsu.compile.v4` and, depending on options, can carry the flattened AST, typed IR, deterministic graph summary, SPICE, canonical `kessetsu.schematic.v2`, SVG, temporary legacy layout, and KiCad output. External resource bytes never appear in the report.
+The canonical Core entry points are `compile_source(source, options) -> CompileReport` and its resource-aware form `compile_source_with_resources(source, options, resources) -> CompileReport`. Neither writes files, launches processes, or prints logs; frontends bind resource bytes and own those side effects. Current source reports are versioned as `kessetsu.compile.v5` (published 1.1.0 uses v4) and, depending on options, can carry the flattened AST, typed IR, deterministic graph summary, SPICE, canonical `kessetsu.schematic.v2`, SVG, temporary legacy layout, and KiCad output. External resource bytes never appear in the report.
 
 Parse, flattening, semantic, and ERC failures are normalized into the shared `Diagnostic` model. If any error-severity diagnostic exists, no backend output is produced. Warnings and informational diagnostics may accompany successful output. The CLI and WASM layers must remain adapters around this entry point and must not construct parallel compilation pipelines.
 
@@ -57,6 +57,24 @@ must cross `compile_source` before any simulation or backend export; tool calcul
 never invent assertion PASS results or generate SPICE/drawing artifacts independently.
 The CLI and WASM adapters share this contract. Frontends own file writes, downloads and
 workspace recovery. Preferred E12/E24 values describe nominal selection, not tolerance analysis.
+
+### Parameter-expression boundary (unreleased source foundation)
+
+`expression.rs` parses bounded engineering expressions into typed nodes and resolves
+top-level named quantities through a deterministic dependency graph. Numeric component
+fields are evaluated into `Quantity` during semantic IR conversion, without textual
+substitution or numeric string round-trips. Dimensional arithmetic normalizes percent/angle
+scales internally and validates the destination unit. Circuit IR carries optional
+`kessetsu.parameters.v1` parameter and field-binding provenance; backends use resolved values
+and never evaluate expressions. Empty provenance is omitted for literal circuits.
+
+This initial slice accepts passive and DC-source expressions only. Module-local expressions
+are rejected until instance-scoped elaboration is implemented; globals are not implicitly
+captured. Existing literal module IDs and deterministic graph naming remain unchanged.
+Recursion/expansion guards protect flattening. Requirements retain their independent ownership.
+The Web explicitly accepts v4 source-share envelopes when compiling with v5, recompiles source
+normally and still checks exact packages. Unknown/future schema versions are not generalized
+into an acceptance range. New shares identify the active compile schema.
 
 ## 2. Language Syntax and Rules
 

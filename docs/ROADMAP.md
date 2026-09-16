@@ -25,6 +25,13 @@ See the [changelog](../CHANGELOG.md) and [releases](https://github.com/Stapimaz/
 for shipped changes. Website and installation tooling can evolve independently of CLI binaries;
 published binary releases and tags remain immutable.
 
+## In development
+
+- [ ] Named quantities and reusable parameterized circuits. The first source-only slice
+  supports typed top-level parameters and passive/DC-source expressions; it is not in
+  published 1.1.0 binaries or the deployed Web Hub. Module overrides and broader numeric
+  expression contexts remain in development.
+
 ## Under consideration
 
 These are candidate directions, not committed delivery dates. Priorities will follow concrete

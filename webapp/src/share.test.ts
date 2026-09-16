@@ -44,6 +44,19 @@ describe('versioned circuit share URLs', () => {
     await expect(decodeShareFragment(fragment, compileSchema)).rejects.toThrow(/decompressed size limit/);
   });
 
+  it('accepts v4 source shares in v5 without accepting unknown or newer schemas', async () => {
+    const fragment = await encodeShareFragment('net GND\n', 'kessetsu.compile.v4', manifest, 'Legacy circuit');
+    const decoded = await decodeShareFragment(fragment, 'kessetsu.compile.v5');
+    expect(decoded?.name).toBe('Legacy circuit');
+    expect(() => assertSharedPackages(decoded!, null)).toThrow(/package versions/);
+    for (const unsupported of ['kessetsu.compile.v3', 'kessetsu.compile.v6']) {
+      const other = await encodeShareFragment('net GND\n', unsupported, null);
+      await expect(decodeShareFragment(other, 'kessetsu.compile.v5')).rejects.toThrow(/unsupported Core schema/);
+    }
+    const future = await encodeShareFragment('net GND\n', 'kessetsu.compile.v5', null);
+    await expect(decodeShareFragment(future, 'kessetsu.compile.v4')).rejects.toThrow(/unsupported Core schema/);
+  });
+
   it('rejects source above the authoring limit and package-manifest mismatches', async () => {
     await expect(encodeShareFragment('x'.repeat(MAX_SHARE_SOURCE_BYTES + 1), compileSchema, null)).rejects.toThrow(/64 KiB/);
     const decoded = await decodeShareFragment(await encodeShareFragment('net GND\n', compileSchema, manifest), compileSchema);

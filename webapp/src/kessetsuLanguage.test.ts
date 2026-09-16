@@ -12,7 +12,7 @@ describe('Kessetsu editor language support', () => {
   it('covers every public declaration and model boundary', () => {
     const labels = topLevelCompletions.map((item) => item.label);
     expect(labels).toEqual(expect.arrayContaining([
-      'net', 'source', 'current_source', 'resistor', 'capacitor', 'inductor',
+      'param', 'net', 'source', 'current_source', 'resistor', 'capacitor', 'inductor',
       'diode', 'transistor', 'mosfet', 'opamp', 'connect', 'simulate', 'assert',
       'model_include', 'model', 'subcircuit', 'external_subcircuit', 'module', 'use',
     ]));

@@ -1,0 +1,20 @@
+// Nominal loaded divider; relationships are explicit, not inferred from parameter names.
+param supply: V = 12V
+param target: V = 3V
+param bottom: Ohm = 10k
+param load: Ohm = 10k
+param effective_bottom: Ohm = bottom * load / (bottom + load)
+param top: Ohm = effective_bottom * (supply / target - 1)
+net GND
+net IN
+net OUT
+source VIN {supply}
+resistor R1 {top}
+resistor R2 {bottom}
+resistor RL {load}
+connect VIN.plus, R1.p1 to IN
+connect R1.p2, R2.p1, RL.p1 to OUT
+connect VIN.minus, R2.p2, RL.p2 to GND
+simulate op
+assert value(V(OUT)) > 2.99V
+assert value(V(OUT)) < 3.01V

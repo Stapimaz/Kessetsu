@@ -10,7 +10,7 @@ use pest::error::LineColLocation;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const COMPILE_SCHEMA_VERSION: &str = "kessetsu.compile.v4";
+pub const COMPILE_SCHEMA_VERSION: &str = "kessetsu.compile.v5";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -308,7 +308,22 @@ pub fn compile_source_with_resources(
     let circuit = match ast_to_ir_with_resources(&flat_program, resources) {
         Ok(circuit) => circuit,
         Err(diagnostic) => {
-            report.diagnostics.push(diagnostic.into());
+            let mut diagnostic: Diagnostic = diagnostic.into();
+            if let Some(name) = diagnostic.field.as_deref()
+                && let Some(parameter) = flat_program.statements.iter().find_map(|statement| {
+                    if let crate::ast::Statement::Param(parameter) = statement
+                        && parameter.name == name
+                    {
+                        Some(parameter)
+                    } else {
+                        None
+                    }
+                })
+            {
+                diagnostic.line = Some(parameter.line);
+                diagnostic.column = Some(parameter.column);
+            }
+            report.diagnostics.push(diagnostic);
             annotate_source_locations(source, &mut report.diagnostics);
             return report;
         }

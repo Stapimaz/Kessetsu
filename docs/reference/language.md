@@ -1,6 +1,9 @@
 # Kessetsu Language Reference
 
-This document describes the source language accepted by the first public release. Kessetsu is line-oriented, case-sensitive except for documented device polarities, and uses `//` comments. Backends never consume syntax directly: source is parsed, flattened and validated into typed Circuit IR first.
+This document describes the current source language. Sections marked unreleased are not
+available in the published 1.1.0 CLI or deployed Web Hub. Kessetsu is line-oriented,
+case-sensitive except for documented device polarities, and uses `//` comments. Backends
+never consume syntax directly: source is parsed, flattened and validated into typed Circuit IR first.
 
 ## Names and values
 
@@ -27,6 +30,35 @@ current_source IBIAS 1mA
 ```
 
 Source waveforms are typed: scalar DC, `sine(offset,amplitude,frequency)`, `pulse(low,high,delay,rise,fall,width,period)`, `pwl(time,value,...)`, `ac(amplitude)` and `sine_ac(offset,amplitude,frequency,ac_amplitude)`. PWL requires at least two time/value pairs with non-negative, strictly increasing times. See [supported domain](supported-domain.md) for component and model limits.
+
+## Named quantities and arithmetic (unreleased)
+
+```kessetsu
+param supply: V = 12V
+param resistance: Ohm = 10k
+param target_gain: ratio = 20
+source VCC {supply}
+resistor RG {resistance}
+resistor RF {(target_gain - 1) * resistance}
+```
+
+Parameters are optional, top-level and explicitly typed: `Ohm`, `F`, `H`, `V`, `A`, `Hz`,
+`s`, `W`, `ratio`, `percent` or `deg`. Forward references are allowed; duplicate/unknown
+names and dependency cycles produce errors. `pi` is read-only. Expressions support finite
+SI literals, names, parentheses, unary signs and `+ - * /`, with ordinary precedence.
+
+Braces are accepted in resistor, capacitor, inductor and scalar DC voltage/current-source
+values. A whole literal keeps contextual units (`10k` in an Ohm declaration); bare literals
+inside arithmetic are dimensionless. Use `resistance + 1kOhm`, not `resistance + 1000`.
+Percentages normalize to fractions during arithmetic (`5% * 12V` is 0.6 V), while a
+`percent` quantity/threshold is expressed in percentage points. Angles cannot become ratios.
+
+Parameters do not infer topology or guarantee a named target: the circuit must explicitly
+use the relationship, then simulation/assertions verify its actual behavior. Model-name,
+waveform, analysis and assertion fields do not accept expressions in this initial slice.
+Module-scoped parameters/expressions and command-line overrides are not yet available;
+there is no implicit capture of global parameters inside modules. Evaluator-owned
+`.kessreq` files remain independent and assertion-only.
 
 ## Connections and pins
 

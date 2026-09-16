@@ -5,6 +5,7 @@ export type KessetsuCompletion = {
 };
 
 export const topLevelCompletions: readonly KessetsuCompletion[] = [
+  { label: 'param', detail: 'Declare a top-level typed quantity; use {name} in numeric component values.', insertText: 'param ${1:supply}: ${2|V,A,Ohm,F,H,Hz,s,W,ratio,percent,deg|} = ${3:12V}' },
   { label: 'net', detail: 'Declare a named electrical net.', insertText: 'net ${1:GND}' },
   { label: 'source', detail: 'Declare an independent voltage source.', insertText: 'source ${1:VIN} ${2:5V}' },
   { label: 'current_source', detail: 'Declare an independent current source.', insertText: 'current_source ${1:I1} ${2:1mA}' },

@@ -1,6 +1,6 @@
 # Kessetsu Web App
 
-The browser interface uses React, TypeScript, Vite, and the `kessetsu-core` WASM package. Compilation logic is not duplicated in the Web layer: it consumes the canonical `kessetsu.compile.v4` report through `compile_kessetsu`.
+The browser interface uses React, TypeScript, Vite, and the `kessetsu-core` WASM package. Compilation logic is not duplicated in the Web layer: current source consumes the canonical `kessetsu.compile.v5` report through `compile_kessetsu` (published 1.1.0 uses v4). New source parameter syntax remains unreleased until a tagged deployment.
 
 The site root is a lightweight product landing page. `#editor` opens the full Web Hub, while versioned `#kessetsu=...` share fragments bypass the landing page and open the shared circuit directly. The workspace is loaded as a separate bundle so landing-page design changes do not couple to Monaco, WASM, simulation, or export behavior.
 

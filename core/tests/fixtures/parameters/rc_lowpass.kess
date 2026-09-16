@@ -1,0 +1,16 @@
+// Ideal unloaded RC; the achieved cutoff is verified by an ordinary AC simulation.
+param resistance: Ohm = 1k
+param cutoff: Hz = 1k
+param capacitance: F = 1 / (2 * pi * resistance * cutoff)
+net GND
+net IN
+net OUT
+source VIN ac(1V)
+resistor R1 {resistance}
+capacitor C1 {capacitance}
+connect VIN.plus, R1.p1 to IN
+connect R1.p2, C1.p1 to OUT
+connect VIN.minus, C1.p2 to GND
+simulate ac dec 40 10Hz 100kHz
+assert cutoff(V(OUT),V(IN)) > 990Hz
+assert cutoff(V(OUT),V(IN)) < 1010Hz

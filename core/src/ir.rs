@@ -10,6 +10,11 @@ pub struct CircuitIR {
     pub analyses: Vec<Analysis>,
     pub assertions: Vec<Assertion>,
     pub model_manifest: ModelManifest,
+    #[serde(
+        default,
+        skip_serializing_if = "crate::expression::ParameterManifest::is_empty"
+    )]
+    pub parameter_manifest: crate::expression::ParameterManifest,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -372,15 +377,27 @@ fn parse_unit_suffix(suffix: &str) -> Result<(f64, Option<SIUnit>), String> {
     Ok((factor, unit))
 }
 
-fn parse_value(input: &str) -> Result<(f64, Option<SIUnit>), String> {
+pub(crate) fn parse_value(input: &str) -> Result<(f64, Option<SIUnit>), String> {
     let (number, suffix) = split_number_and_suffix(input)?;
     let parsed =
         f64::from_str(number).map_err(|error| format!("invalid number '{number}': {error}"))?;
-    if !parsed.is_finite() {
+    let nonzero_mantissa = number
+        .split(['e', 'E'])
+        .next()
+        .unwrap()
+        .bytes()
+        .any(|byte| matches!(byte, b'1'..=b'9'));
+    if !parsed.is_finite() || (parsed == 0.0 && nonzero_mantissa) {
         return Err(format!("non-finite value '{input}' is not supported"));
     }
     let (factor, unit) = parse_unit_suffix(suffix)?;
-    Ok((parsed * factor, unit))
+    let value = parsed * factor;
+    if !value.is_finite() || (parsed != 0.0 && value == 0.0) {
+        return Err(format!(
+            "value '{input}' is outside the supported numeric range"
+        ));
+    }
+    Ok((value, unit))
 }
 
 pub fn parse_quantity(input: &str, expected_unit: SIUnit) -> Result<Quantity, String> {
@@ -639,6 +656,24 @@ pub fn ast_to_ir_with_resources(
     program: &Program,
     resources: &crate::models::ExternalModelResources,
 ) -> Result<CircuitIR, SemanticDiagnostic> {
+    let declarations = program
+        .statements
+        .iter()
+        .filter_map(|statement| {
+            if let Statement::Param(parameter) = statement {
+                Some(parameter)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    let (parameter_values, mut parameter_manifest) =
+        crate::expression::resolve_parameters(&declarations)
+            .map_err(|cause| semantic_error(cause.code, cause.message, None, Some(&cause.name)))?;
+    let mut expression_work: usize = declarations
+        .iter()
+        .map(|parameter| parameter.expression.node_count())
+        .sum();
     let model_library = crate::models::resolve_program_models_with_resources(program, resources)?;
     let mut components = Vec::new();
     let mut connections = Vec::new();
@@ -648,8 +683,49 @@ pub fn ast_to_ir_with_resources(
 
     for stmt in &program.statements {
         match stmt {
+            Statement::Param(_) => {}
             Statement::Decl(decl) => {
                 let val_str = decl.value.as_deref().unwrap_or("");
+                if decl.value_expression.is_some()
+                    && !matches!(
+                        decl.comp_type,
+                        ComponentType::Resistor
+                            | ComponentType::Capacitor
+                            | ComponentType::Inductor
+                            | ComponentType::Source
+                            | ComponentType::CurrentSource
+                    )
+                {
+                    return Err(semantic_error(
+                        "KES-C022",
+                        "Expressions are only accepted in numeric component fields, not model names",
+                        Some(&decl.name),
+                        Some("value"),
+                    ));
+                }
+                let mut numeric_value = |expected: SIUnit| -> Result<Quantity, String> {
+                    if let Some(expression) = &decl.value_expression {
+                        expression_work += expression.node_count();
+                        if expression_work > crate::expression::MAX_EXPRESSION_WORK {
+                            return Err("Compile expression work limit exceeded".into());
+                        }
+                        let resolved = expression
+                            .evaluate(&parameter_values, expected)
+                            .map_err(|cause| cause.message)?;
+                        parameter_manifest
+                            .bindings
+                            .push(crate::expression::ParameterBinding {
+                                component: decl.name.clone(),
+                                field: "value".into(),
+                                expression: expression.source.clone(),
+                                dependencies: expression.dependencies().into_iter().collect(),
+                                resolved: resolved.clone(),
+                            });
+                        Ok(resolved)
+                    } else {
+                        parse_quantity(val_str, expected)
+                    }
+                };
                 let mut model = None;
 
                 let (kind, params) = match decl.comp_type {
@@ -662,7 +738,7 @@ pub fn ast_to_ir_with_resources(
                     ComponentType::Resistor => (
                         ComponentKind::Resistor,
                         ComponentParams::TwoPinPassive {
-                            value: parse_quantity(val_str, SIUnit::Ohm).map_err(|error| {
+                            value: numeric_value(SIUnit::Ohm).map_err(|error| {
                                 semantic_error(
                                     "KES-C001",
                                     format!("invalid resistor value: {error}"),
@@ -675,7 +751,7 @@ pub fn ast_to_ir_with_resources(
                     ComponentType::Capacitor => (
                         ComponentKind::Capacitor,
                         ComponentParams::TwoPinPassive {
-                            value: parse_quantity(val_str, SIUnit::Farad).map_err(|error| {
+                            value: numeric_value(SIUnit::Farad).map_err(|error| {
                                 semantic_error(
                                     "KES-C001",
                                     format!("invalid capacitor value: {error}"),
@@ -688,7 +764,7 @@ pub fn ast_to_ir_with_resources(
                     ComponentType::Inductor => (
                         ComponentKind::Inductor,
                         ComponentParams::TwoPinPassive {
-                            value: parse_quantity(val_str, SIUnit::Henry).map_err(|error| {
+                            value: numeric_value(SIUnit::Henry).map_err(|error| {
                                 semantic_error(
                                     "KES-C001",
                                     format!("invalid inductor value: {error}"),
@@ -700,53 +776,57 @@ pub fn ast_to_ir_with_resources(
                     ),
                     ComponentType::Source => {
                         let kind = ComponentKind::VoltageSource;
-                        let value = if let Some(waveform) = parse_waveform(val_str, SIUnit::Volt)
-                            .map_err(|error| {
+                        let waveform = if decl.value_expression.is_some() {
+                            Ok(None)
+                        } else {
+                            parse_waveform(val_str, SIUnit::Volt)
+                        };
+                        let value = if let Some(waveform) = waveform.map_err(|error| {
+                            semantic_error(
+                                "KES-C002",
+                                format!("invalid voltage-source waveform: {error}"),
+                                Some(&decl.name),
+                                Some("value"),
+                            )
+                        })? {
+                            SourceValue::Waveform(waveform)
+                        } else {
+                            SourceValue::Dc(numeric_value(SIUnit::Volt).map_err(|error| {
                                 semantic_error(
-                                    "KES-C002",
-                                    format!("invalid voltage-source waveform: {error}"),
+                                    "KES-C001",
+                                    format!("invalid voltage-source value: {error}"),
                                     Some(&decl.name),
                                     Some("value"),
                                 )
-                            })? {
-                            SourceValue::Waveform(waveform)
-                        } else {
-                            SourceValue::Dc(parse_quantity(val_str, SIUnit::Volt).map_err(
-                                |error| {
-                                    semantic_error(
-                                        "KES-C001",
-                                        format!("invalid voltage-source value: {error}"),
-                                        Some(&decl.name),
-                                        Some("value"),
-                                    )
-                                },
-                            )?)
+                            })?)
                         };
                         (kind, ComponentParams::VoltageSource { value })
                     }
                     ComponentType::CurrentSource => {
                         let kind = ComponentKind::CurrentSource;
-                        let value = if let Some(waveform) = parse_waveform(val_str, SIUnit::Ampere)
-                            .map_err(|error| {
+                        let waveform = if decl.value_expression.is_some() {
+                            Ok(None)
+                        } else {
+                            parse_waveform(val_str, SIUnit::Ampere)
+                        };
+                        let value = if let Some(waveform) = waveform.map_err(|error| {
+                            semantic_error(
+                                "KES-C002",
+                                format!("invalid current-source waveform: {error}"),
+                                Some(&decl.name),
+                                Some("value"),
+                            )
+                        })? {
+                            SourceValue::Waveform(waveform)
+                        } else {
+                            SourceValue::Dc(numeric_value(SIUnit::Ampere).map_err(|error| {
                                 semantic_error(
-                                    "KES-C002",
-                                    format!("invalid current-source waveform: {error}"),
+                                    "KES-C001",
+                                    format!("invalid current-source value: {error}"),
                                     Some(&decl.name),
                                     Some("value"),
                                 )
-                            })? {
-                            SourceValue::Waveform(waveform)
-                        } else {
-                            SourceValue::Dc(parse_quantity(val_str, SIUnit::Ampere).map_err(
-                                |error| {
-                                    semantic_error(
-                                        "KES-C001",
-                                        format!("invalid current-source value: {error}"),
-                                        Some(&decl.name),
-                                        Some("value"),
-                                    )
-                                },
-                            )?)
+                            })?)
                         };
                         (kind, ComponentParams::CurrentSource { value })
                     }
@@ -993,6 +1073,9 @@ pub fn ast_to_ir_with_resources(
     }
 
     let model_manifest = model_library.manifest(&components);
+    parameter_manifest
+        .bindings
+        .sort_by(|a, b| (&a.component, &a.field).cmp(&(&b.component, &b.field)));
     Ok(CircuitIR {
         components,
         connections,
@@ -1000,6 +1083,7 @@ pub fn ast_to_ir_with_resources(
         analyses,
         assertions,
         model_manifest,
+        parameter_manifest,
     })
 }
 

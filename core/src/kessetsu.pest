@@ -4,18 +4,23 @@ COMMENT = _{ "//" ~ (!NEWLINE ~ ANY)* ~ NEWLINE? }
 
 ident = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 comp_value = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" | (ASCII_ALPHANUMERIC | "." | "+" | "-" | "_" | "µ" | "Ω" | "%")+ }
+// Flat captures: the bounded expression parser checks syntax before building recursive nodes.
+value_expr = @{ "{" ~ (!NEWLINE ~ !"}" ~ ANY)* ~ "}" }
+numeric_value = { value_expr | comp_value }
+parameter_expr = @{ (!NEWLINE ~ !"//" ~ ANY)+ }
+param_decl = { "param" ~ ident ~ ":" ~ ident ~ "=" ~ parameter_expr }
 
 // Components
 comp_type = { "resistor" | "capacitor" | "inductor" | "diode" | "mosfet" | "opamp" }
 polarity = { ^"npn" | ^"pnp" }
 transistor_decl = { "transistor" ~ ident ~ polarity? ~ comp_value? }
-standard_decl = { comp_type ~ ident ~ comp_value? }
+standard_decl = { comp_type ~ ident ~ numeric_value? }
 
 // Sources
 source_type = { "source" | "current_source" }
 func_call = { ident ~ "(" ~ source_param ~ ("," ~ source_param)* ~ ")" }
 source_param = { func_call | comp_value }
-source_decl = { source_type ~ ident ~ source_param }
+source_decl = { source_type ~ ident ~ (value_expr | source_param) }
 
 decl = { transistor_decl | standard_decl | source_decl }
 
@@ -47,7 +52,7 @@ subcircuit_decl = { "subcircuit" ~ subcircuit_kind ~ ident ~ "(" ~ pin_list ~ ")
 external_subcircuit_decl = { "external_subcircuit" ~ subcircuit_kind ~ ident ~ "(" ~ pin_list ~ ")" ~ named_value+ }
 model_include = { "model_include" ~ ident ~ comp_value }
 
-statement = { (decl | net_stmt | use_stmt | connect | assert_stmt | sim_cmd) }
+statement = { (param_decl | decl | net_stmt | use_stmt | connect | assert_stmt | sim_cmd) }
 
 pin_list = { ident ~ ("," ~ ident)* }
 module_decl = { "module" ~ ident ~ "(" ~ pin_list? ~ ")" ~ "{" ~ NEWLINE* ~ (statement ~ NEWLINE+)* ~ "}" }

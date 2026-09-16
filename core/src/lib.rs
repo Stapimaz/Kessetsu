@@ -7,6 +7,7 @@ pub mod compiler;
 pub mod component;
 pub mod erc;
 pub mod exporter;
+pub mod expression;
 pub mod graph;
 pub mod ir;
 pub mod kicad;
