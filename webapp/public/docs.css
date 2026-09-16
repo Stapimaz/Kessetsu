@@ -1,0 +1,21 @@
+.docs-article { width: min(860px, calc(100% - 48px)); margin: 56px auto; color: #b9c8da; line-height: 1.75; overflow-wrap: anywhere; }
+.docs-article h1, .docs-article h2, .docs-article h3 { color: #eef4fc; line-height: 1.25; letter-spacing: -.025em; }
+.docs-article h1 { font-size: clamp(30px, 5vw, 44px); margin-bottom: 28px; }
+.docs-article h2 { margin-top: 40px; font-size: 25px; }
+.docs-article h3 { margin-top: 30px; font-size: 20px; }
+.docs-article a { color: #50d8c9; text-decoration: underline; text-underline-offset: 3px; }
+.docs-article pre { padding: 18px; background: #111923; border: 1px solid #293748; border-radius: 8px; overflow-x: auto; }
+.docs-article pre code { white-space: pre; overflow-wrap: normal; }
+.docs-article code { font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace; font-size: .88em; }
+.docs-article table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
+.docs-article th, .docs-article td { padding: 10px 14px; border: 1px solid #293748; text-align: left; min-width: 130px; }
+.docs-article th { color: #eef4fc; }
+.docs-article blockquote { border-left: 3px solid #2cc7b5; margin-left: 0; padding-left: 18px; }
+.public-noscript { max-width: 900px; margin: 24px auto; padding: 16px; color: #b9c8da; }
+.public-noscript a { color: #50d8c9; }
+@media (max-width: 600px) {
+  .docs-article { width: calc(100% - 30px); margin: 32px auto; }
+  .docs-article pre { padding: 12px; }
+  .docs-page .landing-header { gap: 12px; }
+  .docs-page .landing-nav { display: flex; gap: 12px; }
+}

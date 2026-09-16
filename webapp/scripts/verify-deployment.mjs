@@ -1,15 +1,30 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const expectedBase = process.env.KESSETSU_BASE_PATH ?? '/';
 const dist = resolve(import.meta.dirname, '../dist');
 const html = readFileSync(resolve(dist, 'index.html'), 'utf8');
-const references = [...html.matchAll(/(?:src|href)="([^"]+)"/g)].map((match) => match[1]);
-for (const reference of references) {
-  if (/^(?:data:|https?:)/.test(reference)) continue;
-  if (!reference.startsWith(expectedBase)) throw new Error(`Deployment asset escaped ${expectedBase}: ${reference}`);
-  const relative = reference.slice(expectedBase.length);
-  if (!existsSync(resolve(dist, relative))) throw new Error(`Deployment asset is missing: ${relative}`);
+const pages = readdirSync(dist, { recursive: true }).map((file) => file.replaceAll('\\', '/')).filter((file) => file === 'index.html' || file.endsWith('/index.html'));
+const titles = new Set();
+let referenceCount = 0;
+for (const file of pages) {
+  const text = readFileSync(resolve(dist, file), 'utf8');
+  const title = text.match(/<title>(.*?)<\/title>/)?.[1];
+  if (!title || titles.has(title)) throw new Error(`Missing or duplicated public-page title: ${file}`);
+  titles.add(title);
+  if (!/<h1\b/.test(text)) throw new Error(`Public page has no initial HTML content: ${file}`);
+  const route = file.slice(0, -'index.html'.length);
+  if (!text.includes(`rel="canonical" href="https://kessetsu.com/${route}"`)) throw new Error(`Incorrect canonical URL: ${file}`);
+  for (const match of text.matchAll(/(?:src|href)="([^"]+)"/g)) {
+    const reference = match[1];
+    if (/^(?:data:|https?:|mailto:|#)/.test(reference)) continue;
+    const url = new URL(reference, `https://deployment.test${expectedBase}${route}`);
+    if (!url.pathname.startsWith(expectedBase)) throw new Error(`Deployment asset escaped ${expectedBase}: ${reference}`);
+    const relative = decodeURIComponent(url.pathname.slice(expectedBase.length));
+    if (!existsSync(resolve(dist, relative))) throw new Error(`Deployment asset is missing: ${file} -> ${relative}`);
+    referenceCount++;
+  }
+  if (route.startsWith('docs/') && /<script\b/.test(text)) throw new Error(`Static documentation unexpectedly loads JavaScript: ${file}`);
 }
 for (const directive of ["default-src 'self'", "script-src 'self' 'wasm-unsafe-eval'", "worker-src 'self' blob:", "object-src 'none'"]) {
   if (!html.includes(directive)) throw new Error(`Production CSP is missing: ${directive}`);
@@ -25,6 +40,9 @@ for (const metadata of [
 for (const required of [
   'CNAME',
   'install/index.html',
+  'docs/index.html',
+  'docs/guides/tutorial/index.html',
+  'docs.css',
   'install.ps1',
   'install.sh',
   'examples/rc_low_pass.kess',
@@ -51,4 +69,9 @@ if (!installHtml.includes('rel="canonical" href="https://kessetsu.com/install/"'
 for (const script of ['install.ps1', 'install.sh']) {
   if (!readFileSync(resolve(dist, script), 'utf8').includes('Kessetsu')) throw new Error(`Missing installer source: ${script}`);
 }
-console.log(`Deployment audit PASS: ${references.length} assets use ${expectedBase}; CSP and license bundle present.`);
+const sitemap = readFileSync(resolve(dist, 'sitemap.xml'), 'utf8');
+for (const file of pages) {
+  const route = file.slice(0, -'index.html'.length);
+  if (!sitemap.includes(`<loc>https://kessetsu.com/${route}</loc>`)) throw new Error(`Sitemap omits public page: ${file}`);
+}
+console.log(`Deployment audit PASS: ${pages.length} content pages, distinct titles, ${referenceCount} local references; CSP, sitemap and license bundle present.`);

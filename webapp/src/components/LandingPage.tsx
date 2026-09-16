@@ -19,7 +19,7 @@ const productVersion = productVersionSource.trim();
 export function LandingPage() {
   useEffect(() => {
     document.documentElement.dataset.theme = 'dark';
-    document.title = 'Kessetsu — Circuit engineering, executable';
+    document.title = 'Kessetsu — Circuit simulation, verification and schematics';
   }, []);
 
   return (
@@ -32,7 +32,7 @@ export function LandingPage() {
           <a href="#agent-workflow">Agent workflow</a>
           <a href="#web-hub">Web Hub</a>
           <a href="#outputs">Exports</a>
-          <a href="https://github.com/Stapimaz/Kessetsu/blob/main/docs/README.md">Docs</a>
+          <a href={`${import.meta.env.BASE_URL}docs/`}>Docs</a>
         </nav>
         <a className="button button-compact button-secondary" href="#editor">
           Open Web Hub <ArrowRight size={15} />
@@ -131,7 +131,7 @@ export function LandingPage() {
           <p className="scope-note">
             <strong>First-release scope:</strong> schematic-level analog and mixed-signal circuits with supported
             components, models, and OP/transient/AC/DC analysis. It is not PCB layout or hardware sign-off.{' '}
-            <a href="https://github.com/Stapimaz/Kessetsu/blob/main/docs/reference/supported-domain.md">Read the supported domain.</a>
+            <a href={`${import.meta.env.BASE_URL}docs/reference/supported-domain/`}>Read the supported domain.</a>
           </p>
         </div>
         <WebHubPreview />
@@ -161,8 +161,8 @@ export function LandingPage() {
           <span>© 2026 Stapimaz · AGPL-3.0-only · No telemetry in the first release</span>
         </div>
         <nav aria-label="Footer navigation">
-          <a href="https://github.com/Stapimaz/Kessetsu/blob/main/docs/README.md">Docs</a>
-          <a href="https://github.com/Stapimaz/Kessetsu/blob/main/docs/reference/supported-domain.md">Supported domain</a>
+          <a href={`${import.meta.env.BASE_URL}docs/`}>Docs</a>
+          <a href={`${import.meta.env.BASE_URL}docs/reference/supported-domain/`}>Supported domain</a>
           <a href="https://github.com/Stapimaz/Kessetsu/blob/main/CHANGELOG.md">Changelog</a>
           <a href="https://github.com/Stapimaz/Kessetsu">Source</a>
           <a href="https://github.com/Stapimaz/Kessetsu/issues">Feedback</a>

@@ -46,6 +46,21 @@ Rollback is a normal workflow dispatch: choose a previously verified tag/commit 
 
 The `github-pages` environment permits deployments from branch `main` and tags matching `v*`. Preserve both narrow rules: tag-triggered releases otherwise build successfully but are rejected at deployment. Deployment policy does not change repository write permissions. If deployment is rejected by a protection rule, stop for owner approval rather than weakening or bypassing that rule.
 
+## Static public content maintenance
+
+`npm run build:web` pre-renders the existing landing and installation React components,
+then publishes the reviewed documentation index, guides and references as static `/docs/`
+pages. Markdown remains the source of truth; contributor/evaluation documents stay linked
+on GitHub. The build generates the sitemap from those same pages. Documentation pages
+load no application JavaScript; the editor remains lazily loaded and requires JavaScript.
+
+For content/metadata changes, use the Web build, deployment audit and focused
+`discovery.spec.ts` / installation checks rather than repeating the full engine suite.
+Preserve the canonical domain, CSP, approved wordmark and binary-release identities.
+After deployment, verify the initial HTML and relevant public routes. Crawlable content
+and metadata do not prove indexing or search ranking; account ownership and sitemap
+submission belong to the owner's Search Console workflow.
+
 ## First-public-release transaction
 
 The prepared repository state does not itself publish anything. Execute the external transaction in this order:

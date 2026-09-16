@@ -3,6 +3,10 @@
 English is the primary documentation language. These documents describe public behavior,
 implementation contracts and reproducible engineering evidence.
 
+Read the user guides and references at [kessetsu.com/docs/](https://kessetsu.com/docs/).
+They are generated from these reviewed Markdown sources; GitHub remains the source for
+contributor contracts and dated evaluation evidence.
+
 ## Getting started
 
 - [Project overview](../README.md)

@@ -4,6 +4,12 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### Web and discovery
+
+- Build-time HTML for the existing landing and installation pages, with distinct route titles and descriptions.
+- Public guides and references at `/docs/`, generated from the reviewed Markdown sources without a JavaScript requirement; sitemap covers all public content pages.
+- GitHub project description, topics and canonical product homepage updated. No analytics or circuit uploads added.
+
 ## [1.0.1] — 2026-09-16
 
 ### Distribution

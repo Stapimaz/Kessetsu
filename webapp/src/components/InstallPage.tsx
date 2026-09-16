@@ -54,10 +54,12 @@ function CopyCommand({ command, label }: { command: string; label: string }) {
 }
 
 export function InstallPage() {
-  const [platform, setPlatform] = useState<Platform>(initialPlatform);
+  // Keep build-time HTML independent of the build machine's navigator.
+  const [platform, setPlatform] = useState<Platform>('windows');
   const selected = platforms[platform];
   const base = import.meta.env.BASE_URL;
   useEffect(() => {
+    setPlatform(initialPlatform());
     document.documentElement.dataset.theme = 'dark';
     document.title = 'Install Kessetsu CLI — Kessetsu';
   }, []);
@@ -68,7 +70,7 @@ export function InstallPage() {
         <a className="landing-wordmark" href={base} aria-label="Kessetsu home"><BrandWordmark /></a>
         <nav className="landing-nav" aria-label="Installation navigation">
           <a href={`${base}#editor`}>Web Hub</a>
-          <a href="https://github.com/Stapimaz/Kessetsu/blob/main/docs/README.md">Docs</a>
+          <a href={`${base}docs/`}>Docs</a>
         </nav>
       </header>
       <section className="install-content" aria-labelledby="install-title">

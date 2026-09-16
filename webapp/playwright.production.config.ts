@@ -7,6 +7,7 @@ export default defineConfig({
   testMatch: [
     '**/e2e/browser-smoke.spec.ts',
     '**/e2e/install.spec.ts',
+    '**/e2e/discovery.spec.ts',
     '**/e2e/benchmark-parity.spec.ts',
     '**/e2e/exports.spec.ts',
     '**/e2e/share.spec.ts',

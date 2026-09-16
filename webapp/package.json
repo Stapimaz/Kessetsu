@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build:wasm": "wasm-pack build ../core --target web --out-dir pkg --release",
-    "build:web": "tsc -b && vite build && node scripts/audit-licenses.mjs --output dist/licenses/npm-inventory.json && node scripts/audit-performance.mjs",
+    "build:web": "tsc -b && vite build && node scripts/prerender-public.mjs && node scripts/audit-licenses.mjs --output dist/licenses/npm-inventory.json && node scripts/audit-performance.mjs",
     "verify:runtime": "node scripts/verify-runtime.mjs",
     "verify:deployment": "node scripts/verify-deployment.mjs",
     "test:unit": "vitest run",
@@ -34,6 +34,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
     "esbuild": "^0.28.1",
+    "marked": "14.0.0",
     "oxlint": "^1.75.0",
     "rollup": "^4.62.4",
     "typescript": "~6.0.2",

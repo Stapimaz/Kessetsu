@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import wasm from 'vite-plugin-wasm';
 import { fileURLToPath, URL } from 'node:url'
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 export default defineConfig({
@@ -14,15 +14,8 @@ export default defineConfig({
     {
       name: 'kessetsu-runtime-license-bundle',
       closeBundle() {
-        const installDir = resolve(import.meta.dirname, 'dist/install')
-        mkdirSync(installDir, { recursive: true })
         mkdirSync(resolve(import.meta.dirname, 'dist/examples'), { recursive: true })
         copyFileSync(resolve(import.meta.dirname, '../examples/rc_low_pass.kess'), resolve(import.meta.dirname, 'dist/examples/rc_low_pass.kess'))
-        const rootHtml = readFileSync(resolve(import.meta.dirname, 'dist/index.html'), 'utf8')
-        writeFileSync(resolve(installDir, 'index.html'), rootHtml
-          .replace('<title>Kessetsu — Circuit engineering, executable</title>', '<title>Install Kessetsu CLI — Kessetsu</title>')
-          .replaceAll('content="https://kessetsu.com/"', 'content="https://kessetsu.com/install/"')
-          .replace('rel="canonical" href="https://kessetsu.com/"', 'rel="canonical" href="https://kessetsu.com/install/"'))
         const licenseDir = resolve(import.meta.dirname, 'dist/licenses')
         mkdirSync(licenseDir, { recursive: true })
         copyFileSync(
