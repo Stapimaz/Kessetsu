@@ -6,9 +6,9 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 Changes merged after the first public release will be recorded here.
 
-## [1.0.0] — 2026-09-14
+## [1.0.0] — 2026-09-16
 
-First public-release candidate.
+First public release.
 
 ### Product
 
