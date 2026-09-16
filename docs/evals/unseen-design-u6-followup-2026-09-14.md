@@ -1,12 +1,14 @@
 # U6 External-Model Follow-up — 2026-09-14
 
+Publication maintenance, 2026-09-16: account-specific and internal execution-planning prose was removed or generalized. Recorded task outcomes, timings, exclusions and model settings are unchanged. Historical recorded file digests identify the original editions, not this publication edit.
+
 Status: **PASS after one disclosed post-run exporter correction.** Three fresh Kessetsu agents independently produced valid exact-model designs and passed the evaluator-owned electrical checks. Visual, provenance, and editable-artifact review then exposed an LTspice adapter defect: the first exports used the Kessetsu alias `OPA197` instead of the external file's real entry `OPAx197`. The candidate sources and electrical results were unaffected. The adapter was corrected, the original `.asc` files were retained in the gitignored evidence tree, and deterministic re-exports passed real KiCad/LTspice application checks. This correction is product-development evidence, not hidden agent success.
 
 ## Configuration
 
 - Frozen follow-up specification: `docs/evals/unseen-design-u6-followup-v1.md`, SHA-256 `b46d817be10aea4b14592cf99c084cd1b72d501130fcc4810dbbb82aecf18938`
 - Capability/harness checkpoint: rewritten commit `506b534`; original unsupported U6 evidence remains unchanged
-- Model: `gpt-5.6-sol`, medium reasoning, fresh ephemeral Codex CLI sessions authenticated through ChatGPT; no API key, API call, network access, or human intervention during an attempt
+- Model: `gpt-5.6-sol`, medium reasoning, fresh ephemeral Codex CLI sessions; no network access or human intervention during an attempt
 - Codex CLI: `0.154.0-alpha.6.2`, SHA-256 `2271526227b06ca13ab2b975b88546460fc61b2a29225b6dda0fdc803024ccc9`
 - Scored Kessetsu CLI: `kess 0.1.0`, SHA-256 `1bd44a4b49290223c2773410eeda30ccec47c51c3729005c43124ff7e25b84cb`
 - Follow-up evaluator v1: SHA-256 `da55dc00b55bf828abf47963b8700ddcbce5a494e83fa49ffe30dfbc6191d925`

@@ -26,7 +26,7 @@ The project is not limited to a particular educational scenario or circuit class
 - SVG, PNG, PDF, Schematic JSON, SPICE, KiCad, and LTspice exports
 - Versioned, compressed, package-aware share URLs
 
-The [roadmap](docs/ROADMAP.md) defines current work and gates. The [architecture](docs/architecture.md), [supported domain](docs/reference/supported-domain.md), and [engineering measurement contract](docs/reference/measurements.md) are the normative references for implementation boundaries and formulas.
+The [roadmap](docs/ROADMAP.md) summarizes shipped capabilities and candidate product directions. The [architecture](docs/architecture.md), [supported domain](docs/reference/supported-domain.md), and [engineering measurement contract](docs/reference/measurements.md) are the normative references for implementation boundaries and formulas.
 
 ## Web Hub
 

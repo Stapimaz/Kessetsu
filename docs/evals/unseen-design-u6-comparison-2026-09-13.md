@@ -1,5 +1,7 @@
 # U6 Fresh-Context Comparison — 2026-09-13
 
+Publication maintenance, 2026-09-16: account-specific and internal execution-planning prose was removed or generalized. Recorded task outcomes, timings, exclusions and model settings are unchanged. Historical recorded file digests identify the original editions, not this publication edit.
+
 Status: first-model U6 checkpoint complete. This task intentionally tests an authentic manufacturer macromodel boundary. Direct Ngspice completed the design; Kessetsu correctly reported that its current typed model system cannot represent the exact external PSpice subcircuit. This is an unsupported capability, not an electrical design failure or a passing Kessetsu result.
 
 ## Configuration
@@ -8,7 +10,6 @@ Status: first-model U6 checkpoint complete. This task intentionally tests an aut
 - Harness: `agent-comparison-harness-v1.md`
 - Model: `gpt-5.6-sol`
 - Reasoning: `medium`
-- Authentication: ChatGPT session; no API key or direct API calls
 - Attempts: three fresh, isolated, scored sessions per arm
 - Limits: 30 minutes and 60 tool calls per attempt
 - Simulator: bundled Ngspice 46, SHA-256 `86c9ea5f645ca919e305639fa7bdb522355364c424d14e197f1ade617feb3453`
@@ -67,7 +68,7 @@ No excluded record is silently discarded:
 
 1. Before scored U6 inference, the evaluator was versioned from v1 to v2 so prompt-permitted inert `.four`, `.print`, `.plot`, and `.save` self-check directives are ignored rather than rejected. No requirement, topology, model, threshold, or candidate was changed.
 2. The runner verifies the official model hash before inference, supplies the same local file to both arms, and writes its path only into the temporary process environment used by the evaluator. The model body remains outside tracked repository output.
-3. The first direct attempt 1 produced an evaluator-PASS candidate but reached the owner's Codex usage limit before final metadata and usage were complete. It is excluded as an external quota interruption and preserved under `invalid-runs/u6-direct-attempt-1-quota-interruption/`. Attempt 1 was rerun after the reset with unchanged prompt, model, settings, and limits.
+3. The first direct attempt 1 produced an evaluator-PASS candidate but reached an external execution usage limit before final metadata and usage were complete. It is excluded as an external quota interruption and preserved under `invalid-runs/u6-direct-attempt-1-quota-interruption/`. Attempt 1 was rerun after the reset with unchanged prompt, model, settings, and limits.
 
 The manufacturer macromodel improves identity/fidelity over a generic template but still does not validate tolerance, board parasitics, thermal behavior, EMC, production variation, or hardware performance.
 

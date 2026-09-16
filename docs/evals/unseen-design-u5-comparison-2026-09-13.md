@@ -1,5 +1,7 @@
 # U5 Fresh-Context Comparison — 2026-09-13
 
+Publication maintenance, 2026-09-16: account-specific and internal execution-planning prose was removed or generalized. Recorded task outcomes, timings, exclusions and model settings are unchanged. Historical recorded file digests identify the original editions, not this publication edit.
+
 Status: first-model U5 checkpoint complete. This is one bounded fixed-load power-amplifier task family. U1–U5 now cover five task families, but they do not complete the six-task 4.6V gate or establish a general circuit-design success rate.
 
 ## Configuration
@@ -8,7 +10,6 @@ Status: first-model U5 checkpoint complete. This is one bounded fixed-load power
 - Harness: `agent-comparison-harness-v1.md`
 - Model: `gpt-5.6-sol`
 - Reasoning: `medium`
-- Authentication: ChatGPT session; no API key or direct API calls
 - Attempts: three fresh, isolated, scored sessions per arm
 - Limits: 30 minutes and 60 tool calls per attempt
 - Simulator: bundled Ngspice 46, SHA-256 `86c9ea5f645ca919e305639fa7bdb522355364c424d14e197f1ade617feb3453`
@@ -75,4 +76,4 @@ The generic linear op-amp template omits rail saturation, output-current limitin
 
 ## Checkpoint decision
 
-Continue to U6 with the same model, settings, and paired protocol. U5 establishes equal electrical success plus a fifth automatic artifact/interoperability result for Kessetsu, with a modest elapsed-time advantage despite higher input use. Alongside U4's opposite result, the evidence supports an interoperability benefit rather than a universal speed claim. The 4.6V gate remains open until U6 is run, all records are reviewed for false acceptance and unsupported cases, and the owner makes the final product-direction decision. Second-model transferability remains unavailable and must stay explicit.
+U5 establishes equal electrical success plus a fifth automatic artifact/interoperability result for Kessetsu, with a modest elapsed-time advantage despite higher input use. Alongside U4's opposite result, the evidence supports an interoperability benefit rather than a universal speed claim. The 4.6V gate remains open until U6 is run, all records are reviewed for false acceptance and unsupported cases. Second-model transferability remains unavailable and must stay explicit.

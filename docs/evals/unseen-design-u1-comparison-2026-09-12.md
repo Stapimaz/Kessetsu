@@ -1,5 +1,7 @@
 # U1 Fresh-Context Comparison — 2026-09-12
 
+Publication maintenance, 2026-09-16: account-specific and internal execution-planning prose was removed or generalized. Recorded task outcomes, timings, exclusions and model settings are unchanged. Historical recorded file digests identify the original editions, not this publication edit.
+
 Status: first-model U1 checkpoint complete. This is one passive-circuit task family, not a general Kessetsu success-rate claim and not sufficient to close the 4.6V gate.
 
 ## Configuration
@@ -8,7 +10,6 @@ Status: first-model U1 checkpoint complete. This is one passive-circuit task fam
 - Harness: `agent-comparison-harness-v1.md`
 - Model: `gpt-5.6-sol`
 - Reasoning: `medium`
-- Authentication: ChatGPT session; no API key or direct API calls
 - Attempts: three fresh, ephemeral sessions per arm
 - Limits: 30 minutes and 60 tool calls per attempt
 - Simulator: bundled Ngspice 46, SHA-256 `86c9ea5f645ca919e305639fa7bdb522355364c424d14e197f1ade617feb3453`
@@ -67,10 +68,10 @@ No excluded record is silently discarded:
 2. One Kessetsu inference run used a read-only sandbox because of a CLI option-placement mistake. It produced no files and is excluded as an invalid harness run.
 3. One Kessetsu-only calibration passed, but revealed that the direct documentation named `.ac` while the Kessetsu documentation omitted the equivalent `simulate ac` directive. It is excluded; equivalent tool syntax was frozen before paired scoring began.
 4. Direct attempt 1 initially received evaluator v1 `ERROR` because its permitted, inert `.print` directive was rejected. The original JSON is preserved. Evaluator v2 accepts inert `.print/.plot/.save` directives without executing them and continues to reject include/model/device-boundary changes. All paired candidates were scored with v2.
-5. One direct attempt 2 session hit the owner's ChatGPT/Codex allowance while its first file write was in progress. It produced no candidate and is excluded as an external quota interruption; the same numbered attempt was rerun after reset with unchanged inputs.
+5. One direct attempt 2 session hit an external execution usage limit while its first file write was in progress. It produced no candidate and is excluded as an external quota interruption; the same numbered attempt was rerun after execution access resumed with unchanged inputs.
 
 The corrections affected harness execution and permitted self-check output syntax, not electrical requirements or thresholds.
 
 ## Checkpoint decision
 
-Continue to U2 with the same model and settings, one paired attempt at a time to limit quota waste. U1 establishes a repeatable artifact/interoperability benefit and a lower elapsed-time median, but not an electrical-success advantage. The 4.6V requirement still needs repeatable practical benefit in at least one additional task family, no false acceptance across the evaluated set, completion of the remaining frozen tasks, and a separately authorized second-model transferability check or an explicit unresolved access gap.
+U1 establishes a repeatable artifact/interoperability benefit and a lower elapsed-time median, but not an electrical-success advantage. The 4.6V requirement still needs repeatable practical benefit in at least one additional task family, no false acceptance across the evaluated set, completion of the remaining frozen tasks, and a second-model transferability check or an explicit statement that transferability was not tested.

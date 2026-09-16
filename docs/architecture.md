@@ -2,7 +2,7 @@
 
 This document defines the core algorithms, compilation pipeline, and language-design standards of Kessetsu. **Every developer and AI agent working on the project must follow these rules before changing code.**
 
-> **For development planning and task tracking:** see `docs/ROADMAP.md`.
+> **For public product direction:** see `docs/ROADMAP.md`. Local execution planning follows `AGENTS.md`.
 
 ## 1. Core System Components
 
@@ -291,4 +291,4 @@ A no-account, no-install interface that runs the Rust Core in the browser throug
 
 **Security note:** The Web playground never inserts user input directly into a SPICE netlist. All input crosses typed IR validation. Any future raw-SPICE escape hatch such as `unsafe spice_raw {}` remains disabled by default on the Web.
 
-**In summary:** Kessetsu is not merely a drawing application. It is a circuit compiler and verification platform. The current product offers agent-oriented compile/test/export feedback through the CLI and a Web workspace—using the same Core—for compile, simulation, measurements, schematics, exports, and sharing. The bounded unseen-design gate, its selected external-model blocker, and owner workspace review are complete. Phase 4 closed on 2026-09-16 with the public Web Hub and immutable `v1.0.0` four-platform CLI release; production, rollback, and public download identities are verified. See the roadmap for evidence and post-release planning; passing regression tests alone does not establish universal product superiority or hardware fidelity.
+**In summary:** Kessetsu is not merely a drawing application. It is a circuit compiler and verification platform. The current product offers agent-oriented compile/test/export feedback through the CLI and a Web workspace—using the same Core—for compile, simulation, measurements, schematics, exports, and sharing. The first public product includes a browser workspace and four-platform CLI release. Passing regression tests alone does not establish universal product superiority or hardware fidelity. See the supported-domain reference and dated evaluation evidence for those boundaries.

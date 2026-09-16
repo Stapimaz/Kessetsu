@@ -1,5 +1,7 @@
 # U2 Fresh-Context Comparison — 2026-09-12
 
+Publication maintenance, 2026-09-16: account-specific and internal execution-planning prose was removed or generalized. Recorded task outcomes, timings, exclusions and model settings are unchanged. Historical recorded file digests identify the original editions, not this publication edit.
+
 Status: first-model U2 checkpoint complete. This is one active-filter task family. Together with U1 it provides two bounded task-family samples, but it does not complete the six-task 4.6V gate or establish a general circuit-design success rate.
 
 ## Configuration
@@ -8,7 +10,6 @@ Status: first-model U2 checkpoint complete. This is one active-filter task famil
 - Harness: `agent-comparison-harness-v1.md`
 - Model: `gpt-5.6-sol`
 - Reasoning: `medium`
-- Authentication: ChatGPT session; no API key or direct API calls
 - Attempts: three fresh, isolated sessions per arm
 - Limits: 30 minutes and 60 tool calls per attempt
 - Simulator: bundled Ngspice 46, SHA-256 `86c9ea5f645ca919e305639fa7bdb522355364c424d14e197f1ade617feb3453`
@@ -71,4 +72,4 @@ The model is a finite-gain, single-pole linear template. These PASS results do n
 
 ## Checkpoint decision
 
-Continue to U3 with the same model, settings, and paired protocol. U2 shows equal electrical success and a clear automatic artifact/interoperability advantage, but Kessetsu was slower and delivered the full artifact set in only two of three attempts. Combined with U1, the current evidence satisfies the roadmap's preliminary requirement for repeatable practical benefit in two bounded task families; however, the 4.6V gate remains open until U3–U6 are run, all records are reviewed for false acceptance and unsupported cases, and the owner makes the final product-direction decision. Second-model transferability remains unavailable and must stay explicit.
+U2 shows equal electrical success and a clear automatic artifact/interoperability advantage, but Kessetsu was slower and delivered the full artifact set in only two of three attempts. Combined with U1, the current evidence satisfies the roadmap's preliminary requirement for repeatable practical benefit in two bounded task families; however, the 4.6V gate remains open until U3–U6 are run, all records are reviewed for false acceptance and unsupported cases. Second-model transferability remains unavailable and must stay explicit.

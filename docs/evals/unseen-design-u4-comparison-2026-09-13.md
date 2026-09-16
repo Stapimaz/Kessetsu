@@ -1,5 +1,7 @@
 # U4 Fresh-Context Comparison — 2026-09-13
 
+Publication maintenance, 2026-09-16: account-specific and internal execution-planning prose was removed or generalized. Recorded task outcomes, timings, exclusions and model settings are unchanged. Historical recorded file digests identify the original editions, not this publication edit.
+
 Status: first-model U4 checkpoint complete. This is one bounded low-side MOSFET load-driver task family. U1–U4 now cover four task families, but they do not complete the six-task 4.6V gate or establish a general circuit-design success rate.
 
 ## Configuration
@@ -8,7 +10,6 @@ Status: first-model U4 checkpoint complete. This is one bounded low-side MOSFET 
 - Harness: `agent-comparison-harness-v1.md`
 - Model: `gpt-5.6-sol`
 - Reasoning: `medium`
-- Authentication: ChatGPT session; no API key or direct API calls
 - Attempts: three fresh, isolated, scored sessions per arm
 - Limits: 30 minutes and 60 tool calls per attempt
 - Simulator: bundled Ngspice 46, SHA-256 `86c9ea5f645ca919e305639fa7bdb522355364c424d14e197f1ade617feb3453`
@@ -68,10 +69,10 @@ Kessetsu delivered the complete requested export set in every scored U4 attempt 
 No excluded record is silently discarded:
 
 1. Before scored U4 inference, the evaluator was versioned from v1 to v2 so prompt-permitted inert `.print`, `.plot`, and `.save` self-check directives are ignored rather than rejected. The evaluator still replaces candidate analyses with its own testbench; no requirement, topology, model, threshold, or candidate was changed.
-2. One direct attempt 3 inference produced an electrically passing candidate, but the Codex process reached the owner's usage limit before reporting complete usage/final metadata and exited unsuccessfully. It is excluded as an external quota interruption and preserved under `invalid-runs/u4-direct-attempt-3-quota-interruption/`. The numbered attempt was rerun after the stated reset time with unchanged inputs.
+2. One direct attempt 3 inference produced an electrically passing candidate, but the Codex process reached an external execution usage limit before reporting complete usage/final metadata and exited unsuccessfully. It is excluded as an external quota interruption and preserved under `invalid-runs/u4-direct-attempt-3-quota-interruption/`. The numbered attempt was rerun after execution access resumed with unchanged inputs.
 
 The generic nominal IRF540 model does not validate manufacturer fidelity, tolerance, temperature, thermal/package behavior, SOA, avalanche, EMC, or hardware performance. Settled-window dissipation deliberately excludes switching intervals and is not total switching or gate-driver loss.
 
 ## Checkpoint decision
 
-Continue to U5 with the same model, settings, and paired protocol. U4 establishes equal electrical success and the fourth automatic artifact/interoperability result for Kessetsu, while also showing that direct Ngspice is materially faster and more token-efficient on a trivial fixed-topology switch. This is useful counterevidence against claiming that the DSL always improves design speed. The 4.6V gate remains open until U5–U6 are run, all records are reviewed for false acceptance and unsupported cases, and the owner makes the final product-direction decision. Second-model transferability remains unavailable and must stay explicit.
+U4 establishes equal electrical success and the fourth automatic artifact/interoperability result for Kessetsu, while also showing that direct Ngspice is materially faster and more token-efficient on a trivial fixed-topology switch. This is useful counterevidence against claiming that the DSL always improves design speed. The 4.6V gate remains open until U5–U6 are run, all records are reviewed for false acceptance and unsupported cases. Second-model transferability remains unavailable and must stay explicit.

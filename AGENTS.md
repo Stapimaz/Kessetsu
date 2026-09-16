@@ -5,7 +5,7 @@ You are an AI agent assigned to Kessetsu, or continuing an earlier session. Kess
 ## Required first steps
 
 1. **Read the constitution first:** read `docs/architecture.md` completely and retain the project context.
-2. **Read the roadmap next:** inspect `docs/ROADMAP.md` for the current development phase and ordered tasks.
+2. **Read the roadmap next:** read `docs/ROADMAP.md` for public product status. If `git config --local --get kessetsu.privatePlan` returns a path, read that local plan for the current development phase and ordered tasks. Never publish that path or its contents. If no local plan is configured, discuss task scope through the contributor process; do not invent internal priorities.
 3. **Do not skip phases.** A later phase must not begin until every task and acceptance gate in the preceding phase is complete.
 
 ## Non-negotiable rules
@@ -19,6 +19,6 @@ You are an AI agent assigned to Kessetsu, or continuing an earlier session. Kess
 
 ## Work tracking
 
-After each completed change, mark the corresponding checkbox in `docs/ROADMAP.md` as `[x]`.
+After each completed change, update the configured local execution plan and mark only proven checkboxes as `[x]`. Update `docs/ROADMAP.md` only for meaningful public product changes. Keep private plans outside the repository; do not include them in commits, release archives, logs or public issue text.
 
 Following these rules preserves Kessetsu's architecture and auditable development history.

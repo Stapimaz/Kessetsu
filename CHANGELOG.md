@@ -9,6 +9,11 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 - Guided CLI installation page with OS selection, copyable commands, first-circuit download, simulator prerequisites, updates, and manual fallback.
 - Per-user Windows and POSIX bootstrappers that select official stable releases, verify archive/executable integrity and version, configure PATH, preserve previous bundles, and refuse unmanaged paths. The CLI binary remains the independently released stable version.
 
+### Documentation
+
+- Concise public roadmap and documentation index, with account-specific execution prose removed from published reports while preserving evaluation outcomes and limitations.
+- Reviewed public-document manifest and focused publication checks for future release packaging.
+
 ## [1.0.0] — 2026-09-16
 
 First public release.

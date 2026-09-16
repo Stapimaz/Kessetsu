@@ -1,16 +1,16 @@
 # Agent Comparison Harness v1
 
+Publication maintenance, 2026-09-16: account-specific and internal execution-planning prose was removed or generalized. Recorded task outcomes, timings, exclusions and model settings are unchanged. Historical recorded file digests identify the original editions, not this publication edit.
+
 Status: frozen before the first comparative candidate run. This harness implements the common protocol in `unseen-design-v1.md`; it does not alter any task requirement or acceptance threshold.
 
-Preflight note, 2026-09-11: two process launches exited before inference while the Codex CLI argument boundary was characterized. The runner first passed the unsupported `-a` shorthand after `codex exec`, then combined mutually exclusive `--approve-for-me` and `--sandbox` options. Both zero-tool-call records are retained under `.artifacts/agent-comparison-v1/preflight-failures/`; neither is a candidate attempt or model run. A top-level `codex -a never -s workspace-write exec ...` form was then CLI-parse-checked before inference. No prompt, model setting, task requirement, or scoring rule changed.
-
-Invalid-run note, 2026-09-11: the top-level option form parsed but the resulting agent tool sandbox was read-only. The agent calculated a plausible circuit but every workspace operation was rejected, so no candidate or evaluator result existed. The complete run, including reported usage, is retained under `.artifacts/agent-comparison-v1/invalid-runs/` and excluded from both arms. The runner was corrected to use `codex exec --approve-for-me` alone, whose CLI contract supplies the workspace-write sandbox and automatic approval review. This operational correction does not change the prompt or scoring contract.
+Execution exclusion, 2026-09-11: a read-only sandbox prevented candidate writes; the run was excluded before any evaluator outcome existed. Correcting workspace permissions did not change task prompts, model settings or scoring.
 
 Calibration note, 2026-09-11: the first successful Kessetsu-only sandbox run passed the independent U1 evaluator and produced readable/exportable artifacts, but exposed an arm-documentation asymmetry before any direct-arm run. The direct reference named `.ac`, while the Kessetsu reference did not name the equivalent `simulate ac` source directive. The run is retained under `.artifacts/agent-comparison-v1/calibration-runs/` and excluded from the paired sample. The equivalent Kessetsu analysis syntax below was added before starting either arm's scored attempts; electrical requirements and scoring remain unchanged.
 
 Evaluator correction, 2026-09-11: the first paired direct candidate used the standard `.print ac vm(out)` directive explicitly permitted by this harness for self-checking. U1 evaluator v1 rejected the inert line even though it never executes candidate analysis/output commands. The original ERROR record is preserved. Evaluator v2 ignores `.print`, `.plot`, and `.save` alongside the already ignored analysis/measurement commands while continuing to reject include/model/control-boundary violations; regression coverage protects both sides. Both existing paired candidates are rescored with v2, and all later U1 attempts use v2.
 
-Quota-interruption note, 2026-09-12: direct U1 attempt 2 reached the owner's ChatGPT/Codex usage limit while its first file-change operation was in progress. No candidate file was committed to the isolated workspace and no evaluator ran. The complete trace is retained under `.artifacts/agent-comparison-v1/invalid-runs/` and excluded from both arms as an external quota interruption. The same attempt number is rerun in a fresh session after the stated reset time without changing the prompt, model settings, tools, or evaluator.
+Execution exclusion, 2026-09-12: direct U1 attempt 2 was interrupted by an external usage limit before producing a candidate. It was excluded and repeated with unchanged inputs and scoring.
 
 ## Purpose
 
@@ -20,7 +20,6 @@ The comparison asks whether the same fresh-context coding agent gains a repeatab
 
 - Model: `gpt-5.6-sol`
 - Reasoning effort: `medium`
-- Authentication: Codex CLI signed in with ChatGPT; no API key and no direct API invocation
 - Session policy: fresh, ephemeral Codex CLI session for every attempt
 - Network/search: not enabled
 - Sandbox: `--approve-for-me` workspace-write, rooted at an isolated temporary directory

@@ -1,14 +1,16 @@
 # Schematic Quality Candidate — 2026-08-13
 
-- Status: **Rejected/superseded on 2026-08-14 after owner visual review; never accepted as a golden**
+Publication maintenance, 2026-09-16: account-specific and internal execution-planning prose was removed or generalized. Recorded task outcomes, timings, exclusions and model settings are unchanged. Historical recorded file digests identify the original editions, not this publication edit.
+
+- Status: **Rejected/superseded on 2026-08-14 after maintainer visual review; never accepted as a golden**
 - Generator: Core/CLI release renderer and the exact same Core SVG embedded by Web Hub
 - Harness: `scripts/capture-schematic-corpus.ps1 -IncludeWeb`
 - Corpus: thirteen circuits; CLI SVG/PNG/Schematic JSON plus fixed-viewport Chromium screenshots
 - Canonical local verification: `powershell -ExecutionPolicy Bypass -File scripts/verify.ps1` PASS on 2026-08-13 (Rust/WASM/Web/Chromium/audit/package/EDA smoke)
 
-## Post-candidate owner audit
+## Post-candidate maintainer audit
 
-The screenshots behind this document exposed failures that the original automated scorecard did not measure: rail/GND glyphs were logically attached but visually offset from their pins, component reference/value/model text was placed only inside the SVG renderer and could sit on wires or drift far from its symbol, short passive connections took avoidable rectangular detours, and dual-supply blocks produced weak composition. The owner therefore rejected this candidate.
+The screenshots behind this document exposed failures that the original automated scorecard did not measure: rail/GND glyphs were logically attached but visually offset from their pins, component reference/value/model text was placed only inside the SVG renderer and could sit on wires or drift far from its symbol, short passive connections took avoidable rectangular detours, and dual-supply blocks produced weak composition. The maintainer therefore rejected this candidate.
 
 The replacement work moves text placement into the versioned Schematic IR, adds text↔symbol/wire/text/label hard gates plus normalized detour/alignment metrics, anchors semantic glyphs at the exact pin, gives rail direction electrical semantics, and iterates over the full thirteen-circuit PNG corpus. The scores below describe only this superseded artifact and must not be used as current acceptance evidence.
 
@@ -60,4 +62,4 @@ Scale: 1 = unacceptable, 3 = usable with notable issues, 5 = textbook/applicatio
 
 1. `QualityReport` still needs component reference/value text→wire/text collision accounting and normalized detour/alignment metrics; visual inspection currently covers this gap.
 2. SVG/PNG/PDF and editable KiCad/LTspice projection parity must be rerun against this candidate before SQ-8 closes.
-3. The project owner must inspect RC, gain-stage and power-amplifier locally in Web Hub and explicitly accept them. Until then this is a candidate, not the public-release golden baseline.
+3. The maintainer must inspect RC, gain-stage and power-amplifier locally in Web Hub and explicitly accept them. Until then this is a candidate, not the public-release golden baseline.

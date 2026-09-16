@@ -1,6 +1,8 @@
 # Unseen-Design Gate Summary — 2026-09-13
 
-Status: the six-task comparison with the first accessible model is complete. Product recommendation: **continue, interoperability-first**. The manufacturer-model blocker selected here was subsequently closed by the versioned 2026-09-14 U6 follow-up; the original results below remain unchanged.
+Publication maintenance, 2026-09-16: account-specific and internal execution-planning prose was removed or generalized. Recorded task outcomes, timings, exclusions and model settings are unchanged. Historical recorded file digests identify the original editions, not this publication edit.
+
+Status: the six-task comparison with the first accessible model is complete.  The manufacturer-model blocker selected here was subsequently closed by the versioned 2026-09-14 U6 follow-up; the original results below remain unchanged.
 
 ## Comparative result
 
@@ -33,13 +35,11 @@ U6 is intentionally separate from the 15/15 comparison. Direct Ngspice used the 
 - Only `gpt-5.6-sol` at medium reasoning was available. Cross-model transferability was not tested and is not implied.
 - The prompts expose bounded supported topologies. Results must not be generalized to arbitrary analog, RF, power, mixed-signal, or PCB design.
 
-## Decision and release consequence
+## Interpretation and subsequent capability work
 
 Continue the project with an interoperability-first positioning: Kessetsu should be the deterministic circuit-engineering layer that an AI agent or human uses to compile, simulate, verify, visualize, and export a design through one typed source of truth. Do not market it as an AI model, a universal autonomous circuit designer, or a guaranteed speedup.
 
-The selected blocker is external manufacturer subcircuit support. Before 4.6V closes, implement a bounded typed reference/import contract that preserves exact content hash, provenance, pin order, license/redistribution status, and simulator capability; keeps Circuit IR authoritative; never treats raw model text as Kessetsu source; and fails closed when the model or required runtime mode is absent. Then run a versioned U6 follow-up without replacing the original negative result.
-
-The owner previously directed the project to continue toward a complete private release candidate and deferred broad interface review until after the technical phases. This evidence supports that direction while narrowing the strongest public claim to the value actually demonstrated.
+The selected blocker is external manufacturer subcircuit support. A bounded typed external-subcircuit contract was subsequently implemented and evaluated separately. The follow-up below preserves the original negative results.
 
 ## Follow-up addendum — 2026-09-14
 

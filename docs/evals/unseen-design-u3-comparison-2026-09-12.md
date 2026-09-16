@@ -1,5 +1,7 @@
 # U3 Fresh-Context Comparison — 2026-09-12
 
+Publication maintenance, 2026-09-16: account-specific and internal execution-planning prose was removed or generalized. Recorded task outcomes, timings, exclusions and model settings are unchanged. Historical recorded file digests identify the original editions, not this publication edit.
+
 Status: first-model U3 checkpoint complete. This is one bounded common-emitter-amplifier task family. U1–U3 now cover three task families, but they do not complete the six-task 4.6V gate or establish a general circuit-design success rate.
 
 ## Configuration
@@ -8,7 +10,6 @@ Status: first-model U3 checkpoint complete. This is one bounded common-emitter-a
 - Harness: `agent-comparison-harness-v1.md`
 - Model: `gpt-5.6-sol`
 - Reasoning: `medium`
-- Authentication: ChatGPT session; no API key or direct API calls
 - Attempts: three fresh, isolated, scored sessions per arm
 - Limits: 30 minutes and 60 tool calls per attempt
 - Simulator: bundled Ngspice 46, SHA-256 `86c9ea5f645ca919e305639fa7bdb522355364c424d14e197f1ade617feb3453`
@@ -68,11 +69,11 @@ Kessetsu delivered the complete requested export set in every scored U3 attempt 
 No excluded or corrected record is silently discarded:
 
 1. One U3 Kessetsu preflight stopped before inference because the generalized runner used a PowerShell path form unsupported by Windows PowerShell 5.1. The empty run directory is preserved; the runner was fixed and its syntax checked. No model usage occurred.
-2. One Kessetsu inference produced an electrically passing candidate but hit the owner's Codex usage limit before export and final response. It is excluded as an external quota interruption and preserved under `invalid-runs/`. The numbered attempt was rerun after the stated reset time with unchanged inputs.
+2. One Kessetsu inference produced an electrically passing candidate but hit an external execution usage limit before export and final response. It is excluded as an external quota interruption and preserved under `invalid-runs/`. The numbered attempt was rerun after execution access resumed with unchanged inputs.
 3. Direct attempt 1 initially received evaluator v2 `ERROR` because its permitted, inert `.four` self-check directive was rejected. The original Kessetsu v2 PASS and direct v2 ERROR records are preserved beside their attempts. Evaluator v3 accepts `.four` without executing it; it changes no requirement, topology, model, testbench, threshold, or candidate. Both unchanged first-pair candidates were rescored under v3, and all subsequent attempts used v3.
 
 The generic nominal 2N3904 model does not validate tolerance, temperature, thermal behavior, a specific manufacturer part, preferred-value compliance, or hardware performance.
 
 ## Checkpoint decision
 
-Continue to U4 with the same model, settings, and paired protocol. U3 again shows equal electrical success plus a repeatable automatic artifact/interoperability advantage; Kessetsu also had a modest elapsed-time advantage. The 4.6V gate remains open until U4–U6 are run, all records are reviewed for false acceptance and unsupported cases, and the owner makes the final product-direction decision. Second-model transferability remains unavailable and must stay explicit.
+U3 again shows equal electrical success plus a repeatable automatic artifact/interoperability advantage; Kessetsu also had a modest elapsed-time advantage. The 4.6V gate remains open until U4–U6 are run, all records are reviewed for false acceptance and unsupported cases. Second-model transferability remains unavailable and must stay explicit.

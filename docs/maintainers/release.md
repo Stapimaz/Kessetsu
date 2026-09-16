@@ -11,6 +11,21 @@
 
 Every archive contains `kess` (`kess.exe` on Windows), platform-specific `INSTALL.txt`, the public README/documentation, `.kess` examples and evaluator-owned `.kessreq` requirements, `LICENSE`, `NOTICE`, `COMMERCIAL_LICENSE.md`, `SUPPORTED_DOMAIN.md` and `release-manifest.json`; a sibling `.sha256` protects the archive. The manifest records target, Git commit, simulator policy and executable SHA-256. `scripts/smoke-release.ps1` extracts to a new temporary directory, verifies binary/manifest versions, checks the newcomer path with inline and hash-pinned external assertions plus SVG/KiCad export, then requires the real power-amplifier simulation to pass 12/12 assertions.
 
+## Public documentation boundary
+
+New packages copy only the reviewed files in `docs/public-documents.json`, not an arbitrary
+recursive documentation directory. `scripts/audit-public-docs.ps1` checks list completeness,
+paths, Markdown links and selected publication-sensitive patterns before packaging.
+These focused checks are not a comprehensive secret scanner.
+
+Detailed internal plans and personal/commercial operational notes must remain outside the
+source checkout. Local agent planning configuration is not a distributable artifact.
+The public roadmap describes product direction rather than private task execution.
+
+This policy applies to future packages. Previously published `v1.0.0` archives and Git
+history retain their original documentation; current-tree cleanup does not erase those copies.
+Do not silently replace immutable downloads, checksums or tags.
+
 ## Web production
 
 The guided `/install/` page and root `install.ps1`/`install.sh` bootstrappers are website distribution tools, independent of CLI binary releases. They resolve the latest published stable CLI (or an explicitly requested stable version) from the official GitHub repository; shipping a website-only installation improvement does not rebuild or retag an unchanged CLI. Product/runtime releases still use `VERSION` and immutable SemVer tags. Record distribution changes under `[Unreleased]` until the next versioned product release.
@@ -29,7 +44,7 @@ The canonical public origin is `https://kessetsu.com/`. The production bundle in
 
 Rollback is a normal workflow dispatch: choose a previously verified tag/commit in the `ref` input. The workflow rebuilds that immutable source and atomically replaces the Pages deployment. A release tag is never moved.
 
-The `github-pages` environment permits deployments from branch `main` and tags matching `v*`. Preserve both narrow rules: tag-triggered releases otherwise build successfully but are rejected at deployment. The owner authorized the tag rule on 2026-09-16; it does not change repository write permissions. If deployment is rejected by a protection rule, stop for owner approval rather than weakening or bypassing that rule.
+The `github-pages` environment permits deployments from branch `main` and tags matching `v*`. Preserve both narrow rules: tag-triggered releases otherwise build successfully but are rejected at deployment. Deployment policy does not change repository write permissions. If deployment is rejected by a protection rule, stop for owner approval rather than weakening or bypassing that rule.
 
 ## First-public-release transaction
 

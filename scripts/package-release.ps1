@@ -38,7 +38,13 @@ Copy-Item -LiteralPath (Join-Path $repoRoot "LICENSE") -Destination (Join-Path $
 Copy-Item -LiteralPath (Join-Path $repoRoot "NOTICE") -Destination (Join-Path $stage "NOTICE")
 Copy-Item -LiteralPath (Join-Path $repoRoot "COMMERCIAL_LICENSE.md") -Destination (Join-Path $stage "COMMERCIAL_LICENSE.md")
 Copy-Item -LiteralPath (Join-Path $repoRoot "docs/reference/supported-domain.md") -Destination (Join-Path $stage "SUPPORTED_DOMAIN.md")
-Copy-Item -LiteralPath (Join-Path $repoRoot "docs") -Destination (Join-Path $stage "docs") -Recurse
+& (Join-Path $PSScriptRoot "audit-public-docs.ps1") -RepositoryRoot $repoRoot | Out-Null
+$publicDocuments = Get-Content -LiteralPath (Join-Path $repoRoot "docs/public-documents.json") -Raw | ConvertFrom-Json
+foreach ($document in $publicDocuments.files) {
+    $destination = Join-Path $stage $document
+    New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
+    Copy-Item -LiteralPath (Join-Path $repoRoot $document) -Destination $destination
+}
 $examplesDirectory = Join-Path $stage "examples"
 New-Item -ItemType Directory -Path $examplesDirectory | Out-Null
 Copy-Item -Path (Join-Path $repoRoot "examples/*.kess") -Destination $examplesDirectory

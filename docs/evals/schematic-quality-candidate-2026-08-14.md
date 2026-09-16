@@ -1,6 +1,8 @@
 # Schematic Quality Candidate — 2026-08-14
 
-- Status: **Accepted visual golden on 2026-08-20 after explicit owner review of RC, gain-stage and power-amplifier**
+Publication maintenance, 2026-09-16: account-specific and internal execution-planning prose was removed or generalized. Recorded task outcomes, timings, exclusions and model settings are unchanged. Historical recorded file digests identify the original editions, not this publication edit.
+
+- Status: **Accepted visual golden on 2026-08-20 after explicit maintainer review of RC, gain-stage and power-amplifier**
 - Accepted implementation: rewritten commit `dbb02cf` (`Fix schematic and plot pointer geometry`)
 - Remote verification: GitHub Actions run `31850078955`, successful on the accepted commit
 - Source of truth: Circuit IR → `kessetsu.schematic.v1` → Core render/export projections
@@ -10,7 +12,7 @@
 
 ## What this candidate fixes
 
-The owner rejected the 2026-08-13 candidate after the real images exposed detached rail/ground glyphs, label islands, avoidable wire doglegs, weak supply composition and component text that could collide with or drift away from its symbol. The replacement addresses those failures in the common Core engine:
+The maintainer rejected the 2026-08-13 candidate after the real images exposed detached rail/ground glyphs, label islands, avoidable wire doglegs, weak supply composition and component text that could collide with or drift away from its symbol. The replacement addresses those failures in the common Core engine:
 
 - semantic ground and supply glyphs are anchored at the exact typed pin and follow electrical rail direction;
 - short aligned connections remain direct, local signal nets remain explicit, and true high-fan-out globals alone use signal labels;
@@ -66,10 +68,10 @@ The actual exported PNGs and Web captures were inspected after more than seven f
 - The high-fan-out fixture intentionally uses a BUS label, but its two resistor banks place both text fields outward so ownership is unambiguous.
 - The power amplifier reads left-to-right as input/buffer → gain/error → driver → complementary class-B output → load. Local feedback paths and the load remain explicit.
 
-After the owner's second review, all thirteen exported PNGs and the linked-highlight Web capture were regenerated and inspected again. The reported distant text and BJT-arrow defects were resolved without changing accepted routing. A final follow-up placed right-side fields clear of rotated symbol overhang, centered NPN/PNP arrows on their emitter branches, made schematic wheel zoom pointer-anchored, and corrected result-plot pointer mapping. The owner explicitly accepted the RC, gain-stage and power-amplifier schematics on 2026-08-20.
+After the second maintainer review, all thirteen exported PNGs and the linked-highlight Web capture were regenerated and inspected again. The reported distant text and BJT-arrow defects were resolved without changing accepted routing. A final follow-up placed right-side fields clear of rotated symbol overhang, centered NPN/PNP arrows on their emitter branches, made schematic wheel zoom pointer-anchored, and corrected result-plot pointer mapping. The maintainer explicitly accepted the RC, gain-stage and power-amplifier schematics on 2026-08-20.
 
 ## Acceptance record
 
 1. The full local canonical gate passed on the accepted implementation, including 13 Chromium E2E tests, release smoke and installed KiCad/LTspice smoke.
 2. Remote CI run `31850078955` passed on exact rewritten commit `dbb02cf`.
-3. The owner accepted all three required Web examples. This acceptance freezes the current output as the regression baseline; it does not prohibit future schematic improvements or fixes when a new defect is reported.
+3. The maintainer accepted all three required Web examples. This acceptance freezes the current output as the regression baseline; it does not prohibit future schematic improvements or fixes when a new defect is reported.

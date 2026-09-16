@@ -20,6 +20,15 @@
 /release-artifacts/
 /.artifacts/
 
+# Defense in depth: internal plans belong outside this checkout.
+/private/
+/internal/
+/Kessetsu-Private/
+.env
+.env.*
+*.pem
+*.key
+
 # Local editor and OS files
 .DS_Store
 Thumbs.db
