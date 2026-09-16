@@ -23,6 +23,9 @@ use kessetsu_core::simulation::{
     CancellationToken, NativeSimulationContext, NgspiceRunner, SIMULATION_SCHEMA_VERSION,
     SimulationRequest, SimulationResult,
 };
+use kessetsu_core::tools::{
+    PreferredValues, TOOL_SCHEMA_VERSION, ToolRequest, ToolResult, calculate_tool,
+};
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -59,6 +62,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Calculate components and generate an editable circuit
+    Tool(ToolCommand),
     /// Parse and run Electrical Rules Check (ERC)
     Check { file: PathBuf },
     /// Parse, ERC, and generate a SPICE netlist
@@ -71,6 +76,61 @@ enum Commands {
     Render(RenderCommand),
     /// Export a machine-readable or editable circuit artifact
     Export(ExportCommand),
+}
+
+#[derive(Args)]
+struct ToolCommand {
+    #[command(subcommand)]
+    tool: CircuitTool,
+    /// Write generated .kess source (no file is written by default)
+    #[arg(short, long, global = true)]
+    output: Option<PathBuf>,
+    /// Allow overwriting an existing output file
+    #[arg(long, global = true)]
+    force: bool,
+    /// Nominal component value series (not a tolerance specification)
+    #[arg(long, value_enum, default_value_t = ValueSeries::E24, global = true)]
+    values: ValueSeries,
+}
+
+#[derive(Subcommand)]
+enum CircuitTool {
+    /// Size a divider for its actual resistive load
+    Divider {
+        #[arg(long)]
+        vin: String,
+        #[arg(long)]
+        target: String,
+        #[arg(long)]
+        lower: String,
+        /// Omit for an open-circuit load
+        #[arg(long)]
+        load: Option<String>,
+    },
+    /// Size a first-order RC filter for a high-impedance output
+    RcLowpass {
+        #[arg(long)]
+        cutoff: String,
+        #[arg(long)]
+        resistance: String,
+    },
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum ValueSeries {
+    Exact,
+    E12,
+    E24,
+}
+
+impl From<ValueSeries> for PreferredValues {
+    fn from(value: ValueSeries) -> Self {
+        match value {
+            ValueSeries::Exact => Self::Exact,
+            ValueSeries::E12 => Self::E12,
+            ValueSeries::E24 => Self::E24,
+        }
+    }
 }
 
 #[derive(Args)]
@@ -205,6 +265,8 @@ struct JsonOutput {
     requirements: Option<JsonRequirements>,
     artifacts: Vec<JsonArtifact>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    calculation: Option<ToolResult>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     debug: Option<BTreeMap<String, Value>>,
 }
 
@@ -216,6 +278,8 @@ struct DomainVersions {
     assertion: Option<&'static str>,
     requirements: Option<&'static str>,
     export: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool: Option<&'static str>,
 }
 
 #[derive(Clone, Serialize)]
@@ -310,6 +374,9 @@ fn run(cli: Cli) -> i32 {
         return 2;
     }
 
+    if let Commands::Tool(tool) = &cli.command {
+        return run_tool(tool, &cli.format, &includes);
+    }
     let source_path = command_path(&cli.command);
     let source_is_stdin = source_path == Path::new("-");
     let source = match read_source(source_path) {
@@ -616,6 +683,7 @@ fn run(cli: Cli) -> i32 {
 
 fn command_name(command: &Commands) -> &'static str {
     match command {
+        Commands::Tool(_) => "tool",
         Commands::Check { .. } => "check",
         Commands::Compile(_) => "compile",
         Commands::Simulate(_) => "simulate",
@@ -623,6 +691,136 @@ fn command_name(command: &Commands) -> &'static str {
         Commands::Render(_) => "render",
         Commands::Export(_) => "export",
     }
+}
+
+fn run_tool(command: &ToolCommand, format: &Format, includes: &BTreeSet<Include>) -> i32 {
+    let preferred_values = command.values.into();
+    let request = match &command.tool {
+        CircuitTool::Divider {
+            vin,
+            target,
+            lower,
+            load,
+        } => ToolRequest::Divider {
+            input_voltage: vin.clone(),
+            target_voltage: target.clone(),
+            lower_resistance: lower.clone(),
+            load_resistance: load.clone(),
+            preferred_values,
+        },
+        CircuitTool::RcLowpass { cutoff, resistance } => ToolRequest::RcLowpass {
+            cutoff: cutoff.clone(),
+            resistance: resistance.clone(),
+            preferred_values,
+        },
+    };
+    let calculation = match calculate_tool(request) {
+        Ok(result) => result,
+        Err(error) => {
+            let mut diagnostic = diagnostic("KES-F003", DiagnosticStage::Cli, error.message);
+            diagnostic.field = Some(error.field);
+            emit(
+                format,
+                "tool",
+                includes,
+                "error",
+                CompileReport::failure(diagnostic),
+                None,
+                None,
+                None,
+            );
+            return 2;
+        }
+    };
+    let mut report = kessetsu_core::compile_source(
+        &calculation.source,
+        CompileOptions {
+            include_ast: includes.contains(&Include::Ast),
+            ..CompileOptions::default()
+        },
+    );
+    let mut artifacts = Vec::new();
+    if !report.has_errors()
+        && let Some(path) = &command.output
+    {
+        if path.extension().and_then(|value| value.to_str()) != Some("kess") {
+            report.diagnostics.push(diagnostic("KES-F003", DiagnosticStage::Cli,
+                "Tool --output must have the .kess extension; use render/export on that source for other formats."));
+        } else if path.exists() && !command.force {
+            report.diagnostics.push(diagnostic(
+                "KES-I003",
+                DiagnosticStage::Io,
+                format!(
+                    "Output file '{}' already exists; pass --force to overwrite it.",
+                    path.display()
+                ),
+            ));
+        } else if let Err(error) = fs::write(path, &calculation.source) {
+            report.diagnostics.push(diagnostic(
+                "KES-I004",
+                DiagnosticStage::Io,
+                format!(
+                    "Could not write generated source '{}': {error}",
+                    path.display()
+                ),
+            ));
+        } else {
+            artifacts.push(plain_json_artifact(
+                "circuit_source",
+                path.to_string_lossy(),
+            ));
+        }
+    }
+    let failed = report.has_errors();
+    if *format == Format::Json {
+        let mut output = build_json_output(
+            "tool",
+            includes,
+            if failed { "error" } else { "success" },
+            &report,
+            None,
+            None,
+            None,
+            None,
+        );
+        output.domain_versions.tool = Some(TOOL_SCHEMA_VERSION);
+        output.artifacts = artifacts;
+        output.calculation = Some(calculation);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&output).expect("finite tool result must serialize")
+        );
+    } else {
+        emit_human_diagnostics(&report);
+        if !failed {
+            println!(
+                "{} — nominal analytical calculation ({:?})",
+                calculation.name, calculation.preferred_values
+            );
+            for (name, value) in &calculation.components {
+                println!("{name}: {}", format_quantity(value.value, value.unit));
+            }
+            for (name, value) in &calculation.results {
+                println!("{name}: {}", format_quantity(value.value, value.unit));
+            }
+            for assumption in &calculation.assumptions {
+                println!("Note: {assumption}");
+            }
+            if let Some(path) = &command.output {
+                println!(
+                    "Source written to {}. Next: kess simulate {}",
+                    path.display(),
+                    path.display()
+                );
+            } else {
+                println!(
+                    "\nEditable source (use --output circuit.kess to save):\n{}",
+                    calculation.source
+                );
+            }
+        }
+    }
+    if failed { 2 } else { 0 }
 }
 
 fn read_source(source_path: &Path) -> io::Result<String> {
@@ -723,6 +921,7 @@ fn load_external_model_resources(
 
 fn command_path(command: &Commands) -> &Path {
     match command {
+        Commands::Tool(_) => unreachable!("tool commands are handled before reading source"),
         Commands::Check { file } => file,
         Commands::Render(command) => &command.file,
         Commands::Export(command) => &command.file,
@@ -735,7 +934,9 @@ fn output_command(command: &Commands) -> Option<&OutputCommand> {
     match command {
         Commands::Compile(command) | Commands::Simulate(command) => Some(command),
         Commands::Test(command) => Some(&command.output),
-        Commands::Check { .. } | Commands::Render(_) | Commands::Export(_) => None,
+        Commands::Check { .. } | Commands::Render(_) | Commands::Export(_) | Commands::Tool(_) => {
+            None
+        }
     }
 }
 
@@ -1612,6 +1813,7 @@ fn build_json_output(
             assertion: assertions.as_ref().map(|_| ASSERTION_SCHEMA_VERSION),
             requirements: requirements.as_ref().map(|_| REQUIREMENTS_SCHEMA_VERSION),
             export: None,
+            tool: None,
         },
         diagnostics,
         summary,
@@ -1619,6 +1821,7 @@ fn build_json_output(
         assertions,
         requirements,
         artifacts,
+        calculation: None,
         debug: build_debug(includes, report, simulation),
     }
 }

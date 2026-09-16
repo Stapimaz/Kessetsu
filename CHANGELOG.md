@@ -4,6 +4,12 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### Circuit tools
+
+- Shared nominal divider/RC calculations with typed SI inputs, exact/E12/E24 values, achieved results and editable circuit templates.
+- `kess tool divider` and `kess tool rc-lowpass` with the existing JSON envelope and explicit `.kess` output; available in source builds pending the next binary release.
+- Local browser tools at `/tools/`, with generated-circuit download, editor continuation and recovery of the previous browser circuit.
+
 ### Web and discovery
 
 - Build-time HTML for the existing landing and installation pages, with distinct route titles and descriptions.

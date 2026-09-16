@@ -22,6 +22,12 @@ See the [changelog](../CHANGELOG.md) and [releases](https://github.com/Stapimaz/
 for shipped changes. Website and installation tooling can evolve independently of CLI binaries;
 published binary releases and tags remain immutable.
 
+## In development
+
+- [ ] Practical circuit tools shared by CLI and Web: loaded-divider and RC-filter calculations,
+  standard component values and direct continuation into simulation and schematic export.
+  Implementation is in source; published 1.0.1 CLI binaries do not include the new commands.
+
 ## Under consideration
 
 These are candidate directions, not committed delivery dates. Priorities will follow concrete

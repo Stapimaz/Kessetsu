@@ -48,6 +48,16 @@ When the CLI source path is `-`, source is read from stdin. Stdin-based `compile
 
 Simulator discovery checks packaged executable locations and system fallbacks. Automation and packaging environments may specify an executable through `KESSETSU_NGSPICE`. This override does not change the compilation pipeline, and launch/process failures remain CLI exit code `3`.
 
+### Circuit-tool boundary
+
+`tools::calculate_tool` is a pure shared calculation contract (`kessetsu.tool.v1`) for
+nominal engineering tools. Typed SI inputs produce selected component quantities,
+analytical results, equations, assumptions and editable `.kess` source. Generated circuits
+must cross `compile_source` before any simulation or backend export; tool calculations
+never invent assertion PASS results or generate SPICE/drawing artifacts independently.
+The CLI and WASM adapters share this contract. Frontends own file writes, downloads and
+workspace recovery. Preferred E12/E24 values describe nominal selection, not tolerance analysis.
+
 ## 2. Language Syntax and Rules
 
 ### Supported Components

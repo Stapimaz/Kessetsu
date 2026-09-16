@@ -8,6 +8,9 @@ import {
   saveWithNativeFilePicker,
   sanitizeFileStem,
   type KessetsuFileHandle,
+  decodeWorkspaceDraft,
+  PREVIOUS_CIRCUIT_STORAGE_KEY,
+  writeWorkspaceDraft,
 } from '../document';
 import { useKessetsuWorkspace, examples, type ExampleId } from '../hooks/useKessetsuWorkspace';
 import { ArtifactBar } from './ArtifactBar';
@@ -41,6 +44,10 @@ export function WorkspaceApp() {
   const fileHandleRef = useRef<KessetsuFileHandle | null>(null);
   const noticeTimeoutRef = useRef<number | null>(null);
   const nativeFileSaving = nativeFileSavingSupported();
+  const [previousCircuitAvailable, setPreviousCircuitAvailable] = useState(() => {
+    try { return Boolean(decodeWorkspaceDraft(localStorage.getItem(PREVIOUS_CIRCUIT_STORAGE_KEY))); }
+    catch { return false; }
+  });
   const selectedExample = Object.entries(examples).find(([, example]) => example.source === state.code)?.[0] as ExampleId | undefined;
   const documentName = state.circuitName ?? (selectedExample ? examples[selectedExample].label : 'Untitled circuit');
   const errorCount = state.diagnostics.filter((diagnostic) => diagnostic.severity === 'error').length;
@@ -146,6 +153,20 @@ export function WorkspaceApp() {
         setDocumentError(`Could not open circuit: ${cause instanceof Error ? cause.message : String(cause)}`);
       });
   };
+
+  const restorePreviousCircuit = async () => {
+    if (state.isDirty && !globalThis.confirm('Replace the current unsaved circuit with the previous browser circuit? Download it first if you need both.')) return;
+    try {
+      const draft = decodeWorkspaceDraft(localStorage.getItem(PREVIOUS_CIRCUIT_STORAGE_KEY));
+      if (!draft) return;
+      fileHandleRef.current = null;
+      await openDocument(new File([draft.source], `${draft.name ?? 'Previous circuit'}.kess`, { type: 'text/plain' }));
+      if (draft.dirty) setCode(draft.source);
+      localStorage.removeItem(PREVIOUS_CIRCUIT_STORAGE_KEY);
+      setPreviousCircuitAvailable(false);
+      setOpenMenu(null);
+    } catch (error) { setDocumentError(error instanceof Error ? error.message : String(error)); }
+  };
   const saveDocument = useCallback(async (forceSaveAs = false) => {
     setOpenMenu(null);
     setDocumentError('');
@@ -221,6 +242,11 @@ export function WorkspaceApp() {
                 <span>{nativeFileSaving ? 'Save As...' : 'Download .kess…'}</span><kbd>Ctrl+Shift+S</kbd>
               </button>
               <button role="menuitem" onClick={() => { setRenameOpen(true); setOpenMenu(null); }}><span>Rename…</span></button>
+              {previousCircuitAvailable && <button role="menuitem" onClick={() => void restorePreviousCircuit()}>Restore previous circuit</button>}
+              <a role="menuitem" href={`${import.meta.env.BASE_URL}tools/`} onClick={(event) => {
+                try { writeWorkspaceDraft(localStorage, state.circuitName, state.code, state.isDirty); }
+                catch { event.preventDefault(); setDocumentError('Browser storage is unavailable. Download this circuit before opening tools.'); }
+              }}>Circuit tools</a>
               {!nativeFileSaving && <p className="menu-note">Saved projects stay in this browser. Download a .kess copy to use elsewhere.</p>}
               <div className="menu-separator" role="separator" />
               <div className="menu-submenu">

@@ -6,7 +6,7 @@ The Kessetsu CLI sends `.kess` source through the shared Rust compilation pipeli
 
 ```bash
 kess [--format human|json] [--schema-version kessetsu.cli.v1] \
-  [--include ast,ir,graph,spice,datasets,models,raw-log] <COMMAND> [OPTIONS] <FILE>
+  [--include ast,ir,graph,spice,datasets,models,raw-log] <COMMAND> [OPTIONS] [FILE]
 ```
 
 `--format` is a true global option and can appear before or after the subcommand:
@@ -17,6 +17,30 @@ kess check examples/rc_low_pass.kess --format json
 ```
 
 `--schema-version` and `--include` are also global options. `--include` accepts a comma-separated list or repeated uses. An unknown schema version is rejected with `KES-F002` and exit code `2` before the source is read or any output is created.
+
+## Circuit tools (next CLI release / source builds)
+
+The tools calculate nominal values and generate ordinary editable `.kess` circuits. These
+commands are available in source builds; published **1.0.1 binaries do not include them**.
+
+```bash
+kess tool divider --vin 12V --target 3V --lower 10k --load 10k --values exact --output divider.kess
+kess tool rc-lowpass --cutoff 1kHz --resistance 1k --values e12 --output filter.kess
+kess simulate divider.kess
+kess export filter.kess --target kicad
+```
+
+`--values exact|e12|e24` selects nearest nominal component values (default E24), independently
+for each designed component. An omitted `--load` means an open load. A load value is never rounded.
+The RC calculation assumes an ideal source and high-impedance output.
+
+No file is written unless `--output path.kess` is supplied. Existing outputs require `--force`.
+Invalid units, nonpositive values, an impossible divider target and unrepresentable calculations
+produce exit code `2`. `--format json` uses the existing CLI envelope with an additional
+`calculation` field (`kessetsu.tool.v1`): normalized inputs, ideal/selected components, results
+with units, equations, assumptions and editable source. Calculations are analytical, not
+simulation PASS claims. Use normal `simulate`, `test`, `render` and `export` commands on the
+generated source to continue. Source builds expose command details through `kess tool --help`.
 
 ## Stdin and File-Free Agent Use
 

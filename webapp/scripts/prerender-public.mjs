@@ -21,9 +21,12 @@ const bundled = await build({
     import { LandingPage } from './src/components/LandingPage';
     import { InstallPage } from './src/components/InstallPage';
     import { BrandWordmark } from './src/components/BrandWordmark';
+    import { CircuitToolsIndex, CircuitToolsPage } from './src/components/CircuitToolsPage';
     export const landing = () => renderToStaticMarkup(createElement(LandingPage));
     export const install = () => renderToStaticMarkup(createElement(InstallPage));
     export const wordmark = () => renderToStaticMarkup(createElement(BrandWordmark));
+    export const tools = () => renderToStaticMarkup(createElement(CircuitToolsIndex));
+    export const tool = (toolId) => renderToStaticMarkup(createElement(CircuitToolsPage, { toolId }));
   `, resolveDir: web, sourcefile: 'public-renderer.ts' },
   bundle: true, platform: 'node', format: 'esm', packages: 'external', write: false,
   outfile: rendererPath, jsx: 'automatic', loader: { '.css': 'empty' },
@@ -72,6 +75,19 @@ writeFileSync(resolve(dist, 'install/index.html'), page(
 ));
 
 const reviewed = JSON.parse(readFileSync(resolve(repo, 'docs/public-documents.json'), 'utf8')).files;
+const toolsCss = readdirSync(resolve(dist, 'assets')).find((file) => /^CircuitToolsPage-.*\.css$/.test(file));
+if (!toolsCss) throw new Error('Circuit tools stylesheet is missing.');
+const toolPages = [
+  ['tools/', 'Circuit tools — Kessetsu', 'Free circuit design tools: calculate a loaded voltage divider or RC filter, then open an editable circuit for simulation and schematic export.', surfaces.tools()],
+  ['tools/voltage-divider/', 'Loaded voltage divider — Kessetsu', 'Calculate a loaded voltage divider with standard resistor values, output error, currents and power. Open the generated circuit for SPICE simulation.', surfaces.tool('divider')],
+  ['tools/rc-lowpass/', 'RC low-pass filter — Kessetsu', 'Calculate RC low-pass filter values and achieved cutoff frequency. Choose E12/E24 components and open an editable circuit for AC simulation.', surfaces.tool('rc_lowpass')],
+];
+for (const [route, title, description, body] of toolPages) {
+  mkdirSync(resolve(dist, route), { recursive: true });
+  writeFileSync(resolve(dist, route, 'index.html'), page(title, description, route,
+    `${body}<noscript><p class="public-noscript">Interactive calculations need JavaScript. The equations and assumptions above remain available; you can also use the local CLI.</p></noscript>`,
+    { extraCss: `<link rel="stylesheet" href="${base}assets/${toolsCss}" />` }));
+}
 const documents = reviewed.filter((file) => file === 'docs/README.md' || /^docs\/(guides|reference)\/[^/]+\.md$/.test(file));
 const routes = new Map(documents.map((file) => [file, file === 'docs/README.md' ? 'docs/' : file.replace(/\.md$/, '/')]));
 function linkFor(source, href) {
@@ -108,6 +124,6 @@ for (const source of documents) {
     { scripts: false, extraCss: `<link rel="stylesheet" href="${base}docs.css" />` },
   ));
 }
-const urls = ['', 'install/', ...routes.values()];
+const urls = ['', 'install/', ...toolPages.map(([route]) => route), ...routes.values()];
 writeFileSync(resolve(dist, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((route) => `  <url><loc>${origin}${route}</loc></url>`).join('\n')}\n</urlset>\n`);
-console.log(`Public prerender PASS: landing, installation and ${documents.length} reviewed documentation pages; ${urls.length} sitemap URLs.`);
+console.log(`Public prerender PASS: landing, installation, ${toolPages.length} toolkit pages and ${documents.length} reviewed documentation pages; ${urls.length} sitemap URLs.`);

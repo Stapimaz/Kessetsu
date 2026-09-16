@@ -1,5 +1,61 @@
 # Kessetsu Cookbook
 
+## Start from a useful calculation
+
+The toolkit in source builds / the next release offers a loaded voltage divider and an RC low-pass filter. Enter SI quantities,
+choose exact/E12/E24 nominal values and inspect the achieved result, equations and assumptions.
+**Open in editor** generates an editable circuit with OP or AC analysis; **Download .kess**
+saves the source. Continue with simulation and the editor's existing exports. The previous
+browser circuit is retained under **File → Restore previous circuit**.
+
+For source builds / the next CLI release:
+
+```bash
+kess tool divider --vin 12V --target 3V --lower 10k --load 10k --values exact --output divider.kess
+kess tool rc-lowpass --cutoff 1kHz --resistance 1k --values e12 --output filter.kess
+```
+
+The exact divider above selects R1=15 kΩ and R2=10 kΩ: the 10 kΩ load makes the effective
+lower resistance 5 kΩ, producing 3 V. Without that load the output would be 4.8 V.
+The E12 RC tool selects 150 nF with 1 kΩ, giving about 1061 Hz rather than exactly 1000 Hz.
+Published CLI 1.0.1 does not yet include these commands. Component tolerances and physical
+ratings remain separate from nominal calculations.
+
+### Give an external agent a complete task
+
+Copy this brief to an agent that can run your local terminal (source build / next CLI release):
+
+> Use Kessetsu to design a nominal loaded divider. Vin is 12 V, RL is 10 kΩ and R2 is 10 kΩ.
+> Require 2.97 V < V(OUT) < 3.03 V and absolute supply current below 1 mA.
+> First inspect `kess --version`, `kess tool --help` and `kess tool divider --help`.
+> Generate editable source, save the requirements separately and run `kess test` with JSON.
+> Explain any failure, revise the candidate while preserving the requirements and retest.
+> Export a PNG and KiCad schematic, and return the source, measured results and assumptions.
+
+For a reproducible failure → revision example, save this unchanged `divider.kessreq`:
+
+```kessetsu
+assert value(V(OUT)) > 2.97V
+assert value(V(OUT)) < 3.03V
+assert peak(I(VIN)) < 1mA
+```
+
+```bash
+# A deliberately wrong target fails the evaluator-owned voltage requirements.
+kess tool divider --vin 12V --target 4V --lower 10k --load 10k --output divider.kess
+kess test divider.kess --requirements divider.kessreq --format json --force
+# Correct the candidate, keeping the requirement file unchanged.
+kess tool divider --vin 12V --target 3V --lower 10k --load 10k --output divider.kess --force
+kess test divider.kess --requirements divider.kessreq --format json --force
+kess render divider.kess --output divider.png
+kess export divider.kess --target kicad --output divider.kicad_sch
+```
+
+The first `test` exits 4 with a failed voltage assertion; the revised one passes. JSON
+`diagnostics`, `assertions`, `measurements` and `artifacts` provide the feedback directly.
+Use `--requirements-sha256` when the evaluator also needs hash pinning. Simulation success
+is conditional on the nominal resistors and ideal source, not a hardware guarantee.
+
 ## Bias and operating point
 
 Add `simulate op`, then constrain a node with two explicit assertions:

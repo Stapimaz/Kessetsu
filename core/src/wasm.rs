@@ -11,6 +11,15 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use wasm_bindgen::prelude::*;
 
+#[wasm_bindgen]
+pub fn calculate_circuit_tool(request: JsValue) -> Result<JsValue, JsValue> {
+    let request: crate::tools::ToolRequest = serde_wasm_bindgen::from_value(request)
+        .map_err(|error| JsValue::from_str(&format!("Invalid tool inputs: {error}")))?;
+    let result = crate::tools::calculate_tool(request)
+        .map_err(|error| JsValue::from_str(&format!("{}: {}", error.field, error.message)))?;
+    to_json_compatible(&result, "tool calculation")
+}
+
 fn to_json_compatible<T: Serialize>(value: &T, context: &str) -> Result<JsValue, JsValue> {
     value
         .serialize(&serde_wasm_bindgen::Serializer::json_compatible())

@@ -1,5 +1,7 @@
 export const WEB_DRAFT_SCHEMA_VERSION = 'kessetsu.web-draft.v1';
 export const WEB_DRAFT_STORAGE_KEY = 'kessetsu.workspace.draft.v1';
+export const PREVIOUS_CIRCUIT_STORAGE_KEY = 'kessetsu.workspace.previous.v1';
+const TOOL_CIRCUIT_STORAGE_KEY = 'kessetsu.workspace.tool.v1';
 export const MAX_DOCUMENT_NAME_LENGTH = 80;
 export const MAX_DOCUMENT_SOURCE_BYTES = 1024 * 1024;
 
@@ -185,4 +187,19 @@ export function downloadTextFile(source: string, fileName: string): void {
   anchor.download = fileName;
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+/** Stage a tool circuit while retaining the workspace it will replace. */
+export function stageToolCircuit(name: string, source: string): void {
+  const previous = decodeWorkspaceDraft(globalThis.localStorage.getItem(WEB_DRAFT_STORAGE_KEY));
+  if (previous && previous.source !== source) {
+    globalThis.localStorage.setItem(PREVIOUS_CIRCUIT_STORAGE_KEY, JSON.stringify(previous));
+  }
+  globalThis.sessionStorage.setItem(TOOL_CIRCUIT_STORAGE_KEY, encodeWorkspaceDraft(name, source, true));
+}
+
+export function takeToolCircuit(): WorkspaceDraft | null {
+  const staged = decodeWorkspaceDraft(globalThis.sessionStorage.getItem(TOOL_CIRCUIT_STORAGE_KEY));
+  globalThis.sessionStorage.removeItem(TOOL_CIRCUIT_STORAGE_KEY);
+  return staged;
 }

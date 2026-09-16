@@ -19,6 +19,7 @@ import {
   normalizeDocumentName,
   writeWorkspaceDraft,
   WEB_DRAFT_STORAGE_KEY,
+  takeToolCircuit,
 } from '../document';
 import { BrowserSimulationRunner, SimulationCancelledError } from '../simulation/browserRunner';
 import type { BrowserEvaluation, BrowserSimulationPlan } from '../simulation/types';
@@ -90,7 +91,13 @@ export function useKessetsuWorkspace() {
         const shareFragment = globalThis.location.hash.startsWith('#kessetsu=') ? globalThis.location.hash : '';
         const shared = await decodeShareFragment(shareFragment, compile_schema_version());
         let draft: ReturnType<typeof decodeWorkspaceDraft> = null;
+        let toolCircuit: ReturnType<typeof decodeWorkspaceDraft> = null;
         if (!shared) {
+          try {
+            toolCircuit = takeToolCircuit();
+          } catch {
+            // Session storage may be disabled independently of draft storage.
+          }
           try {
             draft = decodeWorkspaceDraft(globalThis.localStorage.getItem(WEB_DRAFT_STORAGE_KEY));
           } catch {
@@ -99,14 +106,14 @@ export function useKessetsuWorkspace() {
         }
         sharedEnvelopeRef.current = shared;
         setState((current) => {
-          const source = shared?.source ?? draft?.source ?? current.code;
+          const source = shared?.source ?? toolCircuit?.source ?? draft?.source ?? current.code;
           const exampleName = Object.values(examples).find((example) => example.source === source)?.label ?? null;
           return {
             ...current,
             code: source,
-            circuitName: shared?.name ?? draft?.name ?? exampleName,
-            isDirty: draft?.dirty ?? false,
-            draftRestored: draft?.dirty ?? false,
+            circuitName: shared?.name ?? toolCircuit?.name ?? draft?.name ?? exampleName,
+            isDirty: shared ? false : toolCircuit?.dirty ?? draft?.dirty ?? false,
+            draftRestored: !shared && !toolCircuit && (draft?.dirty ?? false),
             wasmLoaded: true,
             compileState: 'checking',
             exportCapabilities: capabilities as WorkspaceState['exportCapabilities'],

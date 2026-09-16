@@ -31,6 +31,7 @@ export function LandingPage() {
         <nav className="landing-nav" aria-label="Main navigation">
           <a href="#agent-workflow">Agent workflow</a>
           <a href="#web-hub">Web Hub</a>
+          <a href={`${import.meta.env.BASE_URL}tools/`}>Tools</a>
           <a href="#outputs">Exports</a>
           <a href={`${import.meta.env.BASE_URL}docs/`}>Docs</a>
         </nav>
