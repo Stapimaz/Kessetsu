@@ -6,6 +6,7 @@ export default defineConfig({
   testDir: './tests',
   testMatch: [
     '**/e2e/browser-smoke.spec.ts',
+    '**/e2e/install.spec.ts',
     '**/e2e/benchmark-parity.spec.ts',
     '**/e2e/exports.spec.ts',
     '**/e2e/share.spec.ts',
