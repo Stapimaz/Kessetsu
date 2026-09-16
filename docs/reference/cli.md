@@ -18,10 +18,10 @@ kess check examples/rc_low_pass.kess --format json
 
 `--schema-version` and `--include` are also global options. `--include` accepts a comma-separated list or repeated uses. An unknown schema version is rejected with `KES-F002` and exit code `2` before the source is read or any output is created.
 
-## Circuit tools (next CLI release / source builds)
+## Circuit tools
 
 The tools calculate nominal values and generate ordinary editable `.kess` circuits. These
-commands are available in source builds; published **1.0.1 binaries do not include them**.
+commands require **CLI 1.1.0 or newer**. Older installations can use the install guide to update.
 
 ```bash
 kess tool divider --vin 12V --target 3V --lower 10k --load 10k --values exact --output divider.kess

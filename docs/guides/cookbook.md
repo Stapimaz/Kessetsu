@@ -2,13 +2,13 @@
 
 ## Start from a useful calculation
 
-The toolkit in source builds / the next release offers a loaded voltage divider and an RC low-pass filter. Enter SI quantities,
+The Web toolkit offers a loaded voltage divider and an RC low-pass filter. Enter SI quantities,
 choose exact/E12/E24 nominal values and inspect the achieved result, equations and assumptions.
 **Open in editor** generates an editable circuit with OP or AC analysis; **Download .kess**
 saves the source. Continue with simulation and the editor's existing exports. The previous
 browser circuit is retained under **File → Restore previous circuit**.
 
-For source builds / the next CLI release:
+With CLI 1.1.0 or newer:
 
 ```bash
 kess tool divider --vin 12V --target 3V --lower 10k --load 10k --values exact --output divider.kess
@@ -18,12 +18,12 @@ kess tool rc-lowpass --cutoff 1kHz --resistance 1k --values e12 --output filter.
 The exact divider above selects R1=15 kΩ and R2=10 kΩ: the 10 kΩ load makes the effective
 lower resistance 5 kΩ, producing 3 V. Without that load the output would be 4.8 V.
 The E12 RC tool selects 150 nF with 1 kΩ, giving about 1061 Hz rather than exactly 1000 Hz.
-Published CLI 1.0.1 does not yet include these commands. Component tolerances and physical
+CLI 1.0.1 does not include these commands; update to 1.1.0 or newer. Component tolerances and physical
 ratings remain separate from nominal calculations.
 
 ### Give an external agent a complete task
 
-Copy this brief to an agent that can run your local terminal (source build / next CLI release):
+Copy this brief to an agent that can run your local terminal with CLI 1.1.0 or newer:
 
 > Use Kessetsu to design a nominal loaded divider. Vin is 12 V, RL is 10 kΩ and R2 is 10 kΩ.
 > Require 2.97 V < V(OUT) < 3.03 V and absolute supply current below 1 mA.

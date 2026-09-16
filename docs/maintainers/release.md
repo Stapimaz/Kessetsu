@@ -48,7 +48,7 @@ The `github-pages` environment permits deployments from branch `main` and tags m
 
 ## Static public content maintenance
 
-`npm run build:web` pre-renders the existing landing and installation React components,
+`npm run build:web` pre-renders the landing, installation and circuit-tool React components,
 then publishes the reviewed documentation index, guides and references as static `/docs/`
 pages. Markdown remains the source of truth; contributor/evaluation documents stay linked
 on GitHub. The build generates the sitemap from those same pages. Documentation pages

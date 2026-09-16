@@ -14,6 +14,7 @@ contributor contracts and dated evaluation evidence.
 - [Why Kessetsu?](guides/why-kessetsu.md)
 - [Cookbook](guides/cookbook.md)
 - [Troubleshooting](guides/troubleshooting.md)
+- [Circuit tools](https://kessetsu.com/tools/) and [calculation-to-circuit examples](guides/cookbook.md#start-from-a-useful-calculation)
 
 ## Reference
 

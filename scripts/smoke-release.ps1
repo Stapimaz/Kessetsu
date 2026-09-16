@@ -64,6 +64,26 @@ try {
     }
     Write-Host "Newcomer smoke PASS: check, 5/5 inline assertions, SVG, KiCad, and 5/5 hash-pinned external requirements."
 
+    # Verify the new tool entry points in the actual extracted executable on
+    # every release platform; electrical reference coverage lives in tool_contract.
+    $dividerSource = Join-Path $smokeRoot 'divider.kess'
+    $divider = (& $binary tool divider --vin 12V --target 3V --lower 10k --load 10k --values exact --output $dividerSource --format json | Out-String) | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or $divider.status -ne 'success' -or
+        $divider.calculation.schema_version -ne 'kessetsu.tool.v1' -or
+        [Math]::Abs($divider.calculation.results.output_voltage.value - 3) -gt 1e-9 -or
+        -not (Test-Path -LiteralPath $dividerSource -PathType Leaf)) {
+        throw 'Packaged loaded-divider tool failed'
+    }
+    $rcSource = Join-Path $smokeRoot 'rc-tool.kess'
+    $rc = (& $binary tool rc-lowpass --cutoff 1kHz --resistance 1k --values e12 --output $rcSource --format json | Out-String) | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or $rc.status -ne 'success' -or
+        [Math]::Abs($rc.calculation.components.C1.value - 150e-9) -gt 1e-18 -or
+        [Math]::Abs($rc.calculation.results.cutoff.value - 1061.032953945969) -gt 1e-6 -or
+        -not (Test-Path -LiteralPath $rcSource -PathType Leaf)) {
+        throw 'Packaged RC-filter tool failed'
+    }
+    Write-Host 'Circuit-tool smoke PASS: loaded-divider and rounded RC generation in the packaged CLI.'
+
     $source = Join-Path $repoRoot "core/tests/fixtures/benchmarks/power_amplifier.kess"
     $output = Join-Path $smokeRoot "power-amplifier.spice"
     $json = (& $binary test $source --output $output --format json | Out-String) | ConvertFrom-Json

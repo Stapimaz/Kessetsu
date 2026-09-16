@@ -20,6 +20,15 @@ test('calculates the loaded divider, downloads source and restores the prior wor
   await page.getByRole('button', { name: 'Open in editor' }).click();
   await expect(page.getByTestId('compile-status')).toContainText('Checked');
   await expect(page.locator('.document-title')).toContainText('Loaded voltage divider');
+  await page.getByRole('button', { name: 'Run simulation', exact: true }).click();
+  await expect(page.getByTestId('simulation-summary')).toHaveAttribute('data-state', 'succeeded', { timeout: 20_000 });
+  await expect(page.locator('.op-grid > div').filter({ hasText: 'V(out)' })).toContainText('3.000 V');
+  await expect(page.locator('.run-status')).toContainText('Simulation complete');
+  await page.getByRole('button', { name: 'Export', exact: true }).click();
+  const svgDownload = page.waitForEvent('download');
+  await page.locator('[data-export-format="svg"]').click();
+  expect((await svgDownload).suggestedFilename()).toBe('loaded-voltage-divider.svg');
+  await page.getByRole('button', { name: 'Close export' }).click();
   await page.getByRole('button', { name: 'File', exact: true }).click();
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('menuitem', { name: 'Restore previous circuit' }).click();
@@ -52,4 +61,10 @@ test('RC rounding changes achieved cutoff, rejects wrong units and stays usable 
     await expect(staticPage.getByRole('heading', { name: 'RC low-pass filter', exact: true })).toBeVisible();
     await expect(staticPage.getByText('C = 1 / (2π × R × cutoff frequency)', { exact: true })).toBeVisible();
   } finally { await noJs.close(); }
+  await page.getByRole('button', { name: 'Open in editor' }).click();
+  await expect(page.getByTestId('compile-status')).toContainText('Checked');
+  await page.getByRole('button', { name: 'Run simulation', exact: true }).click();
+  await expect(page.getByTestId('simulation-summary')).toHaveAttribute('data-state', 'succeeded', { timeout: 20_000 });
+  await expect(page.getByLabel('Signal', { exact: true })).toHaveValue('out');
+  await expect(page.locator('.result-plot')).toHaveCount(2);
 });

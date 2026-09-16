@@ -25,6 +25,7 @@ The project is not limited to a particular educational scenario or circuit class
 - A canonical, connectivity-verified automatic schematic engine
 - SVG, PNG, PDF, Schematic JSON, SPICE, KiCad, and LTspice exports
 - Versioned, compressed, package-aware share URLs
+- Shared loaded-divider and RC-filter tools with typed inputs, standard component selection and editable circuit generation (CLI 1.1.0+)
 
 The [roadmap](docs/ROADMAP.md) summarizes shipped capabilities and candidate product directions. The [architecture](docs/architecture.md), [supported domain](docs/reference/supported-domain.md), and [engineering measurement contract](docs/reference/measurements.md) are the normative references for implementation boundaries and formulas.
 
@@ -42,6 +43,7 @@ The current repository build can:
 - Explore the canonical schematic with zoom and fit controls
 - Download seven visual, machine, and EDA formats with capability/loss information
 - Share source and exact package versions in a compressed URL
+- Start from a [loaded divider](https://kessetsu.com/tools/voltage-divider/) or [RC filter](https://kessetsu.com/tools/rc-lowpass/) calculation and continue in the editor
 
 The first release deliberately has no AI chat inside Web Hub. The CLI's stdin plus versioned JSON tool contract is the AI/automation surface, while Web Hub is the direct human surface; both use the same Core. A provider-independent Web AI design surface is reserved for a later phase.
 

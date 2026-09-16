@@ -196,7 +196,8 @@ export function ResultsPanel({ state, message, evaluation, compileSucceeded, onR
   useEffect(() => setDatasetIndex(0), [evaluation]);
   const summary = evaluation?.assertions.summary;
   const statusText = useMemo(() => {
-    if (summary) return `${summary.passed}/${summary.total} requirements passed · ${evaluation?.simulation.simulator.version}`;
+    if (summary && summary.total > 0) return `${summary.passed}/${summary.total} requirements passed · ${evaluation?.simulation.simulator.version}`;
+    if (state === 'succeeded') return `Simulation complete · ${evaluation?.simulation.simulator.version}`;
     if (state === 'running') return message;
     if (state === 'failed') return 'Failed';
     if (state === 'cancelled') return 'Cancelled';

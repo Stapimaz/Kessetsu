@@ -187,8 +187,8 @@ export function CircuitToolsPage({ toolId }: { toolId: ToolId }) {
       {result ? <ul>{result.assumptions.map((assumption) => <li key={assumption}>{assumption}</li>)}</ul> : <p>{definition.assumption}</p>}
     </section>
     <section className="tool-cli"><h2><Terminal size={18} /> Use the same tool locally</h2>
-      <p>These commands require a source build until the next CLI release; published 1.0.1 does not include them.
-        {' '}Add <code>--format json</code> for an AI agent. <a href={`${import.meta.env.BASE_URL}install/`}>CLI installation guide</a>.</p>
+      <p>Use Kessetsu CLI 1.1.0 or newer. Add <code>--format json</code> for an AI agent.
+        {' '}<a href={`${import.meta.env.BASE_URL}install/`}>Install or update the CLI</a>.</p>
       <pre>{cliCommand}</pre>
       <button className="button button-compact button-secondary" disabled={!result} onClick={() => {
         void navigator.clipboard.writeText(cliCommand).then(() => setNotice('Command copied.')).catch(() => setNotice('Select the command above and copy it manually.'));

@@ -138,6 +138,24 @@ export function LandingPage() {
         <WebHubPreview />
       </section>
 
+      <section className="landing-section toolkit-section" aria-labelledby="toolkit-title">
+        <div className="section-heading compact-heading">
+          <p className="eyebrow">Circuit tools</p>
+          <h2 id="toolkit-title">Start with a calculation. Keep the circuit.</h2>
+          <p>Choose nominal component values, see the achieved result and open an editable circuit for simulation and export.</p>
+        </div>
+        <div className="landing-tool-links">
+          <a href={`${import.meta.env.BASE_URL}tools/voltage-divider/`}>
+            <strong>Loaded voltage divider <ArrowRight size={16} /></strong>
+            <span>Size resistors for an actual load. Inspect output voltage, current and dissipation.</span>
+          </a>
+          <a href={`${import.meta.env.BASE_URL}tools/rc-lowpass/`}>
+            <strong>RC low-pass filter <ArrowRight size={16} /></strong>
+            <span>Set a cutoff, choose standard R/C values and inspect the frequency response in the editor.</span>
+          </a>
+        </div>
+      </section>
+
       <section className="landing-section engine-section" id="outputs" aria-labelledby="engine-title">
         <div className="section-heading compact-heading">
           <p className="eyebrow">Shared engineering core</p>
