@@ -7,6 +7,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $corePath = Join-Path $repoRoot 'core'
 $resultPath = Join-Path $repoRoot 'webapp/test-results/eda-smoke'
 $kess = Join-Path $corePath 'target/release/kess.exe'
+. (Join-Path $PSScriptRoot 'compare-eda-netlists.ps1')
 
 $kicad = Get-Command 'kicad-cli' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1
 if (-not $kicad) {
@@ -39,6 +40,8 @@ foreach ($name in $fixtures) {
     $kicadErc = Join-Path $resultPath "$name.erc.rpt"
     $ltspiceSchematic = Join-Path $resultPath "$name.asc"
     $ltspiceNetlist = Join-Path $resultPath "$name.net"
+    $schematicJson = Join-Path $resultPath "$name.schematic.json"
+    $canonicalSpice = Join-Path $resultPath "$name.spice"
 
     & $kess export $source --target kicad --output $kicadSchematic --force
     if ($LASTEXITCODE -ne 0) { throw "$name KiCad export failed." }
@@ -68,23 +71,12 @@ foreach ($name in $fixtures) {
         throw "$name did not open in LTspice (exit $($process.ExitCode))."
     }
 
-    $sourceText = Get-Content -LiteralPath $source
-    $references = $sourceText | ForEach-Object {
-        if ($_ -match '^\s*(?:resistor|capacitor|inductor|diode|source|current_source|bjt|mosfet|opamp)\s+(\w+)') {
-            $Matches[1]
-        }
-    }
-    $kicadText = Get-Content -LiteralPath $kicadNetlist -Raw
-    $ltspiceText = Get-Content -LiteralPath $ltspiceNetlist -Raw
-    foreach ($reference in $references) {
-        $kicadReference = '<comp ref="' + $reference + '">'
-        if ($kicadText -notmatch [regex]::Escape($kicadReference)) {
-            throw "${name}: KiCad netlist lost component $reference."
-        }
-        if ($ltspiceText -notmatch "(?m)^\S*$([regex]::Escape($reference))\s") {
-            throw "${name}: LTspice netlist lost component $reference."
-        }
-    }
-    if ($ltspiceText -notmatch '(?m)^\.end\s*$') { throw "${name}: LTspice netlist is incomplete." }
+    & $kess export $source --target schematic-json --output $schematicJson --force
+    if ($LASTEXITCODE -ne 0) { throw "$name canonical schematic export failed." }
+    & $kess export $source --target spice --output $canonicalSpice --force
+    if ($LASTEXITCODE -ne 0) { throw "$name canonical SPICE export failed." }
+    $schematic = Get-Content -LiteralPath $schematicJson -Raw -Encoding UTF8 | ConvertFrom-Json
+    [xml]$kicadXml = Get-Content -LiteralPath $kicadNetlist -Raw -Encoding UTF8
+    Assert-EdaNetlists $schematic $kicadXml (Get-Content -LiteralPath $ltspiceNetlist -Raw -Encoding UTF8) (Get-Content -LiteralPath $canonicalSpice -Raw -Encoding UTF8) (Get-Content -LiteralPath $ltspiceSchematic -Raw -Encoding UTF8)
     Write-Host "EDA smoke passed: $name"
 }

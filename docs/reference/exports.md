@@ -26,8 +26,19 @@ An external subcircuit remains a user-owned sidecar dependency. Schematic JSON a
 
 `scripts/verify-eda-exports.ps1 -RequireApplications` generates the RC-filter, gain-stage, and power-amplifier fixtures through Core/CLI. It then:
 
-- parses each file with KiCad 10, generates a KiCad XML netlist, runs ERC, and verifies that every component reference remains present;
-- opens each `.asc` through LTspice 24.1.9's real `-netlist` path and verifies every component reference plus a complete `.end` record in the resulting `.net` file.
+- parses each file with KiCad 10, generates a KiCad XML netlist, runs ERC, and compares the exact component set, pin identities, net connectivity, displayed values and model metadata against canonical Schematic IR;
+- opens each `.asc` through LTspice 24.1.9's real `-netlist` path and compares component sets, ordered pin connectivity, values/models/stimuli and the active analysis against canonical Schematic IR and SPICE, including a complete `.end` record. Inactive analyses remain in the schematic as comments. Generated net names may differ; merged or split nets fail the comparison.
+
+LTspice supports one active analysis at a time. The exporter activates the first declared
+analysis and preserves the rest as visible comments with an explicit artifact warning;
+select the desired analysis in LTspice before running. This target-specific behavior follows
+the [LTspice schematic reference](https://analogdevicesinc.github.io/ltspice-reference/ai_ref/SCHEMATIC-REFERENCE.html#common-spice-analysis-commands).
+
+Maintenance note: these analysis corrections are recorded under `[Unreleased]` in the
+[changelog](../../CHANGELOG.md). The immutable `1.0.0` CLI downloads are unchanged; for their
+LTspice exports, correct/choose the dotted analysis directive in LTspice before simulation.
+Source names without the target's V/I prefix receive an ASCII prefix (for example,
+`bias` becomes `V_bias`) so DC sweeps reference the actual exported source.
 
 When the applications are unavailable, normal local verification reports the check explicitly as `skipped`; `-RequireApplications` is mandatory on the release machine. Core unit tests independently verify byte determinism, signatures, schemas, hashes, and connectivity contracts for every format.
 

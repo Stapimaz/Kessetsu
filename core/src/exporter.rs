@@ -421,6 +421,12 @@ pub fn export_report(
                 message: "typed Circuit IR is unavailable for LTspice export".to_string(),
                 diagnostics: Vec::new(),
             })?;
+            if circuit.analyses.len() > 1 {
+                warnings.push(
+                    "LTspice supports one active analysis: the first declared analysis is active; the remaining analyses are preserved as comments. Select the desired analysis in LTspice before running."
+                        .to_string(),
+                );
+            }
             if report
                 .ir
                 .as_ref()

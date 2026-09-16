@@ -125,3 +125,43 @@ fn unsupported_symbol_and_unverified_connectivity_fail_closed() {
         export_report(&report, ExportFormat::Kicad, ExportOptions::default()).unwrap_err();
     assert_eq!(unverified.code, "KES-X003");
 }
+
+#[test]
+fn ltspice_analysis_text_uses_dot_directives() {
+    for source in [
+        include_str!("fixtures/benchmarks/rc_filter.kess"),
+        include_str!("fixtures/benchmarks/power_amplifier.kess"),
+    ] {
+        let report = compile_source(source, CompileOptions::all_outputs());
+        let artifact =
+            export_report(&report, ExportFormat::Ltspice, ExportOptions::default()).unwrap();
+        let text = String::from_utf8(artifact.bytes).unwrap();
+        assert!(text.contains("!.ac dec "));
+        assert!(!text.contains("!ac "));
+        assert!(!text.contains("!tran "));
+        if source.contains("simulate tran") {
+            assert!(text.contains(";.tran "));
+            assert!(
+                artifact
+                    .warnings
+                    .iter()
+                    .any(|warning| warning.contains("one active analysis"))
+            );
+        }
+    }
+}
+
+#[test]
+fn ltspice_dc_sweep_targets_the_exported_source_name() {
+    for (name, expected) in [("VIN", "VIN"), ("bias", "V_bias")] {
+        let source = format!(
+            "net GND\nnet OUT\nsource {name} 1V\nresistor R1 1k\nconnect {name}.minus,R1.p2 to GND\nconnect {name}.plus,R1.p1 to OUT\nsimulate dc {name} 0V 5V 1V\n"
+        );
+        let report = compile_source(&source, CompileOptions::all_outputs());
+        let artifact =
+            export_report(&report, ExportFormat::Ltspice, ExportOptions::default()).unwrap();
+        let text = String::from_utf8(artifact.bytes).unwrap();
+        assert!(text.contains(&format!("!.dc {expected} 0 5 1")));
+        assert!(text.contains(&format!("SYMATTR InstName {expected}\n")));
+    }
+}

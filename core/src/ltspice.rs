@@ -1,7 +1,7 @@
 use crate::component::CatalogSymbol;
 use crate::exporter::ExportError;
 use crate::graph::{format_analysis, format_spice_number};
-use crate::ir::{CircuitIR, ComponentParams, ModelDefinition, SourceValue, Waveform};
+use crate::ir::{Analysis, CircuitIR, ComponentParams, ModelDefinition, SourceValue, Waveform};
 use crate::schematic::{Point, Schematic, SchematicComponent, WireEndpoint};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -292,7 +292,18 @@ pub fn generate_ltspice_asc(
     }
     for (component, lt_symbol, x, y) in placements {
         out.push_str(&format!("SYMBOL {} {x} {y} R0\n", lt_symbol.name));
-        out.push_str(&format!("SYMATTR InstName {}\n", component.reference));
+        let source_prefix = match component.symbol {
+            CatalogSymbol::VoltageSource => Some('V'),
+            CatalogSymbol::CurrentSource => Some('I'),
+            _ => None,
+        };
+        let instance = match source_prefix {
+            Some(prefix) if !component.reference.to_ascii_uppercase().starts_with(prefix) => {
+                format!("{prefix}_{}", component.reference)
+            }
+            _ => component.reference.clone(),
+        };
+        out.push_str(&format!("SYMATTR InstName {instance}\n"));
         out.push_str(&format!(
             "SYMATTR Value {}\n",
             component_value(component, circuit).replace(['\r', '\n'], " ")
@@ -319,10 +330,23 @@ pub fn generate_ltspice_asc(
             }
         }
     }
-    for analysis in &circuit.analyses {
+    for (index, analysis) in circuit.analyses.iter().enumerate() {
+        let mut command = format_analysis(analysis, circuit);
+        if let Analysis::DcSweep { source, .. } = analysis {
+            let canonical_source = command.split_whitespace().nth(1).unwrap().to_string();
+            let prefix = canonical_source.chars().next().unwrap();
+            let lt_source = if source.to_ascii_uppercase().starts_with(prefix) {
+                source.clone()
+            } else {
+                canonical_source.clone()
+            };
+            command = command.replacen(&canonical_source, &lt_source, 1);
+        }
+        // LTspice requires exactly one active analysis; retain the others as
+        // visible comments so users can select them in the target application.
+        let marker = if index == 0 { '!' } else { ';' };
         out.push_str(&format!(
-            "TEXT 32 {directive_y} Left 2 !{}\n",
-            format_analysis(analysis, circuit)
+            "TEXT 32 {directive_y} Left 2 {marker}.{command}\n"
         ));
         directive_y += 16;
     }

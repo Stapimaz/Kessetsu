@@ -229,6 +229,36 @@ fn cli_keeps_relative_external_dependencies_beside_the_source() {
         serde_json::from_slice(&output.stdout).expect("CLI output should be JSON");
     assert_eq!(value["diagnostics"][0]["code"], "KES-I007");
     assert!(!output_path.exists());
+
+    // Moving the source and its sidecar together must preserve both export flows.
+    workspace.write("relocated/circuit.kess", &source);
+    workspace.write(
+        "relocated/models/OPA197.LIB",
+        std::str::from_utf8(&bytes).unwrap(),
+    );
+    for (target, extension) in [("spice", "spice"), ("ltspice", "asc")] {
+        let relocated = workspace.path().join("relocated/circuit.kess");
+        let destination = workspace
+            .path()
+            .join(format!("relocated/circuit.{extension}"));
+        let rejected = workspace.path().join(format!("other/circuit.{extension}"));
+        for (output_path, expected_exit) in [(&destination, 0), (&rejected, 2)] {
+            let output = workspace.run_cli(&[
+                "export",
+                relocated.to_str().unwrap(),
+                "--target",
+                target,
+                "--output",
+                output_path.to_str().unwrap(),
+                "--format",
+                "json",
+            ]);
+            assert_eq!(output.status.code(), Some(expected_exit), "{output:?}");
+        }
+        let exported = std::fs::read_to_string(destination).unwrap();
+        assert!(exported.contains(".include \"models/OPA197.LIB\""));
+        assert!(!exported.contains("synthetic contract fixture"));
+    }
 }
 
 #[test]

@@ -9,6 +9,10 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 - Guided CLI installation page with OS selection, copyable commands, first-circuit download, simulator prerequisites, updates, and manual fallback.
 - Per-user Windows and POSIX bootstrappers that select official stable releases, verify archive/executable integrity and version, configure PATH, preserve previous bundles, and refuse unmanaged paths. The CLI binary remains the independently released stable version.
 
+### Fixed
+
+- LTspice export emits dotted analysis directives and correct DC-source references. The first analysis is active; additional analyses remain selectable comments with an explicit warning. Target-application smoke compares pin connectivity and component data rather than reference presence alone.
+
 ### Documentation
 
 - Concise public roadmap and documentation index, with account-specific execution prose removed from published reports while preserving evaluation outcomes and limitations.
