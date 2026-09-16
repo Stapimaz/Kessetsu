@@ -6,9 +6,9 @@
 >
 > Last comprehensive repository audit: **2026-09-15**
 >
-> Active milestone: **Phase 4 — Professional Schematics, Web Hub, and Release**
+> Active milestone: **Post-release review and Phase 5 planning (implementation not started)**
 >
-> Previous milestone: **Phase 3 — Simulation and Assertion Runtime (complete)**
+> Previous milestone: **Phase 4 — Professional Schematics, Web Hub, and Release (complete, 2026-09-16)**
 
 This English edition was consolidated on 2026-08-20. Repetitive evidence from completed historical phases was compressed into dated closure records, while current scope, acceptance criteria, diagnostic contracts, run identifiers, and all open release gates remain authoritative. Line-level historical detail remains available in Git history.
 
@@ -504,7 +504,7 @@ The owner approved this bounded gate on 2026-09-15 after the final editor review
 1. [x] The owner changes repository visibility to public from the verified private candidate. _Completed 2026-09-16._
 2. [x] Finish the authorized generated-output history rewrite and verify rewritten `main` through a fresh public clone and Linux CI. _Completed 2026-09-16; exact evidence is recorded in 4.7 below._
 3. [x] Activate GitHub Pages/custom-domain DNS and HTTPS for `kessetsu.com`, then verify the real production Web Hub, headers, MIME types, CSP, telemetry boundary, and rollback path. _Completed 2026-09-16; authoritative/Google/Cloudflare DNS point to GitHub Pages, certificate verification passes, and HTTPS enforcement is enabled. Deployment, rollback/restore, and live-browser evidence are recorded below._
-4. [ ] Run the four-platform release matrix, create the immutable `v1.0.0` tag and GitHub Release, then verify public assets and the live site once more.
+4. [x] Run the four-platform release matrix, create the immutable `v1.0.0` tag and GitHub Release, then verify public assets and the live site once more. _Completed 2026-09-16: tag-triggered matrix/publication run `35079145155` passed; all four public archives and executable hashes were verified against their checksums/manifests, and live production checks passed 8/8._
 
 The local CLI and no-account local-browser workspace remain free core surfaces. Commercial hypotheses are optional managed compute/automation, team workflows, and commercial licensing; pricing and implementation follow evidence of demand. Before release, define a privacy-respecting way to collect voluntary feedback and distinguish repeat usage from willingness to pay. Paid infrastructure, accounts, or artificial export restrictions are not first-release prerequisites.
 
@@ -527,7 +527,7 @@ The local CLI and no-account local-browser workspace remain free core surfaces. 
 - [x] Make KiCad application smoke fail on every ERC error and every warning except the characterized `lib_symbol_issues` limitation of the self-contained single-file export. _Completed 2026-09-11: all three canonical exports open and netlist successfully with zero ERC errors. The only accepted warnings are one missing external `Kessetsu` library-table entry per portable embedded symbol; unexpected types or summary/count drift now fail verification. A warning-free multi-file KiCad project bundle would be a separate export format, not a silent change to the current `.kicad_sch` contract._
 - [x] Make security, dependency/license, and generated-artifact audits release gates. _Zero known vulnerabilities; two bounded-input transitive unmaintained notices remain visible in `docs/maintainers/security-audit.md`._
 - [x] Add verified install paths, screenshots, Web Hub links, and support boundaries to the root README.
-- [ ] Complete the final release tag/changelog/migration record and public release-asset verification. _The complete canonical local gate, final Linux CI `35077825356`, four-platform package matrix `35077825713`, and production/rollback/restore checks passed on 2026-09-16. The annotated immutable `v1.0.0` tag now points to verified `de3ff7c`; changelog and migration notes are final. Tag-triggered Pages build `35079145264` passed, but deployment was rejected because the `github-pages` environment allows only branch `main`, not release tags. The concurrent publication run `35079145155` was cancelled before GitHub Release creation. Existing production remains healthy on the same verified source. Owner authorization is required to add a `v*` tag deployment rule while retaining `main`; then rerun the unchanged tag workflows and verify public archives/checksums/manifests plus the final live deployment. Never move the existing tag._
+- [x] Complete the final release tag/changelog/migration record and public release-asset verification. _Completed 2026-09-16: immutable annotated `v1.0.0` remains on `de3ff7c58885b2c60a5cf13307e2595cc621039b`, the candidate that passed full canonical local verification, Linux CI `35077825356`, and pre-tag matrix `35077825713`. The owner explicitly authorized adding the `v*` tag deployment policy while retaining the existing `main` branch policy. Rerun Pages `35079145264` then deployed successfully without moving the tag; rerun release matrix `35079145155` passed all four clean-runner simulation/export smokes and published the non-draft, non-prerelease [GitHub Release](https://github.com/Stapimaz/Kessetsu/releases/tag/v1.0.0) at 10:27:16 UTC. All four archives and four sibling checksums were downloaded from that public release: archive SHA-256, manifest schema/version/target/source commit, and executable SHA-256 matched. The downloaded Windows binary reported `kess 1.0.0` and passed the shipped RC newcomer check. All eight live production scenarios passed after the tag deployment; HTTPS returned 200 and the latest-release URL resolved to `v1.0.0`. No full local suite was repeated for the subsequent evidence-only documentation edits._
 
 ### Phase 4 and First Public Release Acceptance
 
@@ -545,7 +545,9 @@ The local CLI and no-account local-browser workspace remain free core surfaces. 
 - [x] CLI installation and first simulation pass clean-machine smoke tests on every supported platform.
 - [x] A new user can define, measure, assert, and export a circuit using public documentation only.
 - [x] Canonical verification, browser E2E, schematic connectivity/visual corpus, benchmark parity, and release artifacts pass. _Accepted rewritten commit `dbb02cf`; local full gate and remote CI `31850078955`._
-- [ ] Complete public Web Hub and `v1.0.0` publication only after the incremental-value gate, owner review, rewritten-history verification, production-deployment proof, and release-transaction gates are complete. _Repository visibility changed after the product gates on 2026-09-16; production and the immutable release remain open._
+- [x] Complete public Web Hub and `v1.0.0` publication only after the incremental-value gate, owner review, rewritten-history verification, production-deployment proof, and release-transaction gates are complete. _Completed 2026-09-16: [Web Hub](https://kessetsu.com/) and [four-platform CLI release](https://github.com/Stapimaz/Kessetsu/releases/tag/v1.0.0) are public, with the final tag deployment and public download identities verified as recorded above._
+
+**Phase 4 closure — 2026-09-16:** The integrated first public product is released as `1.0.0`. All Phase 4 tasks and acceptance gates are complete. Generic-model limitations, native-only external model ingestion, characterized KiCad embedded-symbol warnings, and absence of hardware/cross-model validation remain explicit support boundaries, not newly proven capabilities. Future code changes use new SemVer releases and the `[Unreleased]` changelog; the `v1.0.0` tag is immutable even when `main` advances with documentation or development.
 
 ---
 
@@ -613,13 +615,15 @@ For every development session:
 2. Confirm the relevant architectural rule in `docs/architecture.md`.
 3. Add characterization or regression coverage before changing behavior.
 4. Implement the bounded change.
-5. Run the relevant quality gates.
+5. Run checks proportionate to the change. Use focused validation for documentation/settings and targeted regressions for local behavior; use full canonical verification for substantial cross-cutting changes and release candidates. Reuse green evidence for unchanged verified source, and do not await documentation-only CI. _Owner direction confirmed 2026-09-16; synchronized in `AGENTS.md`._
 6. Mark only proven checkboxes as `[x]`.
 7. Record material decisions or scope changes in the roadmap.
 8. Confirm that verification did not leave unexpected worktree artifacts.
 
 ### Current Next Task
 
-**4.7 — Complete the `v1.0.0` release transaction.**
+**Post-release review — choose the first bounded Phase 5 milestone.**
 
-Repository visibility, generated-output history cleanup, DNS/HTTPS, production deployment, live-product checks, rollback/restore, final canonical local verification, remote Linux CI `35077825356`, and the four-platform matrix `35077825713` are complete. Immutable annotated `v1.0.0` points to frozen candidate `de3ff7c`. Final publication is paused at an explicit protection boundary: `github-pages` allows only `main`, so tag-triggered deploy `35079145264` was rejected despite its successful build. Publication run `35079145155` was cancelled before creating a GitHub Release; the existing live site is unaffected. Ask the owner to authorize adding a `v*` tag rule (retain `main`), then rerun the unchanged tag workflows and verify the final deployment and public archives/checksums/manifests. Phase 5 remains blocked until that publication proof is complete.
+Phase 4 and the first-public-release transaction are complete. Production Pages run `35079145264` and release publication run `35079145155` succeeded on frozen `v1.0.0` candidate `de3ff7c`; the public archives, binary hashes, release metadata, live origin, and 8/8 production scenarios are verified. No owner permission or publishing blocker remains.
+
+Before implementing Phase 5, turn the prioritized options above and voluntary user feedback into a bounded milestone with explicit acceptance criteria. Prefer practical model/interchange coverage, stronger operating-condition verification, and agent onboarding over speculative accounts, paid infrastructure, or a PCB engine. Keep CLI and no-account browser use free; revenue hypotheses remain demand-led. Do not implement the entire long-term list or treat regression PASS as a market-success claim.

@@ -21,6 +21,8 @@ The canonical public origin is `https://kessetsu.com/`. The production bundle in
 
 Rollback is a normal workflow dispatch: choose a previously verified tag/commit in the `ref` input. The workflow rebuilds that immutable source and atomically replaces the Pages deployment. A release tag is never moved.
 
+The `github-pages` environment permits deployments from branch `main` and tags matching `v*`. Preserve both narrow rules: tag-triggered releases otherwise build successfully but are rejected at deployment. The owner authorized the tag rule on 2026-09-16; it does not change repository write permissions. If deployment is rejected by a protection rule, stop for owner approval rather than weakening or bypassing that rule.
+
 ## First-public-release transaction
 
 The prepared repository state does not itself publish anything. Execute the external transaction in this order:
@@ -34,6 +36,8 @@ The prepared repository state does not itself publish anything. Execute the exte
 The repeatable live-product smoke is `npm run test:production` from `webapp/`, after building the matching native release CLI. It uses real Chromium against `https://kessetsu.com/`, with no local preview server, and checks desktop/mobile entry, native/browser benchmark parity, Worker simulation/cancellation, all seven exports, and named sharing. Run it after the initial deployment, rollback/redeploy, and final release deployment. It does not upload circuit projects and is separate from canonical CI because the public network is an external dependency.
 
 ## Release gates
+
+Use the full canonical gate for a release candidate, not for every subsequent documentation or deployment-setting edit. Reuse its evidence while the verified source remains unchanged; after publication, validate the public download checksums/manifests and a focused live-site smoke. Do not repeat the full local suite or await documentation-only CI solely to record release evidence.
 
 1. Canonical `scripts/verify.ps1` passes without changing tracked files.
 2. RustSec, npm production vulnerability, project/Rust/npm license metadata and generated-artifact audits pass; the root and Cargo-package AGPL texts match exactly, and informational risk acceptances are recorded in [security audit](security-audit.md).
