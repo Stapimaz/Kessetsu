@@ -6,7 +6,7 @@
 >
 > Last comprehensive repository audit: **2026-09-15**
 >
-> Active milestone: **Post-release review and Phase 5 planning (implementation not started)**
+> Active milestone: **Phase 5.1 — Simple CLI installation and onboarding**
 >
 > Previous milestone: **Phase 4 — Professional Schematics, Web Hub, and Release (complete, 2026-09-16)**
 
@@ -553,6 +553,17 @@ The local CLI and no-account local-browser workspace remain free core surfaces. 
 
 ## 6. Phase 5+ — Long-Term Vision
 
+### 5.1 — Simple CLI Installation and Onboarding
+
+**Owner-approved 2026-09-16:** Make CLI installation approachable without advanced computer knowledge. GitHub Releases remains the artifact store; the website owns the guided installation experience. This bounded milestone does not add accounts, embedded AI, or circuit-engine semantics.
+
+- [x] Add a restrained, accessible `/install/` page: Windows/macOS/Linux selection, copyable installation command, terminal-opening instructions, first successful command, simulator guidance, update instructions, and manual-download fallback. Landing installation links lead here. _Completed locally 2026-09-16: two focused Chromium scenarios passed navigation/direct reload, OS selection, clipboard success/fallback, script endpoints, editor entry, and mobile overflow. Desktop/mobile PNGs were inspected; the page adds a lazily loaded ~3 KiB gzip chunk without loading the circuit editor. Production build, lint, deployment metadata/script/example audit, and existing payload budgets passed._
+- [ ] Add per-user PowerShell/POSIX installers: supported OS/architecture detection, official release selection, archive and executable hash/version validation, managed install ownership, safe update, PATH setup without administrator privileges, and actionable failures. Do not silently run privileged simulator package installation.
+- [ ] Cover successful install/update, corrupt downloads, unsupported platforms, existing/unowned files, and PATH behavior with focused installer contracts and supported-platform smoke. Review desktop/mobile installation-page screenshots and navigation/copy behavior.
+- [ ] Update public installation/reference/maintainer guidance and changelog; publish the verified distribution update without moving `v1.0.0`, then check the live installation endpoints and public download journey.
+
+**Acceptance:** A newcomer can follow the website to a working `kess --version` without manually extracting a bundle or editing PATH. Simulation prerequisites are truthful; verification failures leave the previous working installation usable. The CLI/Core electrical contracts and existing examples remain unchanged.
+
 After Phase 4 closes, order these options using 4.6V evidence. The default preference is useful model coverage and interchange, stronger verification across operating conditions, and agent onboarding, ahead of accounts, more export formats, or a new PCB engine. This is a prioritized direction, not authorization to bypass Phase 4 or implement the entire list.
 
 - Provider-independent natural-language design/chat inside the Web Hub
@@ -622,8 +633,8 @@ For every development session:
 
 ### Current Next Task
 
-**Post-release review — choose the first bounded Phase 5 milestone.**
+**5.1 — Simple CLI installation and onboarding.**
 
 Phase 4 and the first-public-release transaction are complete. Production Pages run `35079145264` and release publication run `35079145155` succeeded on frozen `v1.0.0` candidate `de3ff7c`; the public archives, binary hashes, release metadata, live origin, and 8/8 production scenarios are verified. No owner permission or publishing blocker remains.
 
-Before implementing Phase 5, turn the prioritized options above and voluntary user feedback into a bounded milestone with explicit acceptance criteria. Prefer practical model/interchange coverage, stronger operating-condition verification, and agent onboarding over speculative accounts, paid infrastructure, or a PCB engine. Keep CLI and no-account browser use free; revenue hypotheses remain demand-led. Do not implement the entire long-term list or treat regression PASS as a market-success claim.
+The owner selected guided CLI installation as the first bounded post-release improvement on 2026-09-16. Implement and verify 5.1 above before starting another Phase 5 option. Keep CLI and no-account browser use free; revenue hypotheses remain demand-led. Do not implement the entire long-term list or treat regression PASS as a market-success claim.

@@ -1,6 +1,6 @@
 # Kessetsu
 
-[Web Hub](https://kessetsu.com/) · [CLI releases](https://github.com/Stapimaz/Kessetsu/releases) · [Documentation](docs/README.md) · [Tutorial](docs/guides/tutorial.md) · [Supported domain](docs/reference/supported-domain.md)
+[Web Hub](https://kessetsu.com/) · [Install CLI](https://kessetsu.com/install/) · [Documentation](docs/README.md) · [Tutorial](docs/guides/tutorial.md) · [Supported domain](docs/reference/supported-domain.md)
 
 Kessetsu is an agent-driven circuit engineering platform for describing circuits as text, compiling and simulating them like software, and verifying them with engineering assertions. The CLI's human mode serves engineers, its versioned JSON mode serves AI agents and automation, and the zero-friction Web Hub serves browser users. Every surface uses the same Rust Core: typed Circuit IR, deterministic graph/ERC, SPICE netlists, schematics, and EDA outputs all derive from shared semantics.
 
@@ -68,7 +68,27 @@ Compiling the same source in the CLI or Web Hub produces the same IR, diagnostic
 
 ## Quick start
 
-Ready-to-use CLI packages are published on [GitHub Releases](https://github.com/Stapimaz/Kessetsu/releases) for Windows x86-64, Linux x86-64, macOS Intel, and macOS Apple Silicon, together with SHA-256 files. The Windows package includes a verified Ngspice sidecar. On Linux and macOS, install the system `ngspice` package or provide a trusted absolute path through `KESSETSU_NGSPICE`. Each package includes `INSTALL.txt` and `release-manifest.json` with exact setup and provenance details.
+The [guided installation page](https://kessetsu.com/install/) explains how to open your terminal, install, and try a circuit. No account, compiler, administrator access, manual extraction, or PATH editing is needed for the CLI installer.
+
+Windows: open **Windows PowerShell**, paste, and press Enter:
+
+```powershell
+irm https://kessetsu.com/install.ps1 | iex
+```
+
+macOS or Linux: open **Terminal**, paste, and press Enter:
+
+```sh
+curl -fsSL https://kessetsu.com/install.sh | sh
+```
+
+Open a new terminal afterward (restart VS Code if needed) and run `kess --version`. Run the same installation command to update. These commands execute installer code from the website; inspect [PowerShell](webapp/public/install.ps1) or [POSIX](webapp/public/install.sh) source first if preferred. Installers verify archive/executable SHA-256 and version before replacing the managed launcher, and retain old bundles. Checksums are integrity checks, not publisher signatures.
+
+Windows includes Ngspice. Linux/macOS simulation requires a separate trusted Ngspice installation: `brew install ngspice` on macOS with [Homebrew](https://brew.sh/), or `sudo apt-get update && sudo apt-get install ngspice` on Ubuntu/Debian. Other distributions use their package manager. Compile, check, and export do not require Ngspice; installers never silently execute privileged package installation.
+
+### Manual installation
+
+Ready-to-use packages remain available on [GitHub Releases](https://github.com/Stapimaz/Kessetsu/releases/latest) for Windows x86-64, Linux x86-64, macOS Intel, and macOS Apple Silicon, together with SHA-256 files, `INSTALL.txt`, and `release-manifest.json`.
 
 Download the archive for your platform, extract the complete directory, then follow its `INSTALL.txt`. On Windows the first commands are:
 

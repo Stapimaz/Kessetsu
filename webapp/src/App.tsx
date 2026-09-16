@@ -5,12 +5,17 @@ const WorkspaceApp = lazy(async () => {
   const module = await import('./components/WorkspaceApp');
   return { default: module.WorkspaceApp };
 });
+const InstallPage = lazy(async () => {
+  const module = await import('./components/InstallPage');
+  return { default: module.InstallPage };
+});
 
-type AppView = 'landing' | 'workspace';
+type AppView = 'landing' | 'workspace' | 'install';
 
 function viewFromLocation(): AppView {
   const hash = globalThis.location.hash;
-  return hash === '#editor' || hash.startsWith('#kessetsu=') ? 'workspace' : 'landing';
+  if (hash === '#editor' || hash.startsWith('#kessetsu=')) return 'workspace';
+  return hash === '#install' || /\/install\/?$/.test(globalThis.location.pathname) ? 'install' : 'landing';
 }
 
 function App() {
@@ -26,7 +31,7 @@ function App() {
 
   return (
     <Suspense fallback={<div className="workspace-loading" role="status">Loading Kessetsu Core…</div>}>
-      <WorkspaceApp />
+      {view === 'install' ? <InstallPage /> : <WorkspaceApp />}
     </Suspense>
   );
 }

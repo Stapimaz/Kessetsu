@@ -1,0 +1,54 @@
+name: Installer smoke
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['webapp/public/install.sh', 'webapp/public/install.ps1', 'scripts/installer.test.mjs', 'scripts/test-installer.ps1', '.github/workflows/installers.yml']
+permissions:
+  contents: read
+jobs:
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [windows-2022, ubuntu-24.04, macos-15-intel, macos-14]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+      - name: POSIX installer failure contracts
+        if: runner.os != 'Windows'
+        run: node --test scripts/installer.test.mjs
+      - name: Install and update published Windows CLI without elevation
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./webapp/public/install.ps1 -Version 1.0.0
+          kess --version
+          if ($LASTEXITCODE -ne 0) { throw 'PATH installation failed' }
+          ./webapp/public/install.ps1 -Version 1.0.0
+          kess --version
+          if ($LASTEXITCODE -ne 0) { throw 'Update failed' }
+          $bundle = Get-ChildItem "$env:LOCALAPPDATA/Kessetsu/releases" -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          kess test "$($bundle.FullName)/examples/rc_low_pass.kess"
+          if ($LASTEXITCODE -ne 0) { throw 'Installed simulation failed' }
+          $archive = Join-Path $env:RUNNER_TEMP 'kessetsu-v1.0.0-windows-x86_64.zip'
+          Invoke-WebRequest 'https://github.com/Stapimaz/Kessetsu/releases/download/v1.0.0/kessetsu-v1.0.0-windows-x86_64.zip' -OutFile $archive
+          ./scripts/test-installer.ps1 -Archive $archive
+      - name: Install and update published POSIX CLI
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh webapp/public/install.sh 1.0.0
+          "$HOME/.local/bin/kess" --version
+          sh webapp/public/install.sh 1.0.0
+          "$HOME/.local/bin/kess" --version
+          test -L "$HOME/.local/bin/kess"
+          bundle="$(dirname "$(readlink "$HOME/.local/bin/kess")")"
+          "$HOME/.local/bin/kess" check "$bundle/examples/rc_low_pass.kess"
+          test -f "$HOME/.bashrc" || test -f "$HOME/.zshrc" || test -f "$HOME/.profile"
+          grep -Fq '# Kessetsu installer' "$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.zshrc" "$HOME/.zprofile" "$HOME/.profile" 2>/dev/null

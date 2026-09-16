@@ -24,6 +24,10 @@ for (const metadata of [
 }
 for (const required of [
   'CNAME',
+  'install/index.html',
+  'install.ps1',
+  'install.sh',
+  'examples/rc_low_pass.kess',
   'robots.txt',
   'sitemap.xml',
   'og-kessetsu.png',
@@ -41,5 +45,10 @@ for (const required of [
 }
 if (readFileSync(resolve(dist, 'CNAME'), 'utf8').trim() !== 'kessetsu.com') {
   throw new Error('Production CNAME must equal kessetsu.com');
+}
+const installHtml = readFileSync(resolve(dist, 'install/index.html'), 'utf8');
+if (!installHtml.includes('rel="canonical" href="https://kessetsu.com/install/"')) throw new Error('Installation page canonical URL is missing.');
+for (const script of ['install.ps1', 'install.sh']) {
+  if (!readFileSync(resolve(dist, script), 'utf8').includes('Kessetsu')) throw new Error(`Missing installer source: ${script}`);
 }
 console.log(`Deployment audit PASS: ${references.length} assets use ${expectedBase}; CSP and license bundle present.`);

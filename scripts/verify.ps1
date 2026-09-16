@@ -100,6 +100,11 @@ $releaseArchive = Get-ChildItem (Join-Path $repoRoot 'release-artifacts') -File 
     Select-Object -First 1 -ExpandProperty FullName
 Invoke-NativeStep 'Clean release artifact simulation smoke' { & (Join-Path $repoRoot 'scripts/smoke-release.ps1') -Archive $releaseArchive }
 if ($env:OS -eq 'Windows_NT') {
+    Invoke-NativeStep 'Windows installer contracts (isolated, no user PATH writes)' { & (Join-Path $repoRoot 'scripts/test-installer.ps1') -Archive $releaseArchive }
+} else {
+    Invoke-NativeStep 'POSIX installer contracts' { node --test (Join-Path $repoRoot 'scripts/installer.test.mjs') }
+}
+if ($env:OS -eq 'Windows_NT') {
     Invoke-NativeStep 'Installed EDA application smoke' { & (Join-Path $repoRoot 'scripts/verify-eda-exports.ps1') }
 }
 

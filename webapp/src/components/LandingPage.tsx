@@ -51,7 +51,7 @@ export function LandingPage() {
             <a className="button button-primary" href="#editor">
               <Globe2 size={18} /> Open Web Hub
             </a>
-            <a className="button button-secondary" href="https://github.com/Stapimaz/Kessetsu/releases">
+            <a className="button button-secondary" href={`${import.meta.env.BASE_URL}install/`}>
               <Terminal size={18} /> Install the CLI
             </a>
           </div>
