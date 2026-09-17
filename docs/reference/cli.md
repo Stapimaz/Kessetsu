@@ -237,6 +237,11 @@ Diagnostic fields are shared across every stage:
 
 A successful `compile` reports the written SPICE file as a `spice_netlist` entry in `artifacts`. If a model or subcircuit is used, the deterministic `kessetsu.lock` beside it is also reported as a `model_lock` artifact. Netlist text appears only with `--include spice`; model provenance and lock content appear only with `--include models`. On I/O or runtime failure, `status` is never `success`.
 
+Current unreleased source checks both SPICE and model-lock destinations before writing
+either. An identical existing lock is reused without rewriting; replacing different lock
+contents requires `--force`. Even with `--force`, the lock destination cannot be the source
+or the SPICE destination. Published 1.1.0 does not yet include this lockfile protection.
+
 ## Model and Subcircuit Use
 
 User-defined device models and op-amp subcircuits are typed declarations, not raw SPICE:

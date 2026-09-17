@@ -27,6 +27,10 @@ published binary releases and tags remain immutable.
 
 ## In development
 
+- [ ] CLI model-lock output protection: require explicit replacement of differing locks,
+  reuse identical contents and reject source/netlist destination collisions. Implemented
+  and regression-checked in source; not yet in published 1.1.0 downloads.
+
 - [ ] Frequency-specific AC gain and independent lower/upper half-power edges, with
   explicit band references and fail-closed ambiguous-band handling. Shared CLI/Web
   implementation is regression-checked in source, including native/browser numerical

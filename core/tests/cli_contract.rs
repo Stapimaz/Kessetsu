@@ -644,7 +644,11 @@ fn every_repository_example_has_an_explicit_cli_check_and_compile_outcome() {
         let check = workspace.run_cli(&["check", &source_arg, "--format", "json"]);
         assert_eq!(check.status.code(), Some(0), "check failed for {name}");
 
-        let output_path = workspace.path().join(name).with_extension("spice");
+        // Each independent model set gets its own lock directory; this matrix
+        // must not rely on silently replacing another example's model lock.
+        let output_directory = workspace.path().join(name);
+        fs::create_dir(&output_directory).expect("example output directory should exist");
+        let output_path = output_directory.join("circuit.spice");
         let output_arg = path_argument(&output_path);
         let compile = workspace.run_cli(&[
             "compile",

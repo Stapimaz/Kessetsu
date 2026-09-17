@@ -551,6 +551,13 @@ fn run(cli: Cli) -> i32 {
         .as_deref()
         .expect("successful SPICE-enabled compile must contain a netlist")
         .to_string();
+    let model_lock_path = spice_path.as_ref().and_then(|path| {
+        report.model_lock.as_ref().map(|_| {
+            path.parent()
+                .unwrap_or_else(|| Path::new("."))
+                .join("kessetsu.lock")
+        })
+    });
 
     if let Some(spice_path) = &spice_path
         && let Err(diagnostic) = validate_external_model_output_location(
@@ -574,6 +581,38 @@ fn run(cli: Cli) -> i32 {
         return 2;
     }
 
+    // Check both destinations before changing either file. A lock collision must
+    // not leave a newly written netlist behind.
+    let preflight = (|| {
+        if let Some(path) = &spice_path {
+            validate_spice_destination(source_path, path, output_command.force)?;
+        }
+        match (&model_lock_path, &spice_path, report.model_lock.as_deref()) {
+            (Some(lock), Some(spice), Some(contents)) => {
+                should_write_model_lock(source_path, spice, lock, contents, output_command.force)
+            }
+            _ => Ok(false),
+        }
+    })();
+    let write_lock = match preflight {
+        Ok(write_lock) => write_lock,
+        Err(diagnostic) => {
+            report.diagnostics.push(*diagnostic);
+            report.spice_netlist = None;
+            emit(
+                &cli.format,
+                command,
+                &includes,
+                "error",
+                report,
+                None,
+                None,
+                None,
+            );
+            return 2;
+        }
+    };
+
     if let Some(spice_path) = &spice_path
         && let Err(diagnostic) = write_spice(source_path, spice_path, &spice, output_command.force)
     {
@@ -592,37 +631,31 @@ fn run(cli: Cli) -> i32 {
         return 2;
     }
 
-    let model_lock_path =
-        if let (Some(spice_path), Some(model_lock)) = (&spice_path, report.model_lock.as_deref()) {
-            let lock_path = spice_path
-                .parent()
-                .unwrap_or_else(|| Path::new("."))
-                .join("kessetsu.lock");
-            if let Err(error) = fs::write(&lock_path, model_lock) {
-                report.diagnostics.push(diagnostic(
-                    "KES-I005",
-                    DiagnosticStage::Io,
-                    format!(
-                        "Could not write model lockfile '{}': {error}",
-                        lock_path.display()
-                    ),
-                ));
-                emit(
-                    &cli.format,
-                    command,
-                    &includes,
-                    "error",
-                    report,
-                    None,
-                    None,
-                    None,
-                );
-                return 2;
-            }
-            Some(lock_path)
-        } else {
-            None
-        };
+    if write_lock
+        && let (Some(lock_path), Some(model_lock)) =
+            (&model_lock_path, report.model_lock.as_deref())
+        && let Err(error) = fs::write(lock_path, model_lock)
+    {
+        report.diagnostics.push(diagnostic(
+            "KES-I005",
+            DiagnosticStage::Io,
+            format!(
+                "Could not write model lockfile '{}': {error}",
+                lock_path.display()
+            ),
+        ));
+        emit(
+            &cli.format,
+            command,
+            &includes,
+            "error",
+            report,
+            None,
+            None,
+            None,
+        );
+        return 2;
+    }
 
     let spice_file = spice_path
         .as_ref()
@@ -1262,6 +1295,24 @@ fn write_spice(
     spice: &str,
     force: bool,
 ) -> Result<(), Box<Diagnostic>> {
+    validate_spice_destination(source_path, output_path, force)?;
+    fs::write(output_path, spice).map_err(|error| {
+        Box::new(diagnostic(
+            "KES-I004",
+            DiagnosticStage::Io,
+            format!(
+                "Could not write SPICE file to '{}': {error}",
+                output_path.display()
+            ),
+        ))
+    })
+}
+
+fn validate_spice_destination(
+    source_path: &Path,
+    output_path: &Path,
+    force: bool,
+) -> Result<(), Box<Diagnostic>> {
     if paths_refer_to_same_file(source_path, output_path) {
         return Err(Box::new(diagnostic(
             "KES-I002",
@@ -1284,16 +1335,44 @@ fn write_spice(
         )));
     }
 
-    fs::write(output_path, spice).map_err(|error| {
-        Box::new(diagnostic(
-            "KES-I004",
+    Ok(())
+}
+
+fn should_write_model_lock(
+    source_path: &Path,
+    spice_path: &Path,
+    lock_path: &Path,
+    contents: &str,
+    force: bool,
+) -> Result<bool, Box<Diagnostic>> {
+    if paths_refer_to_same_file(source_path, lock_path)
+        || paths_refer_to_same_file(spice_path, lock_path)
+    {
+        return Err(Box::new(diagnostic(
+            "KES-I002",
             DiagnosticStage::Io,
             format!(
-                "Could not write SPICE file to '{}': {error}",
-                output_path.display()
+                "Model lockfile '{}' must not overwrite the source or share the SPICE destination.",
+                lock_path.display()
             ),
-        ))
-    })
+        )));
+    }
+    // Reuse identical bytes without rewriting or requiring --force. Different
+    // models in a shared directory must not silently replace an existing lock.
+    if fs::read(lock_path).is_ok_and(|existing| existing == contents.as_bytes()) {
+        return Ok(false);
+    }
+    if lock_path.exists() && !force {
+        return Err(Box::new(diagnostic(
+            "KES-I003",
+            DiagnosticStage::Io,
+            format!(
+                "Model lockfile '{}' already exists with different or unreadable contents; pass --force to overwrite it.",
+                lock_path.display()
+            ),
+        )));
+    }
+    Ok(true)
 }
 
 fn paths_refer_to_same_file(left: &Path, right: &Path) -> bool {

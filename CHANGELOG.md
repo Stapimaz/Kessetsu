@@ -4,6 +4,14 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### CLI output protection
+
+- Check netlist and model-lock destinations before either write. Reuse byte-identical
+  locks without rewriting; require `--force` for different existing lock contents.
+- Reject source/lock and netlist/lock destination aliases even with `--force`.
+
+This repair is in source only, not in published 1.1.0 CLI downloads.
+
 ### Explicit AC measurements
 
 - Added `gain_at(out,in,frequency)`, `lower_cutoff(out,in[,reference_frequency])`
