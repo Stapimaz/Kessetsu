@@ -5,7 +5,7 @@ export type KessetsuCompletion = {
 };
 
 export const topLevelCompletions: readonly KessetsuCompletion[] = [
-  { label: 'param', detail: 'Declare a typed quantity in the root or module scope; use {name} in numeric component, waveform and analysis fields.', insertText: 'param ${1:supply}: ${2|V,A,Ohm,F,H,Hz,s,W,ratio,percent,deg|} = ${3:12V}' },
+  { label: 'param', detail: 'Declare a typed quantity in the root or module scope; use {name} in numeric component, waveform, analysis and inline-assertion fields.', insertText: 'param ${1:supply}: ${2|V,A,Ohm,F,H,Hz,s,W,ratio,percent,deg|} = ${3:12V}' },
   { label: 'net', detail: 'Declare a named electrical net.', insertText: 'net ${1:GND}' },
   { label: 'source', detail: 'Declare an independent voltage source.', insertText: 'source ${1:VIN} ${2:5V}' },
   { label: 'current_source', detail: 'Declare an independent current source.', insertText: 'current_source ${1:I1} ${2:1mA}' },
@@ -18,7 +18,7 @@ export const topLevelCompletions: readonly KessetsuCompletion[] = [
   { label: 'opamp', detail: 'Declare a five-pin typed op-amp.', insertText: 'opamp ${1:U1} ${2:KESSETSU_OPAMP_V1}' },
   { label: 'connect', detail: 'Connect one or more canonical pins to a pin or named net.', insertText: 'connect ${1:VIN.plus} to ${2:IN}' },
   { label: 'simulate', detail: 'Add an OP, transient, AC, or DC analysis.', insertText: 'simulate ${1|op,tran,ac,dc|}' },
-  { label: 'assert', detail: 'Add a typed executable engineering requirement.', insertText: 'assert ${1:peak}(${2:V(OUT)}) ${3:<} ${4:5V}' },
+  { label: 'assert', detail: 'Add a design-owned engineering check; threshold and supported numeric metric arguments accept {expression}. Independent .kessreq limits stay literal.', insertText: 'assert ${1:peak}(${2:V(OUT)}) ${3:<} ${4:5V}' },
   { label: 'model_include', detail: 'Resolve an exact Kessetsu model package version.', insertText: 'model_include ${1:kessetsu_analog} ${2:1.0.0}' },
   { label: 'model', detail: 'Declare an allowlisted typed diode, BJT, or MOSFET model.', insertText: 'model ${1|diode,bjt,mosfet|} ${2:ModelName} ${3:version=1.0.0} ${4:license=MIT}' },
   { label: 'subcircuit', detail: 'Declare a safe parameterized op-amp subcircuit.', insertText: 'subcircuit opamp ${1:SafeOp} (in_p,in_n,vcc,vee,out) version=${2:1.0.0} license=${3:MIT} gain=${4:100k} bandwidth=${5:2MHz}' },

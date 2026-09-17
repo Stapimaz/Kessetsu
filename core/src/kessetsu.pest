@@ -32,10 +32,10 @@ connect = { "connect" ~ pin_ref ~ ("," ~ pin_ref)* ~ "to" ~ pin_ref }
 // Assertions
 signal_target = { pin_ref }
 signal = { ident ~ "(" ~ signal_target ~ ("," ~ signal_target)? ~ ")" }
-metric_arg = { signal | comp_value }
+metric_arg = { signal | value_expr | comp_value }
 metric_call = { ident ~ "(" ~ metric_arg ~ ("," ~ metric_arg)* ~ ")" }
 cmp_op = { "<=" | ">=" | "==" | "<" | ">" }
-assert_stmt = { "assert" ~ metric_call ~ cmp_op ~ comp_value }
+assert_stmt = { "assert" ~ metric_call ~ cmp_op ~ numeric_value }
 
 // Misc
 param_override = { ident ~ "=" ~ numeric_value }

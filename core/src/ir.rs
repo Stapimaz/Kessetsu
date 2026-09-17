@@ -270,6 +270,16 @@ pub struct Assertion {
     pub signal: String,
     pub cmp: crate::ast::Cmp,
     pub threshold: Quantity,
+    /// Resolved expression slots are authoritative; signal retains source text
+    /// for display and compatibility with existing literal assertions.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub numeric_arguments: Vec<ResolvedArgument>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ResolvedArgument {
+    pub index: usize,
+    pub quantity: Quantity,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1130,29 +1140,89 @@ pub fn ast_to_ir_with_resources(
                     ));
                 }
                 let arguments = split_assertion_arguments(&assert.signal);
-                let signal_unit = assertion_result_unit(&metric, &arguments).ok_or_else(|| {
-                    let expected = match metric.as_str() {
-                        "gain_at" => "gain_at(V(output_net),V(input_net),positive_frequency_in_Hz)",
-                        "lower_cutoff" | "upper_cutoff" => {
-                            "V(output_net),V(input_net)[,positive_reference_frequency_in_Hz]"
-                        }
-                        _ => "typed voltage/current/power or engineering metric arguments",
-                    };
-                    semantic_error(
-                        "KES-C006",
-                        format!(
-                            "assertion '{}' has invalid arguments '{}'; expected {expected}",
-                            assert.metric, assert.signal
-                        ),
-                        None,
-                        Some("signal"),
+                let mut numeric_arguments = Vec::new();
+                for argument in &assert.numeric_expressions {
+                    let unit = assertion_numeric_unit(&metric, &arguments, argument.index).ok_or_else(|| semantic_error("KES-C006", format!("assertion '{}': argument {} is not a supported numeric field; signal, component and policy names must be literal", assert.metric, argument.index + 1), None, Some("signal")))?;
+                    let quantity = evaluate_numeric(
+                        &argument.expression,
+                        unit,
+                        &parameter_values,
+                        &mut expression_work,
                     )
-                })?;
-                assertions.push(Assertion {
-                    metric: assert.metric.clone(),
-                    signal: assert.signal.clone(),
-                    cmp: assert.cmp.clone(),
-                    threshold: parse_quantity(&assert.threshold, signal_unit).map_err(|error| {
+                    .map_err(|error| {
+                        semantic_error(
+                            "KES-C006",
+                            format!(
+                                "assertion '{}', argument {}: {error}",
+                                assert.metric,
+                                argument.index + 1
+                            ),
+                            None,
+                            Some("signal"),
+                        )
+                    })?;
+                    parameter_manifest.assertion_bindings.push(
+                        crate::expression::AssertionParameterBinding {
+                            assertion_index: assertions.len(),
+                            field: format!("arguments[{}]", argument.index),
+                            expression: argument.expression.source.clone(),
+                            dependencies: argument.expression.dependencies().into_iter().collect(),
+                            resolved: quantity.clone(),
+                        },
+                    );
+                    numeric_arguments.push(ResolvedArgument {
+                        index: argument.index,
+                        quantity,
+                    });
+                }
+                let signal_unit = assertion_result_unit(&metric, &arguments, &numeric_arguments)
+                    .ok_or_else(|| {
+                        let expected = match metric.as_str() {
+                            "gain_at" => {
+                                "gain_at(V(output_net),V(input_net),positive_frequency_in_Hz)"
+                            }
+                            "lower_cutoff" | "upper_cutoff" => {
+                                "V(output_net),V(input_net)[,positive_reference_frequency_in_Hz]"
+                            }
+                            _ => "typed voltage/current/power or engineering metric arguments",
+                        };
+                        semantic_error(
+                            "KES-C006",
+                            format!(
+                                "assertion '{}' has invalid arguments '{}'; expected {expected}",
+                                assert.metric, assert.signal
+                            ),
+                            None,
+                            Some("signal"),
+                        )
+                    })?;
+                let threshold = if let Some(expression) = &assert.threshold_expression {
+                    let quantity = evaluate_numeric(
+                        expression,
+                        signal_unit,
+                        &parameter_values,
+                        &mut expression_work,
+                    )
+                    .map_err(|error| {
+                        semantic_error(
+                            "KES-C006",
+                            format!("invalid assertion threshold: {error}"),
+                            None,
+                            Some("threshold"),
+                        )
+                    })?;
+                    parameter_manifest.assertion_bindings.push(
+                        crate::expression::AssertionParameterBinding {
+                            assertion_index: assertions.len(),
+                            field: "threshold".into(),
+                            expression: expression.source.clone(),
+                            dependencies: expression.dependencies().into_iter().collect(),
+                            resolved: quantity.clone(),
+                        },
+                    );
+                    quantity
+                } else {
+                    parse_quantity(&assert.threshold, signal_unit).map_err(|error| {
                         semantic_error(
                             "KES-C006",
                             format!(
@@ -1162,7 +1232,14 @@ pub fn ast_to_ir_with_resources(
                             None,
                             Some("threshold"),
                         )
-                    })?,
+                    })?
+                };
+                assertions.push(Assertion {
+                    metric: assert.metric.clone(),
+                    signal: assert.signal.clone(),
+                    cmp: assert.cmp.clone(),
+                    threshold,
+                    numeric_arguments,
                 });
             }
             Statement::Simulate(sim) => {
@@ -1241,6 +1318,9 @@ pub fn ast_to_ir_with_resources(
     parameter_manifest
         .analysis_bindings
         .sort_by(|a, b| (a.analysis_index, &a.field).cmp(&(b.analysis_index, &b.field)));
+    parameter_manifest
+        .assertion_bindings
+        .sort_by(|a, b| (a.assertion_index, &a.field).cmp(&(b.assertion_index, &b.field)));
     Ok(CircuitIR {
         components,
         connections,
@@ -1316,7 +1396,11 @@ fn is_supported_assertion_metric(metric: &str) -> bool {
     )
 }
 
-fn assertion_result_unit(metric: &str, arguments: &[&str]) -> Option<SIUnit> {
+fn assertion_result_unit(
+    metric: &str,
+    arguments: &[&str],
+    numeric: &[ResolvedArgument],
+) -> Option<SIUnit> {
     match metric {
         "value" | "min" | "max" | "peak" | "average" | "avg" | "rms" => {
             if matches!(arguments.len(), 1 | 3) {
@@ -1346,7 +1430,12 @@ fn assertion_result_unit(metric: &str, arguments: &[&str]) -> Option<SIUnit> {
                 return None;
             }
             if let Some(frequency) = arguments.get(2) {
-                let quantity = parse_quantity(frequency, SIUnit::Hertz).ok()?;
+                let quantity = numeric
+                    .iter()
+                    .find(|argument| argument.index == 2)
+                    .map(|argument| Ok(argument.quantity.clone()))
+                    .unwrap_or_else(|| parse_quantity(frequency, SIUnit::Hertz))
+                    .ok()?;
                 if !quantity.value.is_finite() || quantity.value <= 0.0 {
                     return None;
                 }
@@ -1365,6 +1454,34 @@ fn assertion_result_unit(metric: &str, arguments: &[&str]) -> Option<SIUnit> {
         "efficiency" => matches!(arguments.len(), 4 | 6 | 8).then_some(SIUnit::Percent),
         "thd" => (arguments.len() == 5).then_some(SIUnit::Percent),
         "clipping" => (arguments.len() == 3).then_some(SIUnit::Percent),
+        _ => None,
+    }
+}
+
+fn assertion_numeric_unit(metric: &str, arguments: &[&str], index: usize) -> Option<SIUnit> {
+    let count = arguments.len();
+    match metric {
+        "value" | "min" | "max" | "peak" | "average" | "avg" | "rms" | "dissipation"
+            if count == 3 && matches!(index, 1 | 2) =>
+        {
+            Some(SIUnit::Second)
+        }
+        "gain_at" | "lower_cutoff" | "upper_cutoff" | "phase" if count == 3 && index == 2 => {
+            Some(SIUnit::Hertz)
+        }
+        "output_power" if count == 4 && matches!(index, 2 | 3) => Some(SIUnit::Second),
+        "efficiency"
+            if matches!(count, 6 | 8)
+                && index >= count - 2
+                && arguments[count - 2..].iter().all(|arg| {
+                    arg.starts_with('{') || parse_quantity(arg, SIUnit::Second).is_ok()
+                }) =>
+        {
+            Some(SIUnit::Second)
+        }
+        "thd" if count == 5 && index == 1 => Some(SIUnit::Hertz),
+        "thd" if count == 5 && matches!(index, 2 | 3) => Some(SIUnit::Second),
+        "clipping" if count == 3 && matches!(index, 1 | 2) => Some(SIUnit::Volt),
         _ => None,
     }
 }

@@ -1,0 +1,22 @@
+// Design-owned measurement settings; independent acceptance limits stay fixed.
+param amplitude: V = 1V
+param frequency: Hz = 1kHz
+param period: s = 1 / frequency
+param duration: s = period * 10
+param settling: s = period * 2
+param maximum: V = 0.55V
+net GND
+net IN
+net OUT
+source VIN sine_ac(0V,{amplitude},{frequency},{amplitude})
+resistor R1 1k
+capacitor C1 159.154943nF
+connect VIN.plus, R1.p1 to IN
+connect R1.p2, C1.p1 to OUT
+connect VIN.minus, C1.p2 to GND
+simulate ac dec 80 {frequency / 100} {frequency * 100}
+simulate tran {period / 100} {duration}
+assert gain_at(V(OUT),V(IN),{frequency}) > 0.70
+assert gain_at(V(OUT),V(IN),{frequency}) < 0.72
+assert rms(V(OUT),{settling},{duration}) > 0.45V
+assert rms(V(OUT),{settling},{duration}) < {maximum}

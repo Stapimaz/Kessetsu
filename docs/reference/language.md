@@ -56,7 +56,8 @@ Percentages normalize to fractions during arithmetic (`5% * 12V` is 0.6 V), whil
 Parameters do not infer topology or guarantee a named target: the circuit must explicitly
 use the relationship, then simulation/assertions verify its actual behavior. Supported
 waveform and analysis numeric fields also accept braced expressions; names, model fields
-and assertion numeric fields do not accept expressions in this slice.
+and other non-numeric fields do not accept expressions in this slice. Inline assertions
+accept expressions in their thresholds and supported numeric measurement arguments.
 Command-line overrides are not yet available. Module defaults and component expressions
 do not implicitly capture global or caller parameters. Evaluator-owned
 `.kessreq` files remain independent and assertion-only.
@@ -100,8 +101,8 @@ dependencies. Ambiguous flattened paths are rejected rather than silently rename
 Declared interface pins are checked by ERC. Module-local named nets are scoped too.
 
 Put analyses and assertions at the root: parameterized module-local analysis/assertion
-contexts are not supported yet and fail explicitly. Assertion numeric expressions and
-root CLI overrides remain follow-on work. No model-name expressions,
+contexts are not supported yet and fail explicitly. Root CLI overrides remain follow-on
+work. No model-name expressions,
 automatic topology generation or extra editor panel is introduced.
 
 ## Connections and pins
@@ -145,9 +146,38 @@ AC points must resolve to a positive dimensionless integer within the supported 
 32-bit range; `param points: ratio = 80` is the straightforward declaration. Scale keywords
 (`dec`, `oct`, `lin`) and DC source names are not numeric fields. Existing analysis arity,
 unit, sweep-direction and uniqueness checks apply after values resolve. Put analyses at
-the circuit root. Assertion values remain literal in this slice; independently owned
-requirements cannot refer to design parameters. For combined AC/transient simulations,
+the circuit root. Independently owned requirements cannot refer to design parameters.
+For combined AC/transient simulations,
 use explicit transient time windows when asserting waveform reductions such as RMS.
+
+### Parameterized inline measurements (unreleased)
+
+```kessetsu
+param settling: s = 2ms
+param duration: s = 10ms
+param frequency: Hz = 1kHz
+param maximum: V = 0.55V
+assert rms(V(OUT),{settling},{duration}) < {maximum}
+assert gain_at(V(OUT),V(IN),{frequency}) > 0.70
+```
+
+An excerpt, not a complete circuit; the [measurement fixture](../../core/tests/fixtures/parameters/assertions.kess)
+provides connections, excitation and analyses. Threshold units come from the metric:
+V/A/W for voltage/current/power reductions, ratio for gain, Hz for frequency/cutoff,
+degrees for phase and percent for THD/clipping/efficiency. Whole-literal shorthand remains
+contextual; named or compound expressions must have compatible dimensions.
+
+Supported numeric arguments are transient start/stop windows for reductions, output_power,
+dissipation and efficiency; target/reference frequency for gain_at, phase and cutoff edges;
+THD fundamental/time window; and clipping voltage rails. Signals, load/device names and
+THD's `hann` keyword remain literal. Measurement semantics/interpolation are unchanged.
+Expressions resolve to typed quantities before simulation, not substituted SPICE text.
+Place parameterized assertions at the root; module-local target qualification is not supported.
+
+These are **design-owned checks**: a parameterized limit changes if you explicitly edit its
+definition. Do not derive a fixed acceptance limit from the value being tested merely to
+make a failing design pass. Independent `.kessreq` files remain literal-only and reject
+braced expressions, even constants; design parameters cannot change evaluator-owned limits.
 
 ### Literal analyses and requirements
 

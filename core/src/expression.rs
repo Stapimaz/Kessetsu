@@ -75,6 +75,17 @@ pub struct ParameterManifest {
     pub bindings: Vec<ParameterBinding>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub analysis_bindings: Vec<AnalysisParameterBinding>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub assertion_bindings: Vec<AssertionParameterBinding>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AssertionParameterBinding {
+    pub assertion_index: usize,
+    pub field: String,
+    pub expression: String,
+    pub dependencies: Vec<String>,
+    pub resolved: Quantity,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -102,13 +113,17 @@ impl Default for ParameterManifest {
             parameters: Vec::new(),
             bindings: Vec::new(),
             analysis_bindings: Vec::new(),
+            assertion_bindings: Vec::new(),
         }
     }
 }
 
 impl ParameterManifest {
     pub fn is_empty(&self) -> bool {
-        self.parameters.is_empty() && self.bindings.is_empty() && self.analysis_bindings.is_empty()
+        self.parameters.is_empty()
+            && self.bindings.is_empty()
+            && self.analysis_bindings.is_empty()
+            && self.assertion_bindings.is_empty()
     }
 }
 
@@ -777,6 +792,7 @@ pub fn resolve_parameters(
             .collect(),
         bindings: Vec::new(),
         analysis_bindings: Vec::new(),
+        assertion_bindings: Vec::new(),
     };
     Ok((values, manifest))
 }

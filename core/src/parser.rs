@@ -370,10 +370,18 @@ fn parse_statement(
             let metric_call = inner_rules.next().unwrap();
             let mut call_rules = metric_call.into_inner();
             let metric = call_rules.next().unwrap().as_str().to_string();
-            let signal = call_rules
-                .map(|argument| argument.as_str().to_string())
-                .collect::<Vec<_>>()
-                .join(",");
+            let mut arguments = Vec::new();
+            let mut numeric_expressions = Vec::new();
+            for argument in call_rules {
+                if let Some(expression) = numeric_expression(&argument)? {
+                    numeric_expressions.push(IndexedExpression {
+                        index: arguments.len(),
+                        expression,
+                    });
+                }
+                arguments.push(argument.as_str().to_string());
+            }
+            let signal = arguments.join(",");
             let cmp_str = inner_rules.next().unwrap().as_str();
             let cmp = match cmp_str {
                 "<" => Cmp::Lt,
@@ -383,13 +391,17 @@ fn parse_statement(
                 ">=" => Cmp::Ge,
                 _ => unreachable!(),
             };
-            let threshold = inner_rules.next().unwrap().as_str().to_string();
+            let threshold_pair = inner_rules.next().unwrap();
+            let threshold_expression = numeric_expression(&threshold_pair)?;
+            let threshold = threshold_pair.as_str().to_string();
 
             Some(Statement::Assert(AssertStmt {
                 metric,
                 signal,
                 cmp,
                 threshold,
+                threshold_expression,
+                numeric_expressions,
             }))
         }
         Rule::use_stmt => {

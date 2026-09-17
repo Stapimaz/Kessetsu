@@ -59,6 +59,10 @@ pub struct AssertStmt {
     pub signal: String,
     pub cmp: Cmp,
     pub threshold: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub threshold_expression: Option<crate::expression::Expression>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub numeric_expressions: Vec<IndexedExpression>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

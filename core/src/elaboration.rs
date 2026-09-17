@@ -273,6 +273,16 @@ impl Elaborator<'_> {
                     }
                     self.emit(Statement::Simulate(analysis), scope)?;
                 }
+                Statement::Assert(assertion)
+                    if !scope.path.is_empty()
+                        && (assertion.threshold_expression.is_some()
+                            || !assertion.numeric_expressions.is_empty()) =>
+                {
+                    return Err(format!(
+                        "Instance '{}': put parameterized assertions at the circuit root; module assertion target qualification is not supported yet",
+                        scope.label()
+                    ));
+                }
                 _ => self.emit(statement.clone(), scope)?,
             }
         }

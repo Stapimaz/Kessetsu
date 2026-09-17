@@ -4,6 +4,16 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### Parameterized inline measurements
+
+- Accept `{expression}` in design-owned assertion thresholds and supported numeric
+  metric arguments: time windows, target/reference frequency, THD fundamental and clipping rails.
+- Resolve typed IR quantities before simulation; preserve literal signal/device/policy names,
+  existing measurement semantics and sorted assertion-field provenance.
+- Keep independent `.kessreq` numeric fields literal-only, with explicit expression rejection.
+
+These changes are in source only, not in published 1.1.0 or the live Web Hub.
+
 ### Parameterized excitation and analyses
 
 - Accept `{expression}` in all numeric slots of unquoted `ac`, `sine`, `sine_ac`,

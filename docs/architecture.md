@@ -69,11 +69,17 @@ scales internally and validates the destination unit. Circuit IR carries optiona
 and never evaluate expressions. Empty provenance is omitted for literal circuits.
 
 This source-only slice accepts passive, DC-source and supported waveform expressions in
-top-level/module scopes, plus numeric analysis fields at the root. Typed waveform arguments
+top-level/module scopes, plus numeric analysis and inline-assertion fields at the root. Typed waveform arguments
 and indexed analysis expressions resolve directly to Quantity through the shared numeric
 evaluator. Literal and expression waveforms use one constructor/validation path. Component
 bindings identify waveform fields; optional sorted analysis bindings carry the zero-based
 IR analysis index and numeric field, rather than inventing a component identity.
+Inline threshold and supported numeric metric expressions resolve into IR quantities.
+Optional indexed numeric assertion arguments are authoritative for measurement evaluation;
+the original signal text remains for display/legacy literal compatibility, never numeric
+expression evaluation. Sorted assertion bindings record the assertion index and field.
+Signal/component names and THD policy remain literal. Independent `.kessreq` files explicitly
+reject expressions (including braced constants), retaining literal limits and byte identity.
 `elaboration.rs` rebinds names in typed expression trees before shared IR evaluation;
 it never substitutes source text or formats resolved numbers back into syntax. Module
 defaults remain lexical; explicit overrides bind in the caller's scope before default

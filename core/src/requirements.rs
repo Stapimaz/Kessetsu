@@ -76,6 +76,10 @@ pub fn compile_requirements(bytes: &[u8]) -> Result<RequirementSet, RequirementC
         ));
     }
 
+    if program.statements.iter().any(|statement| matches!(statement, Statement::Assert(assertion) if assertion.threshold_expression.is_some() || !assertion.numeric_expressions.is_empty())) {
+        return Err(error("KES-R001", "independent requirements use literal numeric fields; circuit parameter expressions are not allowed", None, None));
+    }
+
     let circuit = ast_to_ir(&program).map_err(|diagnostic| {
         let (line, column) = locate_semantic_error(source, &diagnostic.message);
         error(&diagnostic.code, diagnostic.message, line, column)

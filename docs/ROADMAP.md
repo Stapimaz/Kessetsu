@@ -43,9 +43,9 @@ published binary releases and tags remain immutable.
   yet included in published downloads or the deployed Web Hub.
 - [ ] Named quantities and reusable parameterized circuits. The first source-only slice
   supports typed top-level/module parameters, caller-scoped instance overrides and
-  passive/DC-source/waveform expressions and numeric analysis settings; it is not in
-  published 1.1.0 binaries or the deployed Web Hub. Assertion numeric expressions and
-  root CLI overrides remain in development.
+  passive/DC-source/waveform expressions, numeric analysis settings and inline assertion
+  thresholds/measurement arguments; it is not in published 1.1.0 binaries or the deployed
+  Web Hub. Root CLI overrides remain in development. Independent requirements stay literal.
 
 ## Under consideration
 
@@ -54,6 +54,8 @@ user needs and reproducible engineering evidence.
 
 - Broader useful model and reusable-subcircuit coverage, with explicit provenance.
 - Better EDA interchange and component/footprint mapping.
+- Supported SPICE netlist import into editable `.kess`, including PySpice-generated
+  netlists, with explicit unsupported-construct diagnostics and connectivity checks.
 - Verification across operating conditions, parameter sweeps and additional measurements.
 - Easier integration with external AI agents and automation.
 - Improved onboarding, accessibility and workflows based on newcomer feedback.

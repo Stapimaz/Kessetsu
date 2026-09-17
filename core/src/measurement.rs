@@ -1,7 +1,7 @@
 use crate::graph::NetlistGraph;
 use crate::ir::{
-    Assertion, CircuitIR, ComponentKind, ComponentParams, IRComponent, SIUnit, SourceValue,
-    Waveform, parse_quantity,
+    Assertion, CircuitIR, ComponentKind, ComponentParams, IRComponent, Quantity, ResolvedArgument,
+    SIUnit, SourceValue, Waveform, parse_quantity,
 };
 use crate::simulation::{ComplexSeries, Dataset, RealSeriesDataset, SimulationResult};
 
@@ -13,7 +13,10 @@ pub fn evaluate_assertion_metric(
     simulation: &SimulationResult,
 ) -> Result<f64, String> {
     let metric = assertion.metric.to_ascii_lowercase();
-    let arguments = split_arguments(&assertion.signal);
+    let arguments = MetricArguments {
+        raw: split_arguments(&assertion.signal),
+        resolved: &assertion.numeric_arguments,
+    };
     match metric.as_str() {
         "value" | "min" | "max" | "peak" | "average" | "avg" | "rms" => {
             evaluate_reduction(&metric, &arguments, circuit, simulation)
@@ -36,6 +39,56 @@ pub fn evaluate_assertion_metric(
     }
 }
 
+struct MetricArguments<'a> {
+    raw: Vec<&'a str>,
+    resolved: &'a [ResolvedArgument],
+}
+
+impl<'a> std::ops::Deref for MetricArguments<'a> {
+    type Target = [&'a str];
+    fn deref(&self) -> &Self::Target {
+        &self.raw
+    }
+}
+
+impl MetricArguments<'_> {
+    fn quantity(&self, index: usize, unit: SIUnit) -> Result<Quantity, String> {
+        if let Some(argument) = self
+            .resolved
+            .iter()
+            .find(|argument| argument.index == index)
+        {
+            if argument.quantity.unit != unit {
+                return Err(format!(
+                    "Expected {unit:?}, got {:?}",
+                    argument.quantity.unit
+                ));
+            }
+            return Ok(argument.quantity.clone());
+        }
+        parse_quantity(
+            self.raw
+                .get(index)
+                .ok_or("missing numeric metric argument")?,
+            unit,
+        )
+    }
+    fn window(&self, index: usize) -> Result<Option<[f64; 2]>, String> {
+        if self.len() <= index {
+            return Ok(None);
+        }
+        let start = self
+            .quantity(index, SIUnit::Second)
+            .map_err(|error| format!("invalid window start: {error}"))?
+            .value;
+        let stop = self
+            .quantity(index + 1, SIUnit::Second)
+            .map_err(|error| format!("invalid window stop: {error}"))?
+            .value;
+        Ok(Some([start, stop]))
+    }
+}
+
 #[derive(Debug, Clone)]
 enum SignalData {
     Scalar(f64),
@@ -44,7 +97,7 @@ enum SignalData {
 
 fn evaluate_reduction(
     metric: &str,
-    arguments: &[&str],
+    arguments: &MetricArguments<'_>,
     circuit: &CircuitIR,
     simulation: &SimulationResult,
 ) -> Result<f64, String> {
@@ -87,7 +140,8 @@ fn evaluate_reduction(
             Ok(Some(SignalData::Scalar(value))) => return reduce_scalar(metric, value),
             Ok(Some(SignalData::Series { axis, values })) => {
                 let values = if arguments.len() == 3 {
-                    windowed_values(&axis, &values, arguments[1], arguments[2])?
+                    let [start, stop] = arguments.window(1)?.ok_or("missing measurement window")?;
+                    windowed_values(&axis, &values, start, stop)?
                 } else {
                     values
                 };
@@ -261,8 +315,9 @@ fn ac_response<'a>(
     Ok((frequencies, gains))
 }
 
-fn ac_target_frequency(argument: &str) -> Result<f64, String> {
-    let frequency = parse_quantity(argument, SIUnit::Hertz)
+fn ac_target_frequency(arguments: &MetricArguments<'_>) -> Result<f64, String> {
+    let frequency = arguments
+        .quantity(2, SIUnit::Hertz)
         .map_err(|error| format!("invalid AC target/reference frequency: {error}"))?
         .value;
     if !frequency.is_finite() || frequency <= 0.0 {
@@ -295,16 +350,19 @@ fn gain_at_frequency(frequencies: &[f64], gains: &[f64], target: f64) -> Result<
     Ok(gains[left] * (1.0 - fraction) + gains[right] * fraction)
 }
 
-fn evaluate_gain_at(arguments: &[&str], simulation: &SimulationResult) -> Result<f64, String> {
+fn evaluate_gain_at(
+    arguments: &MetricArguments<'_>,
+    simulation: &SimulationResult,
+) -> Result<f64, String> {
     require_count("gain_at", arguments, 3)?;
-    let target = ac_target_frequency(arguments[2])?;
+    let target = ac_target_frequency(arguments)?;
     let (frequencies, gains) = ac_response(arguments, simulation)?;
     gain_at_frequency(frequencies, &gains, target)
 }
 
 fn evaluate_cutoff_edge(
     metric: &str,
-    arguments: &[&str],
+    arguments: &MetricArguments<'_>,
     simulation: &SimulationResult,
 ) -> Result<f64, String> {
     if !matches!(arguments.len(), 2 | 3) {
@@ -319,7 +377,7 @@ fn evaluate_cutoff_edge(
         ));
     }
     let reference = if arguments.len() == 3 {
-        ac_target_frequency(arguments[2])?
+        ac_target_frequency(arguments)?
     } else {
         let peak = gains
             .iter()
@@ -424,7 +482,10 @@ fn evaluate_frequency(
     nonzero_divide(1.0, period, "measured period is zero")
 }
 
-fn evaluate_phase(arguments: &[&str], simulation: &SimulationResult) -> Result<f64, String> {
+fn evaluate_phase(
+    arguments: &MetricArguments<'_>,
+    simulation: &SimulationResult,
+) -> Result<f64, String> {
     if !matches!(arguments.len(), 2 | 3) {
         return Err("phase expects output,input or output,input,frequency".to_string());
     }
@@ -438,8 +499,9 @@ fn evaluate_phase(arguments: &[&str], simulation: &SimulationResult) -> Result<f
         .ok_or_else(|| "phase requires an AC analysis dataset".to_string())?;
     let output = complex_signal(ac, arguments[0])?;
     let input = complex_signal(ac, arguments[1])?;
-    let index = if let Some(target) = arguments.get(2) {
-        let target = parse_quantity(target, SIUnit::Hertz)
+    let index = if arguments.get(2).is_some() {
+        let target = arguments
+            .quantity(2, SIUnit::Hertz)
             .map_err(|error| format!("invalid phase frequency: {error}"))?
             .value;
         ac.frequency_hz
@@ -466,21 +528,37 @@ fn evaluate_phase(arguments: &[&str], simulation: &SimulationResult) -> Result<f
 }
 
 fn evaluate_output_power(
-    arguments: &[&str],
+    arguments: &MetricArguments<'_>,
     circuit: &CircuitIR,
     simulation: &SimulationResult,
 ) -> Result<f64, String> {
     if !matches!(arguments.len(), 2 | 4) {
         return Err("output_power expects output,load or output,load,start,stop".to_string());
     }
-    let resistance = resistor_value(circuit, arguments[1])?;
+    output_power(
+        arguments[0],
+        arguments[1],
+        arguments.window(2)?,
+        circuit,
+        simulation,
+    )
+}
+
+fn output_power(
+    output: &str,
+    load: &str,
+    window: Option<[f64; 2]>,
+    circuit: &CircuitIR,
+    simulation: &SimulationResult,
+) -> Result<f64, String> {
+    let resistance = resistor_value(circuit, load)?;
     for dataset in simulation
         .datasets
         .iter()
         .filter(|dataset| matches!(dataset.data, Dataset::Transient(_)))
     {
-        if let Some(signal) = resolve_signal(&dataset.data, arguments[0], circuit)? {
-            let signal = maybe_window_signal(signal, arguments.get(2..4))?;
+        if let Some(signal) = resolve_signal(&dataset.data, output, circuit)? {
+            let signal = maybe_window_signal(signal, window)?;
             let voltage_rms = signal_rms(&signal)?;
             return Ok(voltage_rms * voltage_rms / resistance);
         }
@@ -489,7 +567,7 @@ fn evaluate_output_power(
 }
 
 fn evaluate_efficiency(
-    arguments: &[&str],
+    arguments: &MetricArguments<'_>,
     circuit: &CircuitIR,
     simulation: &SimulationResult,
 ) -> Result<f64, String> {
@@ -500,8 +578,12 @@ fn evaluate_efficiency(
         );
     }
     let has_window = arguments.len() >= 6
-        && parse_quantity(arguments[arguments.len() - 2], SIUnit::Second).is_ok()
-        && parse_quantity(arguments[arguments.len() - 1], SIUnit::Second).is_ok();
+        && arguments
+            .quantity(arguments.len() - 2, SIUnit::Second)
+            .is_ok()
+        && arguments
+            .quantity(arguments.len() - 1, SIUnit::Second)
+            .is_ok();
     let supply_end = if has_window {
         arguments.len() - 2
     } else {
@@ -512,13 +594,12 @@ fn evaluate_efficiency(
             "efficiency requires one or two complete supply voltage/current pairs".to_string(),
         );
     }
-    let window = has_window.then(|| &arguments[arguments.len() - 2..]);
-    let output_arguments = if let Some(window) = window {
-        vec![arguments[0], arguments[1], window[0], window[1]]
+    let window = if has_window {
+        arguments.window(arguments.len() - 2)?
     } else {
-        vec![arguments[0], arguments[1]]
+        None
     };
-    let output_power = evaluate_output_power(&output_arguments, circuit, simulation)?;
+    let output_power = output_power(arguments[0], arguments[1], window, circuit, simulation)?;
     for dataset in simulation
         .datasets
         .iter()
@@ -550,15 +631,17 @@ fn evaluate_efficiency(
 }
 
 fn evaluate_clipping(
-    arguments: &[&str],
+    arguments: &MetricArguments<'_>,
     circuit: &CircuitIR,
     simulation: &SimulationResult,
 ) -> Result<f64, String> {
     require_count("clipping", arguments, 3)?;
-    let lower = parse_quantity(arguments[1], SIUnit::Volt)
+    let lower = arguments
+        .quantity(1, SIUnit::Volt)
         .map_err(|error| format!("invalid clipping lower rail: {error}"))?
         .value;
-    let upper = parse_quantity(arguments[2], SIUnit::Volt)
+    let upper = arguments
+        .quantity(2, SIUnit::Volt)
         .map_err(|error| format!("invalid clipping upper rail: {error}"))?
         .value;
     if upper <= lower {
@@ -577,7 +660,7 @@ fn evaluate_clipping(
 }
 
 fn evaluate_thd(
-    arguments: &[&str],
+    arguments: &MetricArguments<'_>,
     circuit: &CircuitIR,
     simulation: &SimulationResult,
 ) -> Result<f64, String> {
@@ -587,14 +670,16 @@ fn evaluate_thd(
     if !arguments[4].eq_ignore_ascii_case("hann") {
         return Err("THD window policy must be the explicit 'hann' policy".to_string());
     }
-    let fundamental_hz = parse_quantity(arguments[1], SIUnit::Hertz)
+    let fundamental_hz = arguments
+        .quantity(1, SIUnit::Hertz)
         .map_err(|error| format!("invalid THD fundamental: {error}"))?
         .value;
     if fundamental_hz <= 0.0 {
         return Err("THD fundamental must be positive".to_string());
     }
     let (axis, values) = transient_signal(arguments[0], circuit, simulation)?;
-    let (axis, values) = windowed_series(&axis, &values, arguments[2], arguments[3])?;
+    let [start, stop] = arguments.window(2)?.ok_or("missing THD window")?;
+    let (axis, values) = windowed_series(&axis, &values, start, stop)?;
     if values.len() < 32 {
         return Err(
             "THD requires at least 32 transient samples in its measurement window".to_string(),
@@ -624,7 +709,7 @@ fn evaluate_thd(
 }
 
 fn evaluate_dissipation(
-    arguments: &[&str],
+    arguments: &MetricArguments<'_>,
     circuit: &CircuitIR,
     simulation: &SimulationResult,
 ) -> Result<f64, String> {
@@ -638,7 +723,7 @@ fn evaluate_dissipation(
         .filter(|dataset| matches!(dataset.data, Dataset::Transient(_)))
     {
         if let Some(power) = resolve_signal(&dataset.data, &signal, circuit)? {
-            let power = maybe_window_signal(power, arguments.get(1..3))?;
+            let power = maybe_window_signal(power, arguments.window(1)?)?;
             return match power {
                 SignalData::Scalar(value) => Ok(value.max(0.0)),
                 SignalData::Series { axis, values } => time_weighted_average(
@@ -1065,15 +1150,9 @@ fn lookup_series<'a>(series: &'a RealSeriesDataset, key: &str) -> Option<&'a Vec
 fn windowed_values(
     axis: &[f64],
     values: &[f64],
-    start: &str,
-    stop: &str,
+    start: f64,
+    stop: f64,
 ) -> Result<Vec<f64>, String> {
-    let start = parse_quantity(start, SIUnit::Second)
-        .map_err(|error| format!("invalid window start: {error}"))?
-        .value;
-    let stop = parse_quantity(stop, SIUnit::Second)
-        .map_err(|error| format!("invalid window stop: {error}"))?
-        .value;
     if start < 0.0 || stop <= start {
         return Err("measurement window requires 0 <= start < stop".to_string());
     }
@@ -1093,15 +1172,9 @@ fn windowed_values(
 fn windowed_series(
     axis: &[f64],
     values: &[f64],
-    start: &str,
-    stop: &str,
+    start_value: f64,
+    stop_value: f64,
 ) -> Result<(Vec<f64>, Vec<f64>), String> {
-    let start_value = parse_quantity(start, SIUnit::Second)
-        .map_err(|error| format!("invalid window start: {error}"))?
-        .value;
-    let stop_value = parse_quantity(stop, SIUnit::Second)
-        .map_err(|error| format!("invalid window stop: {error}"))?
-        .value;
     if start_value < 0.0 || stop_value <= start_value {
         return Err("measurement window requires 0 <= start < stop".to_string());
     }
@@ -1119,13 +1192,10 @@ fn windowed_series(
     Ok(selected.into_iter().unzip())
 }
 
-fn maybe_window_signal(signal: SignalData, window: Option<&[&str]>) -> Result<SignalData, String> {
+fn maybe_window_signal(signal: SignalData, window: Option<[f64; 2]>) -> Result<SignalData, String> {
     let Some(window) = window else {
         return Ok(signal);
     };
-    if window.len() != 2 {
-        return Err("measurement window requires start and stop".to_string());
-    }
     match signal {
         SignalData::Scalar(_) => {
             Err("measurement window requires transient series data".to_string())
