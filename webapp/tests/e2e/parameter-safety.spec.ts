@@ -1,0 +1,34 @@
+import { expect, test } from '@playwright/test';
+import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { encodeShareFragment } from '../../src/share';
+
+test('native and Web point to the actual nested parameter input and recover from rejected nesting', async ({ page }) => {
+  const source = '// r is not this comment\nmodule Child() {\n  param r: Ohm = 1k\n}\nmodule Parent() {\n  param denominator: ratio = 0\n  use Child Y(r={1kOhm / denominator})\n}\nuse Parent X\n';
+  const binary = resolve('../core/target/release', process.platform === 'win32' ? 'kess.exe' : 'kess');
+  const native = spawnSync(binary, ['check', '-', '--format', 'json'], { input: source, encoding: 'utf8', timeout: 30_000 });
+  expect(native.status).toBe(1);
+  expect(native.stderr).toBe('');
+  const diagnostic = JSON.parse(native.stdout).diagnostics[0];
+  expect(diagnostic.field).toBe('X.Y.r');
+  expect(diagnostic.line).toBe(7);
+  expect(diagnostic.column).toBe(15);
+  const fragment = await encodeShareFragment(source, 'kessetsu.compile.v5', null, 'Parameter origin');
+  await page.goto(`/${fragment}`);
+  await expect(page.getByTestId('compile-status')).toHaveText('1 error', { timeout: 15_000 });
+  const error = page.getByRole('button', { name: /KES-C022/ });
+  await expect(error).toContainText(`L${diagnostic.line}:${diagnostic.column}`);
+  await expect(error).toContainText("Parameter 'X.Y.r'");
+  await error.click();
+  await expect(page.locator('.monaco-editor').getByRole('textbox').first()).toBeFocused();
+  const deep = `source VIN sine(${'f('.repeat(4096)}0V${')'.repeat(4096)},1V,1kHz)\n`;
+  await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.insertText(deep);
+  await expect(page.getByRole('button', { name: /KES-P001/ })).toBeVisible();
+  await page.locator('.monaco-editor .view-lines').click();
+  await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.insertText(readFileSync(new URL('../../../examples/rc_low_pass.kess', import.meta.url), 'utf8'));
+  await expect(page.getByTestId('compile-success')).toBeVisible();
+  await expect(page.getByTestId('canonical-schematic')).toHaveAttribute('data-quality', 'pass');
+});

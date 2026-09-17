@@ -5,15 +5,57 @@ use pest::Parser;
 #[grammar = "kessetsu.pest"]
 pub struct KessetsuParser;
 
+pub const MAX_SOURCE_BYTES: usize = 8 * 1024 * 1024;
+pub const MAX_SOURCE_STATEMENTS: usize = 100_000;
+
 pub fn parse_program(input: &str) -> Result<Program, pest::error::Error<Rule>> {
+    if input.len() > MAX_SOURCE_BYTES {
+        // Do not retain/render an oversized input line inside the diagnostic itself.
+        return Err(pest::error::Error::new_from_pos(
+            pest::error::ErrorVariant::CustomError {
+                message: format!("Source exceeds the {MAX_SOURCE_BYTES} byte limit"),
+            },
+            pest::Position::new("", 0).unwrap(),
+        ));
+    }
     let mut modules = Vec::new();
     let mut model_includes = Vec::new();
     let mut models = Vec::new();
     let mut subcircuits = Vec::new();
     let mut external_subcircuits = Vec::new();
     let mut main_statements = Vec::new();
+    let mut expression_work = 0;
 
     let pairs = KessetsuParser::parse(Rule::program, input)?;
+
+    // Bound aggregate construction before allocating the typed AST. Grammar has
+    // no recursive calls; expression depth/node limits run in expression_pair.
+    let mut pending = pairs.clone().collect::<Vec<_>>();
+    let mut statements = 0;
+    while let Some(pair) = pending.pop() {
+        if matches!(
+            pair.as_rule(),
+            Rule::statement
+                | Rule::module_decl
+                | Rule::model_decl
+                | Rule::subcircuit_decl
+                | Rule::external_subcircuit_decl
+                | Rule::model_include
+        ) {
+            statements += 1;
+            if statements > MAX_SOURCE_STATEMENTS {
+                return Err(pest::error::Error::new_from_span(
+                    pest::error::ErrorVariant::CustomError {
+                        message: format!(
+                            "Source exceeds the {MAX_SOURCE_STATEMENTS} statement limit"
+                        ),
+                    },
+                    pair.as_span(),
+                ));
+            }
+        }
+        pending.extend(pair.into_inner());
+    }
 
     for pair in pairs {
         if pair.as_rule() == Rule::program {
@@ -37,7 +79,10 @@ pub fn parse_program(input: &str) -> Result<Program, pest::error::Error<Rule>> {
                                             }
                                         }
                                         Rule::statement => {
-                                            if let Some(stmt) = parse_statement(module_item)? {
+                                            if let Some(stmt) = parse_bounded_statement(
+                                                module_item,
+                                                &mut expression_work,
+                                            )? {
                                                 statements.push(stmt);
                                             }
                                         }
@@ -52,7 +97,9 @@ pub fn parse_program(input: &str) -> Result<Program, pest::error::Error<Rule>> {
                                 });
                             }
                             Rule::statement => {
-                                if let Some(stmt) = parse_statement(inner)? {
+                                if let Some(stmt) =
+                                    parse_bounded_statement(inner, &mut expression_work)?
+                                {
                                     main_statements.push(stmt);
                                 }
                             }
@@ -462,4 +509,24 @@ fn parse_statement(
         }
         _ => None,
     })
+}
+
+fn parse_bounded_statement(
+    pair: pest::iterators::Pair<Rule>,
+    work: &mut usize,
+) -> Result<Option<Statement>, pest::error::Error<Rule>> {
+    let span = pair.as_span();
+    let statement = parse_statement(pair)?;
+    if let Some(statement) = &statement {
+        *work += statement.expression_nodes();
+        if *work > crate::expression::MAX_EXPRESSION_WORK {
+            return Err(pest::error::Error::new_from_span(
+                pest::error::ErrorVariant::CustomError {
+                    message: "Source expression work limit exceeded".into(),
+                },
+                span,
+            ));
+        }
+    }
+    Ok(statement)
 }

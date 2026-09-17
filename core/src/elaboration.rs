@@ -5,6 +5,47 @@ use crate::expression::{MAX_EXPRESSION_WORK, MAX_PARAMETERS};
 use crate::ir::SIUnit;
 use std::collections::{BTreeMap, BTreeSet};
 
+#[derive(Debug)]
+pub(crate) struct ElaborationError {
+    pub message: String,
+    pub field: Option<String>,
+    pub location: Option<(usize, usize)>,
+}
+
+impl From<String> for ElaborationError {
+    fn from(message: String) -> Self {
+        Self {
+            message,
+            field: None,
+            location: None,
+        }
+    }
+}
+impl From<&str> for ElaborationError {
+    fn from(message: &str) -> Self {
+        message.to_owned().into()
+    }
+}
+impl ElaborationError {
+    fn at(message: String, field: String, line: usize, column: usize) -> Self {
+        Self {
+            message,
+            field: Some(field),
+            location: Some((line, column)),
+        }
+    }
+}
+
+pub(crate) struct ElaboratedProgram {
+    pub program: Program,
+    pub parameter_locations: BTreeMap<String, ParameterLocation>,
+}
+
+pub(crate) struct ParameterLocation {
+    pub primary: (usize, usize),
+    pub duplicate: Option<(usize, usize)>,
+}
+
 fn declarations(statements: &[Statement]) -> BTreeMap<String, SIUnit> {
     statements
         .iter()
@@ -20,6 +61,7 @@ struct Scope {
     units: BTreeMap<String, SIUnit>,
     ports: BTreeSet<String>,
     nets: BTreeSet<String>,
+    parameter_locations: BTreeMap<String, (usize, usize)>,
 }
 
 impl Scope {
@@ -52,12 +94,17 @@ struct Elaborator<'a> {
     stack: Vec<String>,
     identities: BTreeMap<String, Vec<String>>,
     work: usize,
+    parameter_locations: BTreeMap<String, ParameterLocation>,
 }
 
 impl Elaborator<'_> {
-    fn emit(&mut self, statement: Statement, scope: &Scope) -> Result<(), String> {
-        if self.output.len() >= 100_000 {
+    fn emit(&mut self, statement: Statement, scope: &Scope) -> Result<(), ElaborationError> {
+        if self.output.len() >= crate::parser::MAX_SOURCE_STATEMENTS {
             return Err("Module expansion exceeds the 100000 statement limit".into());
+        }
+        self.work += statement.expression_nodes();
+        if self.work > MAX_EXPRESSION_WORK {
+            return Err("Module expression work limit exceeded".into());
         }
         let name = match &statement {
             Statement::Decl(decl) => Some(&decl.name),
@@ -70,7 +117,7 @@ impl Elaborator<'_> {
                     return Err(format!(
                         "Flattened identifier collision '{name}' between instance paths {:?} and {:?}",
                         previous, scope.path
-                    ));
+                    ).into());
                 }
             } else {
                 self.identities.insert(name.clone(), scope.path.clone());
@@ -80,22 +127,32 @@ impl Elaborator<'_> {
         Ok(())
     }
 
-    fn expand(&mut self, statements: &[Statement], scope: &Scope) -> Result<(), String> {
+    fn expand(&mut self, statements: &[Statement], scope: &Scope) -> Result<(), ElaborationError> {
         let prefix = scope.prefix();
         let parameter_prefix = scope.parameter_prefix();
         for statement in statements {
             match statement {
                 Statement::Param(parameter) => {
+                    let location = scope
+                        .parameter_locations
+                        .get(&parameter.name)
+                        .copied()
+                        .unwrap_or((parameter.line, parameter.column));
                     let mut parameter = parameter.clone();
                     parameter.name = format!("{parameter_prefix}{}", parameter.name);
                     parameter.instance_path = scope.path.clone();
+                    self.parameter_locations
+                        .entry(parameter.name.clone())
+                        .and_modify(|origin| {
+                            origin.duplicate.get_or_insert(location);
+                        })
+                        .or_insert(ParameterLocation {
+                            primary: location,
+                            duplicate: None,
+                        });
                     // Overrides were already qualified in their caller's scope.
                     if parameter.default_expression.is_none() {
                         parameter.expression = parameter.expression.qualify(&parameter_prefix);
-                    }
-                    self.work += parameter.expression.node_count();
-                    if self.work > MAX_EXPRESSION_WORK {
-                        return Err("Module expression work limit exceeded".into());
                     }
                     self.emit(Statement::Param(parameter), scope)?;
                 }
@@ -103,19 +160,11 @@ impl Elaborator<'_> {
                     let mut decl = decl.clone();
                     decl.name = format!("{prefix}{}", decl.name);
                     if let Some(expression) = &decl.value_expression {
-                        self.work += expression.node_count();
-                        if self.work > MAX_EXPRESSION_WORK {
-                            return Err("Module expression work limit exceeded".into());
-                        }
                         decl.value_expression = Some(expression.qualify(&parameter_prefix));
                     }
                     if let Some(call) = &mut decl.waveform_expression {
                         for arg in &mut call.args {
                             if let Some(expression) = &arg.expression {
-                                self.work += expression.node_count();
-                                if self.work > MAX_EXPRESSION_WORK {
-                                    return Err("Module expression work limit exceeded".into());
-                                }
                                 arg.expression = Some(expression.qualify(&parameter_prefix));
                             }
                         }
@@ -153,7 +202,8 @@ impl Elaborator<'_> {
                                 "Instance '{}': undeclared module port or net '{}'",
                                 scope.label(),
                                 pin.pin
-                            ));
+                            )
+                            .into());
                         });
                     }
                     self.emit(Statement::Connect(Connection { pins }), scope)?;
@@ -167,12 +217,13 @@ impl Elaborator<'_> {
                         return Err(format!(
                             "Recursive module or module nesting limit exceeded: {}",
                             instance.module_name
-                        ));
+                        )
+                        .into());
                     }
                     let mut path = scope.path.clone();
                     path.push(instance.inst_name.clone());
                     let units = declarations(&module.statements);
-                    let child = Scope {
+                    let mut child = Scope {
                         path,
                         units,
                         ports: module.pins.iter().cloned().collect(),
@@ -184,16 +235,31 @@ impl Elaborator<'_> {
                                 _ => None,
                             })
                             .collect(),
+                        parameter_locations: BTreeMap::new(),
                     };
                     let mut overrides = BTreeMap::new();
                     for value in &instance.overrides {
-                        let unit = child.units.get(&value.name).ok_or_else(|| {
-                            format!(
-                                "Instance '{}': unknown override '{}' at {}:{}",
-                                child.label(),
-                                value.name,
+                        self.work += value.expression.node_count();
+                        if self.work > MAX_EXPRESSION_WORK {
+                            return Err(ElaborationError::at(
+                                "Module expression work limit exceeded".into(),
+                                value.name.clone(),
                                 value.line,
-                                value.column
+                                value.column,
+                            ));
+                        }
+                        let unit = child.units.get(&value.name).ok_or_else(|| {
+                            ElaborationError::at(
+                                format!(
+                                    "Instance '{}': unknown override '{}' at {}:{}",
+                                    child.label(),
+                                    value.name,
+                                    value.line,
+                                    value.column
+                                ),
+                                format!("{}.{}", child.label(), value.name),
+                                value.line,
+                                value.column,
                             )
                         })?;
                         if overrides
@@ -203,26 +269,41 @@ impl Elaborator<'_> {
                             )
                             .is_some()
                         {
-                            return Err(format!(
-                                "Instance '{}': duplicate override '{}'",
-                                child.label(),
-                                value.name
+                            return Err(ElaborationError::at(
+                                format!(
+                                    "Instance '{}': duplicate override '{}'",
+                                    child.label(),
+                                    value.name
+                                ),
+                                format!("{}.{}", child.label(), value.name),
+                                value.line,
+                                value.column,
                             ));
                         }
                         value
                             .expression
                             .validate_units(&scope.units, *unit)
                             .map_err(|error| {
-                                format!(
-                                    "Instance '{}', override '{}' at {}:{}: {error}",
-                                    child.label(),
-                                    value.name,
+                                ElaborationError::at(
+                                    format!(
+                                        "Instance '{}', override '{}' at {}:{}: {error}",
+                                        child.label(),
+                                        value.name,
+                                        value.line,
+                                        value.column
+                                    ),
+                                    format!("{}.{}", child.label(), value.name),
                                     value.line,
-                                    value.column
+                                    value.column,
                                 )
                             })?;
+                        child
+                            .parameter_locations
+                            .insert(value.name.clone(), (value.line, value.column));
                     }
-                    if self.output.len().saturating_add(module.statements.len()) > 100_000 {
+                    if self.output.len().saturating_add(module.statements.len())
+                        > crate::parser::MAX_SOURCE_STATEMENTS
+                    {
                         return Err("Module expansion exceeds the 100000 statement limit".into());
                     }
                     let mut effective = module.statements.clone();
@@ -259,16 +340,12 @@ impl Elaborator<'_> {
                     return Err(format!(
                         "Instance '{}': put analyses and assertions at the circuit root; parameterized module analysis/assertion contexts are not supported yet",
                         scope.label()
-                    ));
+                    ).into());
                 }
                 Statement::Simulate(analysis) => {
                     let mut analysis = analysis.clone();
                     for argument in &mut analysis.numeric_expressions {
                         let expression = &mut argument.expression;
-                        self.work += expression.node_count();
-                        if self.work > MAX_EXPRESSION_WORK {
-                            return Err("Module expression work limit exceeded".into());
-                        }
                         *expression = expression.qualify(&parameter_prefix);
                     }
                     self.emit(Statement::Simulate(analysis), scope)?;
@@ -281,7 +358,7 @@ impl Elaborator<'_> {
                     return Err(format!(
                         "Instance '{}': put parameterized assertions at the circuit root; module assertion target qualification is not supported yet",
                         scope.label()
-                    ));
+                    ).into());
                 }
                 _ => self.emit(statement.clone(), scope)?,
             }
@@ -290,23 +367,21 @@ impl Elaborator<'_> {
     }
 }
 
-pub(crate) fn flatten(program: &Program) -> Result<Program, String> {
+pub(crate) fn flatten(program: &Program) -> Result<ElaboratedProgram, ElaborationError> {
     let mut elaborator = Elaborator {
         modules: BTreeMap::new(),
         output: Vec::new(),
         stack: Vec::new(),
         identities: BTreeMap::new(),
         work: 0,
+        parameter_locations: BTreeMap::new(),
     };
     for module in &program.modules {
         if elaborator.modules.insert(&module.name, module).is_some() {
-            return Err(format!("Duplicate module definition: {}", module.name));
+            return Err(format!("Duplicate module definition: {}", module.name).into());
         }
         if module.pins.iter().collect::<BTreeSet<_>>().len() != module.pins.len() {
-            return Err(format!(
-                "Module '{}': duplicate interface port",
-                module.name
-            ));
+            return Err(format!("Module '{}': duplicate interface port", module.name).into());
         }
         let units = declarations(&module.statements);
         let count = module
@@ -315,9 +390,31 @@ pub(crate) fn flatten(program: &Program) -> Result<Program, String> {
             .filter(|s| matches!(s, Statement::Param(_)))
             .count();
         if count != units.len() || units.contains_key("pi") || count > MAX_PARAMETERS {
-            return Err(format!(
-                "Module '{}': duplicate/reserved parameter or parameter count limit exceeded",
-                module.name
+            let mut seen = BTreeSet::new();
+            let parameter = module
+                .statements
+                .iter()
+                .filter_map(|statement| {
+                    if let Statement::Param(parameter) = statement {
+                        Some(parameter)
+                    } else {
+                        None
+                    }
+                })
+                .find(|parameter| {
+                    parameter.name == "pi"
+                        || !seen.insert(parameter.name.as_str())
+                        || seen.len() > MAX_PARAMETERS
+                })
+                .unwrap();
+            return Err(ElaborationError::at(
+                format!(
+                    "Module '{}': duplicate/reserved parameter or parameter count limit exceeded",
+                    module.name
+                ),
+                parameter.name.clone(),
+                parameter.line,
+                parameter.column,
             ));
         }
         for statement in &module.statements {
@@ -326,9 +423,14 @@ pub(crate) fn flatten(program: &Program) -> Result<Program, String> {
                     .expression
                     .validate_units(&units, parameter.unit)
                     .map_err(|error| {
-                        format!(
-                            "Module '{}', parameter '{}' at {}:{}: {error}",
-                            module.name, parameter.name, parameter.line, parameter.column
+                        ElaborationError::at(
+                            format!(
+                                "Module '{}', parameter '{}' at {}:{}: {error}",
+                                module.name, parameter.name, parameter.line, parameter.column
+                            ),
+                            parameter.name.clone(),
+                            parameter.line,
+                            parameter.column,
                         )
                     })?;
                 elaborator.work += parameter.expression.node_count();
@@ -343,14 +445,18 @@ pub(crate) fn flatten(program: &Program) -> Result<Program, String> {
         units: declarations(&program.statements),
         ports: BTreeSet::new(),
         nets: BTreeSet::new(),
+        parameter_locations: BTreeMap::new(),
     };
     elaborator.expand(&program.statements, &root)?;
-    Ok(Program {
-        modules: Vec::new(),
-        model_includes: program.model_includes.clone(),
-        models: program.models.clone(),
-        subcircuits: program.subcircuits.clone(),
-        external_subcircuits: program.external_subcircuits.clone(),
-        statements: elaborator.output,
+    Ok(ElaboratedProgram {
+        program: Program {
+            modules: Vec::new(),
+            model_includes: program.model_includes.clone(),
+            models: program.models.clone(),
+            subcircuits: program.subcircuits.clone(),
+            external_subcircuits: program.external_subcircuits.clone(),
+            statements: elaborator.output,
+        },
+        parameter_locations: elaborator.parameter_locations,
     })
 }

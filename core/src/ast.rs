@@ -176,6 +176,46 @@ pub enum Statement {
     Simulate(SimulateStmt),
 }
 
+impl Statement {
+    pub(crate) fn expression_nodes(&self) -> usize {
+        match self {
+            Self::Param(parameter) => parameter.expression.node_count(),
+            Self::Decl(decl) => {
+                decl.value_expression.as_ref().map_or(0, |e| e.node_count())
+                    + decl.waveform_expression.as_ref().map_or(0, |call| {
+                        call.args
+                            .iter()
+                            .filter_map(|arg| arg.expression.as_ref())
+                            .map(|e| e.node_count())
+                            .sum()
+                    })
+            }
+            Self::Use(instance) => instance
+                .overrides
+                .iter()
+                .map(|arg| arg.expression.node_count())
+                .sum(),
+            Self::Simulate(analysis) => analysis
+                .numeric_expressions
+                .iter()
+                .map(|arg| arg.expression.node_count())
+                .sum(),
+            Self::Assert(assertion) => {
+                assertion
+                    .threshold_expression
+                    .as_ref()
+                    .map_or(0, |e| e.node_count())
+                    + assertion
+                        .numeric_expressions
+                        .iter()
+                        .map(|arg| arg.expression.node_count())
+                        .sum::<usize>()
+            }
+            _ => 0,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ModuleDef {
     pub name: String,
@@ -196,5 +236,7 @@ pub struct Program {
 impl Program {
     pub fn flatten(&self) -> Result<Program, String> {
         crate::elaboration::flatten(self)
+            .map(|result| result.program)
+            .map_err(|error| error.message)
     }
 }

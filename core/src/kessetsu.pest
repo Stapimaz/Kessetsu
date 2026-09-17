@@ -18,7 +18,10 @@ standard_decl = { comp_type ~ ident ~ numeric_value? }
 
 // Sources
 source_type = { "source" | "current_source" }
-func_call = { ident ~ "(" ~ source_param ~ ("," ~ source_param)* ~ ")" }
+// Waveforms have numeric arguments, not nested waveform calls. Keep the grammar
+// non-recursive; bounded expression parsing owns arithmetic parentheses.
+source_argument = { value_expr | comp_value }
+func_call = { ident ~ "(" ~ source_argument ~ ("," ~ source_argument)* ~ ")" }
 source_param = { value_expr | func_call | comp_value }
 source_decl = { source_type ~ ident ~ (value_expr | source_param) }
 

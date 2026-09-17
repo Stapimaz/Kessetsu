@@ -46,7 +46,9 @@ published binary releases and tags remain immutable.
   passive/DC-source/waveform expressions, numeric analysis settings and inline assertion
   thresholds/measurement arguments; it is not in published 1.1.0 binaries or the deployed
   Web Hub. Shared root numeric inputs, CLI `--param` overrides and reproducible effective
-  source are verified in development source. Independent requirements stay literal.
+  source are verified in development source. Precise parameter-error locations and bounded
+  parsing/expansion are regression-checked in native and browser builds. Independent
+  requirements stay literal.
 
 ## Under consideration
 

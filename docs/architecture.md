@@ -98,6 +98,14 @@ only accepted root declaration expression spans for ordinary save/share/recompil
 compilation never evaluates that edited string or generates backend output from it. Source
 bytes, independent requirements and resource bindings remain caller-owned. Native and WASM
 share this contract; no persistent Web override UI or hidden save/share state is introduced.
+Elaboration carries internal parameter-origin metadata separately from the serialized AST/IR:
+declaration and effective override positions survive nested flattening, while default
+provenance stays unchanged. Structured parameter errors use these positions, not text-search
+guesses. Other diagnostics still retain the existing fallback source annotation.
+Source parsing is size/statement bounded before typed AST construction; waveform grammar is
+non-recursive. Shared statement expression-node accounting covers all numeric roles during
+parsing/expansion, with bounded numeric conversion afterward. Work ceilings are per pass,
+not a claimed exact aggregate instruction count; see the language reference for limits.
 The Web explicitly accepts v4 source-share envelopes when compiling with v5, recompiles source
 normally and still checks exact packages. Unknown/future schema versions are not generalized
 into an acceptance range. New shares identify the active compile schema.

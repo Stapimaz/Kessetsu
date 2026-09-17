@@ -58,7 +58,8 @@ use the relationship, then simulation/assertions verify its actual behavior. Sup
 waveform and analysis numeric fields also accept braced expressions; names, model fields
 and other non-numeric fields do not accept expressions in this slice. Inline assertions
 accept expressions in their thresholds and supported numeric measurement arguments.
-Command-line overrides are not yet available. Module defaults and component expressions
+Source builds accept numeric root `--param` inputs; see the [CLI contract](cli.md#root-parameter-inputs-unreleased).
+Module defaults and component expressions
 do not implicitly capture global or caller parameters. Evaluator-owned
 `.kessreq` files remain independent and assertion-only.
 
@@ -105,6 +106,22 @@ contexts are not supported yet and fail explicitly. Source builds accept root CL
 such as `--param supply=15V`; see the [CLI contract](cli.md#root-parameter-inputs-unreleased)
 for effective-source export and reproducibility. No model-name expressions,
 automatic topology generation or extra editor panel is introduced.
+
+### Compilation safety (unreleased)
+
+Source builds bound input to 8 MiB and 100,000 parsed declarations/statements; module
+expansion also stops at 100,000 statements and 64 instance levels. At most 4,096 effective
+parameter definitions are accepted across the expanded circuit. Each arithmetic expression
+is limited to 16 KiB, 1,024 nodes and depth 64. Parsing, elaboration and numeric conversion
+have separate 1,000,000-node expression-work ceilings; these are bounded passes, not an
+execution-time guarantee or a claimed single aggregate operation count. Oversized/unsupported
+input fails with diagnostics, without backend artifacts. Waveforms accept numeric arguments,
+not nested waveform/function calls. Existing literal/quoted waveforms remain supported.
+
+Parameter diagnostics carry the actual declaration or supplied module-override location,
+including nested instances. Default provenance still identifies its original declaration.
+These precise parameter origins do not imply every ERC/component/measurement diagnostic
+has a complete source map.
 
 ## Connections and pins
 

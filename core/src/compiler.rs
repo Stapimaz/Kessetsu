@@ -196,17 +196,17 @@ fn annotate_source_locations(source: &str, diagnostics: &mut [Diagnostic]) {
     }
 }
 
-fn flatten_diagnostic(message: String) -> Diagnostic {
+fn flatten_diagnostic(error: crate::elaboration::ElaborationError) -> Diagnostic {
     Diagnostic {
         code: "KES-C008".to_string(),
         severity: DiagnosticSeverity::Error,
         stage: DiagnosticStage::Flatten,
-        message,
+        message: error.message,
         component: None,
         pin: None,
-        field: None,
-        line: None,
-        column: None,
+        field: error.field,
+        line: error.location.map(|location| location.0),
+        column: error.location.map(|location| location.1),
     }
 }
 
@@ -333,7 +333,7 @@ pub fn compile_source_with_inputs(
         }
     };
 
-    let flat_program = match program.flatten() {
+    let elaborated = match crate::elaboration::flatten(&program) {
         Ok(program) => program,
         Err(message) => {
             report.diagnostics.push(flatten_diagnostic(message));
@@ -341,6 +341,7 @@ pub fn compile_source_with_inputs(
             return report;
         }
     };
+    let flat_program = elaborated.program;
 
     if options.include_ast {
         report.ast = Some(flat_program.clone());
@@ -350,19 +351,21 @@ pub fn compile_source_with_inputs(
         Ok(circuit) => circuit,
         Err(diagnostic) => {
             let mut diagnostic: Diagnostic = diagnostic.into();
-            if let Some(name) = diagnostic.field.as_deref()
-                && let Some(parameter) = flat_program.statements.iter().find_map(|statement| {
-                    if let crate::ast::Statement::Param(parameter) = statement
-                        && parameter.name == name
-                    {
-                        Some(parameter)
-                    } else {
-                        None
-                    }
-                })
+            if diagnostic.component.is_none()
+                && matches!(
+                    diagnostic.code.as_str(),
+                    "KES-C020" | "KES-C021" | "KES-C022" | "KES-C023"
+                )
+                && let Some(name) = diagnostic.field.as_deref()
+                && let Some(location) = elaborated.parameter_locations.get(name)
             {
-                diagnostic.line = Some(parameter.line);
-                diagnostic.column = Some(parameter.column);
+                let position = if diagnostic.code == "KES-C020" {
+                    location.duplicate.unwrap_or(location.primary)
+                } else {
+                    location.primary
+                };
+                diagnostic.line = Some(position.0);
+                diagnostic.column = Some(position.1);
             }
             report.diagnostics.push(diagnostic);
             annotate_source_locations(source, &mut report.diagnostics);

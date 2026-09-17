@@ -4,6 +4,16 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### Parameter diagnostics and compilation limits
+
+- Preserve actual declaration/module-input positions through nested elaboration without
+  changing default provenance or guessing parameter locations from similarly named comments.
+- Bound source size, parsed/expanded statements and expression work; share node accounting
+  across numeric roles and reject unsupported nested waveform calls without parser recursion.
+- Preserve supported literal/quoted waveforms, existing source examples and backend semantics.
+
+These changes are in source only, not in published 1.1.0 or the live Web Hub.
+
 ### Reproducible parameter inputs
 
 - Add shared versioned root numeric inputs and repeatable CLI `--param NAME=VALUE` for
