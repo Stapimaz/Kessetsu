@@ -109,6 +109,17 @@ impl Elaborator<'_> {
                         }
                         decl.value_expression = Some(expression.qualify(&parameter_prefix));
                     }
+                    if let Some(call) = &mut decl.waveform_expression {
+                        for arg in &mut call.args {
+                            if let Some(expression) = &arg.expression {
+                                self.work += expression.node_count();
+                                if self.work > MAX_EXPRESSION_WORK {
+                                    return Err("Module expression work limit exceeded".into());
+                                }
+                                arg.expression = Some(expression.qualify(&parameter_prefix));
+                            }
+                        }
+                    }
                     self.emit(Statement::Decl(decl), scope)?;
                 }
                 Statement::Net(net) => self.emit(
@@ -231,6 +242,7 @@ impl Elaborator<'_> {
                             subtype: None,
                             value: Some(instance.module_name.clone()),
                             value_expression: None,
+                            waveform_expression: None,
                             interface_pins: module.pins.clone(),
                         }),
                         scope,
@@ -248,6 +260,18 @@ impl Elaborator<'_> {
                         "Instance '{}': put analyses and assertions at the circuit root; parameterized module analysis/assertion contexts are not supported yet",
                         scope.label()
                     ));
+                }
+                Statement::Simulate(analysis) => {
+                    let mut analysis = analysis.clone();
+                    for argument in &mut analysis.numeric_expressions {
+                        let expression = &mut argument.expression;
+                        self.work += expression.node_count();
+                        if self.work > MAX_EXPRESSION_WORK {
+                            return Err("Module expression work limit exceeded".into());
+                        }
+                        *expression = expression.qualify(&parameter_prefix);
+                    }
+                    self.emit(Statement::Simulate(analysis), scope)?;
                 }
                 _ => self.emit(statement.clone(), scope)?,
             }

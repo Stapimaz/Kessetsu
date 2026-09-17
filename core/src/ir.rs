@@ -449,76 +449,88 @@ pub fn parse_waveform(val: &str, value_unit: SIUnit) -> Result<Option<Waveform>,
         .filter(|part| !part.is_empty())
         .collect();
 
+    make_waveform(name, parts.len(), value_unit, |index, unit, _field| {
+        parse_quantity(parts[index], unit)
+    })
+    .map(Some)
+}
+
+/// One waveform constructor for legacy literals and typed numeric expressions.
+fn make_waveform(
+    name: &str,
+    count: usize,
+    value_unit: SIUnit,
+    mut numeric: impl FnMut(usize, SIUnit, &str) -> Result<Quantity, String>,
+) -> Result<Waveform, String> {
     if name.eq_ignore_ascii_case("ac") {
-        if parts.len() != 1 {
-            return Err(format!(
-                "AC expects exactly 1 parameter, got {}",
-                parts.len()
-            ));
+        if count != 1 {
+            return Err(format!("AC expects exactly 1 parameter, got {}", count));
         }
-        return Ok(Some(Waveform::Ac {
-            amplitude: parse_quantity(parts[0], value_unit)?,
-        }));
+        return Ok(Waveform::Ac {
+            amplitude: numeric(0, value_unit, "waveform.amplitude")?,
+        });
     }
 
     if name.eq_ignore_ascii_case("sine") {
-        if parts.len() != 3 {
-            return Err(format!(
-                "SINE expects exactly 3 parameters, got {}",
-                parts.len()
-            ));
+        if count != 3 {
+            return Err(format!("SINE expects exactly 3 parameters, got {}", count));
         }
-        return Ok(Some(Waveform::Sine {
-            offset: parse_quantity(parts[0], value_unit)?,
-            amplitude: parse_quantity(parts[1], value_unit)?,
-            frequency: parse_quantity(parts[2], SIUnit::Hertz)?,
-        }));
+        return Ok(Waveform::Sine {
+            offset: numeric(0, value_unit, "waveform.offset")?,
+            amplitude: numeric(1, value_unit, "waveform.amplitude")?,
+            frequency: numeric(2, SIUnit::Hertz, "waveform.frequency")?,
+        });
     }
 
     if name.eq_ignore_ascii_case("sine_ac") {
-        if parts.len() != 4 {
+        if count != 4 {
             return Err(format!(
                 "SINE_AC expects exactly 4 parameters, got {}",
-                parts.len()
+                count
             ));
         }
-        return Ok(Some(Waveform::SineAc {
-            offset: parse_quantity(parts[0], value_unit)?,
-            amplitude: parse_quantity(parts[1], value_unit)?,
-            frequency: parse_quantity(parts[2], SIUnit::Hertz)?,
-            ac_amplitude: parse_quantity(parts[3], value_unit)?,
-        }));
+        return Ok(Waveform::SineAc {
+            offset: numeric(0, value_unit, "waveform.offset")?,
+            amplitude: numeric(1, value_unit, "waveform.amplitude")?,
+            frequency: numeric(2, SIUnit::Hertz, "waveform.frequency")?,
+            ac_amplitude: numeric(3, value_unit, "waveform.ac_amplitude")?,
+        });
     }
 
     if name.eq_ignore_ascii_case("pulse") {
-        if parts.len() != 7 {
-            return Err(format!(
-                "PULSE expects exactly 7 parameters, got {}",
-                parts.len()
-            ));
+        if count != 7 {
+            return Err(format!("PULSE expects exactly 7 parameters, got {}", count));
         }
-        return Ok(Some(Waveform::Pulse {
-            v1: parse_quantity(parts[0], value_unit)?,
-            v2: parse_quantity(parts[1], value_unit)?,
-            delay: parse_quantity(parts[2], SIUnit::Second)?,
-            rise: parse_quantity(parts[3], SIUnit::Second)?,
-            fall: parse_quantity(parts[4], SIUnit::Second)?,
-            width: parse_quantity(parts[5], SIUnit::Second)?,
-            period: parse_quantity(parts[6], SIUnit::Second)?,
-        }));
+        return Ok(Waveform::Pulse {
+            v1: numeric(0, value_unit, "waveform.v1")?,
+            v2: numeric(1, value_unit, "waveform.v2")?,
+            delay: numeric(2, SIUnit::Second, "waveform.delay")?,
+            rise: numeric(3, SIUnit::Second, "waveform.rise")?,
+            fall: numeric(4, SIUnit::Second, "waveform.fall")?,
+            width: numeric(5, SIUnit::Second, "waveform.width")?,
+            period: numeric(6, SIUnit::Second, "waveform.period")?,
+        });
     }
 
     if name.eq_ignore_ascii_case("pwl") {
-        if parts.len() < 4 || !parts.len().is_multiple_of(2) {
+        if count < 4 || !count.is_multiple_of(2) {
             return Err(format!(
                 "PWL expects at least 2 time/value pairs, got {} parameters",
-                parts.len()
+                count
             ));
         }
-        let mut points = Vec::with_capacity(parts.len() / 2);
-        for pair in parts.chunks_exact(2) {
-            let time = parse_quantity(pair[0], SIUnit::Second)?;
-            let value = parse_quantity(pair[1], value_unit)?;
+        let mut points = Vec::with_capacity(count / 2);
+        for index in (0..count).step_by(2) {
+            let time = numeric(
+                index,
+                SIUnit::Second,
+                &format!("waveform.points[{}].time", index / 2),
+            )?;
+            let value = numeric(
+                index + 1,
+                value_unit,
+                &format!("waveform.points[{}].value", index / 2),
+            )?;
             if time.value < 0.0 {
                 return Err("PWL times must be non-negative".to_string());
             }
@@ -530,10 +542,25 @@ pub fn parse_waveform(val: &str, value_unit: SIUnit) -> Result<Option<Waveform>,
             }
             points.push((time, value));
         }
-        return Ok(Some(Waveform::PWL { points }));
+        return Ok(Waveform::PWL { points });
     }
 
     Err(format!("unsupported waveform '{name}'"))
+}
+
+fn evaluate_numeric(
+    expression: &crate::expression::Expression,
+    expected: SIUnit,
+    values: &std::collections::BTreeMap<String, Quantity>,
+    work: &mut usize,
+) -> Result<Quantity, String> {
+    *work += expression.node_count();
+    if *work > crate::expression::MAX_EXPRESSION_WORK {
+        return Err("Compile expression work limit exceeded".into());
+    }
+    expression
+        .evaluate(values, expected)
+        .map_err(|cause| cause.message)
 }
 
 pub fn resolve_model(name: &str) -> Option<ModelRef> {
@@ -543,6 +570,7 @@ pub fn resolve_model(name: &str) -> Option<ModelRef> {
 fn parse_analysis(
     command: &crate::ast::SimulateStmt,
     components: &[IRComponent],
+    mut numeric: impl FnMut(usize, SIUnit, &str) -> Result<Quantity, String>,
 ) -> Result<Analysis, SemanticDiagnostic> {
     let invalid = |message: String| semantic_error("KES-C009", message, None, Some("analysis"));
     let cmd = command.cmd.to_ascii_lowercase();
@@ -565,9 +593,9 @@ fn parse_analysis(
                     command.args.len()
                 )));
             }
-            let step = parse_quantity(&command.args[0], SIUnit::Second)
+            let step = numeric(0, SIUnit::Second, "step")
                 .map_err(|error| invalid(format!("invalid transient step: {error}")))?;
-            let stop = parse_quantity(&command.args[1], SIUnit::Second)
+            let stop = numeric(1, SIUnit::Second, "stop")
                 .map_err(|error| invalid(format!("invalid transient stop: {error}")))?;
             if step.value <= 0.0 || stop.value <= 0.0 || step.value > stop.value {
                 return Err(invalid(
@@ -583,6 +611,11 @@ fn parse_analysis(
                     command.args.len()
                 )));
             }
+            if command.numeric_expression(0).is_some() {
+                return Err(invalid(
+                    "AC scale is a keyword (dec, oct or lin), not a numeric expression".into(),
+                ));
+            }
             let scale = match command.args[0].to_ascii_lowercase().as_str() {
                 "dec" => AcScale::Decade,
                 "oct" => AcScale::Octave,
@@ -593,12 +626,26 @@ fn parse_analysis(
                     )));
                 }
             };
-            let points = command.args[1]
-                .parse::<u32>()
-                .map_err(|_| invalid("AC points must be a positive integer".to_string()))?;
-            let start = parse_quantity(&command.args[2], SIUnit::Hertz)
+            let points = if command.numeric_expression(1).is_some() {
+                let quantity = numeric(1, SIUnit::Ratio, "points")
+                    .map_err(|error| invalid(format!("invalid AC points: {error}")))?;
+                if quantity.value < 1.0
+                    || quantity.value > u32::MAX as f64
+                    || quantity.value.fract() != 0.0
+                {
+                    return Err(invalid(
+                        "AC points must be a positive integer within the supported range".into(),
+                    ));
+                }
+                quantity.value as u32
+            } else {
+                command.args[1]
+                    .parse::<u32>()
+                    .map_err(|_| invalid("AC points must be a positive integer".to_string()))?
+            };
+            let start = numeric(2, SIUnit::Hertz, "start")
                 .map_err(|error| invalid(format!("invalid AC start frequency: {error}")))?;
-            let stop = parse_quantity(&command.args[3], SIUnit::Hertz)
+            let stop = numeric(3, SIUnit::Hertz, "stop")
                 .map_err(|error| invalid(format!("invalid AC stop frequency: {error}")))?;
             if points == 0 || start.value <= 0.0 || stop.value <= start.value {
                 return Err(invalid(
@@ -620,6 +667,11 @@ fn parse_analysis(
                     command.args.len()
                 )));
             }
+            if command.numeric_expression(0).is_some() {
+                return Err(invalid(
+                    "DC sweep target must be a source name, not a numeric expression".into(),
+                ));
+            }
             let source = &command.args[0];
             let source_kind = components
                 .iter()
@@ -635,11 +687,11 @@ fn parse_analysis(
                     )));
                 }
             };
-            let start = parse_quantity(&command.args[1], unit)
+            let start = numeric(1, unit, "start")
                 .map_err(|error| invalid(format!("invalid DC sweep start: {error}")))?;
-            let stop = parse_quantity(&command.args[2], unit)
+            let stop = numeric(2, unit, "stop")
                 .map_err(|error| invalid(format!("invalid DC sweep stop: {error}")))?;
-            let step = parse_quantity(&command.args[3], unit)
+            let step = numeric(3, unit, "step")
                 .map_err(|error| invalid(format!("invalid DC sweep step: {error}")))?;
             if step.value == 0.0
                 || (stop.value - start.value).is_sign_positive() != step.value.is_sign_positive()
@@ -717,27 +769,30 @@ pub fn ast_to_ir_with_resources(
                         Some("value"),
                     ));
                 }
-                let mut numeric_value = |expected: SIUnit| -> Result<Quantity, String> {
-                    if let Some(expression) = &decl.value_expression {
-                        expression_work += expression.node_count();
-                        if expression_work > crate::expression::MAX_EXPRESSION_WORK {
-                            return Err("Compile expression work limit exceeded".into());
-                        }
-                        let resolved = expression
-                            .evaluate(&parameter_values, expected)
-                            .map_err(|cause| cause.message)?;
+                let mut numeric_value = |input: &str,
+                                         expression: Option<&crate::expression::Expression>,
+                                         expected: SIUnit,
+                                         field: &str|
+                 -> Result<Quantity, String> {
+                    if let Some(expression) = expression {
+                        let resolved = evaluate_numeric(
+                            expression,
+                            expected,
+                            &parameter_values,
+                            &mut expression_work,
+                        )?;
                         parameter_manifest
                             .bindings
                             .push(crate::expression::ParameterBinding {
                                 component: decl.name.clone(),
-                                field: "value".into(),
+                                field: field.into(),
                                 expression: expression.source.clone(),
                                 dependencies: expression.dependencies().into_iter().collect(),
                                 resolved: resolved.clone(),
                             });
                         Ok(resolved)
                     } else {
-                        parse_quantity(val_str, expected)
+                        parse_quantity(input, expected)
                     }
                 };
                 let mut model = None;
@@ -753,7 +808,13 @@ pub fn ast_to_ir_with_resources(
                     ComponentType::Resistor => (
                         ComponentKind::Resistor,
                         ComponentParams::TwoPinPassive {
-                            value: numeric_value(SIUnit::Ohm).map_err(|error| {
+                            value: numeric_value(
+                                val_str,
+                                decl.value_expression.as_ref(),
+                                SIUnit::Ohm,
+                                "value",
+                            )
+                            .map_err(|error| {
                                 semantic_error(
                                     "KES-C001",
                                     format!("invalid resistor value: {error}"),
@@ -766,7 +827,13 @@ pub fn ast_to_ir_with_resources(
                     ComponentType::Capacitor => (
                         ComponentKind::Capacitor,
                         ComponentParams::TwoPinPassive {
-                            value: numeric_value(SIUnit::Farad).map_err(|error| {
+                            value: numeric_value(
+                                val_str,
+                                decl.value_expression.as_ref(),
+                                SIUnit::Farad,
+                                "value",
+                            )
+                            .map_err(|error| {
                                 semantic_error(
                                     "KES-C001",
                                     format!("invalid capacitor value: {error}"),
@@ -779,7 +846,13 @@ pub fn ast_to_ir_with_resources(
                     ComponentType::Inductor => (
                         ComponentKind::Inductor,
                         ComponentParams::TwoPinPassive {
-                            value: numeric_value(SIUnit::Henry).map_err(|error| {
+                            value: numeric_value(
+                                val_str,
+                                decl.value_expression.as_ref(),
+                                SIUnit::Henry,
+                                "value",
+                            )
+                            .map_err(|error| {
                                 semantic_error(
                                     "KES-C001",
                                     format!("invalid inductor value: {error}"),
@@ -793,6 +866,18 @@ pub fn ast_to_ir_with_resources(
                         let kind = ComponentKind::VoltageSource;
                         let waveform = if decl.value_expression.is_some() {
                             Ok(None)
+                        } else if let Some(call) = &decl.waveform_expression {
+                            make_waveform(
+                                &call.name,
+                                call.args.len(),
+                                SIUnit::Volt,
+                                |index, unit, field| {
+                                    let arg = &call.args[index];
+                                    numeric_value(&arg.value, arg.expression.as_ref(), unit, field)
+                                        .map_err(|error| format!("{field}: {error}"))
+                                },
+                            )
+                            .map(Some)
                         } else {
                             parse_waveform(val_str, SIUnit::Volt)
                         };
@@ -806,14 +891,22 @@ pub fn ast_to_ir_with_resources(
                         })? {
                             SourceValue::Waveform(waveform)
                         } else {
-                            SourceValue::Dc(numeric_value(SIUnit::Volt).map_err(|error| {
-                                semantic_error(
-                                    "KES-C001",
-                                    format!("invalid voltage-source value: {error}"),
-                                    Some(&decl.name),
-                                    Some("value"),
+                            SourceValue::Dc(
+                                numeric_value(
+                                    val_str,
+                                    decl.value_expression.as_ref(),
+                                    SIUnit::Volt,
+                                    "value",
                                 )
-                            })?)
+                                .map_err(|error| {
+                                    semantic_error(
+                                        "KES-C001",
+                                        format!("invalid voltage-source value: {error}"),
+                                        Some(&decl.name),
+                                        Some("value"),
+                                    )
+                                })?,
+                            )
                         };
                         (kind, ComponentParams::VoltageSource { value })
                     }
@@ -821,6 +914,18 @@ pub fn ast_to_ir_with_resources(
                         let kind = ComponentKind::CurrentSource;
                         let waveform = if decl.value_expression.is_some() {
                             Ok(None)
+                        } else if let Some(call) = &decl.waveform_expression {
+                            make_waveform(
+                                &call.name,
+                                call.args.len(),
+                                SIUnit::Ampere,
+                                |index, unit, field| {
+                                    let arg = &call.args[index];
+                                    numeric_value(&arg.value, arg.expression.as_ref(), unit, field)
+                                        .map_err(|error| format!("{field}: {error}"))
+                                },
+                            )
+                            .map(Some)
                         } else {
                             parse_waveform(val_str, SIUnit::Ampere)
                         };
@@ -834,14 +939,22 @@ pub fn ast_to_ir_with_resources(
                         })? {
                             SourceValue::Waveform(waveform)
                         } else {
-                            SourceValue::Dc(numeric_value(SIUnit::Ampere).map_err(|error| {
-                                semantic_error(
-                                    "KES-C001",
-                                    format!("invalid current-source value: {error}"),
-                                    Some(&decl.name),
-                                    Some("value"),
+                            SourceValue::Dc(
+                                numeric_value(
+                                    val_str,
+                                    decl.value_expression.as_ref(),
+                                    SIUnit::Ampere,
+                                    "value",
                                 )
-                            })?)
+                                .map_err(|error| {
+                                    semantic_error(
+                                        "KES-C001",
+                                        format!("invalid current-source value: {error}"),
+                                        Some(&decl.name),
+                                        Some("value"),
+                                    )
+                                })?,
+                            )
                         };
                         (kind, ComponentParams::CurrentSource { value })
                     }
@@ -1068,7 +1181,31 @@ pub fn ast_to_ir_with_resources(
 
     let analyses = analysis_statements
         .iter()
-        .map(|analysis| parse_analysis(analysis, &components))
+        .enumerate()
+        .map(|(analysis_index, analysis)| {
+            parse_analysis(analysis, &components, |index, unit, field| {
+                if let Some(expression) = analysis.numeric_expression(index) {
+                    let resolved = evaluate_numeric(
+                        expression,
+                        unit,
+                        &parameter_values,
+                        &mut expression_work,
+                    )?;
+                    parameter_manifest.analysis_bindings.push(
+                        crate::expression::AnalysisParameterBinding {
+                            analysis_index,
+                            field: field.into(),
+                            expression: expression.source.clone(),
+                            dependencies: expression.dependencies().into_iter().collect(),
+                            resolved: resolved.clone(),
+                        },
+                    );
+                    Ok(resolved)
+                } else {
+                    parse_quantity(&analysis.args[index], unit)
+                }
+            })
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let mut analysis_keys = std::collections::BTreeSet::new();
     for analysis in &analyses {
@@ -1101,6 +1238,9 @@ pub fn ast_to_ir_with_resources(
     parameter_manifest
         .bindings
         .sort_by(|a, b| (&a.component, &a.field).cmp(&(&b.component, &b.field)));
+    parameter_manifest
+        .analysis_bindings
+        .sort_by(|a, b| (a.analysis_index, &a.field).cmp(&(b.analysis_index, &b.field)));
     Ok(CircuitIR {
         components,
         connections,

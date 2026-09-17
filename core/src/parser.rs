@@ -261,6 +261,7 @@ fn parse_statement(
                         subtype: None,
                         value,
                         value_expression,
+                        waveform_expression: None,
                         interface_pins: Vec::new(),
                     }))
                 }
@@ -290,6 +291,7 @@ fn parse_statement(
                         subtype,
                         value,
                         value_expression: None,
+                        waveform_expression: None,
                         interface_pins: Vec::new(),
                     }))
                 }
@@ -305,6 +307,26 @@ fn parse_statement(
                     let value_pair = inner_rules.next().unwrap();
                     let value_expression = numeric_expression(&value_pair)?;
                     let value = Some(value_pair.as_str().to_string());
+                    let mut waveform_expression = None;
+                    if value_pair.as_rule() == Rule::source_param {
+                        let call = value_pair.clone().into_inner().next().unwrap();
+                        if call.as_rule() == Rule::func_call {
+                            let mut fields = call.into_inner();
+                            let name = fields.next().unwrap().as_str().to_string();
+                            let mut args = Vec::new();
+                            for arg in fields {
+                                let expression = numeric_expression(&arg)?;
+                                args.push(NumericArgument {
+                                    value: arg.as_str().to_string(),
+                                    expression,
+                                });
+                            }
+                            // Keep the legacy literal AST shape and parser path.
+                            if args.iter().any(|arg| arg.expression.is_some()) {
+                                waveform_expression = Some(WaveformCall { name, args });
+                            }
+                        }
+                    }
 
                     Some(Statement::Decl(ComponentDecl {
                         comp_type,
@@ -312,6 +334,7 @@ fn parse_statement(
                         subtype: None,
                         value,
                         value_expression,
+                        waveform_expression,
                         interface_pins: Vec::new(),
                     }))
                 }
@@ -405,14 +428,25 @@ fn parse_statement(
             let mut inner_rules = inner.into_inner();
             let cmd = inner_rules.next().unwrap().as_str().to_string();
             let mut args = Vec::new();
+            let mut numeric_expressions = Vec::new();
             for arg in inner_rules {
+                if let Some(expression) = numeric_expression(&arg)? {
+                    numeric_expressions.push(IndexedExpression {
+                        index: args.len(),
+                        expression,
+                    });
+                }
                 let mut arg_val = arg.as_str().to_string();
                 if arg_val.starts_with('"') && arg_val.ends_with('"') {
                     arg_val = arg_val[1..arg_val.len() - 1].to_string();
                 }
                 args.push(arg_val);
             }
-            Some(Statement::Simulate(SimulateStmt { cmd, args }))
+            Some(Statement::Simulate(SimulateStmt {
+                cmd,
+                args,
+                numeric_expressions,
+            }))
         }
         _ => None,
     })

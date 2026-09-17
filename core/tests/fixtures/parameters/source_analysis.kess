@@ -1,0 +1,20 @@
+// One excitation frequency also defines the analysis range and time window.
+param amplitude: V = 1V
+param frequency: Hz = 1kHz
+param period: s = 1 / frequency
+param points: ratio = 80
+net GND
+net IN
+net OUT
+source VIN sine_ac(0V,{amplitude},{frequency},{amplitude})
+resistor R1 1k
+capacitor C1 159.154943nF
+connect VIN.plus, R1.p1 to IN
+connect R1.p2, C1.p1 to OUT
+connect VIN.minus, C1.p2 to GND
+simulate ac dec {points} {frequency / 100} {frequency * 100}
+simulate tran {period / 100} {period * 10}
+assert gain_at(V(OUT),V(IN),1kHz) > 0.70
+assert gain_at(V(OUT),V(IN),1kHz) < 0.72
+assert rms(V(OUT),2ms,10ms) > 0.45V
+assert rms(V(OUT),2ms,10ms) < 0.55V

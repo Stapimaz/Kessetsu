@@ -5,7 +5,7 @@ export type KessetsuCompletion = {
 };
 
 export const topLevelCompletions: readonly KessetsuCompletion[] = [
-  { label: 'param', detail: 'Declare a typed quantity in the root or module scope; use {name} in numeric component values.', insertText: 'param ${1:supply}: ${2|V,A,Ohm,F,H,Hz,s,W,ratio,percent,deg|} = ${3:12V}' },
+  { label: 'param', detail: 'Declare a typed quantity in the root or module scope; use {name} in numeric component, waveform and analysis fields.', insertText: 'param ${1:supply}: ${2|V,A,Ohm,F,H,Hz,s,W,ratio,percent,deg|} = ${3:12V}' },
   { label: 'net', detail: 'Declare a named electrical net.', insertText: 'net ${1:GND}' },
   { label: 'source', detail: 'Declare an independent voltage source.', insertText: 'source ${1:VIN} ${2:5V}' },
   { label: 'current_source', detail: 'Declare an independent current source.', insertText: 'current_source ${1:I1} ${2:1mA}' },
@@ -29,9 +29,9 @@ export const topLevelCompletions: readonly KessetsuCompletion[] = [
 
 export const analysisCompletions: readonly KessetsuCompletion[] = [
   { label: 'op', detail: 'DC operating point.', insertText: 'op' },
-  { label: 'tran', detail: 'Transient analysis: step and stop time.', insertText: 'tran ${1:10us} ${2:5ms}' },
-  { label: 'ac', detail: 'AC analysis: scale, points, start, and stop frequency.', insertText: 'ac ${1|dec,oct,lin|} ${2:30} ${3:10Hz} ${4:10MHz}' },
-  { label: 'dc', detail: 'Sweep one independent source.', insertText: 'dc ${1:VIN} ${2:-1V} ${3:1V} ${4:10mV}' },
+  { label: 'tran', detail: 'Transient analysis: step and stop time; both accept {expression} in seconds.', insertText: 'tran ${1:10us} ${2:5ms}' },
+  { label: 'ac', detail: 'AC analysis: scale, points, start, and stop frequency. Numeric fields accept {expression}; points must resolve to a positive integer.', insertText: 'ac ${1|dec,oct,lin|} ${2:30} ${3:10Hz} ${4:10MHz}' },
+  { label: 'dc', detail: 'Sweep one independent source. Start, stop and step accept {expression} in the source unit; the source name is literal.', insertText: 'dc ${1:VIN} ${2:-1V} ${3:1V} ${4:10mV}' },
 ] as const;
 
 export const metricCompletions: readonly KessetsuCompletion[] = [

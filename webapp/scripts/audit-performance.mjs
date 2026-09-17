@@ -27,7 +27,9 @@ const stages = [
   {
     id: 'editor_activation',
     description: 'Editor UI, Monaco worker and canonical Core WASM loaded after Open Web Hub',
-    budget_gzip_bytes: 2800 * 1024,
+    // Reviewed scalar/module + waveform/analysis feature growth: measured 2804 KiB.
+    // Preserve a close regression ceiling; landing/simulation budgets stay unchanged.
+    budget_gzip_bytes: 2850 * 1024,
     assets: select('editor activation', [/^WorkspaceApp-.*\.js$/, /^WorkspaceApp-.*\.css$/, /^editor\.worker-.*\.js$/, /^kessetsu_core_bg-.*\.wasm$/]),
   },
   {

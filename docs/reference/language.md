@@ -54,8 +54,9 @@ Percentages normalize to fractions during arithmetic (`5% * 12V` is 0.6 V), whil
 `percent` quantity/threshold is expressed in percentage points. Angles cannot become ratios.
 
 Parameters do not infer topology or guarantee a named target: the circuit must explicitly
-use the relationship, then simulation/assertions verify its actual behavior. Model-name,
-waveform, analysis and assertion fields do not accept expressions in this initial slice.
+use the relationship, then simulation/assertions verify its actual behavior. Supported
+waveform and analysis numeric fields also accept braced expressions; names, model fields
+and assertion numeric fields do not accept expressions in this slice.
 Command-line overrides are not yet available. Module defaults and component expressions
 do not implicitly capture global or caller parameters. Evaluator-owned
 `.kessreq` files remain independent and assertion-only.
@@ -99,8 +100,8 @@ dependencies. Ambiguous flattened paths are rejected rather than silently rename
 Declared interface pins are checked by ERC. Module-local named nets are scoped too.
 
 Put analyses and assertions at the root: parameterized module-local analysis/assertion
-contexts are not supported yet and fail explicitly. Waveform/analysis/assertion numeric
-expressions and root CLI overrides remain follow-on work. No model-name expressions,
+contexts are not supported yet and fail explicitly. Assertion numeric expressions and
+root CLI overrides remain follow-on work. No model-name expressions,
 automatic topology generation or extra editor panel is introduced.
 
 ## Connections and pins
@@ -115,6 +116,40 @@ connect R1.p2, C1.p1 to OUT
 Canonical pins are `p1/p2` for two-terminal passives and diodes, `plus/minus` for sources, `c/b/e` for BJTs, `d/g/s` for MOSFETs and `in_p/in_n/vcc/vee/out` for op-amps. Every required pin must be connected. `GND` is the reference net; ambiguous or missing reference topology fails ERC.
 
 ## Analyses and assertions
+
+### Parameterized excitation and analyses (unreleased)
+
+```kessetsu
+param amplitude: V = 1V
+param frequency: Hz = 1kHz
+param period: s = 1 / frequency
+param points: ratio = 80
+source VIN sine_ac(0V,{amplitude},{frequency},{amplitude})
+simulate ac dec {points} {frequency / 100} {frequency * 100}
+simulate tran {period / 100} {period * 10}
+```
+
+This excerpt illustrates numeric fields; the [complete RC fixture](../../core/tests/fixtures/parameters/source_analysis.kess)
+includes connections and fixed requirements. One frequency controls the excitation, the
+AC range and a ten-period transient window without duplicating numbers. Existing literal
+syntax remains valid; use braces only where a formula or parameter is useful.
+
+All numeric arguments of unquoted `ac`, `sine`, `sine_ac`, `pulse` and `pwl` calls accept
+expressions. Voltage/current levels use the source's unit, frequency uses Hz, and times
+use seconds. PWL keeps its alternating time/value arguments and increasing-time checks.
+Legacy quoted SPICE-style waveforms remain literal-only: do not put `{name}` inside quotes.
+Module waveform expressions use the module's own parameter scope, including overrides.
+
+Transient step/stop, AC points/start/stop and DC start/stop/step accept expressions.
+AC points must resolve to a positive dimensionless integer within the supported unsigned
+32-bit range; `param points: ratio = 80` is the straightforward declaration. Scale keywords
+(`dec`, `oct`, `lin`) and DC source names are not numeric fields. Existing analysis arity,
+unit, sweep-direction and uniqueness checks apply after values resolve. Put analyses at
+the circuit root. Assertion values remain literal in this slice; independently owned
+requirements cannot refer to design parameters. For combined AC/transient simulations,
+use explicit transient time windows when asserting waveform reductions such as RMS.
+
+### Literal analyses and requirements
 
 ```kessetsu
 simulate op

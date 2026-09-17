@@ -4,6 +4,17 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### Parameterized excitation and analyses
+
+- Accept `{expression}` in all numeric slots of unquoted `ac`, `sine`, `sine_ac`,
+  `pulse` and `pwl` voltage/current sources, with lexical module parameter binding.
+- Accept expressions for transient step/stop, AC points/start/stop and DC start/stop/step.
+  Keep scale keywords/source names literal and require positive integral AC point counts.
+- Resolve typed values directly into IR; retain waveform-field and optional sorted
+  analysis-field provenance without changing literal backend output.
+
+These changes are in source only, not in published 1.1.0 or the live Web Hub.
+
 ### CLI output protection
 
 - Check netlist and model-lock destinations before either write. Reuse byte-identical

@@ -68,8 +68,13 @@ scales internally and validates the destination unit. Circuit IR carries optiona
 `kessetsu.parameters.v1` parameter and field-binding provenance; backends use resolved values
 and never evaluate expressions. Empty provenance is omitted for literal circuits.
 
-This source-only slice accepts passive and DC-source expressions in top-level and module
-scopes. `elaboration.rs` rebinds names in typed expression trees before shared IR evaluation;
+This source-only slice accepts passive, DC-source and supported waveform expressions in
+top-level/module scopes, plus numeric analysis fields at the root. Typed waveform arguments
+and indexed analysis expressions resolve directly to Quantity through the shared numeric
+evaluator. Literal and expression waveforms use one constructor/validation path. Component
+bindings identify waveform fields; optional sorted analysis bindings carry the zero-based
+IR analysis index and numeric field, rather than inventing a component identity.
+`elaboration.rs` rebinds names in typed expression trees before shared IR evaluation;
 it never substitutes source text or formats resolved numbers back into syntax. Module
 defaults remain lexical; explicit overrides bind in the caller's scope before default
 dependency resolution. Provenance records structured instance paths and effective overrides.

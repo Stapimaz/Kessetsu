@@ -19,7 +19,7 @@ standard_decl = { comp_type ~ ident ~ numeric_value? }
 // Sources
 source_type = { "source" | "current_source" }
 func_call = { ident ~ "(" ~ source_param ~ ("," ~ source_param)* ~ ")" }
-source_param = { func_call | comp_value }
+source_param = { value_expr | func_call | comp_value }
 source_decl = { source_type ~ ident ~ (value_expr | source_param) }
 
 decl = { transistor_decl | standard_decl | source_decl }
@@ -40,7 +40,7 @@ assert_stmt = { "assert" ~ metric_call ~ cmp_op ~ comp_value }
 // Misc
 param_override = { ident ~ "=" ~ numeric_value }
 use_stmt = { "use" ~ ident ~ ident ~ ("(" ~ param_override ~ ("," ~ param_override)* ~ ")")? }
-sim_cmd = { "simulate" ~ ident ~ comp_value* }
+sim_cmd = { "simulate" ~ ident ~ numeric_value* }
 
 // Typed model/subcircuit declarations. Values are parsed and validated by semantic analysis;
 // they are never copied into SPICE as raw directives.

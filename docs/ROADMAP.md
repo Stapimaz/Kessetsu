@@ -43,8 +43,9 @@ published binary releases and tags remain immutable.
   yet included in published downloads or the deployed Web Hub.
 - [ ] Named quantities and reusable parameterized circuits. The first source-only slice
   supports typed top-level/module parameters, caller-scoped instance overrides and
-  passive/DC-source expressions; it is not in published 1.1.0 binaries or the deployed
-  Web Hub. Broader numeric contexts and root CLI overrides remain in development.
+  passive/DC-source/waveform expressions and numeric analysis settings; it is not in
+  published 1.1.0 binaries or the deployed Web Hub. Assertion numeric expressions and
+  root CLI overrides remain in development.
 
 ## Under consideration
 

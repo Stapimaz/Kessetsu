@@ -22,6 +22,8 @@ pub struct ComponentDecl {
     pub value: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub value_expression: Option<crate::expression::Expression>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub waveform_expression: Option<WaveformCall>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub interface_pins: Vec<String>,
 }
@@ -79,6 +81,41 @@ pub struct ParameterOverride {
 pub struct SimulateStmt {
     pub cmd: String,
     pub args: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub numeric_expressions: Vec<IndexedExpression>,
+}
+
+impl SimulateStmt {
+    pub(crate) fn numeric_expression(
+        &self,
+        index: usize,
+    ) -> Option<&crate::expression::Expression> {
+        self.numeric_expressions
+            .iter()
+            .find(|arg| arg.index == index)
+            .map(|arg| &arg.expression)
+    }
+}
+
+/// A sequence is JSON-compatible in native and WASM serializers alike;
+/// integer-keyed maps are not supported by the browser's object serializer.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct IndexedExpression {
+    pub index: usize,
+    pub expression: crate::expression::Expression,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WaveformCall {
+    pub name: String,
+    pub args: Vec<NumericArgument>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NumericArgument {
+    pub value: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expression: Option<crate::expression::Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
