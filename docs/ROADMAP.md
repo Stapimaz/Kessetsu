@@ -42,9 +42,9 @@ published binary releases and tags remain immutable.
 - [ ] Builtin diode portability repair, verified in native/browser source tests but not
   yet included in published downloads or the deployed Web Hub.
 - [ ] Named quantities and reusable parameterized circuits. The first source-only slice
-  supports typed top-level parameters and passive/DC-source expressions; it is not in
-  published 1.1.0 binaries or the deployed Web Hub. Module overrides and broader numeric
-  expression contexts remain in development.
+  supports typed top-level/module parameters, caller-scoped instance overrides and
+  passive/DC-source expressions; it is not in published 1.1.0 binaries or the deployed
+  Web Hub. Broader numeric contexts and root CLI overrides remain in development.
 
 ## Under consideration
 

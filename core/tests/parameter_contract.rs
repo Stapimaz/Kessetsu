@@ -162,7 +162,11 @@ fn numeric_expressions_do_not_reinterpret_models_or_capture_globals_inside_modul
         CompileOptions::default(),
     );
     assert!(scoped.has_errors());
-    assert!(scoped.diagnostics[0].message.contains("instance-scoped"));
+    assert!(
+        scoped.diagnostics[0]
+            .message
+            .contains("Unknown parameter 'X.r'")
+    );
     let recursive = compile_source(
         "module M(p1,p2) {\nuse M X\n}\nuse M X\n",
         CompileOptions::default(),

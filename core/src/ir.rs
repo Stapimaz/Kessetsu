@@ -53,14 +53,28 @@ pub enum FETPolarity {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ComponentParams {
-    TwoPinPassive { value: Quantity },
-    BJTParams { polarity: BJTPolarity },
-    MOSFETParams { polarity: FETPolarity },
+    TwoPinPassive {
+        value: Quantity,
+    },
+    BJTParams {
+        polarity: BJTPolarity,
+    },
+    MOSFETParams {
+        polarity: FETPolarity,
+    },
     DiodeParams,
     OpAmpParams,
-    VoltageSource { value: SourceValue },
-    CurrentSource { value: SourceValue },
-    ModulePort { module_name: String },
+    VoltageSource {
+        value: SourceValue,
+    },
+    CurrentSource {
+        value: SourceValue,
+    },
+    ModulePort {
+        module_name: String,
+        #[serde(default)]
+        pins: Vec<String>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -733,6 +747,7 @@ pub fn ast_to_ir_with_resources(
                         ComponentKind::ModulePort,
                         ComponentParams::ModulePort {
                             module_name: val_str.to_string(),
+                            pins: decl.interface_pins.clone(),
                         },
                     ),
                     ComponentType::Resistor => (
@@ -1080,6 +1095,9 @@ pub fn ast_to_ir_with_resources(
     }
 
     let model_manifest = model_library.manifest(&components);
+    parameter_manifest
+        .parameters
+        .sort_by(|a, b| (&a.instance_path, &a.name).cmp(&(&b.instance_path, &b.name)));
     parameter_manifest
         .bindings
         .sort_by(|a, b| (&a.component, &a.field).cmp(&(&b.component, &b.field)));

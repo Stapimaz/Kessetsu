@@ -5,7 +5,7 @@ export type KessetsuCompletion = {
 };
 
 export const topLevelCompletions: readonly KessetsuCompletion[] = [
-  { label: 'param', detail: 'Declare a top-level typed quantity; use {name} in numeric component values.', insertText: 'param ${1:supply}: ${2|V,A,Ohm,F,H,Hz,s,W,ratio,percent,deg|} = ${3:12V}' },
+  { label: 'param', detail: 'Declare a typed quantity in the root or module scope; use {name} in numeric component values.', insertText: 'param ${1:supply}: ${2|V,A,Ohm,F,H,Hz,s,W,ratio,percent,deg|} = ${3:12V}' },
   { label: 'net', detail: 'Declare a named electrical net.', insertText: 'net ${1:GND}' },
   { label: 'source', detail: 'Declare an independent voltage source.', insertText: 'source ${1:VIN} ${2:5V}' },
   { label: 'current_source', detail: 'Declare an independent current source.', insertText: 'current_source ${1:I1} ${2:1mA}' },
@@ -24,7 +24,7 @@ export const topLevelCompletions: readonly KessetsuCompletion[] = [
   { label: 'subcircuit', detail: 'Declare a safe parameterized op-amp subcircuit.', insertText: 'subcircuit opamp ${1:SafeOp} (in_p,in_n,vcc,vee,out) version=${2:1.0.0} license=${3:MIT} gain=${4:100k} bandwidth=${5:2MHz}' },
   { label: 'external_subcircuit', detail: 'Bind an exact user-owned external op-amp model by hash.', insertText: 'external_subcircuit opamp ${1:OPA197} (in_p,in_n,vcc,vee,out) file="${2:models/model.lib}" entry=${3:OPA197} sha256=${4:64_hex_digest} version="${5:version}" license="${6:vendor terms}" source="${7:source URL}" simulator=${8|ngspice,ngspice_ps|} redistribution=${9|prohibited,permitted|}' },
   { label: 'module', detail: 'Define reusable topology that is flattened before Circuit IR.', insertText: 'module ${1:divider}(${2:input},${3:output}) {\n\t${4:// declarations and connections}\n}' },
-  { label: 'use', detail: 'Instantiate a declared module.', insertText: 'use ${1:module_name} ${2:instance_name}' },
+  { label: 'use', detail: 'Instantiate a declared module with independent defaults; optional named overrides: use RC X(cutoff=500Hz). Braced overrides use caller parameters.', insertText: 'use ${1:module_name} ${2:instance_name}' },
 ] as const;
 
 export const analysisCompletions: readonly KessetsuCompletion[] = [

@@ -221,6 +221,8 @@ fn parse_statement(
                 expression,
                 line,
                 column,
+                instance_path: Vec::new(),
+                default_expression: None,
             }))
         }
         Rule::decl => {
@@ -259,6 +261,7 @@ fn parse_statement(
                         subtype: None,
                         value,
                         value_expression,
+                        interface_pins: Vec::new(),
                     }))
                 }
                 Rule::transistor_decl => {
@@ -287,6 +290,7 @@ fn parse_statement(
                         subtype,
                         value,
                         value_expression: None,
+                        interface_pins: Vec::new(),
                     }))
                 }
                 Rule::source_decl => {
@@ -308,6 +312,7 @@ fn parse_statement(
                         subtype: None,
                         value,
                         value_expression,
+                        interface_pins: Vec::new(),
                     }))
                 }
                 _ => unreachable!(),
@@ -368,9 +373,32 @@ fn parse_statement(
             let mut inner_rules = inner.into_inner();
             let module_name = inner_rules.next().unwrap().as_str().to_string();
             let inst_name = inner_rules.next().unwrap().as_str().to_string();
+            let mut overrides = Vec::new();
+            for pair in inner_rules {
+                let (line, column) = pair.as_span().start_pos().line_col();
+                let mut fields = pair.into_inner();
+                let name = fields.next().unwrap().as_str().to_string();
+                let value = fields.next().unwrap().into_inner().next().unwrap();
+                if value.as_rule() != Rule::value_expr
+                    && crate::ir::parse_value(value.as_str()).is_err()
+                {
+                    return Err(pest::error::Error::new_from_span(
+                        pest::error::ErrorVariant::CustomError { message: "A parameter override expects a numeric literal or a braced expression".into() },
+                        value.as_span(),
+                    ));
+                }
+                let expression = expression_pair(&value, value.as_rule() == Rule::value_expr)?;
+                overrides.push(ParameterOverride {
+                    name,
+                    expression,
+                    line,
+                    column,
+                });
+            }
             Some(Statement::Use(UseStmt {
                 module_name,
                 inst_name,
+                overrides,
             }))
         }
         Rule::sim_cmd => {

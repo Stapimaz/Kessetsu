@@ -42,7 +42,7 @@ resistor RG {resistance}
 resistor RF {(target_gain - 1) * resistance}
 ```
 
-Parameters are optional, top-level and explicitly typed: `Ohm`, `F`, `H`, `V`, `A`, `Hz`,
+Parameters are optional, declared at the top level or inside modules, and explicitly typed: `Ohm`, `F`, `H`, `V`, `A`, `Hz`,
 `s`, `W`, `ratio`, `percent` or `deg`. Forward references are allowed; duplicate/unknown
 names and dependency cycles produce errors. `pi` is read-only. Expressions support finite
 SI literals, names, parentheses, unary signs and `+ - * /`, with ordinary precedence.
@@ -56,9 +56,52 @@ Percentages normalize to fractions during arithmetic (`5% * 12V` is 0.6 V), whil
 Parameters do not infer topology or guarantee a named target: the circuit must explicitly
 use the relationship, then simulation/assertions verify its actual behavior. Model-name,
 waveform, analysis and assertion fields do not accept expressions in this initial slice.
-Module-scoped parameters/expressions and command-line overrides are not yet available;
-there is no implicit capture of global parameters inside modules. Evaluator-owned
+Command-line overrides are not yet available. Module defaults and component expressions
+do not implicitly capture global or caller parameters. Evaluator-owned
 `.kessreq` files remain independent and assertion-only.
+
+### Independent module parameters (unreleased)
+
+```kessetsu
+param base_cutoff: Hz = 500Hz
+module RC(input,output,gnd) {
+  param resistance: Ohm = 1k
+  param cutoff: Hz = 1k
+  param capacitance: F = 1 / (2 * pi * resistance * cutoff)
+  resistor R1 {resistance}
+  capacitor C1 {capacitance}
+  connect input to R1.p1
+  connect R1.p2, C1.p1 to output
+  connect C1.p2 to gnd
+}
+use RC SLOW(cutoff={base_cutoff})
+use RC FAST(cutoff={base_cutoff * 4})
+```
+
+This is a block-definition example, not a complete connected simulation. See the
+[two-filter fixture](../../core/tests/fixtures/parameters/rc_instances.kess) for sources,
+external port connections, AC analysis and fixed assertions.
+
+`use RC DEFAULT` keeps defaults. Named overrides accept whole literals with the child's
+declared unit (`cutoff=500Hz`, `resistance=2k`) or braced expressions evaluated in the
+caller's parameter scope. Defaults and component expressions use only the module's own
+parameters and `pi`; pass parent values explicitly. Nested instances follow the same rule.
+Each instance resolves independently, including forward references and recalculated
+defaults. Every parameter is overrideable, including calculated capacitance: choosing
+a standard capacitor does not guarantee the originally named cutoff target.
+
+Duplicate/unknown overrides and incompatible units fail compilation. All default
+expressions must have valid names and units even when overridden. Dependency cycles are
+checked in effective definitions; an override may deliberately break a default cycle.
+Electrical IDs retain the existing underscore prefixes (`SLOW_R1`), while parameter
+provenance carries separate instance-path segments, defaults, overrides and qualified
+dependencies. Ambiguous flattened paths are rejected rather than silently renamed.
+Declared interface pins are checked by ERC. Module-local named nets are scoped too.
+
+Put analyses and assertions at the root: parameterized module-local analysis/assertion
+contexts are not supported yet and fail explicitly. Waveform/analysis/assertion numeric
+expressions and root CLI overrides remain follow-on work. No model-name expressions,
+automatic topology generation or extra editor panel is introduced.
 
 ## Connections and pins
 

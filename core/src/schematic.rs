@@ -428,7 +428,7 @@ fn component_labels(component: &IRComponent) -> (Option<String>, Option<String>,
                 SourceValue::Waveform(waveform) => waveform_label(waveform),
             })
         }
-        ComponentParams::ModulePort { module_name } => Some(module_name.clone()),
+        ComponentParams::ModulePort { module_name, .. } => Some(module_name.clone()),
         _ => None,
     };
     let model = component.model.as_ref().map(|model| model.name.clone());
@@ -3843,6 +3843,7 @@ fn endpoint_pin(endpoint: &WireEndpoint) -> Option<PinRef> {
 }
 
 fn connectivity_report(
+    circuit: &CircuitIR,
     graph: &NetlistGraph,
     components: &[SchematicComponent],
     wires: &[SchematicWire],
@@ -3851,8 +3852,20 @@ fn connectivity_report(
     crossings: &[Crossing],
 ) -> ConnectivityReport {
     let mut expected: BTreeMap<NetId, BTreeSet<PinRef>> = BTreeMap::new();
+    // Module ports are graph aliases joining expanded physical pins, not
+    // drawable symbol pins. Filter only IR-declared virtual components, never
+    // infer the expected pin set from what the renderer happened to include.
+    let virtual_components: BTreeSet<_> = circuit
+        .components
+        .iter()
+        .filter(|component| component.kind == ComponentKind::ModulePort)
+        .map(|component| component.id.as_str())
+        .collect();
     for (pin_id, net) in &graph.pin_to_net {
         if let Some((component, pin)) = pin_id.split_once('.') {
+            if virtual_components.contains(component) {
+                continue;
+            }
             expected
                 .entry(*net)
                 .or_default()
@@ -4446,6 +4459,22 @@ fn schematic_bounds(
 
 pub fn generate_schematic(circuit: &CircuitIR) -> Result<Schematic, SchematicError> {
     let graph = NetlistGraph::build(circuit);
+    // Expansion interfaces join physical pins in the canonical graph, but are
+    // not symbols. Preserve the original graph/node identities while presenting
+    // only the physical IR components to drawing and placement heuristics.
+    let physical_circuit = circuit
+        .components
+        .iter()
+        .any(|component| component.kind == ComponentKind::ModulePort)
+        .then(|| {
+            let mut physical = circuit.clone();
+            physical
+                .components
+                .retain(|component| component.kind != ComponentKind::ModulePort);
+            physical
+        });
+    let source_circuit = circuit;
+    let circuit = physical_circuit.as_ref().unwrap_or(source_circuit);
     let supplies = supply_nets(circuit, &graph);
     let mut components = place_components(circuit, &graph, &supplies);
     let nets = build_nets(circuit, &graph, &supplies);
@@ -4490,8 +4519,15 @@ pub fn generate_schematic(circuit: &CircuitIR) -> Result<Schematic, SchematicErr
             });
         }
     }
-    let connectivity =
-        connectivity_report(&graph, &components, &wires, &junctions, &labels, &crossings);
+    let connectivity = connectivity_report(
+        source_circuit,
+        &graph,
+        &components,
+        &wires,
+        &junctions,
+        &labels,
+        &crossings,
+    );
     if !connectivity.verified {
         return Err(SchematicError {
             message: format!(

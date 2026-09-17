@@ -76,8 +76,7 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
         }
     }
 
-    // 3. Invalid component pin check (KES-E005). Module ports are dynamic until
-    // module interface pins are carried into IR.
+    // 3. Invalid component pin check (KES-E005), including declared module ports.
     for conn in &circuit.connections {
         for pin in &conn.pins {
             if pin.component.is_empty() {
@@ -87,7 +86,8 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
                 .components
                 .iter()
                 .find(|component| component.id == pin.component)
-                && !is_valid_pin(&component.kind, &pin.pin)
+                && (!is_valid_pin(&component.kind, &pin.pin)
+                    || matches!(&component.parameters, crate::ir::ComponentParams::ModulePort { pins, .. } if !pins.contains(&pin.pin)))
             {
                 errors.push(ErcDiagnostic {
                     code: "KES-E005".to_string(),

@@ -323,7 +323,7 @@ fn flattened_module_ports_use_an_explicit_parameter_variant() {
     let circuit = ast_to_ir(&program).expect("module fixture should reach typed IR");
     assert!(matches!(
         &circuit.components[1].parameters,
-        ComponentParams::ModulePort { module_name } if module_name == "Divider"
+        ComponentParams::ModulePort { module_name, .. } if module_name == "Divider"
     ));
 }
 

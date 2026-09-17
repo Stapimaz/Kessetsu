@@ -5,6 +5,7 @@ extern crate pest_derive;
 pub mod ast;
 pub mod compiler;
 pub mod component;
+mod elaboration;
 pub mod erc;
 pub mod exporter;
 pub mod expression;

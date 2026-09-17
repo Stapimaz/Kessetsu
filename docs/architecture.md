@@ -68,9 +68,15 @@ scales internally and validates the destination unit. Circuit IR carries optiona
 `kessetsu.parameters.v1` parameter and field-binding provenance; backends use resolved values
 and never evaluate expressions. Empty provenance is omitted for literal circuits.
 
-This initial slice accepts passive and DC-source expressions only. Module-local expressions
-are rejected until instance-scoped elaboration is implemented; globals are not implicitly
-captured. Existing literal module IDs and deterministic graph naming remain unchanged.
+This source-only slice accepts passive and DC-source expressions in top-level and module
+scopes. `elaboration.rs` rebinds names in typed expression trees before shared IR evaluation;
+it never substitutes source text or formats resolved numbers back into syntax. Module
+defaults remain lexical; explicit overrides bind in the caller's scope before default
+dependency resolution. Provenance records structured instance paths and effective overrides.
+Declared module ports survive into IR for ERC and remain virtual graph aliases, not
+drawable physical pins. Parameterized module analyses/assertions are explicitly rejected
+until their target/context handling is implemented; place these at the root. Globals are
+not implicitly captured. Existing literal module IDs and deterministic graph naming remain unchanged.
 Recursion/expansion guards protect flattening. Requirements retain their independent ownership.
 The Web explicitly accepts v4 source-share envelopes when compiling with v5, recompiles source
 normally and still checks exact packages. Unknown/future schema versions are not generalized

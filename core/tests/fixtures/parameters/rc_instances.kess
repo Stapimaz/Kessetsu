@@ -1,0 +1,32 @@
+// Two independently configured instances of one topology. Source-only feature.
+param base_cutoff: Hz = 500Hz
+module RC(input,output,gnd) {
+param resistance: Ohm = 1k
+param cutoff: Hz = 1k
+param capacitance: F = 1 / (2 * pi * resistance * cutoff)
+resistor R1 {resistance}
+capacitor C1 {capacitance}
+connect input to R1.p1
+connect R1.p2, C1.p1 to output
+connect C1.p2 to gnd
+}
+net GND
+net IN
+net LOW
+net HIGH
+source VIN ac(1V)
+use RC SLOW(cutoff={base_cutoff})
+use RC FAST(cutoff={base_cutoff * 4})
+connect VIN.plus, SLOW.input, FAST.input to IN
+connect VIN.minus, SLOW.gnd, FAST.gnd to GND
+connect SLOW.output to LOW
+connect FAST.output to HIGH
+simulate ac dec 80 1Hz 100kHz
+assert upper_cutoff(V(LOW),V(IN)) > 495Hz
+assert upper_cutoff(V(LOW),V(IN)) < 505Hz
+assert upper_cutoff(V(HIGH),V(IN)) > 1980Hz
+assert upper_cutoff(V(HIGH),V(IN)) < 2020Hz
+assert gain_at(V(LOW),V(IN),1kHz) > 0.44
+assert gain_at(V(LOW),V(IN),1kHz) < 0.45
+assert gain_at(V(HIGH),V(IN),1kHz) > 0.89
+assert gain_at(V(HIGH),V(IN),1kHz) < 0.90

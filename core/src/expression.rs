@@ -46,6 +46,10 @@ pub struct ParameterDecl {
     pub expression: Expression,
     pub line: usize,
     pub column: usize,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub instance_path: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_expression: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -57,6 +61,10 @@ pub struct ParameterRecord {
     pub resolved: Quantity,
     pub line: usize,
     pub column: usize,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub instance_path: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effective_override: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -385,6 +393,96 @@ impl Value {
 }
 
 impl Expression {
+    /// Rebind identifiers in the typed tree, retaining the author's expression
+    /// for provenance. This is not source substitution or a numeric round-trip.
+    pub(crate) fn qualify(&self, prefix: &str) -> Self {
+        fn visit(node: &mut Node, prefix: &str) {
+            match node {
+                Node::Name(name) if name != "pi" => *name = format!("{prefix}{name}"),
+                Node::Unary { operand, .. } => visit(operand, prefix),
+                Node::Binary { left, right, .. } => {
+                    visit(left, prefix);
+                    visit(right, prefix);
+                }
+                _ => {}
+            }
+        }
+        let mut expression = self.clone();
+        visit(&mut expression.root, prefix);
+        expression
+    }
+
+    /// Check even overridden defaults against their lexical scope and declared
+    /// unit, without evaluating discarded dependency cycles or dummy numbers.
+    pub(crate) fn validate_units(
+        &self,
+        units: &BTreeMap<String, SIUnit>,
+        expected: SIUnit,
+    ) -> Result<(), ExpressionError> {
+        fn visit(
+            node: &Node,
+            units: &BTreeMap<String, SIUnit>,
+        ) -> Result<Dimension, ExpressionError> {
+            match node {
+                Node::Literal(text) => {
+                    let (_, unit) = parse_value(text).map_err(|message| error(message, 0))?;
+                    Ok(dimension(unit.unwrap_or(SIUnit::Ratio)))
+                }
+                Node::Name(name) if name == "pi" => Ok(dimension(SIUnit::Ratio)),
+                Node::Name(name) => units
+                    .get(name)
+                    .copied()
+                    .map(dimension)
+                    .ok_or_else(|| error(format!("Unknown parameter '{name}'"), 0)),
+                Node::Unary { operand, .. } => visit(operand, units),
+                Node::Binary {
+                    operator,
+                    left,
+                    right,
+                } => {
+                    let mut left = visit(left, units)?;
+                    let right = visit(right, units)?;
+                    match operator {
+                        Operator::Add | Operator::Subtract if left != right => {
+                            return Err(error("Cannot add/subtract incompatible dimensions", 0));
+                        }
+                        Operator::Multiply | Operator::Divide => {
+                            for (a, b) in left.0.iter_mut().zip(right.0) {
+                                *a = if *operator == Operator::Multiply {
+                                    a.checked_add(b)
+                                } else {
+                                    a.checked_sub(b)
+                                }
+                                .ok_or_else(|| error("Dimension exponent limit exceeded", 0))?;
+                            }
+                        }
+                        _ => {}
+                    }
+                    Ok(left)
+                }
+            }
+        }
+        fn whole_literal(node: &Node) -> bool {
+            match node {
+                Node::Literal(_) => true,
+                Node::Unary { operand, .. } => whole_literal(operand),
+                _ => false,
+            }
+        }
+        if whole_literal(&self.root) {
+            self.evaluate(&BTreeMap::new(), expected)?;
+            return Ok(());
+        }
+        let actual = visit(&self.root, units)?;
+        if actual != dimension(expected) {
+            return Err(error(
+                format!("Expected {expected:?}, got {}", describe(actual)),
+                0,
+            ));
+        }
+        Ok(())
+    }
+
     pub fn node_count(&self) -> usize {
         let mut count = 0;
         let mut stack = vec![&self.root];
@@ -648,13 +746,21 @@ pub fn resolve_parameters(
         parameters: definitions
             .iter()
             .map(|(name, decl)| ParameterRecord {
-                name: (*name).into(),
+                name: name.rsplit('.').next().unwrap().to_string(),
                 declared_unit: decl.unit,
-                expression: decl.expression.source.clone(),
+                expression: decl
+                    .default_expression
+                    .clone()
+                    .unwrap_or_else(|| decl.expression.source.clone()),
                 dependencies: decl.expression.dependencies().into_iter().collect(),
                 resolved: values[*name].clone(),
                 line: decl.line,
                 column: decl.column,
+                instance_path: decl.instance_path.clone(),
+                effective_override: decl
+                    .default_expression
+                    .as_ref()
+                    .map(|_| decl.expression.source.clone()),
             })
             .collect(),
         bindings: Vec::new(),

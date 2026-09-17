@@ -48,13 +48,21 @@ This repair is not yet included in published downloads or the live Web Hub.
 
 ### Parameterized circuit foundation
 
+- Independent module parameter scopes and named `use` overrides, with recalculated
+  defaults, typed caller binding and structured instance-path/override provenance.
+- Declared module ports in IR/ERC, scoped local nets and flattened-path collision errors.
+  Virtual module ports are excluded from physical schematic-pin expectations, without
+  weakening physical connection checks.
+
 - Top-level typed `param` declarations and bounded, unit-checked arithmetic in passive and DC-source values.
 - Parameter/dependency and resolved-field provenance in `kessetsu.parameters.v1`; all electrical and drawing backends still consume resolved Circuit IR.
 - Source completion/highlighting without new editor panels; compile contract v5 with explicit v4 source-share compatibility and unchanged exact-package checks.
 - Prefix/exponent overflow/underflow validation and bounded module recursion/expansion diagnostics.
 
 These changes are in source only, not in published 1.1.0 downloads or the live Web Hub.
-Module parameters/overrides, waveform/analysis/assertion expressions and CLI parameter overrides are not yet supported.
+Waveform/analysis/assertion expressions and CLI parameter overrides are not yet supported.
+Parameterized module analyses/assertions must be placed at the circuit root until their
+context/target handling is implemented.
 
 ## [1.1.0] — 2026-09-16
 

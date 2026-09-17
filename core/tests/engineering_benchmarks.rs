@@ -50,6 +50,7 @@ fn canonical_rc_gain_stage_and_power_amplifier_meet_real_ngspice_targets() {
         "benchmarks/gain_stage.kess",
         "benchmarks/power_amplifier.kess",
         "benchmarks/ac_coupled_amplifier.kess",
+        "parameters/rc_instances.kess",
     ] {
         run_benchmark(fixture);
     }

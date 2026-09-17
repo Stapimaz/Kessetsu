@@ -38,7 +38,8 @@ cmp_op = { "<=" | ">=" | "==" | "<" | ">" }
 assert_stmt = { "assert" ~ metric_call ~ cmp_op ~ comp_value }
 
 // Misc
-use_stmt = { "use" ~ ident ~ ident }
+param_override = { ident ~ "=" ~ numeric_value }
+use_stmt = { "use" ~ ident ~ ident ~ ("(" ~ param_override ~ ("," ~ param_override)* ~ ")")? }
 sim_cmd = { "simulate" ~ ident ~ comp_value* }
 
 // Typed model/subcircuit declarations. Values are parsed and validated by semantic analysis;

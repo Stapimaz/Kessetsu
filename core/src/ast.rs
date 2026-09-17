@@ -22,6 +22,8 @@ pub struct ComponentDecl {
     pub value: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub value_expression: Option<crate::expression::Expression>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub interface_pins: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -61,6 +63,16 @@ pub struct AssertStmt {
 pub struct UseStmt {
     pub module_name: String,
     pub inst_name: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub overrides: Vec<ParameterOverride>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ParameterOverride {
+    pub name: String,
+    pub expression: crate::expression::Expression,
+    pub line: usize,
+    pub column: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -142,121 +154,6 @@ pub struct Program {
 
 impl Program {
     pub fn flatten(&self) -> Result<Program, String> {
-        let mut flat_statements = Vec::new();
-        let mut module_map = std::collections::HashMap::new();
-
-        for md in &self.modules {
-            if module_map.insert(md.name.clone(), md).is_some() {
-                return Err(format!("Duplicate module definition: {}", md.name));
-            }
-        }
-
-        fn flatten_stmt(
-            stmt: &Statement,
-            prefix: &str,
-            module_map: &std::collections::HashMap<String, &ModuleDef>,
-            flat_statements: &mut Vec<Statement>,
-            module_stack: &mut Vec<String>,
-        ) -> Result<(), String> {
-            if flat_statements.len() >= 100_000 {
-                return Err("Module expansion exceeds the 100000 statement limit".into());
-            }
-            match stmt {
-                Statement::Param(parameter) => {
-                    if !prefix.is_empty() {
-                        return Err("Module parameters require instance-scoped elaboration; this implementation slice supports top-level parameters only".into());
-                    }
-                    flat_statements.push(Statement::Param(parameter.clone()));
-                }
-                Statement::Decl(decl) => {
-                    if !prefix.is_empty() && decl.value_expression.is_some() {
-                        return Err("Module expressions require instance-scoped elaboration; use a top-level expression in this implementation slice".into());
-                    }
-                    flat_statements.push(Statement::Decl(ComponentDecl {
-                        comp_type: decl.comp_type.clone(),
-                        name: format!("{}{}", prefix, decl.name),
-                        subtype: decl.subtype.clone(),
-                        value: decl.value.clone(),
-                        value_expression: decl.value_expression.clone(),
-                    }));
-                }
-                Statement::Connect(conn) => {
-                    let map_pin = |pin: &PinRef| -> PinRef {
-                        if pin.component.is_empty() {
-                            let prefix_trimmed = prefix.trim_end_matches('_');
-                            PinRef {
-                                component: prefix_trimmed.to_string(),
-                                pin: pin.pin.clone(),
-                            }
-                        } else {
-                            PinRef {
-                                component: format!("{}{}", prefix, pin.component),
-                                pin: pin.pin.clone(),
-                            }
-                        }
-                    };
-
-                    let new_pins = conn.pins.iter().map(map_pin).collect();
-                    flat_statements.push(Statement::Connect(Connection { pins: new_pins }));
-                }
-                Statement::Use(use_stmt) => {
-                    let md = module_map
-                        .get(&use_stmt.module_name)
-                        .ok_or(format!("Module not found: {}", use_stmt.module_name))?;
-                    if module_stack.contains(&use_stmt.module_name) || module_stack.len() >= 64 {
-                        return Err(format!(
-                            "Recursive module or module nesting limit exceeded: {}",
-                            use_stmt.module_name
-                        ));
-                    }
-                    module_stack.push(use_stmt.module_name.clone());
-
-                    let inst_name = format!("{}{}", prefix, use_stmt.inst_name);
-                    flat_statements.push(Statement::Decl(ComponentDecl {
-                        comp_type: ComponentType::ModulePort,
-                        name: inst_name,
-                        subtype: None,
-                        value: Some(use_stmt.module_name.clone()),
-                        value_expression: None,
-                    }));
-
-                    let new_prefix = format!("{}{}_", prefix, use_stmt.inst_name);
-                    for s in &md.statements {
-                        flatten_stmt(s, &new_prefix, module_map, flat_statements, module_stack)?;
-                    }
-                    module_stack.pop();
-                }
-                Statement::Net(net) => {
-                    flat_statements.push(Statement::Net(NetDecl {
-                        name: format!("{}{}", prefix, net.name),
-                    }));
-                }
-                Statement::Assert(assert) => {
-                    flat_statements.push(Statement::Assert(AssertStmt {
-                        metric: assert.metric.clone(),
-                        signal: assert.signal.clone(),
-                        cmp: assert.cmp.clone(),
-                        threshold: assert.threshold.clone(),
-                    }));
-                }
-                Statement::Simulate(sim) => {
-                    flat_statements.push(Statement::Simulate(sim.clone()));
-                }
-            }
-            Ok(())
-        }
-
-        for s in &self.statements {
-            flatten_stmt(s, "", &module_map, &mut flat_statements, &mut Vec::new())?;
-        }
-
-        Ok(Program {
-            modules: Vec::new(),
-            model_includes: self.model_includes.clone(),
-            models: self.models.clone(),
-            subcircuits: self.subcircuits.clone(),
-            external_subcircuits: self.external_subcircuits.clone(),
-            statements: flat_statements,
-        })
+        crate::elaboration::flatten(self)
     }
 }
