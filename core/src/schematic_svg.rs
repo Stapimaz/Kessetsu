@@ -290,10 +290,22 @@ fn label_markup(label: &crate::schematic::NetLabel) -> String {
         }
         NetKind::Supply => {
             let points_down = supply_points_down(&label.text);
+            let (anchor_x, anchor_y) = px(crate::schematic::supply_marker_anchor(label));
+            let stub = if (x, y) == (anchor_x, anchor_y) {
+                String::new()
+            } else {
+                format!(
+                    "<path d=\"M {x} {y} L {anchor_x} {anchor_y}\" stroke=\"#172033\" stroke-width=\"2\" fill=\"none\"/>"
+                )
+            };
             let rotation = if points_down { 180 } else { 0 };
-            let text_y = if points_down { y + 28 } else { y - 16 };
+            let text_y = if points_down {
+                anchor_y + 28
+            } else {
+                anchor_y - 16
+            };
             format!(
-                "<g class=\"net-label supply\" data-net=\"{}\"><g transform=\"translate({x} {y}) rotate({rotation})\"><path d=\"M 0 0 v -9 m -5 4 l 5 -5 5 5\" stroke=\"#172033\" stroke-width=\"2\" fill=\"none\"/></g><text x=\"{x}\" y=\"{text_y}\" text-anchor=\"middle\">{}</text></g>",
+                "<g class=\"net-label supply\" data-net=\"{}\">{stub}<g transform=\"translate({anchor_x} {anchor_y}) rotate({rotation})\"><path d=\"M 0 0 v -9 m -5 4 l 5 -5 5 5\" stroke=\"#172033\" stroke-width=\"2\" fill=\"none\"/></g><text x=\"{anchor_x}\" y=\"{text_y}\" text-anchor=\"middle\">{}</text></g>",
                 label.net,
                 escape_xml(&label.text)
             )

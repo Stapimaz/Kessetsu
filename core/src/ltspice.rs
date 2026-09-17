@@ -2,7 +2,7 @@ use crate::component::CatalogSymbol;
 use crate::exporter::ExportError;
 use crate::graph::{format_analysis, format_spice_number};
 use crate::ir::{Analysis, CircuitIR, ComponentParams, ModelDefinition, SourceValue, Waveform};
-use crate::schematic::{Point, Schematic, SchematicComponent, WireEndpoint};
+use crate::schematic::{Point, Rect, Schematic, SchematicComponent, TextAnchor};
 use std::collections::{BTreeMap, BTreeSet};
 
 const GRID: i32 = 40;
@@ -98,17 +98,186 @@ fn placement(
     schematic: &Schematic,
     component: &SchematicComponent,
     symbol: &LtSymbol,
-) -> (i32, i32) {
-    let desired = component
-        .pins
+) -> (i32, i32, NativeTransform) {
+    // Match semantic pin vectors, including PNP's reversed emitter side. Native
+    // symbols differ in dimensions and cannot simply inherit centroid + R0.
+    let mut candidates = Vec::new();
+    for mirrored in [false, true] {
+        for turns in 0..4 {
+            let transform = NativeTransform { turns, mirrored };
+            let deltas: Vec<_> = symbol
+                .pins
+                .iter()
+                .map(|(name, x, y)| {
+                    let pin = component.pins.iter().find(|pin| pin.name == *name).unwrap();
+                    let desired = schematic_point(schematic, pin.point);
+                    let native = transform.apply(*x, *y);
+                    (desired.0 - native.0, desired.1 - native.1)
+                })
+                .collect();
+            let count = deltas.len() as i32;
+            let x = ((deltas.iter().map(|p| p.0).sum::<i32>() / count + 4).div_euclid(8)) * 8;
+            let y = ((deltas.iter().map(|p| p.1).sum::<i32>() / count + 4).div_euclid(8)) * 8;
+            let cost: i64 = deltas
+                .iter()
+                .map(|p| i64::from(p.0 - x).pow(2) + i64::from(p.1 - y).pow(2))
+                .sum();
+            candidates.push((cost, mirrored, turns, x, y));
+        }
+    }
+    candidates.sort();
+    let (_, mirrored, turns, x, y) = candidates[0];
+    (x, y, NativeTransform { turns, mirrored })
+}
+
+#[derive(Clone, Copy)]
+struct NativeTransform {
+    turns: u8,
+    mirrored: bool,
+}
+impl NativeTransform {
+    fn apply(self, mut x: i32, mut y: i32) -> (i32, i32) {
+        if self.mirrored {
+            x = -x;
+        }
+        for _ in 0..self.turns {
+            (x, y) = (-y, x);
+        }
+        (x, y)
+    }
+    fn inverse(self, mut x: i32, mut y: i32) -> (i32, i32) {
+        for _ in 0..self.turns {
+            (x, y) = (y, -x);
+        }
+        if self.mirrored {
+            x = -x;
+        }
+        (x, y)
+    }
+    fn name(self) -> String {
+        format!(
+            "{}{}",
+            if self.mirrored { "M" } else { "R" },
+            u16::from(self.turns) * 90
+        )
+    }
+}
+
+type NativeAnnotations = BTreeMap<(String, i32), (Point, TextAnchor)>;
+
+fn plan_native_annotations(
+    components: &[SchematicComponent],
+    circuit: &CircuitIR,
+) -> Result<(NativeAnnotations, Vec<Rect>), ExportError> {
+    let mut result = BTreeMap::new();
+    let mut obstacles: Vec<Rect> = components
         .iter()
-        .map(|pin| schematic_point(schematic, pin.point))
-        .collect::<Vec<_>>();
-    let desired_x = desired.iter().map(|point| point.0).sum::<i32>() / desired.len() as i32;
-    let desired_y = desired.iter().map(|point| point.1).sum::<i32>() / desired.len() as i32;
-    let base_x = symbol.pins.iter().map(|(_, x, _)| x).sum::<i32>() / symbol.pins.len() as i32;
-    let base_y = symbol.pins.iter().map(|(_, _, y)| y).sum::<i32>() / symbol.pins.len() as i32;
-    (desired_x - base_x, desired_y - base_y)
+        .map(|component| component.bounds)
+        .collect();
+    let mut text_bounds = Vec::new();
+    for component in components {
+        let bounds = component.bounds;
+        let value = component_value(component, circuit);
+        let width = (component.reference.len().max(value.len()) as i32 * 2).max(4);
+        let cx = (bounds.min.x + bounds.max.x) / 2;
+        let cy = (bounds.min.y + bounds.max.y) / 2;
+        let right = (
+            Point {
+                x: bounds.max.x + 3,
+                y: cy - 1,
+            },
+            TextAnchor::Start,
+        );
+        let left = (
+            Point {
+                x: bounds.min.x - 3,
+                y: cy - 1,
+            },
+            TextAnchor::End,
+        );
+        let above = (
+            Point {
+                x: cx,
+                y: bounds.min.y - 7,
+            },
+            TextAnchor::Middle,
+        );
+        let below = (
+            Point {
+                x: cx,
+                y: bounds.max.y + 6,
+            },
+            TextAnchor::Middle,
+        );
+        let vertical =
+            component.pins.len() == 2 && component.pins[0].point.x == component.pins[1].point.x;
+        let candidates = if vertical {
+            [right, left, above, below]
+        } else {
+            [above, below, right, left]
+        };
+        let selected = candidates
+            .into_iter()
+            .find_map(|(point, anchor)| {
+                let min_x = match anchor {
+                    TextAnchor::Start => point.x,
+                    TextAnchor::Middle => point.x - width / 2,
+                    TextAnchor::End => point.x - width,
+                };
+                let block = Rect {
+                    min: Point {
+                        x: min_x,
+                        y: point.y - 3,
+                    },
+                    max: Point {
+                        x: min_x + width,
+                        y: point.y + 5,
+                    },
+                };
+                if obstacles.iter().any(|other| {
+                    block.min.x <= other.max.x
+                        && block.max.x >= other.min.x
+                        && block.min.y <= other.max.y
+                        && block.max.y >= other.min.y
+                }) {
+                    None
+                } else {
+                    Some((point, anchor, block))
+                }
+            })
+            .ok_or_else(|| ExportError {
+                code: "KES-X017".to_string(),
+                message: format!(
+                    "LTspice cannot allocate nearby reference/value space for {}",
+                    component.id
+                ),
+                diagnostics: Vec::new(),
+            })?;
+        let (point, anchor, block) = selected;
+        result.insert((component.id.clone(), 0), (point, anchor));
+        result.insert(
+            (component.id.clone(), 3),
+            (
+                Point {
+                    x: point.x,
+                    y: point.y + 4,
+                },
+                anchor,
+            ),
+        );
+        obstacles.push(block);
+        text_bounds.push(Rect {
+            min: Point {
+                x: block.min.x * 8,
+                y: block.min.y * 8,
+            },
+            max: Point {
+                x: block.max.x * 8,
+                y: block.max.y * 8,
+            },
+        });
+    }
+    Ok((result, text_bounds))
 }
 
 fn spice_source(value: &SourceValue) -> String {
@@ -203,13 +372,22 @@ fn component_value(component: &SchematicComponent, circuit: &CircuitIR) -> Strin
 }
 
 /// Generates an LTspice XVII/24 `.asc` schematic from canonical Schematic IR.
-/// Standard bundled symbols are used, while endpoint coordinates are remapped
-/// to their real `.asy` pin locations before canonical routes are emitted.
+/// Standard bundled symbols are transformed and routed in their actual `.asy`
+/// geometry. The coordinate proof is repeated after target adaptation.
 pub fn generate_ltspice_asc(
     schematic: &Schematic,
     circuit: &CircuitIR,
 ) -> Result<String, ExportError> {
-    if !schematic.connectivity.verified {
+    if !schematic.connectivity.verified
+        || !crate::schematic_geometry::geometry_errors(
+            &schematic.components,
+            &schematic.wires,
+            &schematic.junctions,
+            &schematic.labels,
+            &schematic.crossings,
+        )
+        .is_empty()
+    {
         return Err(ExportError {
             code: "KES-X003".to_string(),
             message: "canonical connectivity proof failed; LTspice export stopped".to_string(),
@@ -219,6 +397,7 @@ pub fn generate_ltspice_asc(
 
     let mut pin_points = BTreeMap::<(String, String), (i32, i32)>::new();
     let mut placements = Vec::new();
+    let mut native_components = Vec::new();
     for component in &schematic.components {
         let lt_symbol = symbol(component)?;
         if lt_symbol.pins.len() != component.pins.len() {
@@ -231,67 +410,157 @@ pub fn generate_ltspice_asc(
                 diagnostics: Vec::new(),
             });
         }
-        let (x, y) = placement(schematic, component, &lt_symbol);
+        if lt_symbol
+            .pins
+            .iter()
+            .any(|(name, _, _)| !component.pins.iter().any(|pin| pin.name == *name))
+        {
+            return Err(ExportError {
+                code: "KES-X015".to_string(),
+                message: format!(
+                    "LTspice semantic pin mapping is missing for {}",
+                    component.id
+                ),
+                diagnostics: Vec::new(),
+            });
+        }
+        let (x, y, transform) = placement(schematic, component, &lt_symbol);
+        let mut native = component.clone();
         for (pin_name, dx, dy) in lt_symbol.pins {
+            let (dx, dy) = transform.apply(*dx, *dy);
             pin_points.insert(
                 (component.id.clone(), (*pin_name).to_string()),
                 (x + dx, y + dy),
             );
+            let pin = native
+                .pins
+                .iter_mut()
+                .find(|pin| pin.name == *pin_name)
+                .unwrap();
+            pin.point = Point {
+                x: (x + dx) / 8,
+                y: (y + dy) / 8,
+            };
+            let outward = match pin.side {
+                crate::component::PinSide::Left => (-1, 0),
+                crate::component::PinSide::Right => (1, 0),
+                crate::component::PinSide::Top => (0, -1),
+                crate::component::PinSide::Bottom => (0, 1),
+            };
+            pin.escape = Point {
+                x: pin.point.x + outward.0,
+                y: pin.point.y + outward.1,
+            };
         }
-        placements.push((component, lt_symbol, x, y));
+        native.bounds = Rect {
+            min: Point {
+                x: native.pins.iter().map(|pin| pin.point.x).min().unwrap(),
+                y: native.pins.iter().map(|pin| pin.point.y).min().unwrap(),
+            },
+            max: Point {
+                x: native.pins.iter().map(|pin| pin.point.x).max().unwrap(),
+                y: native.pins.iter().map(|pin| pin.point.y).max().unwrap(),
+            },
+        };
+        if native.bounds.min.x == native.bounds.max.x {
+            native.bounds.min.x -= 2;
+            native.bounds.max.x += 2;
+        }
+        if native.bounds.min.y == native.bounds.max.y {
+            native.bounds.min.y -= 2;
+            native.bounds.max.y += 2;
+        }
+        native_components.push(native);
+        placements.push((component, lt_symbol, x, y, transform));
     }
-
-    let endpoint = |value: &WireEndpoint, fallback: Point| -> Result<(i32, i32), ExportError> {
-        match value {
-            WireEndpoint::Pin { component, pin } => pin_points
-                .get(&(component.clone(), pin.clone()))
-                .copied()
-                .ok_or_else(|| ExportError {
-                    code: "KES-X015".to_string(),
-                    message: format!("LTspice pin mapping is missing for {component}.{pin}"),
-                    diagnostics: Vec::new(),
-                }),
-            WireEndpoint::Junction { .. } => Ok(schematic_point(schematic, fallback)),
-        }
-    };
+    let mut native_labels = schematic.labels.clone();
+    for label in &mut native_labels {
+        let mapped = pin_points[&(
+            label.attached_to.component.clone(),
+            label.attached_to.pin.clone(),
+        )];
+        label.point = Point {
+            x: mapped.0 / 8,
+            y: mapped.1 / 8,
+        };
+    }
+    let (native_annotations, native_text_bounds) =
+        plan_native_annotations(&native_components, circuit)?;
+    let (native_wires, native_junctions, native_crossings, native_labels) =
+        crate::schematic::route_schematic(
+            circuit,
+            &native_components,
+            &schematic.nets,
+            native_labels,
+            &native_text_bounds,
+        )
+        .map_err(|error| ExportError {
+            code: "KES-X016".to_string(),
+            message: format!("LTspice target routing failed: {error}"),
+            diagnostics: Vec::new(),
+        })?;
+    let errors = crate::schematic_geometry::geometry_errors(
+        &native_components,
+        &native_wires,
+        &native_junctions,
+        &native_labels,
+        &native_crossings,
+    );
+    if !errors.is_empty() {
+        return Err(ExportError {
+            code: "KES-X016".to_string(),
+            message: format!("LTspice geometry proof failed: {}", errors.join("; ")),
+            diagnostics: Vec::new(),
+        });
+    }
 
     let width = (schematic.bounds.max.x - schematic.bounds.min.x) * GRID + MARGIN * 2;
     let height = (schematic.bounds.max.y - schematic.bounds.min.y) * GRID + MARGIN * 2;
     let mut out = format!("Version 4\nSHEET 1 {width} {height}\n");
-    for wire in &schematic.wires {
-        let mut points = wire
-            .points
-            .iter()
-            .map(|point| schematic_point(schematic, *point))
-            .collect::<Vec<_>>();
-        if let Some(first) = points.first_mut() {
-            *first = endpoint(&wire.start, wire.points[0])?;
-        }
-        if let Some(last) = points.last_mut() {
-            *last = endpoint(&wire.end, *wire.points.last().unwrap_or(&wire.points[0]))?;
-        }
-        for pair in points.windows(2) {
+    for wire in &native_wires {
+        for pair in wire.points.windows(2) {
             out.push_str(&format!(
                 "WIRE {} {} {} {}\n",
-                pair[0].0, pair[0].1, pair[1].0, pair[1].1
+                pair[0].x * 8,
+                pair[0].y * 8,
+                pair[1].x * 8,
+                pair[1].y * 8
             ));
         }
     }
-    for label in &schematic.labels {
-        let label_point = pin_points
-            .get(&(
-                label.attached_to.component.clone(),
-                label.attached_to.pin.clone(),
-            ))
-            .copied()
-            .unwrap_or_else(|| schematic_point(schematic, label.point));
+    for label in &native_labels {
         out.push_str(&format!(
             "FLAG {} {} {}\n",
-            label_point.0, label_point.1, label.text
+            label.point.x * 8,
+            label.point.y * 8,
+            label.text
         ));
     }
-    for (component, lt_symbol, x, y) in placements {
-        out.push_str(&format!("SYMBOL {} {x} {y} R0\n", lt_symbol.name));
+    for (component, lt_symbol, x, y, transform) in placements {
+        out.push_str(&format!(
+            "SYMBOL {} {x} {y} {}\n",
+            lt_symbol.name,
+            transform.name()
+        ));
+        for window in [0, 3] {
+            let (point, anchor) = native_annotations[&(component.id.clone(), window)];
+            let (wx, wy) = transform.inverse(point.x * 8 - x, point.y * 8 - y);
+            let alignment = match (transform.turns, transform.mirrored, anchor) {
+                (1 | 3, _, TextAnchor::Middle) => "VCenter",
+                (_, _, TextAnchor::Middle) => "Center",
+                (0, false, TextAnchor::Start)
+                | (2, true, TextAnchor::Start)
+                | (0, true, TextAnchor::End)
+                | (2, false, TextAnchor::End) => "Left",
+                (0, _, _) | (2, _, _) => "Right",
+                (1, false, TextAnchor::Start)
+                | (3, true, TextAnchor::Start)
+                | (1, true, TextAnchor::End)
+                | (3, false, TextAnchor::End) => "VBottom",
+                _ => "VTop",
+            };
+            out.push_str(&format!("WINDOW {window} {wx} {wy} {alignment} 2\n"));
+        }
         let source_prefix = match component.symbol {
             CatalogSymbol::VoltageSource => Some('V'),
             CatalogSymbol::CurrentSource => Some('I'),

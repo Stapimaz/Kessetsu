@@ -1,0 +1,45 @@
+// Geometry regression: coupled bias rails, dense annotations and separate
+// emitter-ballast nets. This is a drawing fixture, not a rated hardware design.
+net GND
+net VCC
+net VEE
+net IN
+net BASE
+net DRIVE
+net BIAS_P
+net BIAS_N
+net OUT
+source VP 9V
+source VN 9V
+source VIN ac(1V)
+capacitor C_INPUT 100nF
+resistor R_BASE_HIGH 68k
+resistor R_BASE_LOW 22k
+transistor Q_GAIN npn 2N3904
+resistor R_COLLECTOR 3.3k
+resistor R_EMITTER 470
+capacitor C_COUPLING 2.2uF
+resistor R_BIAS_HIGH 1k
+resistor R_BIAS_LOW 1k
+diode D_UP 1N4148
+diode D_DOWN 1N4148
+capacitor C_BIAS 47uF
+transistor Q_UP npn 2N3904
+transistor Q_DOWN pnp 2N3906
+resistor R_BALLAST_UP 2
+resistor R_BALLAST_DOWN 2
+resistor R_LOAD 100
+connect VP.minus,VN.plus,VIN.minus,R_EMITTER.p2,R_LOAD.p2 to GND
+connect VP.plus,R_BASE_HIGH.p1,R_COLLECTOR.p1,R_BIAS_HIGH.p1,Q_UP.c to VCC
+connect VN.minus,R_BASE_LOW.p2,R_BIAS_LOW.p2,Q_DOWN.c to VEE
+connect VIN.plus,C_INPUT.p1 to IN
+connect C_INPUT.p2,R_BASE_HIGH.p2,R_BASE_LOW.p1,Q_GAIN.b to BASE
+connect Q_GAIN.c,R_COLLECTOR.p2,C_COUPLING.p1 to DRIVE
+connect Q_GAIN.e to R_EMITTER.p1
+connect C_COUPLING.p2,D_UP.p2 to D_DOWN.p1
+connect R_BIAS_HIGH.p2,D_UP.p1,C_BIAS.p1,Q_UP.b to BIAS_P
+connect R_BIAS_LOW.p1,D_DOWN.p2,C_BIAS.p2,Q_DOWN.b to BIAS_N
+connect Q_UP.e to R_BALLAST_UP.p1
+connect Q_DOWN.e to R_BALLAST_DOWN.p2
+connect R_BALLAST_UP.p2,R_BALLAST_DOWN.p1,R_LOAD.p1 to OUT
+simulate op

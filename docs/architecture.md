@@ -283,9 +283,16 @@ The legacy `layout.rs` behavior below remains a characterization baseline during
 Schematic placement originally used a **chain-based vertical-layout** approach for assigning component x/y coordinates. DFS was one heuristic for traversal and initial ordering.
 
 - **Legacy heuristic:** Voltage-source rails, GND direction, through pins, and `is_signal_pin` affect chain order and rotation. Active devices such as BJTs and MOSFETs have separate placement behavior, but ideal orientation is not guaranteed for every topology.
-- **Canonical gate:** `kessetsu.schematic.v2` represents every connected graph pin with either a typed wire endpoint or a semantic net label and preserves model provenance metadata without model bodies. Missing or extra pins/nets fail closed with `KES-L001`.
+- **Canonical gate:** `kessetsu.schematic.v2` represents every connected graph pin with either a typed wire endpoint or a semantic net label and preserves model provenance metadata without model bodies. Missing or extra pins/nets fail closed with `KES-L001`. Current unreleased source also proves coordinate continuity, semantic-label joins and isolated transverse crossings. Foreign-net pin/junction/endpoint contacts, overlapping segments and disconnected islands fail the schematic gate; declared endpoint tags alone are insufficient. SPICE-only compilation remains independent of drawing generation.
 - **Placement and routing:** Deterministic layered placement, shared pin-side metadata, orthogonal cost-based routing, and semantic labels for high-fan-out/power nets are canonical. Symbol/wire/label collisions, crossings, and bend counts appear in the versioned quality report.
 - **Visual regression:** Deterministic SVG SHA-256 goldens for the schematic corpus are protected by Rust tests, and real-browser rendering is protected by the Playwright corpus.
+
+Current unreleased drawing repairs legalize symbol/rail space and reserve nearby annotation
+blocks when wire-first annotation cannot fit. Shared visible symbol extents account for
+off-axis strokes. LTspice adaptation matches semantic pins to native rotation/mirror transforms,
+reroutes in actual native pin coordinates and repeats the geometry proof. KiCad preserves
+shared annotation positions and uses canonical embedded pin geometry. Published 1.1.0 does
+not yet include these stronger checks or placement repairs.
 
 ## 8. Kessetsu Vision and Ecosystem Manifesto
 

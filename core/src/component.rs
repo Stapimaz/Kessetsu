@@ -25,6 +25,21 @@ pub enum CatalogSymbol {
     ModulePort,
 }
 
+/// Conservative visible symbol extents in eighths of a schematic grid unit.
+/// Include off-axis strokes (capacitor plates, resistor zigzags, source circles)
+/// that the logical placement width/height cannot describe.
+pub const fn symbol_ink_bounds_eighths(symbol: CatalogSymbol) -> (i32, i32, i32, i32) {
+    match symbol {
+        CatalogSymbol::Resistor => (0, -3, 16, 3),
+        CatalogSymbol::Capacitor | CatalogSymbol::Diode => (0, -4, 16, 4),
+        CatalogSymbol::Inductor => (0, -4, 16, 0),
+        CatalogSymbol::VoltageSource | CatalogSymbol::CurrentSource => (0, -5, 16, 5),
+        CatalogSymbol::Bjt | CatalogSymbol::Mosfet => (0, 0, 16, 16),
+        CatalogSymbol::OpAmp => (0, -8, 24, 24),
+        CatalogSymbol::ModulePort => (5, -3, 11, 3),
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PinFlow {

@@ -4,6 +4,19 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### Schematic geometry and editable exports
+
+- Verify actual conductive paths, pin contacts, isolated crossings and matching semantic
+  labels, rather than trusting wire net tags. Invalid drawing geometry blocks export.
+- Preserve pin escape space, separate crowded components and keep reference/value blocks
+  close to their symbols. Negative supply markers and their captions point outward.
+- Map LTspice symbols to native rotations/mirrors and reroute from their actual pins;
+  preserve orthogonal paths and validate the resulting geometry before export.
+- Place KiCad reference/value properties from the shared schematic annotations and draw
+  conductive joins explicitly. Added an original dense-bias regression circuit.
+
+These repairs are in source only, not in published 1.1.0 downloads or the live Web Hub.
+
 ### Builtin diode portability
 
 - Corrected `1N4148`, `1N4007` and the default diode path to use portable Ngspice diode

@@ -225,11 +225,29 @@ impl std::fmt::Display for ExportError {
 impl std::error::Error for ExportError {}
 
 fn schematic(report: &CompileReport) -> Result<&Schematic, ExportError> {
-    report.schematic.as_ref().ok_or_else(|| ExportError {
+    let schematic = report.schematic.as_ref().ok_or_else(|| ExportError {
         code: "KES-X002".to_string(),
         message: "canonical Schematic IR is unavailable; export stopped".to_string(),
         diagnostics: report.diagnostics.clone(),
-    })
+    })?;
+    let errors = crate::schematic_geometry::geometry_errors(
+        &schematic.components,
+        &schematic.wires,
+        &schematic.junctions,
+        &schematic.labels,
+        &schematic.crossings,
+    );
+    if !schematic.connectivity.verified || !errors.is_empty() {
+        return Err(ExportError {
+            code: "KES-X003".to_string(),
+            message: format!(
+                "schematic geometry/connectivity proof failed; export stopped: {}",
+                errors.join("; ")
+            ),
+            diagnostics: Vec::new(),
+        });
+    }
+    Ok(schematic)
 }
 
 fn render_png(schematic: &Schematic, options: ExportOptions) -> Result<Vec<u8>, ExportError> {

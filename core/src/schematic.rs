@@ -474,10 +474,18 @@ fn orientation_for(component: &IRComponent, graph: &NetlistGraph) -> Orientation
             return Orientation::Up;
         }
         if p1.is_some_and(|net| is_supply_name(&graph.get_net_name(net))) {
-            return Orientation::Down;
+            return if supply_points_down(&graph.get_net_name(p1.unwrap())) {
+                Orientation::Up
+            } else {
+                Orientation::Down
+            };
         }
         if p2.is_some_and(|net| is_supply_name(&graph.get_net_name(net))) {
-            return Orientation::Up;
+            return if supply_points_down(&graph.get_net_name(p2.unwrap())) {
+                Orientation::Down
+            } else {
+                Orientation::Up
+            };
         }
     }
     Orientation::Right
@@ -558,6 +566,22 @@ fn is_supply_name(name: &str) -> bool {
         name.to_ascii_uppercase().as_str(),
         "VCC" | "VDD" | "VEE" | "VSS" | "+V" | "-V"
     )
+}
+
+pub(crate) fn supply_points_down(name: &str) -> bool {
+    matches!(name.to_ascii_uppercase().as_str(), "VEE" | "VSS" | "-V")
+}
+
+/// A supply marker normally touches an outward rail pin. For other pin sides,
+/// give its arrow and caption an outward lead so neither enters the symbol.
+pub(crate) fn supply_marker_anchor(label: &NetLabel) -> Point {
+    match (label.side, supply_points_down(&label.text)) {
+        (PinSide::Top, false) | (PinSide::Bottom, true) => label.point,
+        (PinSide::Top, true) => label.point.offset(0, -2),
+        (PinSide::Bottom, false) => label.point.offset(0, 2),
+        (PinSide::Left, _) => label.point.offset(-2, 0),
+        (PinSide::Right, _) => label.point.offset(2, 0),
+    }
 }
 
 fn supply_nets(circuit: &CircuitIR, graph: &NetlistGraph) -> BTreeSet<NetId> {
@@ -907,7 +931,14 @@ fn placement_lane(
     }
     let nets = component_nets(component, graph);
     if is_two_pin_passive(&component.kind) && nets.iter().any(|net| supplies.contains(net)) {
-        return PlacementLane::Upper;
+        return if nets
+            .iter()
+            .any(|net| supply_points_down(&graph.get_net_name(*net)))
+        {
+            PlacementLane::Lower
+        } else {
+            PlacementLane::Upper
+        };
     }
     if nets.contains(&NetId::GROUND)
         && (is_two_pin_passive(&component.kind)
@@ -1628,6 +1659,49 @@ fn fine_rect(rect: Rect) -> Rect {
     }
 }
 
+fn component_ink_bounds(component: &SchematicComponent) -> Rect {
+    let (x0, y0, x1, y1) = crate::component::symbol_ink_bounds_eighths(component.symbol);
+    let width = if matches!(
+        component.symbol,
+        CatalogSymbol::Bjt | CatalogSymbol::Mosfet | CatalogSymbol::OpAmp
+    ) {
+        24
+    } else {
+        16
+    };
+    let points: Vec<_> = [
+        Point::new(x0, y0),
+        Point::new(x0, y1),
+        Point::new(x1, y0),
+        Point::new(x1, y1),
+    ]
+    .into_iter()
+    .map(|point| {
+        transform_local_point(point, width, component.orientation, component.mirrored_x)
+            .offset(component.origin.x * 8, component.origin.y * 8)
+    })
+    .collect();
+    Rect {
+        min: Point::new(
+            points.iter().map(|p| p.x).min().unwrap(),
+            points.iter().map(|p| p.y).min().unwrap(),
+        ),
+        max: Point::new(
+            points.iter().map(|p| p.x).max().unwrap(),
+            points.iter().map(|p| p.y).max().unwrap(),
+        ),
+    }
+}
+
+fn component_text_bounds(component: &SchematicComponent) -> Rect {
+    let logical = fine_rect(component.bounds);
+    let ink = component_ink_bounds(component);
+    Rect {
+        min: Point::new(logical.min.x.min(ink.min.x), logical.min.y.min(ink.min.y)),
+        max: Point::new(logical.max.x.max(ink.max.x), logical.max.y.max(ink.max.y)),
+    }
+}
+
 fn text_height_eighths(role: TextRole) -> i32 {
     if role == TextRole::Reference { 4 } else { 3 }
 }
@@ -1692,7 +1766,7 @@ fn pair_fine_candidates(
     reference: &SchematicText,
     secondary: &SchematicText,
 ) -> Vec<[FineTextPlacement; 2]> {
-    let bounds = fine_rect(component.bounds);
+    let bounds = component_text_bounds(component);
     let center_x = (bounds.min.x + bounds.max.x) / 2;
     let center_y = (bounds.min.y + bounds.max.y) / 2;
     let reference_height = text_height_eighths(reference.role);
@@ -1770,7 +1844,7 @@ fn pair_fine_candidates(
             | CatalogSymbol::Inductor
             | CatalogSymbol::Diode
     );
-    if matches!(
+    let mut candidates = if matches!(
         component.symbol,
         CatalogSymbol::VoltageSource | CatalogSymbol::CurrentSource
     ) {
@@ -1781,14 +1855,31 @@ fn pair_fine_candidates(
         vec![above, below, left, right]
     } else {
         vec![above, right, left, below, split]
+    };
+    // A supply caption or a centre-height signal escape can obstruct all four
+    // centred blocks even on an otherwise isolated symbol. Moving the symbol
+    // cannot resolve collisions with its own pins. Try nearby corner blocks
+    // before asking the layout to allocate more space; keep the pair intact.
+    for (pair, horizontal) in [(above, true), (below, true), (left, false), (right, false)] {
+        for offset in [-TEXT_SUBGRID, TEXT_SUBGRID] {
+            candidates.push(pair.map(|mut placement| {
+                placement.point = if horizontal {
+                    placement.point.offset(offset, 0)
+                } else {
+                    placement.point.offset(0, offset)
+                };
+                placement
+            }));
+        }
     }
+    candidates
 }
 
 fn single_fine_candidates(
     component: &SchematicComponent,
     text: &SchematicText,
 ) -> Vec<FineTextPlacement> {
-    let bounds = fine_rect(component.bounds);
+    let bounds = component_text_bounds(component);
     let center_x = (bounds.min.x + bounds.max.x) / 2;
     let center_y = (bounds.min.y + bounds.max.y) / 2;
     let height = text_height_eighths(text.role);
@@ -1871,7 +1962,7 @@ fn fine_text_candidate_is_clear(
     if bounds.iter().any(|text_bounds| {
         components
             .iter()
-            .any(|component| text_bounds.overlaps_interior(fine_rect(component.bounds)))
+            .any(|component| text_bounds.overlaps_interior(component_text_bounds(component)))
             || labels
                 .iter()
                 .any(|label| text_bounds.overlaps_interior(fine_rect(semantic_label_bounds(label))))
@@ -1926,13 +2017,20 @@ fn refine_component_texts(
     labels: &[NetLabel],
     wires: &[SchematicWire],
 ) {
-    let mut settled = Vec::new();
+    let mut settled: BTreeMap<String, Rect> = texts
+        .iter()
+        .map(|text| (text.id.clone(), rendered_text_bounds(text)))
+        .collect();
     for component in components {
         let indexes: Vec<_> = texts
             .iter()
             .enumerate()
             .filter_map(|(index, text)| (text.component == component.id).then_some(index))
             .collect();
+        for index in &indexes {
+            settled.remove(&texts[*index].id);
+        }
+        let settled_obstacles: Vec<_> = settled.values().copied().collect();
         let selected = if indexes.len() == 2 {
             let reference_index = indexes
                 .iter()
@@ -1960,7 +2058,14 @@ fn refine_component_texts(
                 ),
             ]);
             candidates.into_iter().find(|candidate| {
-                fine_text_candidate_is_clear(candidate, texts, components, labels, wires, &settled)
+                fine_text_candidate_is_clear(
+                    candidate,
+                    texts,
+                    components,
+                    labels,
+                    wires,
+                    &settled_obstacles,
+                )
             })
         } else if indexes.len() == 1 {
             let index = indexes[0];
@@ -1970,7 +2075,14 @@ fn refine_component_texts(
                 .collect();
             candidates.push(vec![(index, fine_text_placement(&texts[index]))]);
             candidates.into_iter().find(|candidate| {
-                fine_text_candidate_is_clear(candidate, texts, components, labels, wires, &settled)
+                fine_text_candidate_is_clear(
+                    candidate,
+                    texts,
+                    components,
+                    labels,
+                    wires,
+                    &settled_obstacles,
+                )
             })
         } else {
             None
@@ -1979,10 +2091,116 @@ fn refine_component_texts(
         if let Some(selected) = selected {
             for (index, placement) in selected {
                 apply_fine_text_placement(&mut texts[index], placement);
-                settled.push(rendered_text_bounds(&texts[index]));
+                settled.insert(texts[index].id.clone(), rendered_text_bounds(&texts[index]));
             }
+        } else {
+            // A failed refinement still leaves visible text in the drawing.
+            settled.extend(indexes.iter().map(|index| {
+                (
+                    texts[*index].id.clone(),
+                    rendered_text_bounds(&texts[*index]),
+                )
+            }));
         }
     }
+}
+
+/// Reserve coherent annotations before rerouting a crowded drawing. This is a
+/// fallback for layouts that the ordinary wire-first pass cannot annotate well.
+fn plan_annotation_blocks(
+    components: &[SchematicComponent],
+    labels: &[NetLabel],
+) -> Result<Vec<SchematicText>, String> {
+    let mut texts = place_component_texts(components, labels, &[]);
+    let mut settled = Vec::new();
+    for component in components {
+        let indexes: Vec<_> = texts
+            .iter()
+            .enumerate()
+            .filter_map(|(index, text)| (text.component == component.id).then_some(index))
+            .collect();
+        let candidates: Vec<Vec<_>> = if indexes.len() == 2 {
+            pair_fine_candidates(component, &texts[indexes[0]], &texts[indexes[1]])
+                .into_iter()
+                .map(|pair| vec![(indexes[0], pair[0]), (indexes[1], pair[1])])
+                .collect()
+        } else if indexes.len() == 1 {
+            single_fine_candidates(component, &texts[indexes[0]])
+                .into_iter()
+                .map(|point| vec![(indexes[0], point)])
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let Some(selected) = candidates.into_iter().find(|candidate| {
+            fine_text_candidate_is_clear(candidate, &texts, components, labels, &[], &settled)
+                && !components
+                    .iter()
+                    .flat_map(|component| &component.pins)
+                    .filter(|pin| {
+                        pin.net.is_some()
+                            && !labels
+                                .iter()
+                                .any(|label| label.point == pin.point && Some(label.net) == pin.net)
+                    })
+                    .any(|pin| {
+                        let bounds: Vec<_> = candidate
+                            .iter()
+                            .map(|(index, placement)| {
+                                fine_text_bounds_at(&texts[*index], *placement)
+                            })
+                            .collect();
+                        path_hits_annotations(&[pin.point, pin.escape], &bounds)
+                    })
+        }) else {
+            return Err(component.id.clone());
+        };
+        for (index, placement) in selected {
+            apply_fine_text_placement(&mut texts[index], placement);
+            settled.push(rendered_text_bounds(&texts[index]));
+        }
+    }
+    Ok(texts)
+}
+
+fn annotations_need_space(
+    texts: &[SchematicText],
+    components: &[SchematicComponent],
+    labels: &[NetLabel],
+    wires: &[SchematicWire],
+) -> bool {
+    for component in components {
+        let owned: Vec<_> = texts
+            .iter()
+            .filter(|text| text.component == component.id)
+            .collect();
+        let placements: Vec<_> = owned
+            .iter()
+            .map(|text| rendered_text_bounds(text))
+            .collect();
+        if placements.iter().any(|bounds| {
+            rect_manhattan_gap(*bounds, fine_rect(component.bounds)) > 12
+                || components
+                    .iter()
+                    .any(|other| bounds.overlaps_interior(component_text_bounds(other)))
+                || labels
+                    .iter()
+                    .any(|label| bounds.overlaps_interior(fine_rect(semantic_label_bounds(label))))
+                || wires
+                    .iter()
+                    .any(|wire| fine_path_crosses_text(*bounds, wire))
+                || texts
+                    .iter()
+                    .filter(|text| text.component != component.id)
+                    .any(|text| bounds.overlaps_interior(rendered_text_bounds(text)))
+        }) {
+            return true;
+        }
+        if placements.len() == 2 && rect_manhattan_gap(placements[0], placements[1]) > 8 {
+            return true;
+        }
+    }
+    false
 }
 
 fn oriented_between(
@@ -2559,6 +2777,54 @@ fn small_parallel_network_placement(
     Some(placed)
 }
 
+// Keep complementary branches in their electrical order, independently of
+// reference spelling. Apply the same ordering to the passives attached to each
+// branch so ballast/bias wiring does not cross simply because ids sort backwards.
+fn complementary_branch_order(
+    component: &IRComponent,
+    circuit: &CircuitIR,
+    graph: &NetlistGraph,
+    supplies: &BTreeSet<NetId>,
+) -> i8 {
+    let rail_order = |active: &IRComponent| {
+        if !matches!(active.kind, ComponentKind::BJT(_)) {
+            return None;
+        }
+        let rail = graph.get_net(&active.id, "c")?;
+        supplies.contains(&rail).then(|| {
+            if supply_points_down(&graph.get_net_name(rail)) {
+                1
+            } else {
+                -1
+            }
+        })
+    };
+    if let Some(order) = rail_order(component) {
+        return order;
+    }
+    if !is_two_pin_passive(&component.kind) {
+        return 0;
+    }
+    let nets = component_nets(component, graph);
+    let orders: BTreeSet<_> = circuit
+        .components
+        .iter()
+        .filter(|active| {
+            ["b", "e"].into_iter().any(|pin| {
+                graph
+                    .get_net(&active.id, pin)
+                    .is_some_and(|net| nets.contains(&net))
+            })
+        })
+        .filter_map(rail_order)
+        .collect();
+    if orders.len() == 1 {
+        *orders.first().unwrap()
+    } else {
+        0
+    }
+}
+
 fn place_components(
     circuit: &CircuitIR,
     graph: &NetlistGraph,
@@ -2591,7 +2857,12 @@ fn place_components(
             .push(component);
     }
     for components in layers.values_mut() {
-        components.sort_by(|left, right| left.id.cmp(&right.id));
+        components.sort_by_key(|component| {
+            (
+                complementary_branch_order(component, circuit, graph, supplies),
+                component.id.as_str(),
+            )
+        });
     }
 
     const MAIN_Y: i32 = 10;
@@ -2720,6 +2991,98 @@ fn build_nets(
         .collect()
 }
 
+fn placement_envelope(component: &SchematicComponent, labels: &[NetLabel]) -> Rect {
+    let mut bounds = component.bounds;
+    if bounds.min.x == bounds.max.x {
+        bounds.min.x -= 1;
+        bounds.max.x += 1;
+    }
+    if bounds.min.y == bounds.max.y {
+        bounds.min.y -= 1;
+        bounds.max.y += 1;
+    }
+    for pin in &component.pins {
+        bounds.min.x = bounds.min.x.min(pin.escape.x);
+        bounds.min.y = bounds.min.y.min(pin.escape.y);
+        bounds.max.x = bounds.max.x.max(pin.escape.x);
+        bounds.max.y = bounds.max.y.max(pin.escape.y);
+    }
+    for label in labels
+        .iter()
+        .filter(|label| label.attached_to.component == component.id)
+    {
+        let envelope = semantic_label_bounds(label);
+        bounds.min.x = bounds.min.x.min(envelope.min.x);
+        bounds.min.y = bounds.min.y.min(envelope.min.y);
+        bounds.max.x = bounds.max.x.max(envelope.max.x);
+        bounds.max.y = bounds.max.y.max(envelope.max.y);
+    }
+    bounds
+}
+
+fn legalize_placement(
+    circuit: &CircuitIR,
+    nets: &[SchematicNet],
+    components: &mut [SchematicComponent],
+) -> Result<(), SchematicError> {
+    let labels = build_semantic_labels(circuit, components, nets)?;
+    let mut settled: Vec<(Rect, bool)> = Vec::new();
+    for component in components {
+        let bounds = placement_envelope(component, &labels);
+        let label_only = component.pins.iter().all(|pin| {
+            pin.net.is_none()
+                || labels.iter().any(|label| {
+                    label.attached_to.component == component.id && label.attached_to.pin == pin.name
+                })
+        });
+        let clear = |candidate: Rect| {
+            !settled.iter().any(|(other, other_label_only)| {
+                if label_only && *other_label_only {
+                    candidate.overlaps_interior(*other)
+                } else {
+                    candidate.overlaps(*other)
+                }
+            })
+        };
+        let mut selected = None;
+        if clear(bounds) {
+            selected = Some((0, 0));
+        }
+        for radius in 1..=128 {
+            if selected.is_some() {
+                break;
+            }
+            for dy in [-radius, radius] {
+                let candidate = Rect {
+                    min: bounds.min.offset(0, dy),
+                    max: bounds.max.offset(0, dy),
+                };
+                if clear(candidate) {
+                    selected = Some((0, dy));
+                    break;
+                }
+            }
+        }
+        let Some((dx, dy)) = selected else {
+            return Err(SchematicError {
+                message: format!(
+                    "cannot allocate clear symbol/rail space for {}",
+                    component.id
+                ),
+            });
+        };
+        translate_component(component, dx, dy);
+        settled.push((
+            Rect {
+                min: bounds.min.offset(dx, dy),
+                max: bounds.max.offset(dx, dy),
+            },
+            label_only,
+        ));
+    }
+    Ok(())
+}
+
 fn is_explicit_name(circuit: &CircuitIR, name: &str) -> bool {
     circuit.nets.iter().any(|candidate| candidate == name)
 }
@@ -2787,7 +3150,12 @@ fn compress_path(points: Vec<Point>) -> Vec<Point> {
         if result.len() >= 2 {
             let a = result[result.len() - 2];
             let b = result[result.len() - 1];
-            if (a.x == b.x && b.x == point.x) || (a.y == b.y && b.y == point.y) {
+            if ((a.x == b.x && b.x == point.x) || (a.y == b.y && b.y == point.y))
+                && b.x >= a.x.min(point.x)
+                && b.x <= a.x.max(point.x)
+                && b.y >= a.y.min(point.y)
+                && b.y <= a.y.max(point.y)
+            {
                 result.pop();
             }
         }
@@ -2798,27 +3166,46 @@ fn compress_path(points: Vec<Point>) -> Vec<Point> {
     result
 }
 
+#[derive(Clone, Copy)]
+struct RoutingContext<'a> {
+    blocked: &'a BTreeSet<Point>,
+    occupied: &'a BTreeMap<Point, NetId>,
+    net: NetId,
+    annotations: &'a [Rect],
+}
+
 fn route_grid(
     start: Point,
     goal: Point,
     bounds: Rect,
-    blocked: &BTreeSet<Point>,
-    occupied: &BTreeMap<Point, NetId>,
-    net: NetId,
+    context: RoutingContext<'_>,
 ) -> Option<Vec<Point>> {
+    let RoutingContext {
+        blocked,
+        occupied,
+        net,
+        annotations,
+    } = context;
+    if [start, goal]
+        .iter()
+        .any(|point| occupied.get(point).is_some_and(|other| *other != net))
+    {
+        return None;
+    }
     if start == goal {
         return Some(vec![start]);
     }
     const DIRECTIONS: [(i32, i32); 4] = [(1, 0), (0, 1), (-1, 0), (0, -1)];
     let start_state = (start, 4_u8);
     let mut frontier = BinaryHeap::new();
-    frontier.push(Reverse((0_u32, start.x, start.y, 4_u8)));
+    let heuristic = |point: Point| point.x.abs_diff(goal.x) + point.y.abs_diff(goal.y);
+    frontier.push(Reverse((heuristic(start), 0_u32, start.x, start.y, 4_u8)));
     let mut costs = BTreeMap::new();
     costs.insert(start_state, 0_u32);
     let mut previous: BTreeMap<(Point, u8), (Point, u8)> = BTreeMap::new();
     let mut found = None;
 
-    while let Some(Reverse((cost, x, y, direction))) = frontier.pop() {
+    while let Some(Reverse((_, cost, x, y, direction))) = frontier.pop() {
         let point = Point::new(x, y);
         if point == goal {
             found = Some((point, direction));
@@ -2830,6 +3217,21 @@ fn route_grid(
         for (next_direction, (dx, dy)) in DIRECTIONS.iter().copied().enumerate() {
             let next = point.offset(dx, dy);
             if !bounds.contains(next) || (blocked.contains(&next) && next != goal) {
+                continue;
+            }
+            if path_hits_annotations(&[point, next], annotations) {
+                continue;
+            }
+            // At a foreign wire, continue straight across its interior. A bend,
+            // endpoint or parallel run would be a conductive/ambiguous contact.
+            if occupied.get(&point).is_some_and(|other| *other != net)
+                && direction != next_direction as u8
+            {
+                continue;
+            }
+            if occupied.get(&next).is_some_and(|other| *other != net)
+                && !legal_transverse_crossing(next, dx == 0, occupied)
+            {
                 continue;
             }
             let bend_cost = u32::from(direction != 4 && direction != next_direction as u8) * 4;
@@ -2845,7 +3247,13 @@ fn route_grid(
             {
                 costs.insert(next_state, next_cost);
                 previous.insert(next_state, (point, direction));
-                frontier.push(Reverse((next_cost, next.x, next.y, next_direction as u8)));
+                frontier.push(Reverse((
+                    next_cost + heuristic(next),
+                    next_cost,
+                    next.x,
+                    next.y,
+                    next_direction as u8,
+                )));
             }
         }
     }
@@ -2860,8 +3268,19 @@ fn route_grid(
     Some(compress_path(path))
 }
 
-fn nearest_open_hub(candidate: Point, bounds: Rect, blocked: &BTreeSet<Point>) -> Option<Point> {
-    if bounds.contains(candidate) && !blocked.contains(&candidate) {
+fn nearest_open_hub(
+    candidate: Point,
+    bounds: Rect,
+    blocked: &BTreeSet<Point>,
+    occupied: &BTreeMap<Point, NetId>,
+    net: NetId,
+) -> Option<Point> {
+    let available = |point: Point| {
+        bounds.contains(point)
+            && !blocked.contains(&point)
+            && occupied.get(&point).is_none_or(|other| *other == net)
+    };
+    if available(candidate) {
         return Some(candidate);
     }
     for radius in 1_i32..=12 {
@@ -2869,7 +3288,7 @@ fn nearest_open_hub(candidate: Point, bounds: Rect, blocked: &BTreeSet<Point>) -
             let dy = radius - dx.abs();
             for signed_dy in [dy, -dy] {
                 let point = candidate.offset(dx, signed_dy);
-                if bounds.contains(point) && !blocked.contains(&point) {
+                if available(point) {
                     return Some(point);
                 }
             }
@@ -2878,13 +3297,13 @@ fn nearest_open_hub(candidate: Point, bounds: Rect, blocked: &BTreeSet<Point>) -
     None
 }
 
-fn orthogonal_route(
-    start: Point,
-    goal: Point,
-    blocked: &BTreeSet<Point>,
-    occupied: &BTreeMap<Point, NetId>,
-    net: NetId,
-) -> Option<Vec<Point>> {
+fn orthogonal_route(start: Point, goal: Point, context: RoutingContext<'_>) -> Option<Vec<Point>> {
+    let RoutingContext {
+        blocked,
+        occupied,
+        net,
+        annotations,
+    } = context;
     let candidates = [
         vec![start, Point::new(goal.x, start.y), goal],
         vec![start, Point::new(start.x, goal.y), goal],
@@ -2893,11 +3312,17 @@ fn orthogonal_route(
         .into_iter()
         .map(compress_path)
         .filter_map(|path| {
+            if path_hits_annotations(&path, annotations) {
+                return None;
+            }
             let points = points_on_path(&path);
             if points
                 .iter()
                 .any(|point| *point != start && *point != goal && blocked.contains(point))
             {
+                return None;
+            }
+            if !path_contacts_are_legal(&path, occupied, net) {
                 return None;
             }
             let crossing_cost = points
@@ -2910,6 +3335,41 @@ fn orthogonal_route(
         })
         .min_by(|left, right| left.0.cmp(&right.0).then(left.1.cmp(&right.1)))
         .map(|(_, path)| path)
+}
+
+fn legal_transverse_crossing(
+    point: Point,
+    vertical: bool,
+    occupied: &BTreeMap<Point, NetId>,
+) -> bool {
+    let Some(net) = occupied.get(&point) else {
+        return true;
+    };
+    let same = |dx, dy| occupied.get(&point.offset(dx, dy)) == Some(net);
+    if vertical {
+        same(-1, 0) && same(1, 0) && !same(0, -1) && !same(0, 1)
+    } else {
+        same(0, -1) && same(0, 1) && !same(-1, 0) && !same(1, 0)
+    }
+}
+
+fn path_contacts_are_legal(path: &[Point], occupied: &BTreeMap<Point, NetId>, net: NetId) -> bool {
+    let points = points_on_path(path);
+    for (index, point) in points.iter().enumerate() {
+        if occupied.get(point).is_some_and(|other| *other != net) {
+            if index == 0 || index + 1 == points.len() {
+                return false;
+            }
+            let before = points[index - 1];
+            let after = points[index + 1];
+            let vertical = before.x == point.x && after.x == point.x;
+            let horizontal = before.y == point.y && after.y == point.y;
+            if !(vertical || horizontal) || !legal_transverse_crossing(*point, vertical, occupied) {
+                return false;
+            }
+        }
+    }
+    true
 }
 
 fn direct_pin_route(
@@ -2942,6 +3402,9 @@ fn direct_pin_route(
         return None;
     }
     let path = vec![start, goal];
+    if !path_contacts_are_legal(&path, occupied, net) {
+        return None;
+    }
     let interior = points_on_path(&path)
         .into_iter()
         .filter(|point| *point != start && *point != goal);
@@ -2977,6 +3440,26 @@ fn points_on_path(points: &[Point]) -> Vec<Point> {
         result.push(points[0]);
     }
     result
+}
+
+fn path_hits_annotations(points: &[Point], annotations: &[Rect]) -> bool {
+    points.windows(2).any(|pair| {
+        let a = Point::new(pair[0].x * TEXT_SUBGRID, pair[0].y * TEXT_SUBGRID);
+        let b = Point::new(pair[1].x * TEXT_SUBGRID, pair[1].y * TEXT_SUBGRID);
+        annotations.iter().any(|bounds| {
+            if a.y == b.y {
+                a.y > bounds.min.y
+                    && a.y < bounds.max.y
+                    && a.x.max(b.x) > bounds.min.x
+                    && a.x.min(b.x) < bounds.max.x
+            } else {
+                a.x > bounds.min.x
+                    && a.x < bounds.max.x
+                    && a.y.max(b.y) > bounds.min.y
+                    && a.y.min(b.y) < bounds.max.y
+            }
+        })
+    })
 }
 
 fn pin_maps(
@@ -3045,18 +3528,26 @@ fn build_semantic_labels(
     Ok(labels)
 }
 
-fn route_schematic(
+pub(crate) fn route_schematic(
     circuit: &CircuitIR,
     components: &[SchematicComponent],
     nets: &[SchematicNet],
     labels: Vec<NetLabel>,
+    annotation_obstacles: &[Rect],
 ) -> Result<RoutedElements, SchematicError> {
     let (anchors, pin_points) = pin_maps(components);
     let bounds = route_bounds(components, &labels, nets.len());
-    let blocked = blocked_points(components, &labels);
+    let mut base_blocked = blocked_points(components, &labels);
+    for bounds in annotation_obstacles {
+        for x in ceil_subgrid(bounds.min.x + 1)..=(bounds.max.x - 1).div_euclid(TEXT_SUBGRID) {
+            for y in ceil_subgrid(bounds.min.y + 1)..=(bounds.max.y - 1).div_euclid(TEXT_SUBGRID) {
+                base_blocked.insert(Point::new(x, y));
+            }
+        }
+    }
     let mut occupied: BTreeMap<Point, NetId> = BTreeMap::new();
     let mut wires = Vec::new();
-    let mut junctions = Vec::new();
+    let mut junctions: Vec<Junction> = Vec::new();
     let mut labels = labels;
     let mut wire_counter = 1;
     let mut junction_counter = 1;
@@ -3067,6 +3558,26 @@ fn route_schematic(
         }
         if label_net(circuit, net) {
             continue;
+        }
+        // Pins, their escape points and existing junctions cannot be crossed by
+        // another net, even when the route's goal bypasses body obstacles.
+        let mut blocked = base_blocked.clone();
+        let mut reserved = BTreeSet::new();
+        for component in components {
+            for pin in &component.pins {
+                if pin.net != Some(net.id) {
+                    blocked.insert(pin.point);
+                    blocked.insert(pin.escape);
+                    reserved.insert(pin.point);
+                    reserved.insert(pin.escape);
+                }
+            }
+        }
+        for junction in &junctions {
+            if junction.net != net.id {
+                blocked.insert(junction.point);
+                reserved.insert(junction.point);
+            }
         }
 
         if net.pins.len() == 2 {
@@ -3083,30 +3594,35 @@ fn route_schematic(
                 &occupied,
                 net.id,
             ) {
-                for point in points_on_path(&points) {
-                    occupied.entry(point).or_insert(net.id);
+                if points_on_path(&points)
+                    .iter()
+                    .any(|point| reserved.contains(point))
+                    || path_hits_annotations(&points, annotation_obstacles)
+                {
+                    // Fall through to the obstacle-aware router below.
+                } else {
+                    for point in points_on_path(&points) {
+                        occupied.entry(point).or_insert(net.id);
+                    }
+                    wires.push(SchematicWire {
+                        id: format!("W{wire_counter:04}"),
+                        net: net.id,
+                        start: WireEndpoint::pin(start_ref),
+                        end: WireEndpoint::pin(end_ref),
+                        points,
+                    });
+                    wire_counter += 1;
+                    continue;
                 }
-                wires.push(SchematicWire {
-                    id: format!("W{wire_counter:04}"),
-                    net: net.id,
-                    start: WireEndpoint::pin(start_ref),
-                    end: WireEndpoint::pin(end_ref),
-                    points,
-                });
-                wire_counter += 1;
-                continue;
             }
-            let middle = orthogonal_route(start_escape, end_escape, &blocked, &occupied, net.id)
-                .or_else(|| {
-                    route_grid(
-                        start_escape,
-                        end_escape,
-                        bounds,
-                        &blocked,
-                        &occupied,
-                        net.id,
-                    )
-                })
+            let context = RoutingContext {
+                blocked: &blocked,
+                occupied: &occupied,
+                net: net.id,
+                annotations: annotation_obstacles,
+            };
+            let middle = orthogonal_route(start_escape, end_escape, context)
+                .or_else(|| route_grid(start_escape, end_escape, bounds, context))
                 .ok_or_else(|| SchematicError {
                     message: format!("could not route net '{}'", net.name),
                 })?;
@@ -3158,8 +3674,10 @@ fn route_schematic(
         let hub = if aligned_pin_hub == Some(candidate) {
             candidate
         } else {
-            nearest_open_hub(candidate, bounds, &blocked).ok_or_else(|| SchematicError {
-                message: format!("could not place junction for net '{}'", net.name),
+            nearest_open_hub(candidate, bounds, &blocked, &occupied, net.id).ok_or_else(|| {
+                SchematicError {
+                    message: format!("could not place junction for net '{}'", net.name),
+                }
             })?
         };
         let junction_id = format!("J{junction_counter:04}");
@@ -3181,20 +3699,27 @@ fn route_schematic(
             let (pin_point, escape) = anchors[pin];
             if aligned_pin_hub == Some(hub) && (pin_point.x == hub.x || pin_point.y == hub.y) {
                 let points = compress_path(vec![pin_point, hub]);
-                for point in points_on_path(&points) {
-                    occupied.entry(point).or_insert(net.id);
+                if path_contacts_are_legal(&points, &occupied, net.id)
+                    && !path_hits_annotations(&points, annotation_obstacles)
+                    && !points_on_path(&points).iter().any(|point| {
+                        *point != pin_point && *point != hub && blocked.contains(point)
+                    })
+                {
+                    for point in points_on_path(&points) {
+                        occupied.entry(point).or_insert(net.id);
+                    }
+                    wires.push(SchematicWire {
+                        id: format!("W{wire_counter:04}"),
+                        net: net.id,
+                        start: WireEndpoint::pin(pin),
+                        end: WireEndpoint::Junction {
+                            id: junction_id.clone(),
+                        },
+                        points,
+                    });
+                    wire_counter += 1;
+                    continue;
                 }
-                wires.push(SchematicWire {
-                    id: format!("W{wire_counter:04}"),
-                    net: net.id,
-                    start: WireEndpoint::pin(pin),
-                    end: WireEndpoint::Junction {
-                        id: junction_id.clone(),
-                    },
-                    points,
-                });
-                wire_counter += 1;
-                continue;
             }
             if pin_point == hub {
                 wires.push(SchematicWire {
@@ -3210,21 +3735,25 @@ fn route_schematic(
                 wire_counter += 1;
                 continue;
             }
-            let middle = orthogonal_route(escape, hub, &blocked, &occupied, net.id)
-                .or_else(|| route_grid(escape, hub, bounds, &blocked, &occupied, net.id))
-                .ok_or_else(|| {
-                    SchematicError {
-                        message: format!(
-                            "could not route branch of net '{}' from {} at ({}, {}) to junction ({}, {})",
-                            net.name,
-                            pin.id(),
-                            escape.x,
-                            escape.y,
-                            hub.x,
-                            hub.y
-                        ),
-                    }
-                })?;
+            let context = RoutingContext {
+                blocked: &blocked,
+                occupied: &occupied,
+                net: net.id,
+                annotations: annotation_obstacles,
+            };
+            let middle = orthogonal_route(escape,hub,context)
+            .or_else(|| route_grid(escape,hub,bounds,context))
+            .ok_or_else(|| SchematicError {
+                message: format!(
+                    "could not route branch of net '{}' from {} at ({}, {}) to junction ({}, {})",
+                    net.name,
+                    pin.id(),
+                    escape.x,
+                    escape.y,
+                    hub.x,
+                    hub.y
+                ),
+            })?;
             let mut points = vec![pin_point];
             points.extend(middle);
             let points = compress_path(points);
@@ -3245,12 +3774,42 @@ fn route_schematic(
     }
 
     let mut point_wires: BTreeMap<Point, Vec<(&str, NetId)>> = BTreeMap::new();
+    let mut net_neighbors: BTreeMap<(Point, NetId), BTreeSet<Point>> = BTreeMap::new();
     for wire in &wires {
-        for point in points_on_path(&wire.points) {
+        let path = points_on_path(&wire.points);
+        for pair in path.windows(2) {
+            net_neighbors
+                .entry((pair[0], wire.net))
+                .or_default()
+                .insert(pair[1]);
+            net_neighbors
+                .entry((pair[1], wire.net))
+                .or_default()
+                .insert(pair[0]);
+        }
+        for point in path {
             point_wires
                 .entry(point)
                 .or_default()
                 .push((&wire.id, wire.net));
+        }
+    }
+    // Shared routes must draw every conductive T/four-way join explicitly.
+    // Otherwise an EDA reader may interpret a same-net transverse crossing as
+    // two disconnected islands even though wire tags describe one net.
+    for ((point, net), neighbors) in net_neighbors {
+        if neighbors.len() >= 3
+            && !pin_points.contains_key(&point)
+            && !junctions
+                .iter()
+                .any(|junction| junction.point == point && junction.net == net)
+        {
+            junctions.push(Junction {
+                id: format!("J{junction_counter:04}"),
+                net,
+                point,
+            });
+            junction_counter += 1;
         }
     }
     let mut crossings = Vec::new();
@@ -3285,8 +3844,11 @@ fn endpoint_pin(endpoint: &WireEndpoint) -> Option<PinRef> {
 
 fn connectivity_report(
     graph: &NetlistGraph,
+    components: &[SchematicComponent],
     wires: &[SchematicWire],
+    junctions: &[Junction],
     labels: &[NetLabel],
+    crossings: &[Crossing],
 ) -> ConnectivityReport {
     let mut expected: BTreeMap<NetId, BTreeSet<PinRef>> = BTreeMap::new();
     for (pin_id, net) in &graph.pin_to_net {
@@ -3335,6 +3897,9 @@ fn connectivity_report(
             errors.push(format!("schematic invented net {net}"));
         }
     }
+    errors.extend(crate::schematic_geometry::geometry_errors(
+        components, wires, junctions, labels, crossings,
+    ));
     ConnectivityReport {
         verified: errors.is_empty(),
         expected_connected_pins: expected.values().map(BTreeSet::len).sum(),
@@ -3413,8 +3978,8 @@ fn quality_report(input: QualityInput<'_>) -> QualityReport {
     for label in labels {
         let label_bounds = semantic_label_bounds(label);
         for component in components {
-            if component.id != label.attached_to.component
-                && label_bounds.overlaps_interior(component.bounds)
+            if (component.id != label.attached_to.component || label.kind == NetKind::Supply)
+                && fine_rect(label_bounds).overlaps_interior(component_ink_bounds(component))
             {
                 label_symbol_hits.insert((label.id.clone(), component.id.clone()));
             }
@@ -3444,7 +4009,7 @@ fn quality_report(input: QualityInput<'_>) -> QualityReport {
     for text in texts {
         let text_bounds = rendered_text_bounds(text);
         for component in components {
-            if text_bounds.overlaps_interior(fine_rect(component.bounds)) {
+            if text_bounds.overlaps_interior(component_text_bounds(component)) {
                 text_symbol_hits.insert((text.id.clone(), component.id.clone()));
             }
         }
@@ -3481,12 +4046,16 @@ fn quality_report(input: QualityInput<'_>) -> QualityReport {
                 .get(text.component.as_str())
                 .is_none_or(|component| {
                     let text_bounds = rendered_text_bounds(text);
-                    rect_manhattan_gap(text_bounds, fine_rect(component.bounds)) > 4
+                    rect_manhattan_gap(text_bounds, component_text_bounds(component)) > 12
                         && !texts.iter().any(|sibling| {
                             sibling.id != text.id
                                 && sibling.component == text.component
                                 && rect_manhattan_gap(text_bounds, rendered_text_bounds(sibling))
                                     <= TEXT_LINE_GAP as usize
+                                && rect_manhattan_gap(
+                                    rendered_text_bounds(sibling),
+                                    component_text_bounds(component),
+                                ) <= 12
                         })
                 })
         })
@@ -3504,22 +4073,9 @@ fn quality_report(input: QualityInput<'_>) -> QualityReport {
             reference
                 .zip(secondary)
                 .is_some_and(|(reference, secondary)| {
-                    let component_bounds = fine_rect(component.bounds);
                     let reference_bounds = rendered_text_bounds(reference);
                     let secondary_bounds = rendered_text_bounds(secondary);
-                    let reference_side = text_horizontal_side(reference_bounds, component_bounds);
-                    let secondary_side = text_horizontal_side(secondary_bounds, component_bounds);
-                    let both_above = reference_bounds.max.y <= component_bounds.min.y
-                        && secondary_bounds.max.y <= component_bounds.min.y;
-                    let both_below = reference_bounds.min.y >= component_bounds.max.y
-                        && secondary_bounds.min.y >= component_bounds.max.y;
-                    let coherent_same_side = (reference_side != 0
-                        && reference_side == secondary_side)
-                        || both_above
-                        || both_below;
-                    coherent_same_side
-                        && rect_manhattan_gap(reference_bounds, secondary_bounds)
-                            > TEXT_LINE_GAP as usize
+                    rect_manhattan_gap(reference_bounds, secondary_bounds) > 8
                 })
         })
         .count();
@@ -3816,21 +4372,24 @@ fn semantic_label_bounds(label: &NetLabel) -> Rect {
             min: label.point.offset(-1, 0),
             max: label.point.offset(1, 2),
         },
-        (NetKind::Supply, _)
-            if !matches!(
-                label.text.to_ascii_uppercase().as_str(),
-                "VEE" | "VSS" | "-V"
-            ) =>
-        {
+        (NetKind::Supply, _) => {
+            let anchor = supply_marker_anchor(label);
+            let (low, high) = if supply_points_down(&label.text) {
+                (0, 2)
+            } else {
+                (-2, 0)
+            };
             Rect {
-                min: label.point.offset(-text_half_width, -2),
-                max: label.point.offset(text_half_width, 0),
+                min: Point::new(
+                    (anchor.x - text_half_width).min(label.point.x),
+                    (anchor.y + low).min(label.point.y),
+                ),
+                max: Point::new(
+                    (anchor.x + text_half_width).max(label.point.x),
+                    (anchor.y + high).max(label.point.y),
+                ),
             }
         }
-        (NetKind::Supply, _) => Rect {
-            min: label.point.offset(-text_half_width, 0),
-            max: label.point.offset(text_half_width, 2),
-        },
         (NetKind::Signal, PinSide::Top) => Rect {
             min: label.point.offset(0, -2),
             max: label.point.offset(text_half_width * 2 + 2, 0),
@@ -3888,14 +4447,51 @@ fn schematic_bounds(
 pub fn generate_schematic(circuit: &CircuitIR) -> Result<Schematic, SchematicError> {
     let graph = NetlistGraph::build(circuit);
     let supplies = supply_nets(circuit, &graph);
-    let components = place_components(circuit, &graph, &supplies);
+    let mut components = place_components(circuit, &graph, &supplies);
     let nets = build_nets(circuit, &graph, &supplies);
-    let labels = build_semantic_labels(circuit, &components, &nets)?;
-    let (wires, junctions, crossings, labels) =
-        route_schematic(circuit, &components, &nets, labels)?;
+    legalize_placement(circuit, &nets, &mut components)?;
+    let mut labels = build_semantic_labels(circuit, &components, &nets)?;
+    let (mut wires, mut junctions, mut crossings, routed_labels) =
+        route_schematic(circuit, &components, &nets, labels, &[])?;
+    labels = routed_labels;
     let mut texts = place_component_texts(&components, &labels, &wires);
     refine_component_texts(&mut texts, &components, &labels, &wires);
-    let connectivity = connectivity_report(&graph, &wires, &labels);
+    if annotations_need_space(&texts, &components, &labels, &wires) {
+        let mut planned = None;
+        for _ in 0..64 {
+            match plan_annotation_blocks(&components, &labels) {
+                Ok(blocks) => {
+                    planned = Some(blocks);
+                    break;
+                }
+                Err(id) => {
+                    let index = components
+                        .iter()
+                        .position(|component| component.id == id)
+                        .unwrap();
+                    translate_component(&mut components[index], 0, 4);
+                    legalize_placement(circuit, &nets, &mut components)?;
+                    labels = build_semantic_labels(circuit, &components, &nets)?;
+                }
+            }
+        }
+        texts = planned.ok_or_else(|| SchematicError {
+            message:
+                "cannot allocate nearby non-overlapping annotation blocks within layout budget"
+                    .to_string(),
+        })?;
+        let obstacles: Vec<_> = texts.iter().map(rendered_text_bounds).collect();
+        (wires, junctions, crossings, labels) =
+            route_schematic(circuit, &components, &nets, labels, &obstacles)?;
+        if annotations_need_space(&texts, &components, &labels, &wires) {
+            return Err(SchematicError {
+                message: "annotation-aware routing did not preserve nearby clear text blocks"
+                    .to_string(),
+            });
+        }
+    }
+    let connectivity =
+        connectivity_report(&graph, &components, &wires, &junctions, &labels, &crossings);
     if !connectivity.verified {
         return Err(SchematicError {
             message: format!(

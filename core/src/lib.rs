@@ -18,6 +18,7 @@ pub mod models;
 pub mod parser;
 pub mod requirements;
 pub mod schematic;
+mod schematic_geometry;
 pub mod schematic_svg;
 pub mod sim_result;
 pub mod simulation;

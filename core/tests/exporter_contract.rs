@@ -91,6 +91,10 @@ fn editable_exports_cover_the_complete_canonical_benchmark_corpus() {
             "power",
             include_str!("fixtures/benchmarks/power_amplifier.kess"),
         ),
+        (
+            "dense_bias_network",
+            include_str!("fixtures/schematic/dense_bias_network.kess"),
+        ),
     ] {
         let report = compile_source(source, CompileOptions::all_outputs());
         assert!(!report.has_errors(), "{name}: {:?}", report.diagnostics);
@@ -108,6 +112,27 @@ fn editable_exports_cover_the_complete_canonical_benchmark_corpus() {
             }
         }
     }
+}
+
+#[test]
+fn kicad_keeps_suppressed_generic_models_as_hidden_editable_values() {
+    let report = compile_source(
+        include_str!("fixtures/benchmarks/gain_stage.kess"),
+        CompileOptions::all_outputs(),
+    );
+    assert!(!report.has_errors(), "{:?}", report.diagnostics);
+    let artifact = export_report(&report, ExportFormat::Kicad, ExportOptions::default()).unwrap();
+    let text = String::from_utf8(artifact.bytes).unwrap();
+    let generic_value = text
+        .lines()
+        .find(|line| line.contains("(property \"Value\" \"KESSETSU_OPAMP_V1\""))
+        .expect("generic model remains editable in Value");
+    assert!(generic_value.contains("(hide yes)"));
+    let explicit_value = text
+        .lines()
+        .find(|line| line.contains("(property \"Value\" \"10 kΩ\""))
+        .expect("explicit component value remains available");
+    assert!(!explicit_value.contains("(hide yes)"));
 }
 
 #[test]
@@ -149,6 +174,30 @@ fn ltspice_analysis_text_uses_dot_directives() {
             );
         }
     }
+}
+
+#[test]
+fn stale_verified_flag_cannot_export_broken_geometry() {
+    let mut report = compile_fixture();
+    let schematic = report.schematic.as_mut().unwrap();
+    schematic.wires[0].points[0].x += 1;
+    assert!(schematic.connectivity.verified);
+    for format in [
+        ExportFormat::Svg,
+        ExportFormat::Png,
+        ExportFormat::SchematicJson,
+        ExportFormat::Kicad,
+        ExportFormat::Ltspice,
+    ] {
+        assert_eq!(
+            export_report(&report, format, ExportOptions::default())
+                .unwrap_err()
+                .code,
+            "KES-X003"
+        );
+    }
+    // Independent circuit semantics still export correctly without a drawing.
+    assert!(export_report(&report, ExportFormat::Spice, ExportOptions::default()).is_ok());
 }
 
 #[test]

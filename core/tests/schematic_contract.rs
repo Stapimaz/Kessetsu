@@ -56,6 +56,10 @@ const CORPUS: &[(&str, &str)] = &[
         "summing_amplifier",
         include_str!("fixtures/schematic/summing_amplifier.kess"),
     ),
+    (
+        "dense_bias_network",
+        include_str!("fixtures/schematic/dense_bias_network.kess"),
+    ),
 ];
 
 fn schematic(source: &str) -> kessetsu_core::schematic::Schematic {
@@ -71,6 +75,24 @@ fn schematic(source: &str) -> kessetsu_core::schematic::Schematic {
 fn svg_hash(source: &str) -> String {
     let svg = schematic_svg::render_svg(&schematic(source));
     format!("{:x}", Sha256::digest(svg.as_bytes()))
+}
+
+#[test]
+fn complementary_branches_follow_rail_roles_not_reference_order() {
+    let schematic = schematic(include_str!("fixtures/schematic/dense_bias_network.kess"));
+    let position = |id: &str| {
+        schematic
+            .components
+            .iter()
+            .find(|component| component.id == id)
+            .unwrap()
+            .origin
+            .y
+    };
+    // DOWN sorts before UP lexically, but the positive branch belongs above
+    // the negative branch, including their attached emitter-ballast devices.
+    assert!(position("Q_UP") < position("Q_DOWN"));
+    assert!(position("R_BALLAST_UP") < position("R_BALLAST_DOWN"));
 }
 
 #[test]
@@ -510,32 +532,32 @@ fn svg_visual_golden_hashes_are_cross_platform_stable() {
         (
             "minimal",
             CORPUS[0].1,
-            "6ae3ce6664bd549426e4bf1c146d60bea43c6a00dfec68a4e420e37266727442",
+            "9a3d6c090a5493360d25d94c7aaaf17e41447fe035576e2ecc352b666da7a809",
         ),
         (
             "rc_filter",
             CORPUS[1].1,
-            "155784b86a832625fb8f00b48a8c2371f65c45f24e82d4a6ad1859da5b31cc75",
+            "e09f11f81d8102c65fe6e36ee1867aea161613f6013bffc5e2a48d050268af2c",
         ),
         (
             "wheatstone",
             CORPUS[2].1,
-            "880dc758cc0d96fe4d3e60ad52975c8388ba76ba5e1830ba99bd573a8e5c48e2",
+            "5007d70208d3e228cb18ac628f160d70ead2009433dff5a0042cbc2118d377ff",
         ),
         (
             "gain_stage",
             CORPUS[3].1,
-            "bbaf1ace8c840c06cfa6d70c1245fcbc57874ab066777abab2266d3ff339c8d7",
+            "3a52683cb659e6ae46f69af40ca65534b4bb6da2d8957860173e622879dd0acb",
         ),
         (
             "high_fanout",
             CORPUS[4].1,
-            "eb9d596f041a7381770ab051b28501c5f4fdf1da8f514258ed7876c9e123bfc0",
+            "3c0f945533c87d19d9f3c46f1eaeffa2ff416e5abed10aad47ead1a682041e71",
         ),
         (
             "power_amplifier",
             CORPUS[5].1,
-            "68f9cad058e4e1e69efdc4414892e73c915834decebd16e30b9cd07f3756ceab",
+            "19073f20e5715bc5a05f7184f69a12c575237f06c418ce3e978390b1a006a013",
         ),
     ] {
         let actual = svg_hash(source);

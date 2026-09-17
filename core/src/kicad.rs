@@ -1,5 +1,5 @@
 use crate::exporter::ExportError;
-use crate::schematic::{Point, Schematic, SchematicComponent};
+use crate::schematic::{Point, Schematic, SchematicComponent, TextAnchor, TextRole};
 use sha2::{Digest, Sha256};
 
 const GRID_MM: f64 = 2.54;
@@ -118,20 +118,44 @@ fn instance(schematic: &Schematic, component: &SchematicComponent, root_uuid: &s
         quoted(&lib_id),
         quoted(&instance_uuid)
     );
-    out.push_str(&property(
-        "Reference",
-        &component.reference,
-        &x,
-        &coordinate(y.parse::<f64>().unwrap_or_default() - 3.81),
-        false,
-    ));
-    out.push_str(&property(
-        "Value",
-        value,
-        &x,
-        &coordinate(y.parse::<f64>().unwrap_or_default() + 3.81),
-        false,
-    ));
+    for (name, content, role) in [
+        (
+            "Reference",
+            component.reference.as_str(),
+            TextRole::Reference,
+        ),
+        ("Value", value, TextRole::Value),
+    ] {
+        if let Some(text) = schematic.texts.iter().find(|text| {
+            text.component == component.id
+                && (text.role == role || (role == TextRole::Value && text.role == TextRole::Model))
+        }) {
+            let tx = coordinate(
+                (text.point.x as f64 + text.offset_eighths.x as f64 / 8.0
+                    - schematic.bounds.min.x as f64)
+                    * GRID_MM
+                    + PAGE_MARGIN_MM,
+            );
+            let ty = coordinate(
+                (text.point.y as f64 + text.offset_eighths.y as f64 / 8.0
+                    - schematic.bounds.min.y as f64)
+                    * GRID_MM
+                    + PAGE_MARGIN_MM,
+            );
+            let justify = match text.anchor {
+                TextAnchor::Start => "left bottom",
+                TextAnchor::Middle => "bottom",
+                TextAnchor::End => "right bottom",
+            };
+            out.push_str(&format!("    (property {} {} (at {tx} {ty} 0) (effects (font (size 1.27 1.27)) (justify {justify})))\n", quoted(name),quoted(content)));
+        } else {
+            // Automatically selected generic models are intentionally omitted
+            // from visible canonical annotations. Retain the Value property
+            // as editable data, without putting an unplanned caption on the
+            // symbol body in the native schematic.
+            out.push_str(&property(name, content, &x, &y, role == TextRole::Value));
+        }
+    }
     out.push_str(&property("Footprint", "", &x, &y, true));
     out.push_str(&property("Datasheet", "", &x, &y, true));
     out.push_str(&property(
@@ -203,7 +227,16 @@ fn instance(schematic: &Schematic, component: &SchematicComponent, root_uuid: &s
 /// from verified Schematic IR. Per-instance embedded symbols keep the file
 /// portable and put every KiCad pin exactly on its canonical graph anchor.
 pub fn generate_kicad_sch(schematic: &Schematic) -> Result<String, ExportError> {
-    if !schematic.connectivity.verified {
+    if !schematic.connectivity.verified
+        || !crate::schematic_geometry::geometry_errors(
+            &schematic.components,
+            &schematic.wires,
+            &schematic.junctions,
+            &schematic.labels,
+            &schematic.crossings,
+        )
+        .is_empty()
+    {
         return Err(ExportError {
             code: "KES-X003".to_string(),
             message: "canonical connectivity proof failed; KiCad export stopped".to_string(),

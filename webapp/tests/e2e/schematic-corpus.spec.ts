@@ -16,6 +16,7 @@ const corpus = [
   ['diode-clamp', '../../../core/tests/fixtures/schematic/diode_clamp.kess', 'DHI'],
   ['bjt-common-emitter', '../../../core/tests/fixtures/schematic/bjt_common_emitter.kess', 'Q1'],
   ['summing-amplifier', '../../../core/tests/fixtures/schematic/summing_amplifier.kess', 'U1'],
+  ['dense-bias-network', '../../../core/tests/fixtures/schematic/dense_bias_network.kess', 'C_BIAS'],
 ] as const;
 
 test('renders the canonical schematic corpus with verified quality', async ({ page }) => {

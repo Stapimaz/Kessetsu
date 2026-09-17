@@ -27,6 +27,9 @@ published binary releases and tags remain immutable.
 
 ## In development
 
+- [ ] Schematic repairs for dense circuits: coordinate-based connectivity verification,
+  safer routing, closer component annotations and orientation-aware EDA export. Implemented
+  and regression-checked in source; not yet in published 1.1.0 or the deployed Web Hub.
 - [ ] Builtin diode portability repair, verified in native/browser source tests but not
   yet included in published downloads or the deployed Web Hub.
 - [ ] Named quantities and reusable parameterized circuits. The first source-only slice
