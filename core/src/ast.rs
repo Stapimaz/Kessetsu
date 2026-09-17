@@ -26,6 +26,9 @@ pub struct ComponentDecl {
     pub waveform_expression: Option<WaveformCall>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub interface_pins: Vec<String>,
+    /// Structured identity of a virtual module interface; not an electrical ID.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub instance_path: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -56,6 +56,106 @@ The first `test` exits 4 with a failed voltage assertion; the revised one passes
 Use `--requirements-sha256` when the evaluator also needs hash pinning. Simulation success
 is conditional on the nominal resistors and ideal source, not a hardware guarantee.
 
+## Reuse a circuit block (unreleased)
+
+This section requires a development source build. Published CLI 1.1.0 and the live Web
+Hub do not yet support parameterized blocks. No migration is needed for literal circuits.
+
+A **module** defines topology once. A **use** creates an instance with its own settings.
+**Ports** connect that instance to the surrounding circuit; **parameters** change its
+numeric values. There is no separate block editor, registry or new project format.
+
+### One filter, two cutoff settings
+
+The complete [reusable filter example](../../examples/reusable_filters.kess) includes its
+source, connections, AC analysis and four fixed acceptance assertions. In development
+Web builds, open **File → Examples → Reusable Filters**, then **Run simulation** in the
+Simulation panel. With a source-built CLI, from the repository root:
+
+```bash
+kess test examples/reusable_filters.kess --format json
+```
+
+Its reusable definition is:
+
+```kessetsu
+module LowPass(input,output,gnd) {
+  param resistance: Ohm = 1k
+  param cutoff: Hz = 1k
+  param capacitance: F = 1 / (2 * pi * resistance * cutoff)
+  resistor R1 {resistance}
+  capacitor C1 {capacitance}
+  connect input to R1.p1
+  connect R1.p2, C1.p1 to output
+  connect C1.p2 to gnd
+}
+```
+
+Create independent instances and connect their named ports, not their internal resistors:
+
+```kessetsu
+use LowPass SLOW(cutoff=500Hz)
+use LowPass FAST(cutoff=2kHz)
+connect VIN.plus, SLOW.input, FAST.input to IN
+connect SLOW.output to SLOW_OUT
+connect FAST.output to FAST_OUT
+```
+
+These excerpts are not standalone circuits: use the complete example for supplies/ground,
+all connections and analysis. `use LowPass DEFAULT` uses the declared defaults.
+Changing a cutoff recomputes its instance's capacitance; it does not modify another instance.
+A supplied `capacitance=150nF` instead selects that nominal component explicitly: the actual
+cutoff need not match the setting named `cutoff`. The formula assumes an ideal input source
+and unloaded output. A load or cascaded stage changes the response; simulate the whole circuit.
+
+### One amplifier, two gains
+
+Open **File → Examples → Reusable Amplifiers**, or use the complete
+[amplifier example](../../examples/reusable_amplifiers.kess):
+
+```bash
+kess test examples/reusable_amplifiers.kess --format json
+kess test examples/reusable_amplifiers.kess --param second_gain=8 --format json --include ir --force
+```
+
+The example cascades two instances of one non-inverting topology with nominal stage gains
+5 and 10, external ±12 V supplies and separate 10 kΩ loads. It measures each gain relative
+to that stage's input; the overall nominal gain is 50, not 10. Its feedback resistor is calculated as
+`(gain - 1) * reference`. The `second_gain=8` call deliberately fails the unchanged gain-10
+requirement (exit 4); the first instance remains independently configured. `--force` permits
+replacing the generated simulation artifact from the first call, not the original source.
+On subsequent file-based runs, use it only when replacing that output is intended.
+Editing a design setting must not silently rewrite its acceptance criteria.
+The `KESSETSU_OPAMP_V1` model is
+generic, not a manufacturer part. Finite bandwidth, output swing and loading still matter.
+A requested gain of 1 makes this resistor topology invalid; use a directly wired follower
+instead. The formula is not a guarantee for any requested gain or physical device.
+
+### Save, identity and scope
+
+- Keep the module definition and its `use` statements in the same `.kess` document. Saving,
+  downloading or source-sharing that document preserves the definitions and overrides.
+- Definition names are unique within the document. `FIRST` is an instance name, not a
+  package version. Nested structured paths such as `STAGE.FILTER` are preserved in IR
+  module-interface metadata; electrical IDs such as `STAGE_FILTER_R1` remain unchanged.
+- Module bodies use their own parameters. Pass root/caller quantities explicitly, for
+  example `use LowPass FAST(cutoff={fast_cutoff})`; globals are not implicitly captured.
+- Use exact declared port names: a typo is an ERC error. Connect ground and power through
+  explicit ports. Important external measurements should use named circuit nets.
+- Put analyses and assertions at the circuit root. Parameterized module-local analysis
+  and assertion contexts are unsupported; there are no automatic per-instance test runs.
+- Blocks are source-embedded, not imported packages. `model_include` selects exact **model**
+  packages; it does not install circuit modules. External module files, package version
+  resolution and a block registry are not supported. Do not omit a definition from a share.
+
+For terminal overrides, `--include effective-source` returns source with the accepted root
+settings materialized; save that source if you want to reopen or share the exact effective
+design. A command-line override alone does not edit the original file. For model dependencies,
+keep the existing exact package/resource bindings. KiCad/LTspice exports flatten block topology
+and do not preserve editable `.kess` module definitions; retain the source alongside exports.
+See [parameters and limits](../reference/language.md#independent-module-parameters-unreleased)
+and [root inputs](../reference/cli.md#root-parameter-inputs-unreleased).
+
 ## Bias and operating point
 
 Add `simulate op`, then constrain a node with two explicit assertions:

@@ -74,6 +74,8 @@ pub enum ComponentParams {
         module_name: String,
         #[serde(default)]
         pins: Vec<String>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        instance_path: Vec<String>,
     },
 }
 
@@ -813,6 +815,7 @@ pub fn ast_to_ir_with_resources(
                         ComponentParams::ModulePort {
                             module_name: val_str.to_string(),
                             pins: decl.interface_pins.clone(),
+                            instance_path: decl.instance_path.clone(),
                         },
                     ),
                     ComponentType::Resistor => (

@@ -1,0 +1,46 @@
+// Source-build example: identical amplifier topology, cascaded gains 5 and 10.
+// Generic verification model, not a manufacturer device or hardware guarantee.
+// Ideal gain = 1 + feedback / reference; actual gain also depends on the model/load.
+param input_amplitude: V = 100mV
+param second_gain: ratio = 10
+module NonInverting(input,output,vcc,vee,gnd) {
+  param gain: ratio = 5
+  param reference: Ohm = 1k
+  param feedback: Ohm = (gain - 1) * reference
+  opamp U1 KESSETSU_OPAMP_V1
+  resistor RF {feedback}
+  resistor RG {reference}
+  connect input to U1.in_p
+  connect U1.out, RF.p1 to output
+  connect U1.in_n, RF.p2 to RG.p1
+  connect RG.p2 to gnd
+  connect U1.vcc to vcc
+  connect U1.vee to vee
+}
+net GND
+net VCC
+net VEE
+net IN
+net FIRST_OUT
+net SECOND_OUT
+source VP 12V
+source VN 12V
+source VIN sine_ac(0V,{input_amplitude},1kHz,1V)
+resistor LOAD1 10k
+resistor LOAD2 10k
+use NonInverting FIRST
+use NonInverting SECOND(gain={second_gain})
+connect VP.plus, FIRST.vcc, SECOND.vcc to VCC
+connect VN.minus, FIRST.vee, SECOND.vee to VEE
+connect VIN.plus, FIRST.input to IN
+connect VP.minus, VN.plus, VIN.minus, FIRST.gnd, SECOND.gnd, LOAD1.p2, LOAD2.p2 to GND
+connect FIRST.output, LOAD1.p1, SECOND.input to FIRST_OUT
+connect SECOND.output, LOAD2.p1 to SECOND_OUT
+simulate ac dec 40 10Hz 10MHz
+simulate tran 10us 5ms
+assert gain_at(V(FIRST_OUT),V(IN),1kHz) > 4.95
+assert gain_at(V(FIRST_OUT),V(IN),1kHz) < 5.05
+assert gain_at(V(SECOND_OUT),V(FIRST_OUT),1kHz) > 9.9
+assert gain_at(V(SECOND_OUT),V(FIRST_OUT),1kHz) < 10.1
+assert clipping(V(FIRST_OUT),-11V,11V) < 0.1%
+assert clipping(V(SECOND_OUT),-11V,11V) < 0.1%

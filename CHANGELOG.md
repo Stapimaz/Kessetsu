@@ -4,6 +4,17 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### Reusable circuit examples
+
+- Add complete RC filter and non-inverting amplifier examples with independently configured
+  instances, fixed simulation assertions and access through File → Examples in Web source builds.
+- Preserve structured module-instance paths on virtual IR interfaces, including literal blocks
+  without parameter provenance; electrical IDs and flattened backend topology remain unchanged.
+- Document ports versus parameters, defaults, loading, model assumptions and portable
+  source-embedded block identity in the cookbook. No registry or external block imports.
+
+These changes are in source only, not in published 1.1.0 or the live Web Hub.
+
 ### Parameter diagnostics and compilation limits
 
 - Preserve actual declaration/module-input positions through nested elaboration without

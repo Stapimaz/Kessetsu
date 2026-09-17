@@ -325,6 +325,7 @@ impl Elaborator<'_> {
                             value_expression: None,
                             waveform_expression: None,
                             interface_pins: module.pins.clone(),
+                            instance_path: child.path.clone(),
                         }),
                         scope,
                     )?;

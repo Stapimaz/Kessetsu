@@ -49,6 +49,8 @@ published binary releases and tags remain immutable.
   source are verified in development source. Precise parameter-error locations and bounded
   parsing/expansion are regression-checked in native and browser builds. Independent
   requirements stay literal.
+  Complete reusable filter/amplifier examples and a [block cookbook](guides/cookbook.md#reuse-a-circuit-block-unreleased)
+  are available in development source; Web builds expose them through File → Examples.
 
 ## Under consideration
 

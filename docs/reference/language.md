@@ -218,6 +218,11 @@ An evaluator-owned `.kessreq` file uses the same assertion syntax but permits on
 
 Modules provide reusable topology. A module instance is flattened before semantic analysis; backend-specific module shortcuts do not exist.
 
+For complete parameterized filter/amplifier circuits and a step-by-step workflow, see
+[reuse a circuit block](../guides/cookbook.md#reuse-a-circuit-block-unreleased).
+Module definitions are source-local, not imported circuit packages. Structured instance
+paths survive in IR interface metadata independently of flattened electrical identifiers.
+
 ```kessetsu
 module divider(p1,p2) {
   resistor TOP 10k

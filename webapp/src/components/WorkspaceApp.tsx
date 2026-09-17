@@ -265,6 +265,12 @@ export function WorkspaceApp() {
                   <button role="menuitem" aria-label={examples.power.label} onClick={() => selectExample('power')}>
                     <strong>{examples.power.label}</strong><small>{examples.power.description}</small>
                   </button>
+                  <span className="menu-group-label">Reusable blocks</span>
+                  {(['filters', 'amplifiers'] as const).map((id) => (
+                    <button key={id} role="menuitem" aria-label={examples[id].label} onClick={() => selectExample(id)}>
+                      <strong>{examples[id].label}</strong><small>{examples[id].description}</small>
+                    </button>
+                  ))}
                 </div>}
               </div>
             </div>}

@@ -11,6 +11,8 @@ import init, {
 import rcFilter from '../../../core/tests/fixtures/benchmarks/rc_filter.kess?raw';
 import gainStage from '../../../core/tests/fixtures/benchmarks/gain_stage.kess?raw';
 import powerAmplifier from '../../../core/tests/fixtures/benchmarks/power_amplifier.kess?raw';
+import reusableFilters from '../../../examples/reusable_filters.kess?raw';
+import reusableAmplifiers from '../../../examples/reusable_amplifiers.kess?raw';
 import type { CompileReport, ExportArtifact, ExportFormat, WorkspaceState } from '../domain';
 import {
   decodeWorkspaceDraft,
@@ -29,6 +31,8 @@ export const examples = {
   rc: { label: 'RC Low-pass', description: '1 kHz cutoff, AC analysis', source: rcFilter },
   gain: { label: 'Gain Stage', description: 'Op-amp OP, AC and transient', source: gainStage },
   power: { label: 'Power Amplifier', description: '8 Ω multi-stage benchmark', source: powerAmplifier },
+  filters: { label: 'Reusable Filters', description: 'One RC block, 500 Hz and 2 kHz instances', source: reusableFilters },
+  amplifiers: { label: 'Reusable Amplifiers', description: 'One op-amp block, gains 5 and 10', source: reusableAmplifiers },
 } as const;
 
 export type ExampleId = keyof typeof examples;

@@ -85,8 +85,12 @@ it never substitutes source text or formats resolved numbers back into syntax. M
 defaults remain lexical; explicit overrides bind in the caller's scope before default
 dependency resolution. Provenance records structured instance paths and effective overrides.
 Declared module ports survive into IR for ERC and remain virtual graph aliases, not
-drawable physical pins. Parameterized module analyses/assertions are explicitly rejected
-until their target/context handling is implemented; place these at the root. Globals are
+drawable physical pins.
+Virtual `ModulePort` parameters also preserve their structured instance path, including
+literal modules without quantity provenance. Definition names identify source-embedded
+modules within the document; no external circuit-module package resolution is implied.
+Parameterized module analyses/assertions are explicitly rejected until their target/context
+handling is implemented; place these at the root. Globals are
 not implicitly captured. Existing literal module IDs and deterministic graph naming remain unchanged.
 Recursion/expansion guards protect flattening. Requirements retain their independent ownership.
 Root inputs use the pure `kessetsu.inputs.v1` contract through `compile_source_with_inputs`,

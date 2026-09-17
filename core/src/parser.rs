@@ -310,6 +310,7 @@ fn parse_statement(
                         value_expression,
                         waveform_expression: None,
                         interface_pins: Vec::new(),
+                        instance_path: Vec::new(),
                     }))
                 }
                 Rule::transistor_decl => {
@@ -340,6 +341,7 @@ fn parse_statement(
                         value_expression: None,
                         waveform_expression: None,
                         interface_pins: Vec::new(),
+                        instance_path: Vec::new(),
                     }))
                 }
                 Rule::source_decl => {
@@ -383,6 +385,7 @@ fn parse_statement(
                         value_expression,
                         waveform_expression,
                         interface_pins: Vec::new(),
+                        instance_path: Vec::new(),
                     }))
                 }
                 _ => unreachable!(),

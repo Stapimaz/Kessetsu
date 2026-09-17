@@ -1,0 +1,31 @@
+// Source-build example: one RC topology, two independent cutoff settings.
+// Change fast_cutoff to change only FAST; the fixed assertions are not retuned.
+// Formula assumes an ideal input source and no output load or component tolerance.
+param slow_cutoff: Hz = 500Hz
+param fast_cutoff: Hz = 2kHz
+module LowPass(input,output,gnd) {
+  param resistance: Ohm = 1k
+  param cutoff: Hz = 1k
+  param capacitance: F = 1 / (2 * pi * resistance * cutoff)
+  resistor R1 {resistance}
+  capacitor C1 {capacitance}
+  connect input to R1.p1
+  connect R1.p2, C1.p1 to output
+  connect C1.p2 to gnd
+}
+net GND
+net IN
+net SLOW_OUT
+net FAST_OUT
+source VIN ac(1V)
+use LowPass SLOW(cutoff={slow_cutoff})
+use LowPass FAST(cutoff={fast_cutoff})
+connect VIN.plus, SLOW.input, FAST.input to IN
+connect VIN.minus, SLOW.gnd, FAST.gnd to GND
+connect SLOW.output to SLOW_OUT
+connect FAST.output to FAST_OUT
+simulate ac dec 80 1Hz 100kHz
+assert upper_cutoff(V(SLOW_OUT),V(IN)) > 495Hz
+assert upper_cutoff(V(SLOW_OUT),V(IN)) < 505Hz
+assert upper_cutoff(V(FAST_OUT),V(IN)) > 1980Hz
+assert upper_cutoff(V(FAST_OUT),V(IN)) < 2020Hz
