@@ -89,6 +89,15 @@ drawable physical pins. Parameterized module analyses/assertions are explicitly 
 until their target/context handling is implemented; place these at the root. Globals are
 not implicitly captured. Existing literal module IDs and deterministic graph naming remain unchanged.
 Recursion/expansion guards protect flattening. Requirements retain their independent ownership.
+Root inputs use the pure `kessetsu.inputs.v1` contract through `compile_source_with_inputs`,
+with source, output options and bound resources supplied separately. Existing entry points
+delegate with empty inputs. Only declared root names and numeric literals are accepted;
+validate discarded default names/dimensions before binding typed expression nodes. Preserve
+original/default and effective override provenance. Optional `effective_source` materializes
+only accepted root declaration expression spans for ordinary save/share/recompile workflows;
+compilation never evaluates that edited string or generates backend output from it. Source
+bytes, independent requirements and resource bindings remain caller-owned. Native and WASM
+share this contract; no persistent Web override UI or hidden save/share state is introduced.
 The Web explicitly accepts v4 source-share envelopes when compiling with v5, recompiles source
 normally and still checks exact packages. Unknown/future schema versions are not generalized
 into an acceptance range. New shares identify the active compile schema.

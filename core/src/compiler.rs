@@ -1,4 +1,5 @@
 use crate::ast::Program;
+use crate::compile_inputs::CompileInputs;
 use crate::erc::{ErcDiagnostic, Severity as ErcSeverity, check_rules};
 use crate::graph::{NetId, NetlistGraph, generate_spice};
 use crate::ir::{CircuitIR, SemanticDiagnostic, ast_to_ir_with_resources};
@@ -96,6 +97,8 @@ pub struct GraphSummary {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompileReport {
     pub schema_version: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effective_source: Option<String>,
     pub ast: Option<Program>,
     pub ir: Option<CircuitIR>,
     pub diagnostics: Vec<Diagnostic>,
@@ -112,6 +115,7 @@ impl CompileReport {
     fn empty() -> Self {
         Self {
             schema_version: COMPILE_SCHEMA_VERSION.to_string(),
+            effective_source: None,
             ast: None,
             ir: None,
             diagnostics: Vec::new(),
@@ -282,12 +286,49 @@ pub fn compile_source_with_resources(
     options: CompileOptions,
     resources: &ExternalModelResources,
 ) -> CompileReport {
-    let mut report = CompileReport::empty();
+    compile_source_with_inputs(source, options, &CompileInputs::default(), resources)
+}
 
-    let program = match parse_program(source) {
+/// Shared native/WASM input contract; source materialization is a portable result,
+/// not a second compilation pipeline or an in-place file edit.
+pub fn compile_source_with_inputs(
+    source: &str,
+    options: CompileOptions,
+    inputs: &CompileInputs,
+    resources: &ExternalModelResources,
+) -> CompileReport {
+    let mut report = CompileReport::empty();
+    if let Err(diagnostic) = crate::compile_inputs::validate_inputs(inputs) {
+        report.diagnostics.push(*diagnostic);
+        return report;
+    }
+
+    let mut program = match parse_program(source) {
         Ok(program) => program,
         Err(error) => {
             report.diagnostics.push(parser_diagnostic(error));
+            return report;
+        }
+    };
+
+    let effective_source = match crate::compile_inputs::apply(source, &mut program, inputs) {
+        Ok(source) => source,
+        Err(mut diagnostic) => {
+            if let Some(name) = diagnostic.field.as_deref()
+                && let Some(parameter) = program.statements.iter().find_map(|statement| {
+                    if let crate::ast::Statement::Param(parameter) = statement
+                        && parameter.name == name
+                    {
+                        Some(parameter)
+                    } else {
+                        None
+                    }
+                })
+            {
+                diagnostic.line = Some(parameter.line);
+                diagnostic.column = Some(parameter.column);
+            }
+            report.diagnostics.push(*diagnostic);
             return report;
         }
     };
@@ -344,6 +385,7 @@ pub fn compile_source_with_resources(
     if report.has_errors() {
         return report;
     }
+    report.effective_source = effective_source;
 
     if options.generate_spice {
         report.spice_netlist = Some(generate_spice(&circuit, &graph));

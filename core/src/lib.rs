@@ -3,6 +3,7 @@ extern crate pest;
 extern crate pest_derive;
 
 pub mod ast;
+pub mod compile_inputs;
 pub mod compiler;
 pub mod component;
 mod elaboration;
@@ -27,7 +28,11 @@ pub mod simulation_parser;
 pub mod tools;
 pub mod wasm;
 
-pub use compiler::{CompileOptions, CompileReport, compile_source, compile_source_with_resources};
+pub use compile_inputs::{CompileInputs, ParameterInput};
+pub use compiler::{
+    CompileOptions, CompileReport, compile_source, compile_source_with_inputs,
+    compile_source_with_resources,
+};
 pub use parser::parse_program;
 
 #[cfg(test)]

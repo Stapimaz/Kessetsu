@@ -1,3 +1,4 @@
+use crate::compile_inputs::CompileInputs;
 use crate::compiler::{COMPILE_SCHEMA_VERSION, CompileOptions, compile_source};
 use crate::exporter::{
     EXPORT_SCHEMA_VERSION, ExportFormat, ExportOptions, RenderBackground, export_capabilities,
@@ -30,6 +31,21 @@ fn to_json_compatible<T: Serialize>(value: &T, context: &str) -> Result<JsValue,
 #[wasm_bindgen]
 pub fn compile_kessetsu(input: &str) -> Result<JsValue, JsValue> {
     let report = compile_source(input, CompileOptions::all_outputs());
+    to_json_compatible(&report, "compile report")
+}
+
+/// Effective source from this report can use the existing save/share/simulation/export
+/// paths without carrying hidden runtime override state.
+#[wasm_bindgen]
+pub fn compile_kessetsu_with_inputs(input: &str, inputs: JsValue) -> Result<JsValue, JsValue> {
+    let inputs: CompileInputs = serde_wasm_bindgen::from_value(inputs)
+        .map_err(|error| JsValue::from_str(&format!("Invalid compile inputs: {error}")))?;
+    let report = crate::compiler::compile_source_with_inputs(
+        input,
+        CompileOptions::all_outputs(),
+        &inputs,
+        &crate::models::ExternalModelResources::new(),
+    );
     to_json_compatible(&report, "compile report")
 }
 

@@ -9,7 +9,8 @@ foundation. Published 1.1.0 uses v4 and does not accept parameter declarations y
 
 ```bash
 kess [--format human|json] [--schema-version kessetsu.cli.v1] \
-  [--include ast,ir,graph,spice,datasets,models,raw-log] <COMMAND> [OPTIONS] [FILE]
+  [--include ast,ir,graph,spice,datasets,models,raw-log,effective-source] \
+  [--param NAME=VALUE] <COMMAND> [OPTIONS] [FILE]
 ```
 
 `--format` is a true global option and can appear before or after the subcommand:
@@ -20,6 +21,33 @@ kess check examples/rc_low_pass.kess --format json
 ```
 
 `--schema-version` and `--include` are also global options. `--include` accepts a comma-separated list or repeated uses. An unknown schema version is rejected with `KES-F002` and exit code `2` before the source is read or any output is created.
+
+## Root parameter inputs (unreleased)
+
+Source builds accept repeated `--param NAME=VALUE` on `check`, `compile`, `simulate`,
+`test`, `render` and `export`. This is not available in published 1.1.0.
+
+```bash
+kess test filter.kess --param frequency=2kHz --param amplitude=2V --format json
+kess compile - --param frequency=2kHz --format json --include effective-source,ir < filter.kess
+```
+
+Names refer only to declared root `param` quantities, are case-sensitive and cannot be
+repeated. Values are numeric literals with optional compatible units; whole-literal
+shorthand uses the declaration's unit. Keep formulas in source, not in `--param`.
+Dependent defaults are recalculated. Invalid names, units, expressions or duplicate inputs
+fail before output writes or simulator launch. Module values use existing `use` overrides;
+CLI inputs cannot address a flattened instance path. `tool` calculations reject `--param`.
+
+The source file is never edited. `--include effective-source` returns `debug.effective_source`:
+ordinary editable `.kess` with only supplied root defaults replaced, preserving dependent
+formulas, module defaults and unrelated comments/formatting. Without overrides it returns
+the original source. Save or share this effective source to reproduce the used settings;
+the original source alone still contains its original defaults. Materialized external-model
+references remain source-relative: retain their resource directory when saving elsewhere.
+`--include ir` records original defaults, supplied inputs and resolved quantities in
+`debug.ir.parameter_manifest`. Human output lists effective root inputs on stderr; default
+JSON remains compact. Independent `.kessreq` bytes and limits are never changed.
 
 ## Circuit tools
 

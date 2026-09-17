@@ -81,7 +81,7 @@ use RC FAST(cutoff={base_cutoff * 4})
 ```
 
 This is a block-definition example, not a complete connected simulation. See the
-[two-filter fixture](../../core/tests/fixtures/parameters/rc_instances.kess) for sources,
+[two-filter fixture](https://github.com/Stapimaz/Kessetsu/blob/main/core/tests/fixtures/parameters/rc_instances.kess) for sources,
 external port connections, AC analysis and fixed assertions.
 
 `use RC DEFAULT` keeps defaults. Named overrides accept whole literals with the child's
@@ -101,8 +101,9 @@ dependencies. Ambiguous flattened paths are rejected rather than silently rename
 Declared interface pins are checked by ERC. Module-local named nets are scoped too.
 
 Put analyses and assertions at the root: parameterized module-local analysis/assertion
-contexts are not supported yet and fail explicitly. Root CLI overrides remain follow-on
-work. No model-name expressions,
+contexts are not supported yet and fail explicitly. Source builds accept root CLI inputs
+such as `--param supply=15V`; see the [CLI contract](cli.md#root-parameter-inputs-unreleased)
+for effective-source export and reproducibility. No model-name expressions,
 automatic topology generation or extra editor panel is introduced.
 
 ## Connections and pins
@@ -130,7 +131,7 @@ simulate ac dec {points} {frequency / 100} {frequency * 100}
 simulate tran {period / 100} {period * 10}
 ```
 
-This excerpt illustrates numeric fields; the [complete RC fixture](../../core/tests/fixtures/parameters/source_analysis.kess)
+This excerpt illustrates numeric fields; the [complete RC fixture](https://github.com/Stapimaz/Kessetsu/blob/main/core/tests/fixtures/parameters/source_analysis.kess)
 includes connections and fixed requirements. One frequency controls the excitation, the
 AC range and a ten-period transient window without duplicating numbers. Existing literal
 syntax remains valid; use braces only where a formula or parameter is useful.
@@ -161,7 +162,7 @@ assert rms(V(OUT),{settling},{duration}) < {maximum}
 assert gain_at(V(OUT),V(IN),{frequency}) > 0.70
 ```
 
-An excerpt, not a complete circuit; the [measurement fixture](../../core/tests/fixtures/parameters/assertions.kess)
+An excerpt, not a complete circuit; the [measurement fixture](https://github.com/Stapimaz/Kessetsu/blob/main/core/tests/fixtures/parameters/assertions.kess)
 provides connections, excitation and analyses. Threshold units come from the metric:
 V/A/W for voltage/current/power reductions, ratio for gain, Hz for frequency/cutoff,
 degrees for phase and percent for THD/clipping/efficiency. Whole-literal shorthand remains

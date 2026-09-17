@@ -1,6 +1,6 @@
 WHITESPACE = _{ " " | "\t" }
 NEWLINE = _{ "\n" | "\r\n" | "\r" }
-COMMENT = _{ "//" ~ (!NEWLINE ~ ANY)* ~ NEWLINE? }
+COMMENT = _{ "//" ~ (!NEWLINE ~ ANY)* }
 
 ident = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 comp_value = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" | (ASCII_ALPHANUMERIC | "." | "+" | "-" | "_" | "µ" | "Ω" | "%")+ }

@@ -4,6 +4,19 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### Reproducible parameter inputs
+
+- Add shared versioned root numeric inputs and repeatable CLI `--param NAME=VALUE` for
+  circuit checking, compilation, simulation, tests and exports, without editing source files.
+- Recalculate dependent defaults, reject unknown/duplicate/invalid inputs before writes
+  or simulation and retain original defaults/effective override provenance in typed IR.
+- Return portable effective `.kess` through `--include effective-source`; expose the same
+  pure input contract in WASM without adding persistent editor override state.
+- Preserve line endings/comments during materialization and allow trailing `//` comments
+  without consuming a statement's required line ending.
+
+These changes are in source only, not in published 1.1.0 or the live Web Hub.
+
 ### Parameterized inline measurements
 
 - Accept `{expression}` in design-owned assertion thresholds and supported numeric

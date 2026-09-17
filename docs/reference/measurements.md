@@ -73,7 +73,7 @@ Cutoff edges use `reference_gain / sqrt(2)` as the half-power threshold. An expl
 
 Each edge is measured independently: a low-pass response can have an upper edge without an observed lower edge, and a high-pass response can have a lower edge without an observed upper edge. An absent edge returns `ERROR` asking to extend the sweep or choose another reference. Touching the threshold within a band does not split it; a sample exactly at threshold on the sweep boundary is an observed edge. Zero reference gain is invalid.
 
-The complete selected response must have finite, positive, strictly increasing frequencies, aligned finite real/imaginary samples and nonzero input magnitude at every sample. Non-finite ratios and malformed data fail closed. The [loaded AC amplifier fixture](../../core/tests/fixtures/benchmarks/ac_coupled_amplifier.kess) demonstrates the three metrics together. These assertions can also be used in evaluator-owned `.kessreq` files without changing the requirements contract.
+The complete selected response must have finite, positive, strictly increasing frequencies, aligned finite real/imaginary samples and nonzero input magnitude at every sample. Non-finite ratios and malformed data fail closed. The [loaded AC amplifier fixture](https://github.com/Stapimaz/Kessetsu/blob/main/core/tests/fixtures/benchmarks/ac_coupled_amplifier.kess) demonstrates the three metrics together. These assertions can also be used in evaluator-owned `.kessreq` files without changing the requirements contract.
 
 Frequency sweeps should use `ac(amplitude)` sources. A source used by both transient and AC analyses uses `sine_ac(offset, amplitude, frequency, ac_amplitude)`.
 

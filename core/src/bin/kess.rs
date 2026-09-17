@@ -1,7 +1,8 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
+use kessetsu_core::compile_inputs::{CompileInputs, ParameterInput};
 use kessetsu_core::compiler::{
     COMPILE_SCHEMA_VERSION, CompileOptions, CompileReport, Diagnostic, DiagnosticSeverity,
-    DiagnosticStage, compile_source_with_resources,
+    DiagnosticStage, compile_source_with_inputs,
 };
 use kessetsu_core::exporter::{
     EXPORT_SCHEMA_VERSION, ExportArtifact, ExportCapability, ExportFormat, ExportOptions,
@@ -58,6 +59,10 @@ struct Cli {
     /// Opt in to verbose JSON fields (comma-separated or repeated)
     #[arg(long, value_enum, value_delimiter = ',', global = true)]
     include: Vec<Include>,
+
+    /// Override a declared root parameter with a numeric literal (repeatable NAME=VALUE)
+    #[arg(long = "param", global = true)]
+    parameters: Vec<String>,
 }
 
 #[derive(Subcommand)]
@@ -250,6 +255,7 @@ enum Include {
     Datasets,
     Models,
     RawLog,
+    EffectiveSource,
 }
 
 #[derive(Serialize)]
@@ -375,7 +381,48 @@ fn run(cli: Cli) -> i32 {
     }
 
     if let Commands::Tool(tool) = &cli.command {
+        if !cli.parameters.is_empty() {
+            emit(
+                &cli.format,
+                command,
+                &includes,
+                "error",
+                CompileReport::failure(diagnostic(
+                    "KES-F002",
+                    DiagnosticStage::Cli,
+                    "--param applies to circuit commands, not tool calculations",
+                )),
+                None,
+                None,
+                None,
+            );
+            return 2;
+        }
         return run_tool(tool, &cli.format, &includes);
+    }
+    let mut inputs = CompileInputs::default();
+    for parameter in &cli.parameters {
+        let Some((name, value)) = parameter.split_once('=') else {
+            emit(
+                &cli.format,
+                command,
+                &includes,
+                "error",
+                CompileReport::failure(diagnostic(
+                    "KES-F002",
+                    DiagnosticStage::Cli,
+                    "--param requires NAME=VALUE, for example supply=15V",
+                )),
+                None,
+                None,
+                None,
+            );
+            return 2;
+        };
+        inputs.parameters.push(ParameterInput {
+            name: name.into(),
+            value: value.into(),
+        });
     }
     let source_path = command_path(&cli.command);
     let source_is_stdin = source_path == Path::new("-");
@@ -430,7 +477,13 @@ fn run(cli: Cli) -> i32 {
                 return 2;
             }
         };
-    let mut report = compile_source_with_resources(&source, options, &external_resources);
+    let mut report = compile_source_with_inputs(&source, options, &inputs, &external_resources);
+    if includes.contains(&Include::EffectiveSource)
+        && !report.has_errors()
+        && report.effective_source.is_none()
+    {
+        report.effective_source = Some(source.clone());
+    }
 
     if report.has_errors() {
         let exit_code = compile_failure_exit_code(&report);
@@ -1932,6 +1985,9 @@ fn build_debug(
                 "raw_log",
                 to_json_value(&simulation.map(|simulation| &simulation.raw_log)),
             ),
+            Include::EffectiveSource => {
+                ("effective_source", to_json_value(&report.effective_source))
+            }
         };
         debug.insert(name.to_string(), value);
     }
@@ -1975,6 +2031,17 @@ impl JsonDiagnostic {
 }
 
 fn emit_human_diagnostics(report: &CompileReport) {
+    if let Some(ir) = &report.ir {
+        for parameter in &ir.parameter_manifest.parameters {
+            if parameter.instance_path.is_empty() && parameter.effective_override.is_some() {
+                eprintln!(
+                    "[PARAM] {} = {}",
+                    parameter.name,
+                    format_quantity(parameter.resolved.value, parameter.resolved.unit)
+                );
+            }
+        }
+    }
     for diagnostic in &report.diagnostics {
         let severity = match diagnostic.severity {
             DiagnosticSeverity::Error => "ERROR",

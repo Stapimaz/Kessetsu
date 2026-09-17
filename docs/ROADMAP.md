@@ -45,7 +45,8 @@ published binary releases and tags remain immutable.
   supports typed top-level/module parameters, caller-scoped instance overrides and
   passive/DC-source/waveform expressions, numeric analysis settings and inline assertion
   thresholds/measurement arguments; it is not in published 1.1.0 binaries or the deployed
-  Web Hub. Root CLI overrides remain in development. Independent requirements stay literal.
+  Web Hub. Shared root numeric inputs, CLI `--param` overrides and reproducible effective
+  source are verified in development source. Independent requirements stay literal.
 
 ## Under consideration
 
