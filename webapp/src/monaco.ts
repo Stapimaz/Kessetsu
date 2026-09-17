@@ -38,7 +38,7 @@ monaco.languages.setMonarchTokensProvider('kessetsu', {
       [/\b(param|net|connect|simulate|assert|model|model_include|subcircuit|external_subcircuit|module|use)\b/, 'keyword'],
       [/\b(source|current_source|resistor|capacitor|inductor|diode|transistor|mosfet|opamp)\b/, 'type'],
       [/\b(op|tran|ac|dc|dec|oct|lin|sine|sine_ac|pulse|pwl)\b/, 'keyword.control'],
-      [/\b(value|min|max|peak|average|avg|rms|gain|bandwidth|cutoff|frequency|phase|output_power|efficiency|thd|clipping|dissipation)\b/, 'function'],
+      [/\b(value|min|max|peak|average|avg|rms|gain|gain_at|lower_cutoff|upper_cutoff|bandwidth|cutoff|frequency|phase|output_power|efficiency|thd|clipping|dissipation)\b/, 'function'],
       [/-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?(?:T|G|meg|M|k|m|u|µ|n|p)?(?:V|A|Ohm|F|H|Hz|s|W|deg|%)?\b/i, 'number'],
       [/[A-Za-z_][A-Za-z0-9_]*/, 'identifier'],
       [/[(){},.:]/, 'delimiter'],

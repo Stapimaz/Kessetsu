@@ -5,7 +5,7 @@ use crate::ir::{
 };
 use crate::simulation::{ComplexSeries, Dataset, RealSeriesDataset, SimulationResult};
 
-pub const MEASUREMENT_SCHEMA_VERSION: &str = "kessetsu.measurement.v1";
+pub const MEASUREMENT_SCHEMA_VERSION: &str = "kessetsu.measurement.v2";
 
 pub fn evaluate_assertion_metric(
     assertion: &Assertion,
@@ -19,6 +19,8 @@ pub fn evaluate_assertion_metric(
             evaluate_reduction(&metric, &arguments, circuit, simulation)
         }
         "gain" => evaluate_gain(&arguments, circuit, simulation),
+        "gain_at" => evaluate_gain_at(&arguments, simulation),
+        "lower_cutoff" | "upper_cutoff" => evaluate_cutoff_edge(&metric, &arguments, simulation),
         "bandwidth" | "cutoff" => evaluate_bandwidth(&arguments, simulation),
         "frequency" => evaluate_frequency(&arguments, circuit, simulation),
         "phase" => evaluate_phase(&arguments, simulation),
@@ -28,7 +30,7 @@ pub fn evaluate_assertion_metric(
         "clipping" => evaluate_clipping(&arguments, circuit, simulation),
         "dissipation" => evaluate_dissipation(&arguments, circuit, simulation),
         _ => Err(format!(
-            "unsupported assertion metric '{}'; supported engineering metrics are value, min, max, peak, average, rms, gain, bandwidth, cutoff, frequency, phase, output_power, efficiency, thd, clipping and dissipation",
+            "unsupported assertion metric '{}'; supported engineering metrics are value, min, max, peak, average, rms, gain, gain_at, lower_cutoff, upper_cutoff, bandwidth, cutoff, frequency, phase, output_power, efficiency, thd, clipping and dissipation",
             assertion.metric
         )),
     }
@@ -195,6 +197,200 @@ fn evaluate_bandwidth(arguments: &[&str], simulation: &SimulationResult) -> Resu
         }
     }
     Err("AC response did not cross the -3 dB bandwidth threshold".to_string())
+}
+
+/// New AC metrics deliberately validate their complete response without changing
+/// the legacy gain/cutoff/phase sampling and analysis-selection semantics.
+fn ac_response<'a>(
+    arguments: &[&str],
+    simulation: &'a SimulationResult,
+) -> Result<(&'a [f64], Vec<f64>), String> {
+    let ac = simulation
+        .datasets
+        .iter()
+        .find_map(|dataset| match &dataset.data {
+            Dataset::Ac(ac) => Some(ac),
+            _ => None,
+        })
+        .ok_or_else(|| {
+            "this metric requires an AC analysis dataset; add simulate ac".to_string()
+        })?;
+    let frequencies = &ac.frequency_hz;
+    if frequencies.is_empty()
+        || frequencies
+            .iter()
+            .any(|frequency| !frequency.is_finite() || *frequency <= 0.0)
+        || frequencies.windows(2).any(|pair| pair[0] >= pair[1])
+    {
+        return Err("AC frequencies must be finite, positive and strictly increasing".to_string());
+    }
+    let output = complex_signal(ac, arguments[0])?;
+    let input = complex_signal(ac, arguments[1])?;
+    for series in [output, input] {
+        if series.real.len() != frequencies.len() || series.imaginary.len() != frequencies.len() {
+            return Err("AC signal samples must align with the frequency axis".to_string());
+        }
+        if series
+            .real
+            .iter()
+            .chain(&series.imaginary)
+            .any(|value| !value.is_finite())
+        {
+            return Err("AC signal samples must be finite".to_string());
+        }
+    }
+    let gains = (0..frequencies.len())
+        .map(|index| {
+            let denominator = input.real[index].hypot(input.imaginary[index]);
+            if denominator == 0.0 {
+                return Err(format!(
+                    "AC input magnitude is zero at {} Hz",
+                    frequencies[index]
+                ));
+            }
+            let gain = output.real[index].hypot(output.imaginary[index]) / denominator;
+            if !denominator.is_finite() || !gain.is_finite() {
+                return Err(format!(
+                    "AC magnitude ratio is non-finite at {} Hz",
+                    frequencies[index]
+                ));
+            }
+            Ok(gain)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((frequencies, gains))
+}
+
+fn ac_target_frequency(argument: &str) -> Result<f64, String> {
+    let frequency = parse_quantity(argument, SIUnit::Hertz)
+        .map_err(|error| format!("invalid AC target/reference frequency: {error}"))?
+        .value;
+    if !frequency.is_finite() || frequency <= 0.0 {
+        return Err("AC target/reference frequency must be finite and positive".to_string());
+    }
+    Ok(frequency)
+}
+
+fn gain_at_frequency(frequencies: &[f64], gains: &[f64], target: f64) -> Result<f64, String> {
+    if target < frequencies[0] || target > frequencies[frequencies.len() - 1] {
+        return Err(format!(
+            "frequency {target} Hz is outside the AC sweep {}..{} Hz; extend the sweep",
+            frequencies[0],
+            frequencies[frequencies.len() - 1]
+        ));
+    }
+    let right = frequencies.partition_point(|frequency| *frequency < target);
+    if frequencies[right] == target {
+        return Ok(gains[right]);
+    }
+    let left = right - 1;
+    let span = frequencies[right].ln() - frequencies[left].ln();
+    if span <= 0.0 {
+        return Err(
+            "AC frequency samples are too close for log-frequency interpolation".to_string(),
+        );
+    }
+    let fraction = (target.ln() - frequencies[left].ln()) / span;
+    // A convex sum avoids overflow when finite gains differ by extreme scales.
+    Ok(gains[left] * (1.0 - fraction) + gains[right] * fraction)
+}
+
+fn evaluate_gain_at(arguments: &[&str], simulation: &SimulationResult) -> Result<f64, String> {
+    require_count("gain_at", arguments, 3)?;
+    let target = ac_target_frequency(arguments[2])?;
+    let (frequencies, gains) = ac_response(arguments, simulation)?;
+    gain_at_frequency(frequencies, &gains, target)
+}
+
+fn evaluate_cutoff_edge(
+    metric: &str,
+    arguments: &[&str],
+    simulation: &SimulationResult,
+) -> Result<f64, String> {
+    if !matches!(arguments.len(), 2 | 3) {
+        return Err(format!(
+            "{metric} expects output,input[,reference_frequency]"
+        ));
+    }
+    let (frequencies, gains) = ac_response(arguments, simulation)?;
+    if frequencies.len() < 2 {
+        return Err(format!(
+            "{metric} requires at least two AC frequency points"
+        ));
+    }
+    let reference = if arguments.len() == 3 {
+        ac_target_frequency(arguments[2])?
+    } else {
+        let peak = gains
+            .iter()
+            .enumerate()
+            .max_by(|a, b| a.1.total_cmp(b.1))
+            .unwrap()
+            .0;
+        frequencies[peak]
+    };
+    let reference_gain = gain_at_frequency(frequencies, &gains, reference)?;
+    if reference_gain <= 0.0 {
+        return Err("AC cutoff reference gain must be positive".to_string());
+    }
+    let threshold = reference_gain / 2.0_f64.sqrt();
+    if threshold <= 0.0 {
+        return Err("AC half-power threshold is below numerical resolution".to_string());
+    }
+    if arguments.len() == 2 {
+        let mut bands = 0;
+        let mut inside = false;
+        for gain in &gains {
+            if *gain >= threshold {
+                if !inside {
+                    bands += 1;
+                }
+                inside = true;
+            } else {
+                inside = false;
+            }
+        }
+        if bands > 1 {
+            return Err("AC response has multiple disjoint half-power bands; provide a reference_frequency to select one".to_string());
+        }
+    }
+    // Insert an interpolated reference so a frequency between samples selects
+    // its own connected half-power band rather than a nearest sample's band.
+    let mut points: Vec<_> = frequencies
+        .iter()
+        .copied()
+        .zip(gains.iter().copied())
+        .collect();
+    let index = points.partition_point(|point| point.0 < reference);
+    if points[index].0 != reference {
+        points.insert(index, (reference, reference_gain));
+    }
+    let crossing = |a: (f64, f64), b: (f64, f64)| {
+        let fraction = (threshold - a.1) / (b.1 - a.1);
+        (a.0.ln() + fraction * (b.0.ln() - a.0.ln())).exp()
+    };
+    if metric == "lower_cutoff" {
+        for left in (0..index).rev() {
+            if points[left].1 < threshold {
+                return Ok(crossing(points[left], points[left + 1]));
+            }
+        }
+        if index > 0 && points[0].1 == threshold {
+            return Ok(points[0].0);
+        }
+    } else {
+        for right in index + 1..points.len() {
+            if points[right].1 < threshold {
+                return Ok(crossing(points[right - 1], points[right]));
+            }
+        }
+        if index + 1 < points.len() && points.last().unwrap().1 == threshold {
+            return Ok(points.last().unwrap().0);
+        }
+    }
+    Err(format!(
+        "AC response has no observed {metric} half-power crossing around {reference} Hz; extend the sweep or choose another reference"
+    ))
 }
 
 fn evaluate_frequency(

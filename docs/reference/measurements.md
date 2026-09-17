@@ -1,6 +1,6 @@
 # Engineering Measurement Contract
 
-Kessetsu engineering measurements are evaluated from typed `kessetsu.simulation.v1` datasets by the versioned `kessetsu.measurement.v1` model. Assertions never infer a passing value from missing data: an unavailable signal, incompatible analysis or invalid argument becomes an assertion `ERROR`.
+Kessetsu engineering measurements are evaluated from typed `kessetsu.simulation.v1` datasets. Current source uses `kessetsu.measurement.v2`; published 1.1.0 downloads and the deployed Web Hub still use v1. The new AC metrics below are source-only until the next release. Assertions never infer a passing value from missing data: an unavailable signal, incompatible analysis or invalid argument becomes an assertion `ERROR`.
 
 ## Primitives and sign convention
 
@@ -42,6 +42,9 @@ The contract requires `0 <= start < stop` and at least one sample inside the win
 | Metric | Formula / behavior | Required data | Unit |
 |---|---|---|---|
 | `gain(out,in)` | `RMS(out)/RMS(in)` when transient exists; otherwise complex magnitude ratio at the first AC point | Transient or AC | ratio |
+| `gain_at(out,in,frequency)` | Complex magnitude ratio interpolated at the requested frequency; never uses transient RMS | AC | ratio |
+| `lower_cutoff(out,in[,reference_frequency])` | Lower half-power edge of the band containing the reference | AC with an observed lower edge | Hz |
+| `upper_cutoff(out,in[,reference_frequency])` | Upper half-power edge of the band containing the reference | AC with an observed upper edge | Hz |
 | `bandwidth(out,in)` / `cutoff(out,in)` | Log-frequency interpolation of the first `-3 dB` crossing relative to the first AC gain point | AC, at least two points and a crossing | Hz |
 | `frequency(signal)` | Reciprocal of the mean period between rising mean crossings | Transient, at least two crossings | Hz |
 | `phase(out,in[,frequency])` | Wrapped complex phase difference in `(-180, 180]`; optional frequency selects the nearest AC point | AC | degree |
@@ -53,7 +56,24 @@ The contract requires `0 <= start < stop` and at least one sample inside the win
 
 `V(component.pin,component.pin)` is the explicit terminal-pair primitive for stress checks. It validates both component pins against the shared catalog and preserves the written polarity; for example `V(Q1.c,Q1.e)` is VCE and `V(M1.g,M1.s)` is VGS. The shorthand `V(Q1)` remains the device's canonical main terminal pair for compatibility.
 
-`bandwidth`/`cutoff` is intentionally low-pass-only in `kessetsu.measurement.v1`: the first AC point must be within 1% of the maximum response and a later downward −3 dB crossing must exist. Band-pass, high-pass or multi-peak responses fail closed instead of returning a misleading “cutoff”; explicit lower/upper crossing metrics are reserved for a later schema revision.
+`bandwidth`/`cutoff` remains intentionally low-pass-only in v2, preserving v1 behavior: the first AC point must be within 1% of the maximum response and a later downward −3 dB crossing must exist. Band-pass, high-pass or multi-peak responses still fail closed for these legacy metrics. Existing `gain`, `phase`, and all other legacy metrics are unchanged.
+
+### Frequency-specific AC gain and cutoff edges (source-only v2)
+
+```kessetsu
+simulate ac dec 80 1Hz 10MHz
+assert gain_at(V(OUT),V(IN),1kHz) > 8.8
+assert lower_cutoff(V(OUT),V(IN),1kHz) < 110Hz
+assert upper_cutoff(V(OUT),V(IN),1kHz) > 8kHz
+```
+
+These three metrics accept node-voltage primitives `V(net)` only, not device voltages, terminal pairs, currents or powers. They use the first AC dataset, even when transient datasets or further AC analyses are present. Frequencies must be positive and inside that sweep; no extrapolation or nearest-point substitution occurs. Magnitude is interpolated linearly along log frequency, not linearly in dB.
+
+Cutoff edges use `reference_gain / sqrt(2)` as the half-power threshold. An explicit reference frequency selects the connected above-threshold band containing that frequency. Without a reference, the sampled global peak supplies the reference; multiple disjoint above-threshold bands produce `ERROR` requesting an explicit reference rather than selecting a band silently. This is a response-based rule, not a filter-topology classifier.
+
+Each edge is measured independently: a low-pass response can have an upper edge without an observed lower edge, and a high-pass response can have a lower edge without an observed upper edge. An absent edge returns `ERROR` asking to extend the sweep or choose another reference. Touching the threshold within a band does not split it; a sample exactly at threshold on the sweep boundary is an observed edge. Zero reference gain is invalid.
+
+The complete selected response must have finite, positive, strictly increasing frequencies, aligned finite real/imaginary samples and nonzero input magnitude at every sample. Non-finite ratios and malformed data fail closed. The [loaded AC amplifier fixture](../../core/tests/fixtures/benchmarks/ac_coupled_amplifier.kess) demonstrates the three metrics together. These assertions can also be used in evaluator-owned `.kessreq` files without changing the requirements contract.
 
 Frequency sweeps should use `ac(amplitude)` sources. A source used by both transient and AC analyses uses `sine_ac(offset, amplitude, frequency, ac_amplitude)`.
 

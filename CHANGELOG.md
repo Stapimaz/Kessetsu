@@ -4,6 +4,17 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### Explicit AC measurements
+
+- Added `gain_at(out,in,frequency)`, `lower_cutoff(out,in[,reference_frequency])`
+  and `upper_cutoff(out,in[,reference_frequency])` to the shared CLI/Web evaluator.
+- Interpolate magnitude along log frequency without extrapolation; require explicit
+  references for ambiguous disjoint bands and report missing edges as errors.
+- Measurement contract v2 adds these metrics without changing legacy metrics or the
+  CLI/assertion/requirements envelopes. Editor completion and hover describe the new calls.
+
+These changes are in source only, not in published 1.1.0 downloads or the live Web Hub.
+
 ### Schematic geometry and editable exports
 
 - Verify actual conductive paths, pin contacts, isolated crossings and matching semantic

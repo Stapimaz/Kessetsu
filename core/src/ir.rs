@@ -994,7 +994,7 @@ pub fn ast_to_ir_with_resources(
                     return Err(semantic_error(
                         "KES-C006",
                         format!(
-                            "unsupported assertion metric '{}'; expected value, min, max, peak, average, avg, rms, gain, bandwidth, cutoff, frequency, phase, output_power, dissipation, efficiency, thd or clipping",
+                            "unsupported assertion metric '{}'; expected value, min, max, peak, average, avg, rms, gain, gain_at, lower_cutoff, upper_cutoff, bandwidth, cutoff, frequency, phase, output_power, dissipation, efficiency, thd or clipping",
                             assert.metric
                         ),
                         None,
@@ -1003,10 +1003,17 @@ pub fn ast_to_ir_with_resources(
                 }
                 let arguments = split_assertion_arguments(&assert.signal);
                 let signal_unit = assertion_result_unit(&metric, &arguments).ok_or_else(|| {
+                    let expected = match metric.as_str() {
+                        "gain_at" => "gain_at(V(output_net),V(input_net),positive_frequency_in_Hz)",
+                        "lower_cutoff" | "upper_cutoff" => {
+                            "V(output_net),V(input_net)[,positive_reference_frequency_in_Hz]"
+                        }
+                        _ => "typed voltage/current/power or engineering metric arguments",
+                    };
                     semantic_error(
                         "KES-C006",
                         format!(
-                            "assertion '{}' has invalid arguments '{}'; expected typed voltage/current/power or engineering metric arguments",
+                            "assertion '{}' has invalid arguments '{}'; expected {expected}",
                             assert.metric, assert.signal
                         ),
                         None,
@@ -1136,6 +1143,9 @@ fn is_supported_assertion_metric(metric: &str) -> bool {
             | "avg"
             | "rms"
             | "gain"
+            | "gain_at"
+            | "lower_cutoff"
+            | "upper_cutoff"
             | "bandwidth"
             | "cutoff"
             | "frequency"
@@ -1158,6 +1168,37 @@ fn assertion_result_unit(metric: &str, arguments: &[&str]) -> Option<SIUnit> {
             }
         }
         "gain" => (arguments.len() == 2).then_some(SIUnit::Ratio),
+        "gain_at" | "lower_cutoff" | "upper_cutoff" => {
+            let count_ok = if metric == "gain_at" {
+                arguments.len() == 3
+            } else {
+                matches!(arguments.len(), 2 | 3)
+            };
+            if !count_ok
+                || arguments[..2].iter().any(|signal| {
+                    signal_unit(signal) != Some(SIUnit::Volt)
+                        || signal
+                            .split_once('(')
+                            .and_then(|(_, target)| target.strip_suffix(')'))
+                            .is_none_or(|target| {
+                                target.is_empty() || target.contains([',', '(', ')'])
+                            })
+                })
+            {
+                return None;
+            }
+            if let Some(frequency) = arguments.get(2) {
+                let quantity = parse_quantity(frequency, SIUnit::Hertz).ok()?;
+                if !quantity.value.is_finite() || quantity.value <= 0.0 {
+                    return None;
+                }
+            }
+            Some(if metric == "gain_at" {
+                SIUnit::Ratio
+            } else {
+                SIUnit::Hertz
+            })
+        }
         "bandwidth" | "cutoff" => (arguments.len() == 2).then_some(SIUnit::Hertz),
         "frequency" => (arguments.len() == 1).then_some(SIUnit::Hertz),
         "phase" => matches!(arguments.len(), 2 | 3).then_some(SIUnit::Degree),

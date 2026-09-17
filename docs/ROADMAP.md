@@ -27,6 +27,11 @@ published binary releases and tags remain immutable.
 
 ## In development
 
+- [ ] Frequency-specific AC gain and independent lower/upper half-power edges, with
+  explicit band references and fail-closed ambiguous-band handling. Shared CLI/Web
+  implementation is regression-checked in source, including native/browser numerical
+  parity; not yet in published 1.1.0 or the deployed Web Hub.
+
 - [ ] Schematic repairs for dense circuits: coordinate-based connectivity verification,
   safer routing, closer component annotations and orientation-aware EDA export. Implemented
   and regression-checked in source; not yet in published 1.1.0 or the deployed Web Hub.

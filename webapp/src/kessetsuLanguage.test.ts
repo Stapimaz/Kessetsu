@@ -34,7 +34,7 @@ describe('Kessetsu editor language support', () => {
     expect(metricCompletions.map((item) => item.label)).toEqual(expect.arrayContaining([
       'value', 'min', 'max', 'peak', 'average', 'avg', 'rms', 'gain', 'bandwidth',
       'cutoff', 'frequency', 'phase', 'output_power', 'dissipation', 'efficiency',
-      'thd', 'clipping',
+      'thd', 'clipping', 'gain_at', 'lower_cutoff', 'upper_cutoff',
     ]));
   });
 });

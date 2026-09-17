@@ -1,0 +1,53 @@
+// Original loaded gain-10 amplifier: input HP ~100 Hz, output LP ~10 kHz.
+// Generic op-amp model; simulated response is not a hardware guarantee.
+net GND
+net VCC
+net VEE
+net IN
+net COUPLED
+net FB
+net AMP
+net OUT
+source VP 12V
+source VN 12V
+source VIN ac(1V)
+opamp U1 KESSETSU_OPAMP_V1
+capacitor CIN 159.154943nF
+resistor RIN 10k
+resistor RF 9k
+resistor RG 1k
+resistor ROUT 1k
+resistor RL 10k
+capacitor COUT 17.5070437nF
+connect VP.minus to GND
+connect VP.plus to VCC
+connect VN.plus to GND
+connect VN.minus to VEE
+connect VIN.minus to GND
+connect VIN.plus to IN
+connect CIN.p1 to IN
+connect CIN.p2 to COUPLED
+connect RIN.p1 to COUPLED
+connect RIN.p2 to GND
+connect U1.in_p to COUPLED
+connect U1.in_n to FB
+connect U1.vcc to VCC
+connect U1.vee to VEE
+connect U1.out to AMP
+connect RF.p1 to AMP
+connect RF.p2 to FB
+connect RG.p1 to FB
+connect RG.p2 to GND
+connect ROUT.p1 to AMP
+connect ROUT.p2 to OUT
+connect RL.p1 to OUT
+connect RL.p2 to GND
+connect COUT.p1 to OUT
+connect COUT.p2 to GND
+simulate ac dec 80 1Hz 10MHz
+assert gain_at(V(OUT),V(IN),1kHz) > 8.8
+assert gain_at(V(OUT),V(IN),1kHz) < 9.2
+assert lower_cutoff(V(OUT),V(IN),1kHz) > 90Hz
+assert lower_cutoff(V(OUT),V(IN),1kHz) < 110Hz
+assert upper_cutoff(V(OUT),V(IN),1kHz) > 8kHz
+assert upper_cutoff(V(OUT),V(IN),1kHz) < 12kHz

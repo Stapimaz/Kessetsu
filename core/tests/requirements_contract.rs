@@ -26,6 +26,18 @@ fn exact_bytes_define_requirement_identity() {
 }
 
 #[test]
+fn ac_requirements_preserve_typed_evaluator_owned_limits() {
+    let source = b"assert gain_at(V(OUT),V(IN),1kHz) > 8.8\nassert lower_cutoff(V(OUT),V(IN),1kHz) < 110Hz\nassert upper_cutoff(V(OUT),V(IN),1kHz) > 8kHz\n";
+    let set = compile_requirements(source).unwrap();
+    assert_eq!(set.schema_version, "kessetsu.requirements.v1");
+    assert_eq!(set.assertions[0].threshold.unit, SIUnit::Ratio);
+    assert_eq!(set.assertions[1].threshold.unit, SIUnit::Hertz);
+    assert_eq!(set.assertions[2].threshold.unit, SIUnit::Hertz);
+    assert_eq!(set.assertions[0].threshold.value, 8.8);
+    assert!(compile_requirements(b"assert gain_at(V(OUT),V(IN),1ms) > 8\n").is_err());
+}
+
+#[test]
 fn empty_non_assertion_invalid_metric_and_oversize_inputs_fail_closed() {
     let empty = compile_requirements(b"// no requirements\n").unwrap_err();
     assert_eq!(empty.code, "KES-R002");

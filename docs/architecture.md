@@ -235,6 +235,14 @@ Ngspice analysis data is not scraped from stdout tables. Generated SPICE writes 
 
 ### Assertion and Measurement Semantics
 
+Current source measurement contract `kessetsu.measurement.v2` adds AC-only `gain_at`,
+`lower_cutoff` and `upper_cutoff`; published 1.1.0 uses v1. These metrics consume the
+first typed AC dataset, interpolate magnitude along log frequency without extrapolation,
+and select cutoff bands using an explicit reference or an unambiguous sampled peak.
+Missing edges and disjoint automatic bands fail closed. Legacy metric semantics and
+the assertion/requirements envelopes remain unchanged. See the
+[measurement contract](reference/measurements.md) for exact boundary rules.
+
 - `value` selects the final sample; `min` and `max` select signed extrema; `average` (`avg`) is the arithmetic mean; `rms` is root mean square.
 - `peak` is the absolute peak, `max(abs(x))`, not the positive maximum. Generated `.meas` fallback measures positive maximum and negative minimum separately, then selects the larger magnitude.
 - OP contains one scalar sample. For OP, `value`, `min`, `max`, and `average` return the same signed value; `peak` and `rms` return its magnitude.
