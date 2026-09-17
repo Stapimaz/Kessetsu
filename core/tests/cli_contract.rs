@@ -648,6 +648,22 @@ fn every_repository_example_has_an_explicit_cli_check_and_compile_outcome() {
         // must not rely on silently replacing another example's model lock.
         let output_directory = workspace.path().join(name);
         fs::create_dir(&output_directory).expect("example output directory should exist");
+        // External references must remain usable beside source/output. Stage the
+        // source and exact resources, rather than weakening that output policy.
+        let text = fs::read_to_string(&source).unwrap();
+        let requirements = kessetsu_core::model_resources::resource_requirements(&text).unwrap();
+        let source_arg = if requirements.is_empty() {
+            source_arg
+        } else {
+            let staged = output_directory.join("circuit.kess");
+            fs::copy(&source, &staged).unwrap();
+            for resource in requirements {
+                let destination = output_directory.join(&resource.resource);
+                fs::create_dir_all(destination.parent().unwrap()).unwrap();
+                fs::copy(examples.join(&resource.resource), destination).unwrap();
+            }
+            path_argument(&staged)
+        };
         let output_path = output_directory.join("circuit.spice");
         let output_arg = path_argument(&output_path);
         let compile = workspace.run_cli(&[

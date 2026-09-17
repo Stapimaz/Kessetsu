@@ -1,0 +1,7 @@
+* Kessetsu generic comparator v1; AGPL-3.0-only, see repository LICENSE.
+* Not a manufacturer model. No delay, hysteresis, offset or input-current model.
+* 1 mV smooth transition; 0.1 V rail headroom; 50 ohm output resistance.
+.subckt KESSETSU_COMPARATOR_V1 inp inn vcc vee out
+Bdrive drive vee V={0.1+0.5*(V(vcc,vee)-0.2)*(1+tanh(V(inp,inn)/0.001))}
+Rout drive out 50
+.ends KESSETSU_COMPARATOR_V1

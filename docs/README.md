@@ -22,6 +22,7 @@ contributor contracts and dated evaluation evidence.
 - [CLI](reference/cli.md)
 - [Simulation and assertions](reference/simulation-and-assertions.md)
 - [Engineering measurements](reference/measurements.md)
+- [External model catalog and local-file workflow (unreleased)](reference/model-catalog.md)
 - [Supported domain](reference/supported-domain.md)
 - [Export formats](reference/exports.md)
 
@@ -35,7 +36,8 @@ contributor contracts and dated evaluation evidence.
 - Architecture decisions: [schematics](decisions/0001-phase-4-schematic-and-web-architecture.md),
   [browser runtime](decisions/0002-browser-simulation-runtime.md),
   [external models](decisions/0003-external-subcircuit-references.md),
-  [evaluator-owned requirements](decisions/0004-evaluator-owned-requirements.md).
+  [evaluator-owned requirements](decisions/0004-evaluator-owned-requirements.md),
+  [catalog-backed external devices](decisions/0005-external-device-catalog.md).
 
 ## Quality evidence
 

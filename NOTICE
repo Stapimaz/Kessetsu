@@ -7,3 +7,7 @@ see LICENSE for the complete terms.
 
 A separate commercial license is available only under a signed agreement;
 see COMMERCIAL_LICENSE.md. Third-party components retain their own licenses.
+
+The extracted threshold memristor example in examples/models/memristor.lib
+retains its upstream Modified BSD license and attribution; see
+examples/models/MEMRISTOR_NOTICE.md. It is not relicensed under AGPL.

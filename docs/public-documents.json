@@ -10,6 +10,7 @@
     "docs/decisions/0002-browser-simulation-runtime.md",
     "docs/decisions/0003-external-subcircuit-references.md",
     "docs/decisions/0004-evaluator-owned-requirements.md",
+    "docs/decisions/0005-external-device-catalog.md",
     "docs/evals/agent-comparison-harness-v1.md",
     "docs/evals/opa197-model-probe-2026-09-11.md",
     "docs/evals/power-amplifier-agent-v1.json",
@@ -38,6 +39,7 @@
     "docs/reference/exports.md",
     "docs/reference/language.md",
     "docs/reference/measurements.md",
+    "docs/reference/model-catalog.md",
     "docs/reference/simulation-and-assertions.md",
     "docs/reference/supported-domain.md"
   ]

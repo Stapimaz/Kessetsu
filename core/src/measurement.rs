@@ -885,6 +885,7 @@ fn current_signal(
             "op-amp output branch current is not exposed by the safe subcircuit template"
                 .to_string(),
         ),
+        ComponentKind::ExternalDevice(_) => Err("external subcircuit terminal currents require an explicit measurement source; use a series 0 V source".to_string()),
         ComponentKind::ModulePort => Err("module ports have no device current".to_string()),
     }
 }
@@ -914,6 +915,11 @@ fn device_voltage_pins(component: &IRComponent) -> Result<(&'static str, &'stati
         ComponentKind::BJT(_) => ("c", "e"),
         ComponentKind::MOSFET(_) => ("d", "s"),
         ComponentKind::OpAmp => ("out", "vee"),
+        ComponentKind::ExternalDevice(_) => {
+            return Err(
+                "external subcircuit power requires explicit terminal measurements".to_string(),
+            );
+        }
         ComponentKind::ModulePort => return Err("module ports have no device power".to_string()),
     })
 }
@@ -1084,7 +1090,7 @@ fn spice_instance_name(component: &IRComponent) -> String {
         ComponentKind::Diode => "d",
         ComponentKind::BJT(_) => "q",
         ComponentKind::MOSFET(_) => "m",
-        ComponentKind::OpAmp => "x",
+        ComponentKind::OpAmp | ComponentKind::ExternalDevice(_) => "x",
         ComponentKind::VoltageSource => "v",
         ComponentKind::CurrentSource => "i",
         ComponentKind::ModulePort => "",

@@ -8,6 +8,7 @@ Kessetsu compiles each source to canonical SPICE and runs the same typed analysi
 |---|---|---|
 | `simulate op` | scalar operating point | bias voltages/currents |
 | `simulate tran <step> <stop>` | time series | waveform, RMS, THD, clipping, dissipation |
+| `simulate tran <step> <stop> uic` (unreleased) | initialized time series | skips DC operating point; applies model capacitor initial conditions |
 | `simulate ac dec|lin|oct <points> <start> <stop>` | complex frequency series | gain, phase and low-pass cutoff |
 | `simulate dc <source> <start> <stop> <step>` | swept real series | transfer curve |
 

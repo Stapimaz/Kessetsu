@@ -1,5 +1,15 @@
 # Export Contract and Format Matrix
 
+Development source supports external comparator/two-terminal instances through the same
+seven formats; published 1.1.0 does not include them. Export metadata/warnings identify
+required local file/hash/entry dependencies; no external model body is embedded. Native
+SPICE/LTspice file destinations must remain beside their `.kess` source so relative
+references stay valid; when moving exports, deliberately copy matching model directories
+subject to their terms. Web downloads require the same manual dependency arrangement.
+Two-terminal LTspice exports use its rectangular native outline with explicit `Prefix X`,
+not resistor semantics. Known symbol mappings are unchanged. See the
+[model catalog](model-catalog.md) for characterized setups and simulator-compatibility losses.
+
 Kessetsu's export layer belongs to neither Web nor CLI. Every output is produced through the `kessetsu.export.v1` contract from connectivity-verified `kessetsu.schematic.v2`, which itself derives from typed Circuit IR. CLI and Web call only this shared Core API.
 
 Every artifact reports the exporter name/version, MIME type and extension, byte length, SHA-256, `connectivity_verified`, capability fields, warnings, and known semantic losses. Unsupported topology or symbol geometry is never approximated silently; a `KES-Xxxx` diagnostic stops the export.

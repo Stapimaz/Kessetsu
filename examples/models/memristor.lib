@@ -1,0 +1,11 @@
+* Threshold memristor library extracted from the Ngspice example by Holger Vogt (2012).
+* Based on Y. V. Pershin and M. Di Ventra, arXiv:1204.2600.
+* See MEMRISTOR_NOTICE.md for origin, license and exact adaptation.
+* Artificial demonstration coefficients; not characterized against a physical device.
+.subckt memristor plus minus PARAMS: stime=10n Ron=1K Roff=10K Rinit=7.0K alpha=0 beta=20e3/stime Vt=1.6
+Bx 0 x I='((f1(V(plus)-V(minus))> 0) && (V(x) < Roff)) ? {f1(V(plus)-V(minus))}: ((((f1(V(plus)-V(minus)) < 0) && (V(x)>Ron)) ? {f1(V(plus)-V(minus))}: 0)) '
+Vx x x1 dc 0
+Cx x1 0 1 IC={Rinit}
+Rmem plus minus r={V(x)}
+.func f1(y)={beta*y+0.5*(alpha-beta)*(abs(y+Vt)-abs(y-Vt))}
+.ends

@@ -73,6 +73,12 @@ fn symbol(component: &SchematicComponent) -> Result<LtSymbol, ExportError> {
             name: "OpAmps/opamp2",
             pins: OPAMP,
         },
+        CatalogSymbol::ExternalTwoTerminal => LtSymbol {
+            // Reuse the native rectangular outline, not its resistor semantics.
+            // Prefix X is explicitly emitted below; pins retain subcircuit order.
+            name: "Misc/EuropeanResistor",
+            pins: TWO_PIN_80,
+        },
         CatalogSymbol::ModulePort => {
             return Err(ExportError {
                 code: "KES-X013".to_string(),
@@ -573,6 +579,9 @@ pub fn generate_ltspice_asc(
             _ => component.reference.clone(),
         };
         out.push_str(&format!("SYMATTR InstName {instance}\n"));
+        if component.symbol == CatalogSymbol::ExternalTwoTerminal {
+            out.push_str("SYMATTR Prefix X\n");
+        }
         out.push_str(&format!(
             "SYMATTR Value {}\n",
             component_value(component, circuit).replace(['\r', '\n'], " ")

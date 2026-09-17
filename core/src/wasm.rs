@@ -1,10 +1,10 @@
 use crate::compile_inputs::CompileInputs;
-use crate::compiler::{COMPILE_SCHEMA_VERSION, CompileOptions, compile_source};
+use crate::compiler::{COMPILE_SCHEMA_VERSION, CompileOptions};
 use crate::exporter::{
     EXPORT_SCHEMA_VERSION, ExportFormat, ExportOptions, RenderBackground, export_capabilities,
     export_report,
 };
-use crate::graph::{NetlistGraph, generate_browser_analysis_netlist};
+use crate::graph::NetlistGraph;
 use crate::ir::Analysis;
 use crate::sim_result::{AssertionReport, evaluate_assertions};
 use crate::simulation::{SIMULATION_SCHEMA_VERSION, SimulationResult};
@@ -30,7 +30,39 @@ fn to_json_compatible<T: Serialize>(value: &T, context: &str) -> Result<JsValue,
 /// Thin browser adapter over the canonical, side-effect-free compile pipeline.
 #[wasm_bindgen]
 pub fn compile_kessetsu(input: &str) -> Result<JsValue, JsValue> {
-    let report = compile_source(input, CompileOptions::all_outputs());
+    compile_kessetsu_with_resources(input, JsValue::NULL)
+}
+
+fn decode_resources(value: JsValue) -> Result<crate::models::ExternalModelResources, JsValue> {
+    let resources = if value.is_null() || value.is_undefined() {
+        crate::models::ExternalModelResources::new()
+    } else {
+        serde_wasm_bindgen::from_value(value)
+            .map_err(|e| JsValue::from_str(&format!("Invalid local model bindings: {e}")))?
+    };
+    crate::model_resources::validate_resource_bindings(&resources)
+        .map_err(|e| JsValue::from_str(&e))?;
+    Ok(resources)
+}
+
+#[wasm_bindgen]
+pub fn local_model_requirements(input: &str) -> Result<JsValue, JsValue> {
+    let requirements =
+        crate::model_resources::resource_requirements(input).map_err(|e| JsValue::from_str(&e))?;
+    to_json_compatible(&requirements, "local model requirements")
+}
+
+#[wasm_bindgen]
+pub fn compile_kessetsu_with_resources(
+    input: &str,
+    resources: JsValue,
+) -> Result<JsValue, JsValue> {
+    let resources = decode_resources(resources)?;
+    let report = crate::compiler::compile_source_with_resources(
+        input,
+        CompileOptions::all_outputs(),
+        &resources,
+    );
     to_json_compatible(&report, "compile report")
 }
 
@@ -68,8 +100,20 @@ pub fn export_kessetsu(
     scale: f32,
     transparent: bool,
 ) -> Result<JsValue, JsValue> {
+    export_kessetsu_with_resources(input, format, scale, transparent, JsValue::NULL)
+}
+
+#[wasm_bindgen]
+pub fn export_kessetsu_with_resources(
+    input: &str,
+    format: &str,
+    scale: f32,
+    transparent: bool,
+    resources: JsValue,
+) -> Result<JsValue, JsValue> {
+    let resources = decode_resources(resources)?;
     let format = ExportFormat::from_str(format).map_err(|error| JsValue::from_str(&error))?;
-    let report = compile_source(
+    let report = crate::compiler::compile_source_with_resources(
         input,
         CompileOptions {
             include_ast: false,
@@ -77,6 +121,7 @@ pub fn export_kessetsu(
             generate_layout: true,
             generate_kicad: false,
         },
+        &resources,
     );
     let artifact = export_report(
         &report,
@@ -120,7 +165,20 @@ pub struct BrowserSimulationPlan {
 
 #[wasm_bindgen]
 pub fn prepare_browser_simulation(input: &str) -> Result<JsValue, JsValue> {
-    let report = compile_source(input, CompileOptions::default());
+    prepare_browser_simulation_with_resources(input, JsValue::NULL)
+}
+
+#[wasm_bindgen]
+pub fn prepare_browser_simulation_with_resources(
+    input: &str,
+    resources: JsValue,
+) -> Result<JsValue, JsValue> {
+    let resources = decode_resources(resources)?;
+    let report = crate::compiler::compile_source_with_resources(
+        input,
+        CompileOptions::default(),
+        &resources,
+    );
     if report.has_errors() {
         return Err(JsValue::from_str(
             "Cannot prepare browser simulation for a source with compile/ERC errors",
@@ -134,12 +192,17 @@ pub fn prepare_browser_simulation(input: &str) -> Result<JsValue, JsValue> {
         .analyses
         .iter()
         .enumerate()
-        .map(|(index, analysis)| BrowserAnalysisPlan {
-            index,
-            analysis: analysis.clone(),
-            netlist: generate_browser_analysis_netlist(&circuit, &graph, analysis),
+        .map(|(index, analysis)| {
+            Ok(BrowserAnalysisPlan {
+                index,
+                analysis: analysis.clone(),
+                netlist: crate::model_resources::browser_analysis_with_resources(
+                    &circuit, &graph, analysis, &resources,
+                )
+                .map_err(|e| JsValue::from_str(&e))?,
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>, JsValue>>()?;
     to_json_compatible(
         &BrowserSimulationPlan {
             schema_version: SIMULATION_SCHEMA_VERSION.to_string(),
@@ -158,7 +221,21 @@ pub struct BrowserEvaluation {
 
 #[wasm_bindgen]
 pub fn evaluate_browser_simulation(input: &str, simulation: JsValue) -> Result<JsValue, JsValue> {
-    let report = compile_source(input, CompileOptions::default());
+    evaluate_browser_simulation_with_resources(input, simulation, JsValue::NULL)
+}
+
+#[wasm_bindgen]
+pub fn evaluate_browser_simulation_with_resources(
+    input: &str,
+    simulation: JsValue,
+    resources: JsValue,
+) -> Result<JsValue, JsValue> {
+    let resources = decode_resources(resources)?;
+    let report = crate::compiler::compile_source_with_resources(
+        input,
+        CompileOptions::default(),
+        &resources,
+    );
     if report.has_errors() {
         return Err(JsValue::from_str(
             "Cannot evaluate browser simulation for a source with compile/ERC errors",

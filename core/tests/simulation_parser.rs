@@ -66,6 +66,7 @@ fn operating_point_fixture_becomes_a_sorted_map() {
 #[test]
 fn transient_fixture_becomes_a_real_time_series() {
     let analysis = Analysis::Transient {
+        use_initial_conditions: false,
         step: seconds(1e-6),
         stop: seconds(2e-6),
     };
@@ -103,6 +104,7 @@ fn ac_fixture_preserves_real_and_imaginary_components() {
 #[test]
 fn wrdata_parser_rejects_column_drift_duplicates_and_invalid_axes() {
     let tran = Analysis::Transient {
+        use_initial_conditions: false,
         step: seconds(1.0),
         stop: seconds(2.0),
     };

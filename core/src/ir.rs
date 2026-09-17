@@ -34,9 +34,17 @@ pub enum ComponentKind {
     BJT(BJTPolarity),
     MOSFET(FETPolarity),
     OpAmp,
+    ExternalDevice(ExternalDeviceFamily),
     VoltageSource,
     CurrentSource,
     ModulePort,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExternalDeviceFamily {
+    Comparator,
+    TwoTerminal,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -64,6 +72,7 @@ pub enum ComponentParams {
     },
     DiodeParams,
     OpAmpParams,
+    ExternalDeviceParams,
     VoltageSource {
         value: SourceValue,
     },
@@ -232,6 +241,8 @@ pub enum Analysis {
     Transient {
         step: Quantity,
         stop: Quantity,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        use_initial_conditions: bool,
     },
     Ac {
         scale: AcScale,
@@ -599,9 +610,11 @@ fn parse_analysis(
             }
         }
         "tran" => {
-            if command.args.len() != 2 {
+            if command.args.len() != 2
+                && !(command.args.len() == 3 && command.args[2].eq_ignore_ascii_case("uic"))
+            {
                 return Err(invalid(format!(
-                    "simulate tran expects step and stop, got {} arguments",
+                    "simulate tran expects step and stop, optionally followed by uic; got {} arguments",
                     command.args.len()
                 )));
             }
@@ -614,7 +627,11 @@ fn parse_analysis(
                     "transient step and stop must be positive, with step <= stop".to_string(),
                 ));
             }
-            Ok(Analysis::Transient { step, stop })
+            Ok(Analysis::Transient {
+                step,
+                stop,
+                use_initial_conditions: command.args.len() == 3,
+            })
         }
         "ac" => {
             if command.args.len() != 4 {
@@ -1113,7 +1130,32 @@ pub fn ast_to_ir_with_resources(
                         )?;
                         model = Some(resolved);
                         (ComponentKind::OpAmp, ComponentParams::OpAmpParams)
-                    } // _ is not needed since all ComponentTypes are covered
+                    }
+                    ComponentType::ExternalDevice => {
+                        let resolved = model_library.resolve(val_str).ok_or_else(|| {
+                            semantic_error(
+                                "KES-C003",
+                                format!(
+                                    "device '{}' requires a declared external device model",
+                                    decl.name
+                                ),
+                                Some(&decl.name),
+                                Some("model"),
+                            )
+                        })?;
+                        if !matches!(resolved.kind, ComponentKind::ExternalDevice(_)) {
+                            return Err(semantic_error(
+                                "KES-C004",
+                                format!("model '{val_str}' is not an external device interface"),
+                                Some(&decl.name),
+                                Some("model"),
+                            ));
+                        }
+                        crate::models::validate_component_model_pins(&resolved.kind, &resolved)?;
+                        let kind = resolved.kind.clone();
+                        model = Some(resolved);
+                        (kind, ComponentParams::ExternalDeviceParams)
+                    }
                 };
 
                 components.push(IRComponent {

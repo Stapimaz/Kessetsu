@@ -276,10 +276,15 @@ pub fn format_spice_number(value: f64) -> String {
 pub fn format_analysis(analysis: &Analysis, circuit: &CircuitIR) -> String {
     match analysis {
         Analysis::OperatingPoint => "op".to_string(),
-        Analysis::Transient { step, stop } => format!(
-            "tran {} {}",
+        Analysis::Transient {
+            step,
+            stop,
+            use_initial_conditions,
+        } => format!(
+            "tran {} {}{}",
             format_spice_number(step.value),
-            format_spice_number(stop.value)
+            format_spice_number(stop.value),
+            if *use_initial_conditions { " uic" } else { "" }
         ),
         Analysis::Ac {
             scale,
@@ -482,6 +487,9 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
                     prefix, comp.id, nets[0], nets[1], value_str
                 ));
             }
+            ComponentKind::ExternalDevice(_) => {
+                spice.push_str(&format!("X{} {} {}\n", comp.id, nets.join(" "), value_str));
+            }
             ComponentKind::ModulePort => {}
         }
         if let Some(model) = &comp.model {
@@ -562,6 +570,7 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
             main_analysis = analysis.kind_name();
         }
 
+        let mut emitted_measurements = BTreeSet::new();
         for assert in &circuit.assertions {
             let arguments = assert.signal.split(',').collect::<Vec<_>>();
             if arguments.len() != 1
@@ -590,6 +599,11 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
             }
             let safe_signal = signal.replace("(", "_").replace(")", "").to_lowercase();
             let safe_name = format!("{}_{}", assert.metric.to_lowercase(), safe_signal);
+            // Different limits on one metric share a simulator measurement.
+            // Assertions are still evaluated individually from canonical datasets.
+            if !emitted_measurements.insert(safe_name.clone()) {
+                continue;
+            }
             let metric = match assert.metric.to_uppercase().as_str() {
                 "MAX" => "MAX",
                 "MIN" => "MIN",

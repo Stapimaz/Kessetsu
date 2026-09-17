@@ -244,7 +244,27 @@ model_include kessetsu_analog 1.0.0
 external_subcircuit opamp OPA197 (in_p,in_n,vcc,vee,out) file="models/OPAx197.LIB" entry=OPAx197 sha256=<64-hex-digest> version="Final 1.3" license="vendor terms" source="vendor URL" simulator=ngspice_ps redistribution=prohibited
 ```
 
-Raw `.include`, `.model`, `.subckt` and `.control` injection is intentionally rejected. Model kinds have parameter allowlists; package imports require an exact version and produce a provenance-bearing `kessetsu.lock`. External op-amp declarations bind a user-owned source-relative file by exact SHA-256, entry name, canonical pin order, provenance, simulator mode, and redistribution policy. Kessetsu validates but does not embed or redistribute that file. The native CLI supports the binding; stdin and the current browser runtime report it as unavailable without fallback. The [model cookbook](../guides/cookbook.md#choose-and-verify-a-component-model) shows the complete directory, hash and command workflow.
+Raw `.include`, `.model`, `.subckt` and `.control` injection is intentionally rejected. Model kinds have parameter allowlists; package imports require an exact version and produce a provenance-bearing `kessetsu.lock`. External declarations bind a user-owned source-relative file by exact SHA-256, entry name, canonical pin order, provenance, simulator mode, and redistribution policy. Ordinary reports/exports never embed its body. Native stdin cannot bind files; native file commands resolve contained local files. The [model cookbook](../guides/cookbook.md#choose-and-verify-a-component-model) shows the complete directory, hash and command workflow.
+
+### Additional external interfaces (unreleased)
+
+Use `external_subcircuit comparator Name (in_p,in_n,vcc,vee,out)` or
+`external_subcircuit two_terminal Name (p1,p2)` with the same required metadata fields
+shown above, then instantiate with `device U1 Name` or `device X1 Name`. The model
+determines the catalog-backed interface; `device` cannot masquerade as an op-amp or
+infer arbitrary pin lists. Header defaults/continuations are supported; positional
+terminal count excludes `.SUBCKT` parameter defaults. Coefficients stay in the exact file.
+
+Development Web builds allow explicit local selection in View → Circuit details.
+Only the portable self-contained Ngspice profile can simulate in the browser;
+PSpice compatibility/unsupported constructs require native CLI. Files stay in memory,
+not in drafts/shares/exports. See the [model catalog](model-catalog.md) for complete
+examples, supported setups, licenses and dependency handling.
+
+For models that require capacitor initial conditions, development source accepts
+`simulate tran <step> <stop> uic`. This skips the DC operating point and applies the
+model's initial conditions; it is not the default. Ordinary transient forms and
+legacy analysis serialization are unchanged.
 
 ## Compatibility rule
 

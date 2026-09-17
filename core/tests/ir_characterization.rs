@@ -346,7 +346,7 @@ fn simulation_analyses_are_typed_and_unit_checked_in_ir() {
     assert_eq!(circuit.analyses[0], Analysis::OperatingPoint);
     assert!(matches!(
         &circuit.analyses[1],
-        Analysis::Transient { step, stop }
+        Analysis::Transient { step, stop, .. }
             if step.unit == SIUnit::Second && step.value == 1e-6 && stop.value == 1e-2
     ));
     assert!(matches!(

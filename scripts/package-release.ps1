@@ -38,6 +38,9 @@ Copy-Item -LiteralPath (Join-Path $repoRoot "LICENSE") -Destination (Join-Path $
 Copy-Item -LiteralPath (Join-Path $repoRoot "NOTICE") -Destination (Join-Path $stage "NOTICE")
 Copy-Item -LiteralPath (Join-Path $repoRoot "COMMERCIAL_LICENSE.md") -Destination (Join-Path $stage "COMMERCIAL_LICENSE.md")
 Copy-Item -LiteralPath (Join-Path $repoRoot "docs/reference/supported-domain.md") -Destination (Join-Path $stage "SUPPORTED_DOMAIN.md")
+# This extra root-level copy is relocated; keep its catalog link usable offline.
+$standaloneDomain = Get-Content -LiteralPath (Join-Path $stage 'SUPPORTED_DOMAIN.md') -Raw -Encoding UTF8
+[System.IO.File]::WriteAllText((Join-Path $stage 'SUPPORTED_DOMAIN.md'), $standaloneDomain.Replace('](model-catalog.md)', '](docs/reference/model-catalog.md)'), [System.Text.UTF8Encoding]::new($false))
 & (Join-Path $PSScriptRoot "audit-public-docs.ps1") -RepositoryRoot $repoRoot | Out-Null
 $publicDocuments = Get-Content -LiteralPath (Join-Path $repoRoot "docs/public-documents.json") -Raw | ConvertFrom-Json
 foreach ($document in $publicDocuments.files) {
@@ -49,6 +52,7 @@ $examplesDirectory = Join-Path $stage "examples"
 New-Item -ItemType Directory -Path $examplesDirectory | Out-Null
 Copy-Item -Path (Join-Path $repoRoot "examples/*.kess") -Destination $examplesDirectory
 Copy-Item -Path (Join-Path $repoRoot "examples/*.kessreq") -Destination $examplesDirectory
+Copy-Item -LiteralPath (Join-Path $repoRoot "examples/models") -Destination (Join-Path $examplesDirectory "models") -Recurse
 $webDocumentationDirectory = Join-Path $stage "webapp"
 New-Item -ItemType Directory -Path (Join-Path $webDocumentationDirectory "public") -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $repoRoot "webapp/README.md") -Destination (Join-Path $webDocumentationDirectory "README.md")

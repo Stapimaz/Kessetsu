@@ -162,6 +162,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .schematic-surface .schematic-document .wire { stroke: #74a9d8; }
 .schematic-surface .schematic-document .junction { fill: #74a9d8; }
 .schematic-surface .schematic-document .component path,
+.schematic-surface .schematic-document .component rect,
 .schematic-surface .schematic-document .component circle,
 .schematic-surface .schematic-document .net-label path { stroke: #d4deea; }
 .schematic-surface .schematic-document .component path[fill='#ffffff'],
@@ -172,6 +173,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .schematic-surface .schematic-document .reference { fill: #f1f5f9; }
 .schematic-surface .schematic-document .value { fill: #aebdd0; }
 .schematic-surface .schematic-document .component.is-component-active path,
+.schematic-surface .schematic-document .component.is-component-active rect,
 .schematic-surface .schematic-document .component.is-component-active circle { stroke: #5eead4; filter: drop-shadow(0 0 4px rgba(94, 234, 212, .65)); }
 .schematic-surface .schematic-document .component.is-component-active .emitter-arrow { fill: #5eead4; stroke: none !important; }
 .schematic-surface .schematic-document text.is-component-active { fill: #7ff7df; font-weight: 700; filter: drop-shadow(0 0 3px rgba(94, 234, 212, .5)); }

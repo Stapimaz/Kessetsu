@@ -16,6 +16,13 @@ This document freezes the electrical scope advertised for Phase 4. â€œSupportedâ
 
 ## Model scope
 
+Development source additionally supports catalog-backed external comparator/two-terminal
+interfaces and explicit local Web bindings for a bounded self-contained Ngspice text
+profile. The [model catalog](model-catalog.md) defines the characterized comparator,
+threshold-memristor and native-only manufacturer op-amp cases. These additions are not
+in published 1.1.0 or the deployed Web Hub; they do not widen the first-release matrix
+into arbitrary vendor, memristor or research-device support.
+
 - Built-ins: `2N3904`, `2N3906`, `2N2222`, `KESSETSU_POWER_NPN_V1`, `KESSETSU_POWER_PNP_V1`, `1N4148`, `1N4007`, `IRF540`, `KESSETSU_PMOS_V1`, and `KESSETSU_OPAMP_V1`.
 - Known 1.1.0 issue: builtin `1N4148`/`1N4007` (including the default diode) contain
   fields that abort standard Ngspice simulation. The unreleased source repair removes

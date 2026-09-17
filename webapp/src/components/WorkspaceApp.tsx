@@ -30,6 +30,7 @@ export function WorkspaceApp() {
   const {
     state, setCode, loadExample, newDocument, openDocument, markSaved, saveBrowserDocument, renameDocument,
     run, cancel, createExport, share,
+    modelRequirements, boundModelResources, bindModelFile, clearModelFiles,
   } = useKessetsuWorkspace();
   const [openMenu, setOpenMenu] = useState<MenuId | null>(null);
   const [examplesOpen, setExamplesOpen] = useState(false);
@@ -271,6 +272,12 @@ export function WorkspaceApp() {
                       <strong>{examples[id].label}</strong><small>{examples[id].description}</small>
                     </button>
                   ))}
+                  <span className="menu-group-label">Local model files</span>
+                  {(['comparator', 'memristor'] as const).map((id) => (
+                    <button key={id} role="menuitem" aria-label={examples[id].label} onClick={() => selectExample(id)}>
+                      <strong>{examples[id].label}</strong><small>{examples[id].description}</small>
+                    </button>
+                  ))}
                 </div>}
               </div>
             </div>}
@@ -339,6 +346,10 @@ export function WorkspaceApp() {
         open={circuitDetailsOpen}
         spice={state.spiceNetlist}
         models={state.modelManifest}
+        resources={modelRequirements}
+        boundResources={boundModelResources}
+        onBindFile={bindModelFile}
+        onClearFiles={clearModelFiles}
         onClose={() => setCircuitDetailsOpen(false)}
       />
       <ShareDialog
@@ -346,6 +357,7 @@ export function WorkspaceApp() {
         currentName={documentName}
         onClose={() => setShareOpen(false)}
         onCreateLink={shareCircuit}
+        hasLocalModels={modelRequirements.length > 0}
       />
       <RenameDialog
         open={renameOpen}

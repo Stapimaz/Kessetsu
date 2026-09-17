@@ -16,6 +16,7 @@ pub mod kicad;
 pub mod layout;
 pub mod ltspice;
 pub mod measurement;
+pub mod model_resources;
 pub mod models;
 pub mod parser;
 pub mod requirements;

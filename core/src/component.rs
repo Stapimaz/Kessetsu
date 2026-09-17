@@ -1,4 +1,4 @@
-use crate::ir::{BJTPolarity, ComponentKind};
+use crate::ir::{BJTPolarity, ComponentKind, ExternalDeviceFamily};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -23,6 +23,7 @@ pub enum CatalogSymbol {
     VoltageSource,
     CurrentSource,
     ModulePort,
+    ExternalTwoTerminal,
 }
 
 /// Conservative visible symbol extents in eighths of a schematic grid unit.
@@ -37,6 +38,7 @@ pub const fn symbol_ink_bounds_eighths(symbol: CatalogSymbol) -> (i32, i32, i32,
         CatalogSymbol::Bjt | CatalogSymbol::Mosfet => (0, 0, 16, 16),
         CatalogSymbol::OpAmp => (0, -8, 24, 24),
         CatalogSymbol::ModulePort => (5, -3, 11, 3),
+        CatalogSymbol::ExternalTwoTerminal => (0, -4, 16, 4),
     }
 }
 
@@ -257,6 +259,17 @@ pub fn component_definition(kind: &ComponentKind) -> ComponentDefinition {
             definition(CatalogSymbol::Mosfet, "Mosfet", "M", 3, 3, MOSFET_PINS)
         }
         ComponentKind::OpAmp => definition(CatalogSymbol::OpAmp, "OpAmp", "X", 3, 3, OPAMP_PINS),
+        ComponentKind::ExternalDevice(ExternalDeviceFamily::Comparator) => {
+            definition(CatalogSymbol::OpAmp, "Comparator", "X", 3, 3, OPAMP_PINS)
+        }
+        ComponentKind::ExternalDevice(ExternalDeviceFamily::TwoTerminal) => definition(
+            CatalogSymbol::ExternalTwoTerminal,
+            "ExternalDevice",
+            "X",
+            2,
+            1,
+            TWO_PIN,
+        ),
         ComponentKind::VoltageSource => definition(
             CatalogSymbol::VoltageSource,
             "Source",
@@ -307,7 +320,8 @@ pub fn through_pin(kind: &ComponentKind, entry_pin: &str) -> Option<&'static str
         ComponentKind::Resistor
         | ComponentKind::Capacitor
         | ComponentKind::Inductor
-        | ComponentKind::Diode => match entry_pin {
+        | ComponentKind::Diode
+        | ComponentKind::ExternalDevice(ExternalDeviceFamily::TwoTerminal) => match entry_pin {
             "p1" => Some("p2"),
             "p2" => Some("p1"),
             _ => None,
@@ -329,12 +343,14 @@ pub fn through_pin(kind: &ComponentKind, entry_pin: &str) -> Option<&'static str
             "g" => Some("s"),
             _ => None,
         },
-        ComponentKind::OpAmp => match entry_pin {
-            "vcc" => Some("vee"),
-            "vee" => Some("vcc"),
-            "in_p" | "in_n" | "out" => Some("out"),
-            _ => None,
-        },
+        ComponentKind::OpAmp | ComponentKind::ExternalDevice(ExternalDeviceFamily::Comparator) => {
+            match entry_pin {
+                "vcc" => Some("vee"),
+                "vee" => Some("vcc"),
+                "in_p" | "in_n" | "out" => Some("out"),
+                _ => None,
+            }
+        }
         ComponentKind::ModulePort => None,
     }
 }

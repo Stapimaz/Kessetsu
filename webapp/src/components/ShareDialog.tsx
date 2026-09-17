@@ -7,9 +7,10 @@ interface Props {
   currentName: string;
   onClose: () => void;
   onCreateLink: (name: string) => Promise<string>;
+  hasLocalModels?: boolean;
 }
 
-export function ShareDialog({ open, currentName, onClose, onCreateLink }: Props) {
+export function ShareDialog({ open, currentName, onClose, onCreateLink, hasLocalModels }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [name, setName] = useState(currentName);
   const [url, setUrl] = useState('');
@@ -61,6 +62,7 @@ export function ShareDialog({ open, currentName, onClose, onCreateLink }: Props)
         </div>
         <button aria-label="Close share" onClick={() => dialogRef.current?.close()}><X size={18} /></button>
       </header>
+      {hasLocalModels && <p>Local model files are not included in this link. Recipients must select matching files in View → Circuit details. Respect each model's redistribution terms.</p>}
       <label className="field-label" htmlFor="share-circuit-name">Circuit name</label>
       <input
         id="share-circuit-name"

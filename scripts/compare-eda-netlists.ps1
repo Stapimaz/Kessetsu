@@ -53,10 +53,16 @@ function Assert-EdaNetlists {
         $kiLibrary = @($KiCad.export.libparts.libpart | Where-Object {
             $_.lib -eq $kiComponent.libsource.lib -and $_.part -eq $kiComponent.libsource.part
         })[0]
-        $canonicalKey = @($canonical.Keys | Where-Object { $_.Substring(2) -ceq $ref })
+        $canonicalRef = if ($component.model_metadata.resource) { "X$ref" } else { $null }
+        $canonicalKey = @($canonical.Keys | Where-Object {
+            if ($canonicalRef) { $_ -ceq $canonicalRef } else { $_.Substring(2) -ceq $ref }
+        })
         if ($canonicalKey.Count -ne 1) { throw "Missing canonical SPICE device: $ref" }
         $prefix = $canonicalKey[0].Substring(0, 1)
-        $ltKey = if ($ref.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        # Native X symbols always namespace InstName with section-sign, including
+        # names that already begin with X (confirmed by actual LTspice netlists).
+        $ltKey = if ($prefix -eq 'X') { "$prefix$([char]0xA7)$ref" }
+        elseif ($ref.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
             $ref
         } elseif ($prefix -eq 'V' -or $prefix -eq 'I') {
             "${prefix}_$ref"

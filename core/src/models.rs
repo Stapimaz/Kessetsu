@@ -402,18 +402,25 @@ fn compile_external_subcircuit(
     declaration: &ExternalSubcircuitDecl,
     resources: &ExternalModelResources,
 ) -> Result<ModelRef, SemanticDiagnostic> {
-    if !declaration.kind.eq_ignore_ascii_case("opamp") {
-        return Err(error(
-            "KES-C014",
-            format!(
-                "unsupported external subcircuit kind '{}'",
-                declaration.kind
-            ),
-            Some(&declaration.name),
-            "kind",
-        ));
-    }
-    let expected_pins = component_definition(&ComponentKind::OpAmp)
+    let kind = match declaration.kind.to_ascii_lowercase().as_str() {
+        "opamp" => ComponentKind::OpAmp,
+        "comparator" => ComponentKind::ExternalDevice(crate::ir::ExternalDeviceFamily::Comparator),
+        "two_terminal" => {
+            ComponentKind::ExternalDevice(crate::ir::ExternalDeviceFamily::TwoTerminal)
+        }
+        _ => {
+            return Err(error(
+                "KES-C014",
+                format!(
+                    "unsupported external subcircuit kind '{}'",
+                    declaration.kind
+                ),
+                Some(&declaration.name),
+                "kind",
+            ));
+        }
+    };
+    let expected_pins = component_definition(&kind)
         .pins
         .iter()
         .map(|pin| pin.name.to_string())
@@ -422,7 +429,7 @@ fn compile_external_subcircuit(
         return Err(error(
             "KES-C012",
             format!(
-                "external opamp '{}' pins {:?} must exactly match catalog order {:?}",
+                "external device '{}' pins {:?} must exactly match catalog order {:?}",
                 declaration.name, declaration.pins, expected_pins
             ),
             Some(&declaration.name),
@@ -602,7 +609,7 @@ fn compile_external_subcircuit(
     };
     Ok(ModelRef {
         name: declaration.name.clone(),
-        kind: ComponentKind::OpAmp,
+        kind,
         source: ModelSource::External,
         definition: ModelDefinition::ExternalSubcircuit { metadata },
         provenance: ModelProvenance {
@@ -634,12 +641,43 @@ fn validate_external_subcircuit_text(
 ) -> Result<(), SemanticDiagnostic> {
     let mut declarations = Vec::new();
     let mut endings = 0usize;
-    for line in text.trim_start_matches('\u{feff}').lines() {
+    let mut scope = Vec::new();
+    let statements = crate::model_resources::library_statements(text)
+        .map_err(|message| error("KES-C017", message, Some(model_name), "file"))?;
+    for line in &statements {
         let trimmed = line.trim();
         if trimmed.is_empty() || trimmed.starts_with('*') {
             continue;
         }
         let fields = trimmed.split_whitespace().collect::<Vec<_>>();
+        if fields.first().is_some_and(|field| {
+            matches!(
+                field.to_ascii_lowercase().as_str(),
+                ".control" | ".endc" | ".include" | ".inc" | ".lib" | ".end" | ".load" | ".osdi"
+            )
+        }) {
+            return Err(error(
+                "KES-C017",
+                "external model libraries cannot contain control blocks, file dependencies or plug-in loading; supply a self-contained model library",
+                Some(model_name),
+                "file",
+            ));
+        }
+        if fields
+            .first()
+            .is_some_and(|field| field.eq_ignore_ascii_case(".subckt"))
+            && let Some(name) = fields.get(1)
+        {
+            if scope.len() >= 64 {
+                return Err(error(
+                    "KES-C017",
+                    "external model nesting exceeds 64 levels",
+                    Some(model_name),
+                    "file",
+                ));
+            }
+            scope.push(*name);
+        }
         if fields
             .first()
             .is_some_and(|field| field.eq_ignore_ascii_case(".subckt"))
@@ -647,19 +685,43 @@ fn validate_external_subcircuit_text(
                 .get(1)
                 .is_some_and(|name| name.eq_ignore_ascii_case(entry))
         {
-            declarations.push(fields[2..].to_vec());
+            declarations.push(
+                fields[2..]
+                    .iter()
+                    .take_while(|field| {
+                        !field.eq_ignore_ascii_case("params:") && !field.contains('=')
+                    })
+                    .copied()
+                    .collect::<Vec<_>>(),
+            );
         }
         if fields
             .first()
             .is_some_and(|field| field.eq_ignore_ascii_case(".ends"))
-            && fields
-                .get(1)
-                .is_some_and(|name| name.eq_ignore_ascii_case(entry))
         {
-            endings += 1;
+            let closed = scope.pop();
+            if closed.is_none()
+                || fields
+                    .get(1)
+                    .is_some_and(|name| !name.eq_ignore_ascii_case(closed.unwrap()))
+            {
+                return Err(error(
+                    "KES-C017",
+                    "external library has an unmatched or mismatched .ENDS",
+                    Some(model_name),
+                    "entry",
+                ));
+            }
+            if closed.is_some_and(|name| name.eq_ignore_ascii_case(entry))
+                && fields
+                    .get(1)
+                    .is_none_or(|name| name.eq_ignore_ascii_case(entry))
+            {
+                endings += 1;
+            }
         }
     }
-    if declarations.len() != 1 || endings != 1 {
+    if declarations.len() != 1 || endings != 1 || !scope.is_empty() {
         return Err(error(
             "KES-C017",
             format!(

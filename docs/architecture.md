@@ -127,6 +127,7 @@ into an acceptance range. New shares identify the active compile schema.
 | `transistor` | BJT (NPN/PNP) | c, b, e | Q_ |
 | `mosfet` | MOSFET (NMOS/PMOS) | d, g, s | M_ |
 | `opamp` | Operational amplifier | in_p, in_n, vcc, vee, out | X_ |
+| `device` (unreleased) | Catalog-backed external comparator/two-terminal | Model family pins | X |
 | `source` | Voltage source | plus, minus | V_ |
 | `current_source` | Current source | plus, minus | I_ |
 
@@ -144,6 +145,7 @@ into an acceptance range. New shares identify the active compile schema.
 - **Simulation commands:** Analysis commands are not carried as raw SPICE strings. They become typed `Analysis` variants during semantic conversion. Unsupported commands, invalid arity, incompatible units, or an invalid sweep direction fail closed with `KES-C009`.
   - `simulate op` — DC operating point
   - `simulate tran 10us 1ms` — transient analysis
+  - `simulate tran 100ps 10ns uic` — unreleased model initial-condition transient, no DC operating point
   - `simulate ac dec 10 1Hz 1MHz` — AC analysis
   - `simulate dc V1 0V 5V 100mV` — independent voltage/current-source sweep
 - **Assertions:**
@@ -226,11 +228,17 @@ subcircuit opamp SafeOp (in_p,in_n,vcc,vee,out) version=1.0.0 license=MIT gain=1
 
 Exact packages are selected with syntax such as `model_include kessetsu_analog 1.0.0`; floating versions and ranges are not supported. Resolved models and packages appear in a `kessetsu.models.v2` manifest containing source, license, version, simulator capability, and a `sha256:` content hash. When file-based compile/simulate/test uses a model, a deterministic `kessetsu.lock` (`kessetsu.lock.v2`) is written beside the SPICE artifact and reported as a `model_lock` CLI artifact. Stdin-only calls do not write files; callers can request manifest and lock content through `--include models`.
 
-External op-amp subcircuits use the typed `external_subcircuit` contract from [ADR 0003](decisions/0003-external-subcircuit-references.md). The declaration carries a source-relative resource reference, exact SHA-256, `.SUBCKT` entry, canonical pin mapping, provenance, closed simulator-compatibility mode, and explicit redistribution policy. The native CLI resolves only files contained under the `.kess` source directory; Core validates bytes before producing IR. Simulation stages an exact temporary copy and maps `ngspice_ps` only to the bounded Ngspice compatibility option. The Web runtime currently reports unresolved external resources as unsupported; it neither uploads them nor substitutes a generic model.
+External op-amp subcircuits use the typed `external_subcircuit` contract from [ADR 0003](decisions/0003-external-subcircuit-references.md). The declaration carries a source-relative resource reference, exact SHA-256, `.SUBCKT` entry, canonical pin mapping, provenance, closed simulator-compatibility mode, and explicit redistribution policy. The native CLI resolves only files contained under the `.kess` source directory; Core validates bytes before producing IR. Simulation stages an exact temporary copy and maps `ngspice_ps` only to the bounded Ngspice compatibility option. Published 1.1.0 Web cannot bind external resources. Development source extends this boundary through ADR 0005 with typed comparator/two-terminal kinds, explicit in-memory local Web bindings and a bounded portable analog library profile. Only ephemeral browser simulation decks receive exact validated text through IR-selected references; ordinary SPICE/compile/IR/lock/export data retains dependencies, not resource bodies. Native-only compatibility fails before browser execution. No implicit upload, persistence or model substitution is permitted.
 
 Attempts to hide `.control`, `.include`, shell syntax, or line breaks inside quoted parameters cannot cross typed numeric and metadata validation. When an error exists, the SPICE backend does not run. Regression tests protect this injection boundary.
 
 ## 6. ERC (Electrical Rules Check) Engine (`erc.rs`)
+
+The accepted [external-device design](decisions/0005-external-device-catalog.md) extends
+external subcircuits through closed catalog-backed interface families and explicit local
+resource bindings. Its implementation/acceptance status is tracked separately; an accepted
+ADR alone does not establish device, browser-model or export support. All new devices must
+cross typed IR and use the shared catalog's pins/roles/geometry, never op-amp substitution.
 
 > **Note:** Older versions used the term DRC. The correct term for schematic-level checks is **ERC (Electrical Rules Check)**. DRC refers to physical PCB design checks.
 

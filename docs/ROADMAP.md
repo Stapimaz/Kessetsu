@@ -27,6 +27,13 @@ published binary releases and tags remain immutable.
 
 ## In development
 
+- [ ] Catalog-backed external comparator/two-terminal devices and explicit local Web model
+  selection. Development source supports exact local resource identity, a bounded portable
+  browser profile, native-only compatibility diagnostics and dependency-aware exports.
+  See the [model catalog](reference/model-catalog.md) for example files, licenses, supported
+  setups and physical-fidelity limits. These additions are not in published 1.1.0 or the
+  deployed Web Hub.
+
 - [ ] CLI model-lock output protection: require explicit replacement of differing locks,
   reuse identical contents and reject source/netlist destination collisions. Implemented
   and regression-checked in source; not yet in published 1.1.0 downloads.

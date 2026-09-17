@@ -285,6 +285,7 @@ fn parse_statement(
                         "diode" => ComponentType::Diode,
                         "mosfet" => ComponentType::Mosfet,
                         "opamp" => ComponentType::OpAmp,
+                        "device" => ComponentType::ExternalDevice,
                         _ => unreachable!(),
                     };
                     let name = inner_rules.next().unwrap().as_str().to_string();

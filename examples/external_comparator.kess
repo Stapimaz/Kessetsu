@@ -1,0 +1,24 @@
+// Local-file example: choose models/comparator.lib in View > Circuit details on Web.
+// Generic comparator, not a manufacturer model; see the model catalog for limits.
+external_subcircuit comparator CMP (in_p,in_n,vcc,vee,out) file="models/comparator.lib" entry=KESSETSU_COMPARATOR_V1 sha256=00198a3b00ef90c78b93beb6c7e7ed61c9f0220dc597a6c71cd0661343246c34 version=1.0.0 license=AGPL-3.0-only source="Kessetsu generic comparator" simulator=ngspice redistribution=permitted
+net GND
+net VCC
+net IN
+net OUT
+source VP 5V
+source VIN sine(0V,100mV,1kHz)
+device U1 CMP
+resistor RL 10k
+connect VP.plus to VCC
+connect VP.minus, VIN.minus to GND
+connect VIN.plus to IN
+connect U1.in_p to IN
+connect U1.in_n, U1.vee to GND
+connect U1.vcc to VCC
+connect U1.out, RL.p1 to OUT
+connect RL.p2 to GND
+simulate tran 1us 2ms
+assert max(V(OUT)) > 4.8V
+assert max(V(OUT)) < 5V
+assert min(V(OUT)) > 0V
+assert min(V(OUT)) < 200mV

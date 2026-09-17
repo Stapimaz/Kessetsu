@@ -88,6 +88,7 @@ assert peak(V(Q1.c,Q1.e)) == 0V\n";
     });
     let mut mixed_analysis = simulation(
         Analysis::Transient {
+            use_initial_conditions: false,
             step: kessetsu_core::ir::parse_quantity("1us", SIUnit::Second).unwrap(),
             stop: kessetsu_core::ir::parse_quantity("3ms", SIUnit::Second).unwrap(),
         },
@@ -552,6 +553,7 @@ fn gain_at_uses_first_ac_dataset_and_never_transient_rms() {
         AnalysisDataset {
             index: 1,
             analysis: Analysis::Transient {
+                use_initial_conditions: false,
                 step: kessetsu_core::ir::parse_quantity("1ms", SIUnit::Second).unwrap(),
                 stop: kessetsu_core::ir::parse_quantity("2ms", SIUnit::Second).unwrap(),
             },

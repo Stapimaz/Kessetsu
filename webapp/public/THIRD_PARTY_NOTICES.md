@@ -1,5 +1,13 @@
 # Kessetsu Web Runtime — Third-Party Notices
 
+## Threshold memristor example (unreleased)
+
+Development builds offer the extracted Ngspice threshold-memristor library as an explicitly
+downloadable example, not an automatically bound model. It retains BSD-3-Clause terms
+and Pershin/Di Ventra/Holger Vogt attribution. The accompanying downloadable
+`MEMRISTOR_NOTICE.md` contains origin, extraction changes and the complete notice.
+The catalog documents its artificial coefficients and physical-fidelity limits.
+
 ## Inter
 
 - Source: <https://github.com/rsms/inter>

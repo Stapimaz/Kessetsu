@@ -11,7 +11,7 @@ parameter_expr = @{ (!NEWLINE ~ !"//" ~ ANY)+ }
 param_decl = { "param" ~ ident ~ ":" ~ ident ~ "=" ~ parameter_expr }
 
 // Components
-comp_type = { "resistor" | "capacitor" | "inductor" | "diode" | "mosfet" | "opamp" }
+comp_type = { "resistor" | "capacitor" | "inductor" | "diode" | "mosfet" | "opamp" | "device" }
 polarity = { ^"npn" | ^"pnp" }
 transistor_decl = { "transistor" ~ ident ~ polarity? ~ comp_value? }
 standard_decl = { comp_type ~ ident ~ numeric_value? }
@@ -53,7 +53,8 @@ model_polarity = { ^"npn" | ^"pnp" | ^"nmos" | ^"pmos" }
 model_decl = { "model" ~ model_kind ~ ident ~ model_polarity? ~ named_value+ }
 subcircuit_kind = { "opamp" }
 subcircuit_decl = { "subcircuit" ~ subcircuit_kind ~ ident ~ "(" ~ pin_list ~ ")" ~ named_value+ }
-external_subcircuit_decl = { "external_subcircuit" ~ subcircuit_kind ~ ident ~ "(" ~ pin_list ~ ")" ~ named_value+ }
+external_kind = { "opamp" | "comparator" | "two_terminal" }
+external_subcircuit_decl = { "external_subcircuit" ~ external_kind ~ ident ~ "(" ~ pin_list ~ ")" ~ named_value+ }
 model_include = { "model_include" ~ ident ~ comp_value }
 
 statement = { (param_decl | decl | net_stmt | use_stmt | connect | assert_stmt | sim_cmd) }

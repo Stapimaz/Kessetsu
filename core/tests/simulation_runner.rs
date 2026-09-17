@@ -221,6 +221,7 @@ fn real_ngspice_produces_structured_op_transient_and_ac_datasets() {
         (
             "simulation/netlists/tran.spice",
             Analysis::Transient {
+                use_initial_conditions: false,
                 step: Quantity {
                     value: 10e-6,
                     unit: SIUnit::Second,

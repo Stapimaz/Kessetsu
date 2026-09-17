@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import init, {
-  compile_kessetsu,
+  compile_kessetsu_with_resources,
   compile_schema_version,
-  evaluate_browser_simulation,
-  export_kessetsu,
+  evaluate_browser_simulation_with_resources,
+  export_kessetsu_with_resources,
   export_schema_version,
-  prepare_browser_simulation,
+  prepare_browser_simulation_with_resources,
+  local_model_requirements,
   supported_export_capabilities,
 } from 'kessetsu-core';
 import rcFilter from '../../../core/tests/fixtures/benchmarks/rc_filter.kess?raw';
@@ -13,6 +14,8 @@ import gainStage from '../../../core/tests/fixtures/benchmarks/gain_stage.kess?r
 import powerAmplifier from '../../../core/tests/fixtures/benchmarks/power_amplifier.kess?raw';
 import reusableFilters from '../../../examples/reusable_filters.kess?raw';
 import reusableAmplifiers from '../../../examples/reusable_amplifiers.kess?raw';
+import externalComparator from '../../../examples/external_comparator.kess?raw';
+import externalMemristor from '../../../examples/external_memristor.kess?raw';
 import type { CompileReport, ExportArtifact, ExportFormat, WorkspaceState } from '../domain';
 import {
   decodeWorkspaceDraft,
@@ -33,9 +36,18 @@ export const examples = {
   power: { label: 'Power Amplifier', description: '8 Ω multi-stage benchmark', source: powerAmplifier },
   filters: { label: 'Reusable Filters', description: 'One RC block, 500 Hz and 2 kHz instances', source: reusableFilters },
   amplifiers: { label: 'Reusable Amplifiers', description: 'One op-amp block, gains 5 and 10', source: reusableAmplifiers },
+  comparator: { label: 'External Comparator', description: 'Choose the local comparator.lib model file', source: externalComparator },
+  memristor: { label: 'Threshold Memristor', description: 'Choose the local memristor.lib model file', source: externalMemristor },
 } as const;
 
 export type ExampleId = keyof typeof examples;
+
+export interface LocalModelRequirement {
+  model: string;
+  resource: string;
+  sha256: string;
+  simulator: string;
+}
 
 const newCircuitSource = `// New Kessetsu circuit: a valid 5 V source with a 1 kOhm load.
 net GND
@@ -75,6 +87,9 @@ const initialState: WorkspaceState = {
 
 export function useKessetsuWorkspace() {
   const [state, setState] = useState(initialState);
+  const [modelResources, setModelResources] = useState<Record<string, number[]>>({});
+  const [modelRequirements, setModelRequirements] = useState<LocalModelRequirement[]>([]);
+  const revisionRef = useRef(0);
   const runnerRef = useRef<BrowserSimulationRunner | null>(null);
   const sharedEnvelopeRef = useRef<ShareEnvelope | null>(null);
 
@@ -152,7 +167,12 @@ export function useKessetsuWorkspace() {
   const compile = useCallback(() => {
     if (!state.wasmLoaded) return;
     try {
-      const result = compile_kessetsu(state.code) as CompileReport;
+      try {
+        setModelRequirements(local_model_requirements(state.code) as LocalModelRequirement[]);
+      } catch {
+        setModelRequirements([]); // The canonical compiler owns source diagnostics.
+      }
+      const result = compile_kessetsu_with_resources(state.code, modelResources) as CompileReport;
       if (result.schema_version !== compile_schema_version()) {
         throw new Error(`Unsupported compile report schema: ${result.schema_version}`);
       }
@@ -186,7 +206,7 @@ export function useKessetsuWorkspace() {
         modelManifest: null,
       }));
     }
-  }, [state.code, state.wasmLoaded]);
+  }, [state.code, state.wasmLoaded, modelResources]);
 
   useEffect(() => {
     const timeout = globalThis.setTimeout(compile, 250);
@@ -194,6 +214,7 @@ export function useKessetsuWorkspace() {
   }, [compile]);
 
   const setCode = useCallback((code: string) => {
+    revisionRef.current += 1;
     leaveSharedUrl();
     runnerRef.current?.cancel();
     setState((current) => ({
@@ -217,6 +238,8 @@ export function useKessetsuWorkspace() {
   }, [leaveSharedUrl]);
 
   const loadExample = useCallback((id: ExampleId) => {
+    revisionRef.current += 1;
+    setModelResources({});
     leaveSharedUrl();
     runnerRef.current?.cancel();
     setState((current) => ({
@@ -241,6 +264,8 @@ export function useKessetsuWorkspace() {
   }, [leaveSharedUrl]);
 
   const newDocument = useCallback(() => {
+    revisionRef.current += 1;
+    setModelResources({});
     leaveSharedUrl();
     runnerRef.current?.cancel();
     setState((current) => ({
@@ -271,6 +296,8 @@ export function useKessetsuWorkspace() {
       throw new Error('Circuit source exceeds the 1 MiB browser file limit');
     }
     const name = documentNameFromFile(file.name);
+    revisionRef.current += 1;
+    setModelResources({});
     leaveSharedUrl();
     runnerRef.current?.cancel();
     setState((current) => ({
@@ -310,15 +337,19 @@ export function useKessetsuWorkspace() {
 
   const run = useCallback(async () => {
     if (!state.wasmLoaded || !state.compileSucceeded || !runnerRef.current) return;
+    const revision = ++revisionRef.current;
     setState((current) => ({ ...current, evaluation: null, simulationState: 'running', simulationMessage: 'Preparing simulation…' }));
     try {
-      const plan = prepare_browser_simulation(state.code) as BrowserSimulationPlan;
+      const plan = prepare_browser_simulation_with_resources(state.code, modelResources) as BrowserSimulationPlan;
       if (plan.analyses.length === 0) throw new Error('The circuit has no simulation command to run');
       const simulation = await runnerRef.current.run(plan, {
         timeoutMs: 90_000,
-        onProgress: (progress) => setState((current) => ({ ...current, simulationMessage: progress.message })),
+        onProgress: (progress) => {
+          if (revision === revisionRef.current) setState((current) => ({ ...current, simulationMessage: progress.message }));
+        },
       });
-      const evaluation = evaluate_browser_simulation(state.code, simulation) as BrowserEvaluation;
+      if (revision !== revisionRef.current) return;
+      const evaluation = evaluate_browser_simulation_with_resources(state.code, simulation, modelResources) as BrowserEvaluation;
       setState((current) => ({
         ...current,
         evaluation,
@@ -326,15 +357,17 @@ export function useKessetsuWorkspace() {
         simulationMessage: `${evaluation.simulation.datasets.length} analyses completed`,
       }));
     } catch (error: unknown) {
+      if (revision !== revisionRef.current) return;
       if (error instanceof SimulationCancelledError) {
         setState((current) => ({ ...current, simulationState: 'cancelled', simulationMessage: 'Simulation cancelled' }));
       } else {
         setState((current) => ({ ...current, simulationState: 'failed', simulationMessage: errorMessage(error) }));
       }
     }
-  }, [state.code, state.compileSucceeded, state.wasmLoaded]);
+  }, [state.code, state.compileSucceeded, state.wasmLoaded, modelResources]);
 
   const cancel = useCallback(() => {
+    revisionRef.current += 1;
     runnerRef.current?.cancel();
     setState((current) => ({ ...current, simulationState: 'cancelled', simulationMessage: 'Simulation cancelled' }));
   }, []);
@@ -343,7 +376,7 @@ export function useKessetsuWorkspace() {
     if (!state.wasmLoaded || !state.compileSucceeded) {
       throw new Error('Compile and connectivity verification must succeed before export');
     }
-    const artifact = export_kessetsu(state.code, format, scale, transparent) as ExportArtifact;
+    const artifact = export_kessetsu_with_resources(state.code, format, scale, transparent, modelResources) as ExportArtifact;
     if (artifact.schema_version !== export_schema_version()) {
       throw new Error(`Unsupported export schema: ${artifact.schema_version}`);
     }
@@ -354,7 +387,35 @@ export function useKessetsuWorkspace() {
         : `${artifact.label}: connectivity verified · ${artifact.sha256.slice(0, 12)}`,
     }));
     return artifact;
-  }, [state.code, state.compileSucceeded, state.wasmLoaded]);
+  }, [state.code, state.compileSucceeded, state.wasmLoaded, modelResources]);
+
+  const invalidateBindings = useCallback(() => {
+    revisionRef.current += 1;
+    runnerRef.current?.cancel();
+    setState((current) => ({ ...current, compileState: 'checking', compileSucceeded: false,
+      schematic: null, schematicSvg: '', spiceNetlist: '', kicadSch: '', modelManifest: null,
+      diagnostics: [], evaluation: null, simulationState: 'idle', exportMessage: '',
+      simulationMessage: 'Model bindings changed. Run the simulation again.' }));
+  }, []);
+
+  const bindModelFile = useCallback(async (resource: string, file: File) => {
+    if (!modelRequirements.some((item) => item.resource === resource)) throw new Error('This resource is not declared by the current source');
+    if (file.size > 16 * 1024 * 1024) throw new Error('Model files must be at most 16 MiB');
+    const revision = revisionRef.current;
+    const bytes = Array.from(new Uint8Array(await file.arrayBuffer()));
+    if (revision !== revisionRef.current) throw new Error('The circuit changed while reading the model. Select the file again.');
+    const next = { ...modelResources, [resource]: bytes };
+    if (Object.keys(next).length > 64 || Object.values(next).reduce((sum, value) => sum + value.length, 0) > 32 * 1024 * 1024) {
+      throw new Error('Local models are limited to 64 files and 32 MiB combined');
+    }
+    invalidateBindings();
+    setModelResources(next);
+  }, [modelRequirements, modelResources, invalidateBindings]);
+
+  const clearModelFiles = useCallback(() => {
+    invalidateBindings();
+    setModelResources({});
+  }, [invalidateBindings]);
 
   const share = useCallback(async (name: string): Promise<string> => {
     if (!state.wasmLoaded || !state.compileSucceeded) throw new Error('Compile must succeed before sharing');
@@ -374,6 +435,10 @@ export function useKessetsuWorkspace() {
 
   return {
     state,
+    modelRequirements,
+    boundModelResources: Object.keys(modelResources),
+    bindModelFile,
+    clearModelFiles,
     setCode,
     loadExample,
     newDocument,

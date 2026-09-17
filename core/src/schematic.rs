@@ -437,6 +437,12 @@ fn component_labels(component: &IRComponent) -> (Option<String>, Option<String>,
         ComponentKind::BJT(BJTPolarity::PNP) => Some("pnp".to_string()),
         ComponentKind::MOSFET(FETPolarity::NMOS) => Some("nmos".to_string()),
         ComponentKind::MOSFET(FETPolarity::PMOS) => Some("pmos".to_string()),
+        ComponentKind::ExternalDevice(crate::ir::ExternalDeviceFamily::Comparator) => {
+            Some("comparator".to_string())
+        }
+        ComponentKind::ExternalDevice(crate::ir::ExternalDeviceFamily::TwoTerminal) => {
+            Some("two_terminal".to_string())
+        }
         _ => None,
     };
     (value, model, variant)

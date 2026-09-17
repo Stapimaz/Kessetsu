@@ -32,7 +32,7 @@ fn every_repository_example_parses_and_flattens() {
 
     assert_eq!(
         files.len(),
-        8,
+        10,
         "example matrix changed; review the new fixture"
     );
     for path in files {

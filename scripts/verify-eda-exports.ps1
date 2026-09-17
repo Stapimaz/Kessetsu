@@ -1,5 +1,6 @@
 param(
-    [switch]$RequireApplications
+    [switch]$RequireApplications,
+    [string[]]$Fixtures = @('rc_filter', 'gain_stage', 'power_amplifier', 'external_comparator', 'external_memristor')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -32,9 +33,16 @@ try { cargo build --release } finally { Pop-Location }
 if ($LASTEXITCODE -ne 0) { throw 'Kessetsu release build failed.' }
 
 New-Item -ItemType Directory -Force $resultPath | Out-Null
-$fixtures = @('rc_filter', 'gain_stage', 'power_amplifier')
-foreach ($name in $fixtures) {
+foreach ($name in $Fixtures) {
     $source = Join-Path $corePath "tests/fixtures/benchmarks/$name.kess"
+    if ($name.StartsWith('external_')) {
+        $source = Join-Path $resultPath "$name.kess"
+        Copy-Item -LiteralPath (Join-Path $repoRoot "examples/$name.kess") -Destination $source -Force
+        New-Item -ItemType Directory -Force (Join-Path $resultPath 'models') | Out-Null
+        foreach ($modelFile in @('comparator.lib', 'memristor.lib', 'MEMRISTOR_NOTICE.md')) {
+            Copy-Item -LiteralPath (Join-Path $repoRoot "examples/models/$modelFile") -Destination (Join-Path $resultPath "models/$modelFile") -Force
+        }
+    }
     $kicadSchematic = Join-Path $resultPath "$name.kicad_sch"
     $kicadNetlist = Join-Path $resultPath "$name.kicad.xml"
     $kicadErc = Join-Path $resultPath "$name.erc.rpt"

@@ -29,7 +29,8 @@ fn symbol_width(symbol: CatalogSymbol) -> f32 {
         | CatalogSymbol::Diode
         | CatalogSymbol::VoltageSource
         | CatalogSymbol::CurrentSource
-        | CatalogSymbol::ModulePort => 2.0,
+        | CatalogSymbol::ModulePort
+        | CatalogSymbol::ExternalTwoTerminal => 2.0,
         CatalogSymbol::Bjt | CatalogSymbol::Mosfet | CatalogSymbol::OpAmp => 3.0,
     }
 }
@@ -205,6 +206,24 @@ fn symbol_markup(component: &SchematicComponent) -> String {
             plus_top = local(0.11),
             plus_bottom = local(0.45),
             minus_y = local(1.72)
+        ),
+        CatalogSymbol::ExternalTwoTerminal => format!(
+            "<path {stroke} d=\"M 0 0 L {} 0 M {} 0 L {} 0\"/><rect {stroke} x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\"/><path {stroke} d=\"M {} {} L {} {} M {} {} L {} {}\"/>",
+            local(0.3),
+            local(1.7),
+            local(2.0),
+            local(0.3),
+            local(-0.4),
+            local(1.4),
+            local(0.8),
+            local(0.8),
+            local(-0.2),
+            local(1.2),
+            local(0.2),
+            local(0.8),
+            local(0.2),
+            local(1.2),
+            local(-0.2)
         ),
         CatalogSymbol::ModulePort => format!(
             "<circle cx=\"{}\" cy=\"0\" r=\"{}\" fill=\"#ffffff\" stroke=\"#6d28d9\" stroke-width=\"2\"/>",

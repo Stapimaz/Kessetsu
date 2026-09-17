@@ -439,6 +439,16 @@ pub fn export_report(
                 message: "typed Circuit IR is unavailable for LTspice export".to_string(),
                 diagnostics: Vec::new(),
             })?;
+            if circuit.components.iter().any(|component| {
+                matches!(
+                    component.kind,
+                    crate::ir::ComponentKind::ExternalDevice(
+                        crate::ir::ExternalDeviceFamily::TwoTerminal
+                    )
+                )
+            }) {
+                warnings.push("Two-terminal external devices use LTspice's native rectangular outline with an explicit X subcircuit prefix; this is not a resistor instance. Exact local model files are still required, and Ngspice library compatibility does not guarantee LTspice simulation compatibility.".to_string());
+            }
             if circuit.analyses.len() > 1 {
                 warnings.push(
                     "LTspice supports one active analysis: the first declared analysis is active; the remaining analyses are preserved as comments. Select the desired analysis in LTspice before running."

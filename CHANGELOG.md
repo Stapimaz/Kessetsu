@@ -4,6 +4,22 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### Local external devices and model files
+
+- Catalog-backed comparator and two-terminal external subcircuits, instantiated with
+  `device`; shared typed pins, ERC, schematic and all seven export formats.
+- Explicit local model selection in Web Circuit details. Exact file/hash/entry validation,
+  portable Ngspice library checks and native-only compatibility diagnostics before execution.
+  Files stay in memory, never in drafts, share URLs, manifests or ordinary model-body exports.
+- Generic comparator and published threshold-memristor examples, with exact files/defaults,
+  attribution/license and electrical comparison coverage. Existing official OPA197 stays
+  user-acquired/native-only, not redistributed or substituted.
+- Optional transient `uic` for model initial conditions; ordinary analyses retain their
+  previous serialization and behavior. External header defaults/continuations are supported.
+- Fix repeated primitive assertion limits producing duplicate Ngspice measurement records;
+  each assertion retains its own limit and evaluation.
+
+
 ### Reusable circuit examples
 
 - Add complete RC filter and non-inverting amplifier examples with independently configured

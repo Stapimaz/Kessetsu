@@ -215,6 +215,13 @@ Read `diagnostics[]`, `assertions.assertions[]` and `assertions.summary`; do not
 
 ## Choose and verify a component model
 
+Development source adds local-file comparator and two-terminal examples through the same
+Core, not generated-SPICE editing. Start with `examples/external_comparator.kess` or
+`examples/external_memristor.kess`; on Web select the matching file in View → Circuit details.
+The [external model catalog](../reference/model-catalog.md) contains the complete local
+workflow, exact hashes/defaults, supported setups, model-download links and license terms.
+These additions are unreleased; native PSpice OPA197 remains explicitly native-only.
+
 Use the least complicated model that truthfully matches the job.
 
 ### 1. Built-in model

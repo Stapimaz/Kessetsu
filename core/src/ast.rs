@@ -11,6 +11,7 @@ pub enum ComponentType {
     Transistor,
     Mosfet,
     OpAmp,
+    ExternalDevice,
     ModulePort,
 }
 
