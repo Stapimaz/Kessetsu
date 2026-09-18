@@ -2,8 +2,8 @@
 
 The Kessetsu CLI sends `.kess` source through the shared Rust compilation pipeline and provides ERC, SPICE generation, Ngspice execution, and assertion evaluation commands. Human output is intended for people; versioned JSON output is intended for automation and AI agents.
 
-Current source uses compile contract v5 and includes the unreleased top-level parameter
-foundation. Published 1.1.0 uses v4 and does not accept parameter declarations yet.
+Kessetsu 1.2.0 uses compile contract v5 and supports typed parameters, reusable blocks
+and local external devices. Earlier CLI versions require an update for these additions.
 
 ## Usage
 
@@ -22,9 +22,9 @@ kess check examples/rc_low_pass.kess --format json
 
 `--schema-version` and `--include` are also global options. `--include` accepts a comma-separated list or repeated uses. An unknown schema version is rejected with `KES-F002` and exit code `2` before the source is read or any output is created.
 
-## Root parameter inputs (unreleased)
+## Root parameter inputs
 
-Source builds accept repeated `--param NAME=VALUE` on `check`, `compile`, `simulate`,
+Kessetsu 1.2.0 accepts repeated `--param NAME=VALUE` on `check`, `compile`, `simulate`,
 `test`, `render` and `export`. This is not available in published 1.1.0.
 
 ```bash
@@ -177,7 +177,7 @@ kess export circuit.kess --target ltspice --output circuit.asc
 
 ## JSON Contract
 
-JSON stdout is exactly one JSON object for every invocation. Progress and simulator logs are never written to stdout. The default agent envelope is `kessetsu.cli.v1`. Current source compile reports use `kessetsu.compile.v5`, canonical schematics use `kessetsu.schematic.v2`, model manifests/locks use `kessetsu.models.v2`/`kessetsu.lock.v2`, simulation results use `kessetsu.simulation.v1`, engineering measurements use `kessetsu.measurement.v2`, assertion reports use `kessetsu.assertion.v1`, and external requirement sets use `kessetsu.requirements.v1`. Published 1.1.0 uses compile v4 and measurement v1; new AC metrics remain source-only until release. Active subcontracts appear in `domain_versions`. Resolved parameter/field provenance (`kessetsu.parameters.v1`) is opt-in through `--include ir`, not additional default JSON bulk.
+JSON stdout is exactly one JSON object for every invocation. Progress and simulator logs are never written to stdout. The default agent envelope is `kessetsu.cli.v1`. Kessetsu 1.2.0 compile reports use `kessetsu.compile.v5`, canonical schematics use `kessetsu.schematic.v2`, model manifests/locks use `kessetsu.models.v2`/`kessetsu.lock.v2`, simulation results use `kessetsu.simulation.v1`, engineering measurements use `kessetsu.measurement.v2`, assertion reports use `kessetsu.assertion.v1`, and external requirement sets use `kessetsu.requirements.v1`. Older 1.1.0 uses compile v4 and measurement v1. Active subcontracts appear in `domain_versions`. Resolved parameter/field provenance (`kessetsu.parameters.v1`) is opt-in through `--include ir`, not additional default JSON bulk.
 
 See the [engineering-measurement contract](measurements.md) for assertion primitives, derived-metric formulas, analysis requirements, and sign conventions.
 
@@ -265,7 +265,7 @@ Diagnostic fields are shared across every stage:
 
 A successful `compile` reports the written SPICE file as a `spice_netlist` entry in `artifacts`. If a model or subcircuit is used, the deterministic `kessetsu.lock` beside it is also reported as a `model_lock` artifact. Netlist text appears only with `--include spice`; model provenance and lock content appear only with `--include models`. On I/O or runtime failure, `status` is never `success`.
 
-Current unreleased source checks both SPICE and model-lock destinations before writing
+Kessetsu 1.2.0 checks both SPICE and model-lock destinations before writing
 either. An identical existing lock is reused without rewriting; replacing different lock
 contents requires `--force`. Even with `--force`, the lock destination cannot be the source
 or the SPICE destination. Published 1.1.0 does not yet include this lockfile protection.
@@ -289,7 +289,7 @@ model_include kessetsu_analog 1.0.0
 opamp U1 KESSETSU_PACKAGE_OPAMP
 ```
 
-`version` and `license` are required on user declarations; `source` is optional for generated typed models. Allowed parameters are restricted by kind. External declarations require every shown field, resolve `file` relative to a file-based `.kess` source, and verify its exact bytes and catalog-terminal `.SUBCKT` entry before IR. `ngspice_ps` is a closed compatibility value, not arbitrary simulator arguments. Native stdin has no external-byte binding and fails with `KES-C015`; no generic fallback occurs. Published 1.1.0 Web cannot bind files; development builds accept explicit local Web selection for the portable profile. Source-only `comparator`/`two_terminal` declarations instantiate with `device`; see the [model catalog](model-catalog.md). SPICE/LTspice output using the relative dependency must stay beside the source. Unknown parameters, incorrect polarity/kind, invalid pin order, duplicate names, resource/hash failures, or raw-directive payloads produce structured `KES-C010..017` diagnostics. Built-in generic verification paths remain available but are never substituted for a requested external model.
+`version` and `license` are required on user declarations; `source` is optional for generated typed models. Allowed parameters are restricted by kind. External declarations require every shown field, resolve `file` relative to a file-based `.kess` source, and verify its exact bytes and catalog-terminal `.SUBCKT` entry before IR. `ngspice_ps` is a closed compatibility value, not arbitrary simulator arguments. Native stdin has no external-byte binding and fails with `KES-C015`; no generic fallback occurs. Web accepts explicit local file selection for the portable profile.  `comparator`/`two_terminal` declarations instantiate with `device`; see the [model catalog](model-catalog.md). SPICE/LTspice output using the relative dependency must stay beside the source. Unknown parameters, incorrect polarity/kind, invalid pin order, duplicate names, resource/hash failures, or raw-directive payloads produce structured `KES-C010..017` diagnostics. Built-in generic verification paths remain available but are never substituted for a requested external model.
 
 ## Exit Codes
 

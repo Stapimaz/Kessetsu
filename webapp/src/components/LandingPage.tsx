@@ -130,9 +130,8 @@ export function LandingPage() {
             <li><Check size={16} /> Interactive results and explicit PASS/FAIL assertions</li>
           </ul>
           <p className="scope-note">
-            <strong>First-release scope:</strong> schematic-level analog and mixed-signal circuits with supported
-            components, models, and OP/transient/AC/DC analysis. It is not PCB layout or hardware sign-off.{' '}
-            <a href={`${import.meta.env.BASE_URL}docs/reference/supported-domain/`}>Read the supported domain.</a>
+            Work with analog circuits, reusable stages and local device models.{' '}
+            <a href={`${import.meta.env.BASE_URL}docs/guides/tutorial/`}>Follow the circuit tutorial.</a>
           </p>
         </div>
         <WebHubPreview />
@@ -177,12 +176,11 @@ export function LandingPage() {
       <footer className="landing-footer" role="contentinfo">
         <div>
           <strong>Kessetsu {productVersion}</strong>
-          <span>© 2026 Stapimaz · AGPL-3.0-only · No telemetry in the first release</span>
+          <span>© 2026 Stapimaz · AGPL-3.0-only · No telemetry</span>
         </div>
         <nav aria-label="Footer navigation">
           <a href={`${import.meta.env.BASE_URL}docs/`}>Docs</a>
-          <a href={`${import.meta.env.BASE_URL}docs/reference/supported-domain/`}>Supported domain</a>
-          <a href="https://github.com/Stapimaz/Kessetsu/blob/main/CHANGELOG.md">Changelog</a>
+          <a href={`${import.meta.env.BASE_URL}changelog/`}>Changelog</a>
           <a href="https://github.com/Stapimaz/Kessetsu">Source</a>
           <a href="https://github.com/Stapimaz/Kessetsu/issues">Feedback</a>
         </nav>

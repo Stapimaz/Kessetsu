@@ -2,7 +2,7 @@
 // The editor stays lazy/client-only; documentation ships no JavaScript runtime.
 import { build } from 'esbuild';
 import { Marked, Renderer } from 'marked';
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, posix, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -88,26 +88,47 @@ for (const [route, title, description, body] of toolPages) {
     `${body}<noscript><p class="public-noscript">Interactive calculations need JavaScript. The equations and assumptions above remain available; you can also use the local CLI.</p></noscript>`,
     { extraCss: `<link rel="stylesheet" href="${base}assets/${toolsCss}" />` }));
 }
-const documents = reviewed.filter((file) => file === 'docs/README.md' || /^docs\/(guides|reference)\/[^/]+\.md$/.test(file));
-const routes = new Map(documents.map((file) => [file, file === 'docs/README.md' ? 'docs/' : file.replace(/\.md$/, '/')]));
+const documents = [...reviewed.filter((file) => file === 'docs/README.md' || /^docs\/(guides|reference)\/[^/]+\.md$/.test(file)), 'CHANGELOG.md'];
+const routes = new Map(documents.map((file) => [file, file === 'docs/README.md' ? 'docs/' : file === 'CHANGELOG.md' ? 'changelog/' : file.replace(/\.md$/, '/')]));
+// Public example sources and their open model sidecars are downloadable on-site.
+for (const file of readdirSync(resolve(repo, 'examples'), { recursive: true })) {
+  const relative = file.replaceAll('\\', '/');
+  if (!/\.(?:kess|kessreq|lib|md)$/.test(relative)) continue;
+  const destination = resolve(dist, 'examples', relative);
+  mkdirSync(dirname(destination), { recursive: true });
+  copyFileSync(resolve(repo, 'examples', relative), destination);
+}
+const navigationGroups = [
+  ['Getting started', ['docs/README.md', 'docs/guides/tutorial.md', 'docs/guides/web-editor.md', 'docs/guides/why-kessetsu.md', 'docs/guides/cookbook.md']],
+  ['Reference', documents.filter((file) => file.startsWith('docs/reference/'))],
+  ['Help and updates', ['docs/guides/troubleshooting.md', 'CHANGELOG.md']],
+];
+const shortTitles = { 'docs/README.md': 'Overview', 'docs/reference/supported-domain.md': 'Components and limits', 'docs/reference/model-catalog.md': 'Device models', 'docs/reference/cli.md': 'CLI', 'docs/reference/language.md': 'Language', 'docs/reference/exports.md': 'Export formats', 'docs/reference/measurements.md': 'Measurements', 'docs/reference/simulation-and-assertions.md': 'Simulation and assertions' };
+const titleFor = (file) => readFileSync(resolve(repo, file), 'utf8').match(/^# (.+)$/m)?.[1].trim();
 function linkFor(source, href) {
   if (/^(?:https?:|mailto:|#)/i.test(href)) return href;
   if (/^[a-z][a-z\d+.-]*:/i.test(href) || href.startsWith('//')) return '#';
   const [path, fragment] = href.split('#', 2);
   const target = posix.normalize(posix.join(posix.dirname(source), path));
+  if (target === 'LICENSE') return `${base}LICENSE.txt`;
+  if (target.startsWith('examples/') && existsExample(target)) return `${base}${target}` + (fragment ? `#${fragment}` : '');
   return (routes.has(target) ? `${base}${routes.get(target)}` : `https://github.com/Stapimaz/Kessetsu/blob/main/${target.split('/').map(encodeURIComponent).join('/')}`) + (fragment ? `#${fragment}` : '');
 }
+function existsExample(target) { return existsSync(resolve(dist, target)); }
 for (const source of documents) {
   const markdown = readFileSync(resolve(repo, source), 'utf8');
   const title = markdown.match(/^# (.+)$/m)?.[1].trim();
   if (!title) throw new Error(`Public guide has no title: ${source}`);
   const renderer = new Renderer();
   const slugs = new Map();
+  const sections = [];
   renderer.heading = function ({ tokens, depth, text }) {
     const slug = text.toLowerCase().replace(/<[^>]*>/g, '').replace(/[^\p{L}\p{N}\s_-]/gu, '').trim().replace(/\s/g, '-');
     const count = slugs.get(slug) ?? 0;
     slugs.set(slug, count + 1);
-    return `<h${depth} id="${escape(slug + (count ? `-${count}` : ''))}">${this.parser.parseInline(tokens)}</h${depth}>\n`;
+    const id = slug + (count ? `-${count}` : '');
+    if (depth === 2) sections.push([id, text]);
+    return `<h${depth} id="${escape(id)}">${this.parser.parseInline(tokens)}</h${depth}>\n`;
   };
   // Inputs are reviewed repository documents, never circuit/user input. Escape
   // raw HTML anyway; do not enable scripts or unsafe link schemes in published docs.
@@ -117,7 +138,10 @@ for (const source of documents) {
   };
   const content = new Marked({ renderer, async: false }).parse(markdown);
   const route = routes.get(source);
-  const body = `<main class="landing-page docs-page"><header class="landing-header"><a class="landing-wordmark" href="${base}" aria-label="Kessetsu home">${surfaces.wordmark()}</a><nav class="landing-nav" aria-label="Documentation navigation"><a href="${base}docs/">Docs</a><a href="${base}install/">Install CLI</a><a href="${base}#editor">Web Hub</a></nav></header><article class="docs-article">${content}</article><footer class="landing-footer"><a href="https://github.com/Stapimaz/Kessetsu/blob/main/${source}">View or improve this page on GitHub</a></footer></main>`;
+  const navigation = navigationGroups.map(([group, files]) => `<section><h2>${escape(group)}</h2>${files.map((file) => `<a href="${base}${routes.get(file)}"${file === source ? ' aria-current="page"' : ''}>${escape(shortTitles[file] ?? titleFor(file)?.replace(/^Tutorial: .*/, 'Tutorial').replace(/ Guide$/, ''))}</a>`).join('')}</section>`).join('');
+  const toc = sections.length ? `<details class="docs-toc" open><summary>On this page</summary><nav aria-label="On this page">${sections.map(([id, text]) => `<a href="#${escape(id)}">${escape(text)}</a>`).join('')}</nav></details>` : '';
+  const article = content.replace(/(<h1\b[^>]*>[\s\S]*?<\/h1>)/, `$1${toc}`);
+  const body = `<main class="landing-page docs-page"><header class="landing-header"><a class="landing-wordmark" href="${base}" aria-label="Kessetsu home">${surfaces.wordmark()}</a><nav class="landing-nav" aria-label="Documentation navigation"><a href="${base}docs/">Docs</a><a href="${base}changelog/">Changelog</a><a href="${base}install/">Install CLI</a><a href="${base}#editor">Web Hub</a></nav></header><a class="docs-skip" href="#doc-content">Skip to content</a><div class="docs-layout"><aside class="docs-sidebar"><details open><summary>Documentation</summary><nav aria-label="Documentation topics">${navigation}</nav></details></aside><article class="docs-article" id="doc-content">${article}</article></div><footer class="landing-footer"><a href="${base}docs/">Documentation</a><a href="${base}changelog/">Changelog</a><a href="https://github.com/Stapimaz/Kessetsu/blob/main/${source}">Edit this page on GitHub</a></footer></main>`;
   mkdirSync(resolve(dist, route), { recursive: true });
   writeFileSync(resolve(dist, route, 'index.html'), page(
     `${title} — Kessetsu`, `${title}. Public Kessetsu documentation for circuit simulation, executable requirements and schematic exports.`, route, body,

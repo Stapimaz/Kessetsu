@@ -42,7 +42,7 @@ function App() {
   if (view === 'landing') return <LandingPage />;
 
   return (
-    <Suspense fallback={<div className="workspace-loading" role="status">Loading Kessetsu Core…</div>}>
+    <Suspense fallback={<div className="workspace-loading" role="status">{view === 'workspace' ? 'Opening circuit editor…' : view === 'install' ? 'Opening installation guide…' : 'Opening circuit tools…'}</div>}>
       {view === 'install' ? <InstallPage /> : view === 'tools' ? <CircuitToolsIndex />
         : view === 'divider' ? <DividerPage /> : view === 'rc' ? <RcPage /> : <WorkspaceApp />}
     </Suspense>

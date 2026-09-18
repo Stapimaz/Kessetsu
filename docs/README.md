@@ -1,65 +1,40 @@
 # Kessetsu Documentation
 
-English is the primary documentation language. These documents describe public behavior,
-implementation contracts and reproducible engineering evidence.
+Describe a circuit, simulate it, check measurable requirements and export its schematic.
+Use the free [Web Hub](https://kessetsu.com/#editor) without an account or install the
+[local CLI](https://kessetsu.com/install/) for engineering and AI-agent workflows.
 
-Read the user guides and references at [kessetsu.com/docs/](https://kessetsu.com/docs/).
-They are generated from these reviewed Markdown sources; GitHub remains the source for
-contributor contracts and dated evaluation evidence.
+## Start here
 
-## Getting started
+- [Tutorial](guides/tutorial.md): build your first circuit and verify its frequency response.
+- [Web editor](guides/web-editor.md): examples, files, panels, simulation, exports and sharing.
+- [Why Kessetsu?](guides/why-kessetsu.md): how the combined workflow complements SPICE and EDA tools.
+- [Cookbook](guides/cookbook.md): calculations, reusable blocks, agent loops and device models.
 
-- [Project overview](../README.md)
-- [Tutorial](guides/tutorial.md)
-- [Why Kessetsu?](guides/why-kessetsu.md)
-- [Cookbook](guides/cookbook.md)
-- [Troubleshooting](guides/troubleshooting.md)
-- [Circuit tools](https://kessetsu.com/tools/) and [calculation-to-circuit examples](guides/cookbook.md#start-from-a-useful-calculation)
+## Language and command reference
 
-## Reference
+- [Language](reference/language.md): components, pins, units, parameters and modules.
+- [CLI](reference/cli.md): commands, overrides, JSON output, file safety and exit codes.
+- [Simulation and assertions](reference/simulation-and-assertions.md): analyses and PASS/FAIL results.
+- [Engineering measurements](reference/measurements.md): metric definitions, arguments and units.
 
-- [Language](reference/language.md)
-- [CLI](reference/cli.md)
-- [Simulation and assertions](reference/simulation-and-assertions.md)
-- [Engineering measurements](reference/measurements.md)
-- [External model catalog and local-file workflow (unreleased)](reference/model-catalog.md)
-- [Supported domain](reference/supported-domain.md)
-- [Export formats](reference/exports.md)
+## Models and engineering output
 
-## Project and contributor documentation
+- [Device models](reference/model-catalog.md): local files, compatibility, provenance and examples.
+- [Components and simulation limits](reference/supported-domain.md): what is modeled and what is not.
+- [Export formats](reference/exports.md): SVG, PNG, PDF, JSON, SPICE, KiCad and LTspice.
+- [Troubleshooting](guides/troubleshooting.md): diagnostics, browser storage and installation help.
 
-- [Public roadmap](ROADMAP.md) and [changelog](../CHANGELOG.md)
-- [Architecture](architecture.md)
-- [Release and distribution contract](maintainers/release.md)
-- [Dependency security review](maintainers/security-audit.md)
-- [Contributing](../CONTRIBUTING.md) and [security reporting](../SECURITY.md)
-- Architecture decisions: [schematics](decisions/0001-phase-4-schematic-and-web-architecture.md),
-  [browser runtime](decisions/0002-browser-simulation-runtime.md),
-  [external models](decisions/0003-external-subcircuit-references.md),
-  [evaluator-owned requirements](decisions/0004-evaluator-owned-requirements.md),
-  [catalog-backed external devices](decisions/0005-external-device-catalog.md).
+## Updates and support
 
-## Quality evidence
+- [Changelog](../CHANGELOG.md): versioned features, fixes and migration notes.
+- [Report an issue](https://github.com/Stapimaz/Kessetsu/issues): include the version,
+  a minimal reproducible circuit and the diagnostic, without private model files.
+- [Security reporting](../SECURITY.md) and [license](../LICENSE).
 
-[Six-task comparison results](evals/unseen-design-summary-2026-09-13.md) summarize the bounded
-agent/toolchain evaluation. Protocols, per-task results, verification-claim boundaries and
-dated schematic reviews remain under [evals/](evals/). Negative results and superseded visual
-candidates are retained; they are not claims about current universal capability.
+Simulation results describe the supplied circuit, models and conditions; they are not
+a guarantee of physical hardware performance. Each reference explains relevant assumptions.
 
-The accepted [schematic baseline](evals/schematic-quality-candidate-2026-08-14.md)
-records the visual regression method and acceptance boundaries.
-
-## Document maintenance
-
-User guides and references must match supported behavior. Architecture and release contracts
-are normative. Supersede architectural decisions with new ADRs; do not silently rewrite
-historical reasoning. Preserve dated evaluation outcomes and disclose corrections.
-
-Personal notes, account/access details, commercial strategy and internal execution plans do
-not belong in this repository or release packages. Contributor-facing policies and licensing
-terms remain public. Release documentation is explicitly listed in
-[public-documents.json](public-documents.json); new public documents must be reviewed and added
-there.
-
-Before adding a document, check whether it belongs in an existing guide, reference, decision
-or evaluation record. Every document should have a clear audience and purpose.
+For source contributions, read [CONTRIBUTING.md](../CONTRIBUTING.md) and the
+[architecture rules](architecture.md). Product planning and operational records are maintained
+separately; this documentation focuses on using and extending the released product.

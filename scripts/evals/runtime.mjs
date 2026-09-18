@@ -38,7 +38,7 @@ export function evaluatorMain(task, evaluate, schemaVersion = 1, options = {}) {
   const [arm, path] = process.argv.slice(2);
   const record = { schema_version: options.schemaVersion ?? `kessetsu.${task.toLowerCase()}-evaluation.v${schemaVersion}`, task, arm };
   try {
-    record.spec_sha256 = digest(readFileSync(join(root, options.specPath ?? 'docs/evals/unseen-design-v1.md')));
+    record.spec_sha256 = digest(readFileSync(join(root, options.specPath ?? 'scripts/evals/specs/unseen-design-v1.md')));
     if (!['direct', 'kessetsu'].includes(arm) || !path) throw new Error('Expected <kessetsu|direct> <candidate-file>');
     const candidatePath = resolve(path), source = readFileSync(candidatePath, 'utf8');
     Object.assign(record, { candidate_source: source, candidate_sha256: digest(source) });

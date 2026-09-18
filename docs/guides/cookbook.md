@@ -56,10 +56,9 @@ The first `test` exits 4 with a failed voltage assertion; the revised one passes
 Use `--requirements-sha256` when the evaluator also needs hash pinning. Simulation success
 is conditional on the nominal resistors and ideal source, not a hardware guarantee.
 
-## Reuse a circuit block (unreleased)
+## Reuse a circuit block
 
-This section requires a development source build. Published CLI 1.1.0 and the live Web
-Hub do not yet support parameterized blocks. No migration is needed for literal circuits.
+Parameterized blocks require Kessetsu 1.2.0. No migration is needed for literal circuits.
 
 A **module** defines topology once. A **use** creates an instance with its own settings.
 **Ports** connect that instance to the surrounding circuit; **parameters** change its
@@ -68,9 +67,9 @@ numeric values. There is no separate block editor, registry or new project forma
 ### One filter, two cutoff settings
 
 The complete [reusable filter example](../../examples/reusable_filters.kess) includes its
-source, connections, AC analysis and four fixed acceptance assertions. In development
-Web builds, open **File → Examples → Reusable Filters**, then **Run simulation** in the
-Simulation panel. With a source-built CLI, from the repository root:
+source, connections, AC analysis and four fixed acceptance assertions. On Web,
+open **File → Examples → Reusable Filters**, then **Run simulation** in the
+Simulation panel. With a CLI, from the repository root:
 
 ```bash
 kess test examples/reusable_filters.kess --format json
@@ -153,8 +152,8 @@ settings materialized; save that source if you want to reopen or share the exact
 design. A command-line override alone does not edit the original file. For model dependencies,
 keep the existing exact package/resource bindings. KiCad/LTspice exports flatten block topology
 and do not preserve editable `.kess` module definitions; retain the source alongside exports.
-See [parameters and limits](../reference/language.md#independent-module-parameters-unreleased)
-and [root inputs](../reference/cli.md#root-parameter-inputs-unreleased).
+See [parameters and limits](../reference/language.md#independent-module-parameters)
+and [root inputs](../reference/cli.md#root-parameter-inputs).
 
 ## Bias and operating point
 
@@ -202,7 +201,7 @@ Get-Content candidate.kess | kess check - --format json
 Get-Content candidate.kess | kess test - --format json
 ```
 
-Read `diagnostics[]`, `assertions.assertions[]` and `assertions.summary`; do not scrape terminal sentences. The replayable [power-amplifier agent eval](../evals/power-amplifier-agent-v1.json) shows a failing 16 Ω candidate revised to the required 8 Ω load.
+Read `diagnostics[]`, `assertions.assertions[]` and `assertions.summary`; do not scrape terminal sentences. Keep the required load and acceptance limits unchanged while revising your candidate.
 
 ## Choose an export
 
@@ -215,12 +214,12 @@ Read `diagnostics[]`, `assertions.assertions[]` and `assertions.summary`; do not
 
 ## Choose and verify a component model
 
-Development source adds local-file comparator and two-terminal examples through the same
+Kessetsu 1.2.0 adds local-file comparator and two-terminal examples through the same
 Core, not generated-SPICE editing. Start with `examples/external_comparator.kess` or
 `examples/external_memristor.kess`; on Web select the matching file in View → Circuit details.
 The [external model catalog](../reference/model-catalog.md) contains the complete local
 workflow, exact hashes/defaults, supported setups, model-download links and license terms.
-These additions are unreleased; native PSpice OPA197 remains explicitly native-only.
+The PSpice OPA197 workflow remains explicitly native-only.
 
 Use the least complicated model that truthfully matches the job.
 

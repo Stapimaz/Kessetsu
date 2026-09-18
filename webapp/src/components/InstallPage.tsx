@@ -94,7 +94,7 @@ export function InstallPage() {
             <p className="install-note">The installer selects the latest stable release, checks its SHA-256 hashes, and sets up your user PATH. No manual ZIP extraction or administrator access is needed.</p>
           </li>
           <li>
-            <h2>Open a new terminal and check</h2><p>Close the terminal and open a new one so it picks up the installation. If you use a VS Code terminal, restart VS Code.</p>
+            <h2>Check the installation</h2><p>On Windows, the command works immediately in the PowerShell session that ran the installer. Otherwise, open a new terminal. If an already-running IDE or AI agent cannot find it, restart that application so it picks up the updated PATH.</p>
             <CopyCommand command="kess --version" label="version command" />
             <p>You should see <code>kess</code> followed by the installed version number.</p>
           </li>
@@ -121,7 +121,7 @@ export function InstallPage() {
           <h2>Updates and alternatives</h2>
           <p>To update, run the same installation command again. A failed download or hash check will not replace your working CLI. Previous bundles are retained for recovery.</p>
           <p>The command executes a script from this website. If you prefer to inspect it first: <a href={`${base}${platform === 'windows' ? 'install.ps1' : 'install.sh'}`}>view the installer</a>. Checksums detect damaged downloads; they are not publisher signatures.</p>
-          <p><a href="https://github.com/Stapimaz/Kessetsu/releases/latest">Download packages manually <ExternalLink size={12} /></a> · <a href="https://github.com/Stapimaz/Kessetsu/blob/main/docs/guides/troubleshooting.md">Troubleshooting</a></p>
+          <p><a href="https://github.com/Stapimaz/Kessetsu/releases/latest">Download packages manually <ExternalLink size={12} /></a> · <a href={`${base}docs/guides/troubleshooting/`}>Troubleshooting</a></p>
         </section>
       </section>
     </main>

@@ -37,10 +37,10 @@ if ($Protocol -eq 'u6-external-v1' -and ($Task -ne 'U6' -or $Arm -ne 'kessetsu')
     throw 'u6-external-v1 is a Kessetsu-only U6 follow-up; use -Task U6 -Arm kessetsu.'
 }
 $protocolPath = if ($Protocol -eq 'u6-external-v1') {
-    Join-Path $repoRoot 'docs/evals/unseen-design-u6-followup-v1.md'
-} else { Join-Path $repoRoot 'docs/evals/unseen-design-v1.md' }
+    Join-Path $repoRoot 'scripts/evals/specs/unseen-design-u6-followup-v1.md'
+} else { Join-Path $repoRoot 'scripts/evals/specs/unseen-design-v1.md' }
 $harnessPath = if ($Protocol -eq 'u6-external-v1') { $protocolPath } else {
-    Join-Path $repoRoot 'docs/evals/agent-comparison-harness-v1.md'
+    Join-Path $repoRoot 'scripts/evals/specs/agent-comparison-harness-v1.md'
 }
 $evidenceTask = if ($Protocol -eq 'u6-external-v1') { 'U6-followup-v1' } else { $Task }
 $evidenceRoot = Join-Path $repoRoot ".artifacts/agent-comparison-v1/$evidenceTask/$Arm/attempt-$Attempt"

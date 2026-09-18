@@ -33,4 +33,4 @@ if (-not $auditCommand) {
 }
 & $auditCommand audit --file $cargoLock
 if ($LASTEXITCODE -ne 0) { throw "RustSec audit failed with exit code $LASTEXITCODE" }
-Write-Host "RustSec vulnerability audit PASS. Informational warnings remain visible above and are tracked in docs/maintainers/security-audit.md."
+Write-Host "RustSec vulnerability audit PASS. Informational maintenance warnings remain visible above; accepted risks are tracked separately by maintainers."

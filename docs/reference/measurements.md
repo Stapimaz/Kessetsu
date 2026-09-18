@@ -1,6 +1,6 @@
 # Engineering Measurement Contract
 
-Kessetsu engineering measurements are evaluated from typed `kessetsu.simulation.v1` datasets. Current source uses `kessetsu.measurement.v2`; published 1.1.0 downloads and the deployed Web Hub still use v1. The new AC metrics below are source-only until the next release. Assertions never infer a passing value from missing data: an unavailable signal, incompatible analysis or invalid argument becomes an assertion `ERROR`.
+Kessetsu engineering measurements are evaluated from typed `kessetsu.simulation.v1` datasets. Kessetsu 1.2.0 uses `kessetsu.measurement.v2`, including frequency-specific gain and lower/upper cutoff metrics. Assertions never infer a passing value from missing data: an unavailable signal, incompatible analysis or invalid argument becomes an assertion `ERROR`.
 
 ## Primitives and sign convention
 
@@ -58,7 +58,7 @@ The contract requires `0 <= start < stop` and at least one sample inside the win
 
 `bandwidth`/`cutoff` remains intentionally low-pass-only in v2, preserving v1 behavior: the first AC point must be within 1% of the maximum response and a later downward −3 dB crossing must exist. Band-pass, high-pass or multi-peak responses still fail closed for these legacy metrics. Existing `gain`, `phase`, and all other legacy metrics are unchanged.
 
-### Frequency-specific AC gain and cutoff edges (source-only v2)
+### Frequency-specific AC gain and cutoff edges ( v2)
 
 ```kessetsu
 simulate ac dec 80 1Hz 10MHz

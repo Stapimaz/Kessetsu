@@ -1,7 +1,6 @@
-# External model catalog (unreleased)
+# External model catalog
 
-These workflows are implemented in development source, not in published 1.1.0 downloads
-or the deployed Web Hub. This is a small characterized catalog, not a universal model
+These workflows require Kessetsu 1.2.0. This is a small characterized catalog, not a universal model
 marketplace. Model identity, simulation evidence and physical-device accuracy are distinct.
 
 ## Supported interfaces
@@ -124,6 +123,5 @@ Two-terminal LTspice instances use the native rectangular outline with explicit 
 they are subcircuits, not resistor primitives. Ngspice model compatibility is not proof of
 LTspice simulation compatibility. Read export warnings/losses and keep the original `.kess`.
 
-See [ADR 0005](../decisions/0005-external-device-catalog.md),
-[external model declarations](language.md), [exports](exports.md) and
+See [external model declarations](language.md), [exports](exports.md) and
 [simulation/assertion contracts](simulation-and-assertions.md).

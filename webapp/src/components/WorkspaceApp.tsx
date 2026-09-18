@@ -296,8 +296,8 @@ export function WorkspaceApp() {
           <div className="application-menu">
             <button aria-haspopup="menu" aria-expanded={openMenu === 'help'} onClick={() => toggleMenu('help')}>Help</button>
             {openMenu === 'help' && <div className="menu-popover" role="menu" aria-label="Help menu">
-              <a role="menuitem" href="https://github.com/Stapimaz/Kessetsu/blob/main/docs/README.md" target="_blank" rel="noreferrer">Documentation</a>
-              <a role="menuitem" href="https://github.com/Stapimaz/Kessetsu/blob/main/CHANGELOG.md" target="_blank" rel="noreferrer">What’s new in {productVersion}</a>
+              <a role="menuitem" href={`${import.meta.env.BASE_URL}docs/`} target="_blank" rel="noreferrer">Documentation</a>
+              <a role="menuitem" href={`${import.meta.env.BASE_URL}changelog/`} target="_blank" rel="noreferrer">What’s new in {productVersion}</a>
               <a role="menuitem" href="https://github.com/Stapimaz/Kessetsu" target="_blank" rel="noreferrer" aria-label="Kessetsu corresponding source code">Corresponding source</a>
               <a role="menuitem" href={`${import.meta.env.BASE_URL}LICENSE.txt`} target="_blank" rel="noreferrer">License</a>
               <span className="menu-version">Kessetsu {productVersion}</span>

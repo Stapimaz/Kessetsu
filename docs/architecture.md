@@ -2,7 +2,7 @@
 
 This document defines the core algorithms, compilation pipeline, and language-design standards of Kessetsu. **Every developer and AI agent working on the project must follow these rules before changing code.**
 
-> **For public product direction:** see `docs/ROADMAP.md`. Local execution planning follows `AGENTS.md`.
+> **For product behavior:** see [documentation](README.md) and the [changelog](../CHANGELOG.md). Local execution planning follows `AGENTS.md`.
 
 ## 1. Core System Components
 
@@ -38,7 +38,7 @@ Kessetsu Source (.kess)
 
 ### Single Compile Contract
 
-The canonical Core entry points are `compile_source(source, options) -> CompileReport` and its resource-aware form `compile_source_with_resources(source, options, resources) -> CompileReport`. Neither writes files, launches processes, or prints logs; frontends bind resource bytes and own those side effects. Current source reports are versioned as `kessetsu.compile.v5` (published 1.1.0 uses v4) and, depending on options, can carry the flattened AST, typed IR, deterministic graph summary, SPICE, canonical `kessetsu.schematic.v2`, SVG, temporary legacy layout, and KiCad output. External resource bytes never appear in the report.
+The canonical Core entry points are `compile_source(source, options) -> CompileReport` and its resource-aware form `compile_source_with_resources(source, options, resources) -> CompileReport`. Neither writes files, launches processes, or prints logs; frontends bind resource bytes and own those side effects. Kessetsu 1.2.0 reports are versioned as `kessetsu.compile.v5` (published 1.1.0 uses v4) and, depending on options, can carry the flattened AST, typed IR, deterministic graph summary, SPICE, canonical `kessetsu.schematic.v2`, SVG, temporary legacy layout, and KiCad output. External resource bytes never appear in the report.
 
 Parse, flattening, semantic, and ERC failures are normalized into the shared `Diagnostic` model. If any error-severity diagnostic exists, no backend output is produced. Warnings and informational diagnostics may accompany successful output. The CLI and WASM layers must remain adapters around this entry point and must not construct parallel compilation pipelines.
 
@@ -58,7 +58,7 @@ never invent assertion PASS results or generate SPICE/drawing artifacts independ
 The CLI and WASM adapters share this contract. Frontends own file writes, downloads and
 workspace recovery. Preferred E12/E24 values describe nominal selection, not tolerance analysis.
 
-### Parameter-expression boundary (unreleased source foundation)
+### Parameter-expression boundary
 
 `expression.rs` parses bounded engineering expressions into typed nodes and resolves
 top-level named quantities through a deterministic dependency graph. Numeric component
@@ -68,7 +68,7 @@ scales internally and validates the destination unit. Circuit IR carries optiona
 `kessetsu.parameters.v1` parameter and field-binding provenance; backends use resolved values
 and never evaluate expressions. Empty provenance is omitted for literal circuits.
 
-This source-only slice accepts passive, DC-source and supported waveform expressions in
+The parameter contract accepts passive, DC-source and supported waveform expressions in
 top-level/module scopes, plus numeric analysis and inline-assertion fields at the root. Typed waveform arguments
 and indexed analysis expressions resolve directly to Quantity through the shared numeric
 evaluator. Literal and expression waveforms use one constructor/validation path. Component
@@ -127,7 +127,7 @@ into an acceptance range. New shares identify the active compile schema.
 | `transistor` | BJT (NPN/PNP) | c, b, e | Q_ |
 | `mosfet` | MOSFET (NMOS/PMOS) | d, g, s | M_ |
 | `opamp` | Operational amplifier | in_p, in_n, vcc, vee, out | X_ |
-| `device` (unreleased) | Catalog-backed external comparator/two-terminal | Model family pins | X |
+| `device` | Catalog-backed external comparator/two-terminal | Model family pins | X |
 | `source` | Voltage source | plus, minus | V_ |
 | `current_source` | Current source | plus, minus | I_ |
 
@@ -145,7 +145,7 @@ into an acceptance range. New shares identify the active compile schema.
 - **Simulation commands:** Analysis commands are not carried as raw SPICE strings. They become typed `Analysis` variants during semantic conversion. Unsupported commands, invalid arity, incompatible units, or an invalid sweep direction fail closed with `KES-C009`.
   - `simulate op` — DC operating point
   - `simulate tran 10us 1ms` — transient analysis
-  - `simulate tran 100ps 10ns uic` — unreleased model initial-condition transient, no DC operating point
+  - `simulate tran 100ps 10ns uic` — model initial-condition transient, no DC operating point
   - `simulate ac dec 10 1Hz 1MHz` — AC analysis
   - `simulate dc V1 0V 5V 100mV` — independent voltage/current-source sweep
 - **Assertions:**
@@ -207,7 +207,7 @@ Ngspice integration uses a repository/release sidecar on Windows and the `KESSET
 | KESSETSU_PMOS_V1 | Generic MOSFET PMOS | Verified built in |
 | KESSETSU_OPAMP_V1 | Generic op-amp subcircuit | Verified built in |
 
-Default built-ins are `2N3904`/`2N3906` for BJTs, `IRF540` for MOSFETs, `1N4148` for diodes, and `KESSETSU_OPAMP_V1` for op-amps. Current unreleased source repairs the `1N4148`/`1N4007` diode directives with provenance version `1.0.1`; published CLI 1.1.0 remains affected by invalid descriptive fields in those models. Their legacy provenance is unchanged, and the repair does not establish manufacturer fidelity or enforce device ratings. Exact packaged models are unchanged. `KESSETSU_*` models are Kessetsu's own open-licensed generic verification models; they are not claimed to match a specific manufacturer's data sheet. `KESSETSU_PMOS_V1` has provenance version `1.0.1` and uses portable Ngspice `MOS1` parameters.
+Default built-ins are `2N3904`/`2N3906` for BJTs, `IRF540` for MOSFETs, `1N4148` for diodes, and `KESSETSU_OPAMP_V1` for op-amps. Kessetsu 1.2.0 repairs the `1N4148`/`1N4007` diode directives with provenance version `1.0.1`; published CLI 1.1.0 remains affected by invalid descriptive fields in those models. Their legacy provenance is unchanged, and the repair does not establish manufacturer fidelity or enforce device ratings. Exact packaged models are unchanged. `KESSETSU_*` models are Kessetsu's own open-licensed generic verification models; they are not claimed to match a specific manufacturer's data sheet. `KESSETSU_PMOS_V1` has provenance version `1.0.1` and uses portable Ngspice `MOS1` parameters.
 
 ### Typed User-Model and Subcircuit Boundary
 
@@ -228,13 +228,13 @@ subcircuit opamp SafeOp (in_p,in_n,vcc,vee,out) version=1.0.0 license=MIT gain=1
 
 Exact packages are selected with syntax such as `model_include kessetsu_analog 1.0.0`; floating versions and ranges are not supported. Resolved models and packages appear in a `kessetsu.models.v2` manifest containing source, license, version, simulator capability, and a `sha256:` content hash. When file-based compile/simulate/test uses a model, a deterministic `kessetsu.lock` (`kessetsu.lock.v2`) is written beside the SPICE artifact and reported as a `model_lock` CLI artifact. Stdin-only calls do not write files; callers can request manifest and lock content through `--include models`.
 
-External op-amp subcircuits use the typed `external_subcircuit` contract from [ADR 0003](decisions/0003-external-subcircuit-references.md). The declaration carries a source-relative resource reference, exact SHA-256, `.SUBCKT` entry, canonical pin mapping, provenance, closed simulator-compatibility mode, and explicit redistribution policy. The native CLI resolves only files contained under the `.kess` source directory; Core validates bytes before producing IR. Simulation stages an exact temporary copy and maps `ngspice_ps` only to the bounded Ngspice compatibility option. Published 1.1.0 Web cannot bind external resources. Development source extends this boundary through ADR 0005 with typed comparator/two-terminal kinds, explicit in-memory local Web bindings and a bounded portable analog library profile. Only ephemeral browser simulation decks receive exact validated text through IR-selected references; ordinary SPICE/compile/IR/lock/export data retains dependencies, not resource bodies. Native-only compatibility fails before browser execution. No implicit upload, persistence or model substitution is permitted.
+External subcircuits use the typed `external_subcircuit` contract in the [model catalog](reference/model-catalog.md). The declaration carries a source-relative resource reference, exact SHA-256, `.SUBCKT` entry, canonical pin mapping, provenance, closed simulator-compatibility mode, and explicit redistribution policy. The native CLI resolves only files contained under the `.kess` source directory; Core validates bytes before producing IR. Simulation stages an exact temporary copy and maps `ngspice_ps` only to the bounded Ngspice compatibility option. Op-amp, comparator and two-terminal families use the shared catalog. Web supports explicit in-memory local bindings and a bounded portable analog library profile. Only ephemeral browser simulation decks receive exact validated text through IR-selected references; ordinary SPICE/compile/IR/lock/export data retains dependencies, not resource bodies. Native-only compatibility fails before browser execution. No implicit upload, persistence or model substitution is permitted.
 
 Attempts to hide `.control`, `.include`, shell syntax, or line breaks inside quoted parameters cannot cross typed numeric and metadata validation. When an error exists, the SPICE backend does not run. Regression tests protect this injection boundary.
 
 ## 6. ERC (Electrical Rules Check) Engine (`erc.rs`)
 
-The accepted [external-device design](decisions/0005-external-device-catalog.md) extends
+The [external-device contract](reference/model-catalog.md) extends
 external subcircuits through closed catalog-backed interface families and explicit local
 resource bindings. Its implementation/acceptance status is tracked separately; an accepted
 ADR alone does not establish device, browser-model or export support. All new devices must
@@ -269,7 +269,7 @@ cross typed IR and use the shared catalog's pins/roles/geometry, never op-amp su
 
 Assertion results are separate from simulation diagnostics and use the versioned `kessetsu.assertion.v1` report. Every assertion receives a deterministic `KES-T001`, `KES-T002`, and so on in source order, with one of `PASS`, `FAIL`, `ERROR`, or `SKIPPED`. Missing measurements never become `NaN`; they produce an explanatory `ERROR`. Unsupported metric names and invalid argument shapes fail semantic compilation before simulation. If simulation does not finish successfully, Kessetsu does not fabricate assertion results and reports them as `SKIPPED`. An empty assertion report is never successful: `kess test` emits `KES-T000` before simulator discovery, while `kess simulate` remains valid without assertions.
 
-Evaluator-owned requirements use the assertion-only `kessetsu.requirements.v1` contract defined in [ADR 0004](decisions/0004-evaluator-owned-requirements.md). Core parses exact `.kessreq` bytes, enforces the same typed assertion semantics, and returns their SHA-256 identity. Native CLI attaches the resulting assertions to the already compiled `CircuitIR` before simulation; measurement and assertion backends consume that IR and never parse the external file directly. Inline and external assertions cannot be mixed. Optional expected-hash pinning fails closed before simulation. This records and separates requirement ownership but does not replace caller-controlled filesystem permissions.
+Evaluator-owned requirements use the assertion-only `kessetsu.requirements.v1` contract in the [CLI reference](reference/cli.md#evaluator-owned-requirements). Core parses exact `.kessreq` bytes, enforces the same typed assertion semantics, and returns their SHA-256 identity. Native CLI attaches the resulting assertions to the already compiled `CircuitIR` before simulation; measurement and assertion backends consume that IR and never parse the external file directly. Inline and external assertions cannot be mixed. Optional expected-hash pinning fails closed before simulation. This records and separates requirement ownership but does not replace caller-controlled filesystem permissions.
 
 ### Simulation Domain and Runner Boundary
 
@@ -281,7 +281,7 @@ Ngspice analysis data is not scraped from stdout tables. Generated SPICE writes 
 
 ### Assertion and Measurement Semantics
 
-Current source measurement contract `kessetsu.measurement.v2` adds AC-only `gain_at`,
+Kessetsu 1.2.0 measurement contract `kessetsu.measurement.v2` adds AC-only `gain_at`,
 `lower_cutoff` and `upper_cutoff`; published 1.1.0 uses v1. These metrics consume the
 first typed AC dataset, interpolate magnitude along log frequency without extrapolation,
 and select cutoff bands using an explicit reference or an unambiguous sampled peak.
@@ -337,47 +337,31 @@ The legacy `layout.rs` behavior below remains a characterization baseline during
 Schematic placement originally used a **chain-based vertical-layout** approach for assigning component x/y coordinates. DFS was one heuristic for traversal and initial ordering.
 
 - **Legacy heuristic:** Voltage-source rails, GND direction, through pins, and `is_signal_pin` affect chain order and rotation. Active devices such as BJTs and MOSFETs have separate placement behavior, but ideal orientation is not guaranteed for every topology.
-- **Canonical gate:** `kessetsu.schematic.v2` represents every connected graph pin with either a typed wire endpoint or a semantic net label and preserves model provenance metadata without model bodies. Missing or extra pins/nets fail closed with `KES-L001`. Current unreleased source also proves coordinate continuity, semantic-label joins and isolated transverse crossings. Foreign-net pin/junction/endpoint contacts, overlapping segments and disconnected islands fail the schematic gate; declared endpoint tags alone are insufficient. SPICE-only compilation remains independent of drawing generation.
+- **Canonical gate:** `kessetsu.schematic.v2` represents every connected graph pin with either a typed wire endpoint or a semantic net label and preserves model provenance metadata without model bodies. Missing or extra pins/nets fail closed with `KES-L001`. Kessetsu 1.2.0 also proves coordinate continuity, semantic-label joins and isolated transverse crossings. Foreign-net pin/junction/endpoint contacts, overlapping segments and disconnected islands fail the schematic gate; declared endpoint tags alone are insufficient. SPICE-only compilation remains independent of drawing generation.
 - **Placement and routing:** Deterministic layered placement, shared pin-side metadata, orthogonal cost-based routing, and semantic labels for high-fan-out/power nets are canonical. Symbol/wire/label collisions, crossings, and bend counts appear in the versioned quality report.
 - **Visual regression:** Deterministic SVG SHA-256 goldens for the schematic corpus are protected by Rust tests, and real-browser rendering is protected by the Playwright corpus.
 
-Current unreleased drawing repairs legalize symbol/rail space and reserve nearby annotation
+The schematic engine legalizes symbol/rail space and reserves nearby annotation
 blocks when wire-first annotation cannot fit. Shared visible symbol extents account for
 off-axis strokes. LTspice adaptation matches semantic pins to native rotation/mirror transforms,
 reroutes in actual native pin coordinates and repeats the geometry proof. KiCad preserves
-shared annotation positions and uses canonical embedded pin geometry. Published 1.1.0 does
-not yet include these stronger checks or placement repairs.
+shared annotation positions and uses canonical embedded pin geometry.
 
-## 8. Kessetsu Vision and Ecosystem Manifesto
+## 8. Frontend and Distribution Boundaries
 
-**Kessetsu** is an AI-agent-oriented, deterministic SPICE compiler and verification platform for developing analog and mixed-signal circuits like software. It runs natively and in the browser, expresses circuits as source, simulates them, and tests them with assertions.
+The native CLI and browser workspace are adapters over the same pure Core. Native adapters
+own files, subprocesses and simulator discovery; browser adapters own explicit local file
+selection, worker scheduling and downloads. Neither reimplements circuit semantics.
 
-```text
-Compile, simulate and test circuits like software.
-```
+Native releases cover Windows x86-64, Linux x86-64 and macOS Intel/Apple Silicon. Windows
+packages the version-probed Ngspice sidecar; other targets discover a supported system
+installation or an explicit executable override.
 
-The ecosystem has three pillars:
+The Web lazily loads Core for circuit work and Ngspice on simulation. Ordinary documentation
+and changelog routes are static pages, not editor sessions. Sharing carries source and exact
+package identities through a bounded URL fragment; local resource bodies and datasets are
+not uploaded or embedded. Unknown schemas and package mismatches fail closed.
 
-### 1. Kessetsu Core
-
-The heart of the project. Parser, IR, ERC, SPICE generation, and layout live in one Rust crate. It builds as a library, CLI, and WASM package. The same circuit produces deterministic results across platforms.
-
-### 2. Kessetsu CLI — Engine for AI Agents and Developers
-
-An offline-capable Rust CLI for compilation, ERC, SPICE generation, simulation, testing, and export. Windows x86-64 releases package Ngspice as a sidecar. Linux x86-64 and macOS Intel/Apple Silicon releases discover a version-probed system Ngspice and support an explicit executable override.
-
-- **Current distribution:** Four platform artifacts, SHA-256/release manifests, and clean-machine simulation smoke tests. `cargo install` and a VS Code extension are later distribution targets.
-- **Use:** AI agents and hardware engineers use the CLI to compile circuits, test requirements, and consume structured diagnostics. See the [CLI Reference](reference/cli.md).
-- **TDD loop:** An agent can use assertions like software tests, consume structured failures, revise the circuit, and repeat.
-
-### 3. Kessetsu Web Hub — Showcase and Playground for Humans
-
-A no-account, no-install interface that runs the Rust Core in the browser through WASM.
-
-- **Current workspace:** Write source → debounced WASM compile/ERC → canonical schematic → Ngspice simulation in a dedicated worker → typed plot/measurement/assertion results.
-- **Current exports:** SVG, PNG, PDF, Schematic JSON, SPICE, KiCad, and LTspice through Core's `kessetsu.export.v1` capability contract. The Web does not reconstruct exporter semantics.
-- **Current sharing:** A `kessetsu.share.v1` URL fragment carries source, compile schema, and the exact package/version manifest through gzip + base64url. Decoding uses streaming size limits; unknown versions, malformed payloads, or post-compile package mismatches fail closed. Projects are not uploaded to a server.
-
-**Security note:** The Web playground never inserts user input directly into a SPICE netlist. All input crosses typed IR validation. Any future raw-SPICE escape hatch such as `unsafe spice_raw {}` remains disabled by default on the Web.
-
-**In summary:** Kessetsu is not merely a drawing application. It is a circuit compiler and verification platform. The current product offers agent-oriented compile/test/export feedback through the CLI and a Web workspace—using the same Core—for compile, simulation, measurements, schematics, exports, and sharing. The first public product includes a browser workspace and four-platform CLI release. Passing regression tests alone does not establish universal product superiority or hardware fidelity. See the supported-domain reference and dated evaluation evidence for those boundaries.
+Use the [CLI reference](reference/cli.md), [Web editor guide](guides/web-editor.md) and
+[model catalog](reference/model-catalog.md) for public adapter behavior. Source contributions
+must preserve these boundaries and the compatibility rules in [AGENTS.md](../AGENTS.md).

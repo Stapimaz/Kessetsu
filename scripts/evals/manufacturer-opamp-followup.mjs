@@ -4,7 +4,7 @@ import { evaluatorMain } from './runtime.mjs';
 import { evaluateU6, OFFICIAL_MODEL_SHA256 } from './manufacturer-opamp.mjs';
 
 export const FOLLOWUP_SCHEMA = 'kessetsu.u6-followup-evaluation.v1';
-export const FOLLOWUP_SPEC = 'docs/evals/unseen-design-u6-followup-v1.md';
+export const FOLLOWUP_SPEC = 'scripts/evals/specs/unseen-design-u6-followup-v1.md';
 
 export function validateKessetsuU6Compilation(compilation, netlist, expectedHash = OFFICIAL_MODEL_SHA256) {
   const manifest = compilation?.debug?.models?.manifest;

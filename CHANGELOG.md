@@ -4,6 +4,26 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-09-18
+
+### Website and documentation
+
+- Simplified landing copy and route-specific loading messages.
+- Refreshed landing schematic from the shared Core instead of a hand-drawn mockup.
+- On-site changelog, documentation navigation and section index, plus a complete Web editor guide.
+- Removed internal roadmap, historical evaluation reports and operational notes from current
+  public source and new release packages; technical test specifications remain test inputs.
+- Clear Windows installation/session guidance with a directly usable launcher path.
+
+### Compatibility
+
+Existing literal circuits continue to work. Upgrade CLI and Web usage to 1.2.0 for parameters,
+new AC metrics and browser local models. Compile reports now use `kessetsu.compile.v5` and
+measurements `kessetsu.measurement.v2`; CLI, assertions and requirements envelopes are unchanged.
+Existing v4 source-share links are recompiled; unknown future schemas are rejected.
+Independent `.kessreq` limits remain literal. Local model files must be supplied separately;
+the official PSpice OPA197 model remains native-only. Model identity is not hardware validation.
+
 ### Local external devices and model files
 
 - Catalog-backed comparator and two-terminal external subcircuits, instantiated with
@@ -23,13 +43,12 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 ### Reusable circuit examples
 
 - Add complete RC filter and non-inverting amplifier examples with independently configured
-  instances, fixed simulation assertions and access through File → Examples in Web source builds.
+  instances, fixed simulation assertions and access through File → Examples in Web.
 - Preserve structured module-instance paths on virtual IR interfaces, including literal blocks
   without parameter provenance; electrical IDs and flattened backend topology remain unchanged.
 - Document ports versus parameters, defaults, loading, model assumptions and portable
   source-embedded block identity in the cookbook. No registry or external block imports.
 
-These changes are in source only, not in published 1.1.0 or the live Web Hub.
 
 ### Parameter diagnostics and compilation limits
 
@@ -39,7 +58,6 @@ These changes are in source only, not in published 1.1.0 or the live Web Hub.
   across numeric roles and reject unsupported nested waveform calls without parser recursion.
 - Preserve supported literal/quoted waveforms, existing source examples and backend semantics.
 
-These changes are in source only, not in published 1.1.0 or the live Web Hub.
 
 ### Reproducible parameter inputs
 
@@ -52,7 +70,6 @@ These changes are in source only, not in published 1.1.0 or the live Web Hub.
 - Preserve line endings/comments during materialization and allow trailing `//` comments
   without consuming a statement's required line ending.
 
-These changes are in source only, not in published 1.1.0 or the live Web Hub.
 
 ### Parameterized inline measurements
 
@@ -62,7 +79,6 @@ These changes are in source only, not in published 1.1.0 or the live Web Hub.
   existing measurement semantics and sorted assertion-field provenance.
 - Keep independent `.kessreq` numeric fields literal-only, with explicit expression rejection.
 
-These changes are in source only, not in published 1.1.0 or the live Web Hub.
 
 ### Parameterized excitation and analyses
 
@@ -73,7 +89,6 @@ These changes are in source only, not in published 1.1.0 or the live Web Hub.
 - Resolve typed values directly into IR; retain waveform-field and optional sorted
   analysis-field provenance without changing literal backend output.
 
-These changes are in source only, not in published 1.1.0 or the live Web Hub.
 
 ### CLI output protection
 
@@ -81,7 +96,6 @@ These changes are in source only, not in published 1.1.0 or the live Web Hub.
   locks without rewriting; require `--force` for different existing lock contents.
 - Reject source/lock and netlist/lock destination aliases even with `--force`.
 
-This repair is in source only, not in published 1.1.0 CLI downloads.
 
 ### Explicit AC measurements
 
@@ -92,7 +106,6 @@ This repair is in source only, not in published 1.1.0 CLI downloads.
 - Measurement contract v2 adds these metrics without changing legacy metrics or the
   CLI/assertion/requirements envelopes. Editor completion and hover describe the new calls.
 
-These changes are in source only, not in published 1.1.0 downloads or the live Web Hub.
 
 ### Schematic geometry and editable exports
 
@@ -105,7 +118,6 @@ These changes are in source only, not in published 1.1.0 downloads or the live W
 - Place KiCad reference/value properties from the shared schematic annotations and draw
   conductive joins explicitly. Added an original dense-bias regression circuit.
 
-These repairs are in source only, not in published 1.1.0 downloads or the live Web Hub.
 
 ### Builtin diode portability
 
@@ -115,7 +127,7 @@ These repairs are in source only, not in published 1.1.0 downloads or the live W
   hashes, retaining their legacy/unverified attribution. Exact model packages are unchanged.
 - Added real native/browser OP regression coverage for both named models and the default.
 
-This repair is not yet included in published downloads or the live Web Hub.
+
 
 ### Parameterized circuit foundation
 
@@ -130,8 +142,6 @@ This repair is not yet included in published downloads or the live Web Hub.
 - Source completion/highlighting without new editor panels; compile contract v5 with explicit v4 source-share compatibility and unchanged exact-package checks.
 - Prefix/exponent overflow/underflow validation and bounded module recursion/expansion diagnostics.
 
-These changes are in source only, not in published 1.1.0 downloads or the live Web Hub.
-Waveform/analysis/assertion expressions and CLI parameter overrides are not yet supported.
 Parameterized module analyses/assertions must be placed at the circuit root until their
 context/target handling is implemented.
 

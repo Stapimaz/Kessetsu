@@ -189,7 +189,13 @@
 .preview-source pre { overflow: hidden; margin: 0; padding: 12px; color: #95bdd8; font: 7px/1.7 ui-monospace, monospace; white-space: pre-wrap; }
 .preview-output { min-width: 0; display: grid; grid-template-rows: 1fr auto; gap: 1px; background: #2a394d; }
 .preview-schematic { min-height: 0; }
-.preview-schematic > svg { display: block; width: 100%; height: 215px; background-color: #161d27; background-image: radial-gradient(circle, rgba(139, 154, 177, .25) 1px, transparent 1px); background-size: 18px 18px; }
+.preview-generated-schematic > svg { display: block; width: 100%; height: 215px; background-color: #161d27; background-image: radial-gradient(circle, rgba(139, 154, 177, .25) 1px, transparent 1px); background-size: 18px 18px; }
+.preview-generated-schematic .sheet { fill: transparent; }
+.preview-generated-schematic .wire { stroke: #74a9d8; }
+.preview-generated-schematic .junction { fill: #74a9d8; }
+.preview-generated-schematic .component [stroke], .preview-generated-schematic .ground [stroke] { stroke: #d4deea; }
+.preview-generated-schematic .reference { fill: #eef4fc; }
+.preview-generated-schematic .value, .preview-generated-schematic .net-label { fill: #b8c7d9; }
 .preview-wires path { fill: none; stroke: #74a9d8; stroke-width: 2; }
 .preview-symbols { fill: none; stroke: #d4deea; stroke-width: 2; }
 .preview-junctions { fill: #74a9d8; }

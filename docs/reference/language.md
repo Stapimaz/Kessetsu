@@ -1,7 +1,6 @@
 # Kessetsu Language Reference
 
-This document describes the current source language. Sections marked unreleased are not
-available in the published 1.1.0 CLI or deployed Web Hub. Kessetsu is line-oriented,
+This document describes Kessetsu 1.2.0. Kessetsu is line-oriented,
 case-sensitive except for documented device polarities, and uses `//` comments. Backends
 never consume syntax directly: source is parsed, flattened and validated into typed Circuit IR first.
 
@@ -31,7 +30,7 @@ current_source IBIAS 1mA
 
 Source waveforms are typed: scalar DC, `sine(offset,amplitude,frequency)`, `pulse(low,high,delay,rise,fall,width,period)`, `pwl(time,value,...)`, `ac(amplitude)` and `sine_ac(offset,amplitude,frequency,ac_amplitude)`. PWL requires at least two time/value pairs with non-negative, strictly increasing times. See [supported domain](supported-domain.md) for component and model limits.
 
-## Named quantities and arithmetic (unreleased)
+## Named quantities and arithmetic
 
 ```kessetsu
 param supply: V = 12V
@@ -58,12 +57,12 @@ use the relationship, then simulation/assertions verify its actual behavior. Sup
 waveform and analysis numeric fields also accept braced expressions; names, model fields
 and other non-numeric fields do not accept expressions in this slice. Inline assertions
 accept expressions in their thresholds and supported numeric measurement arguments.
-Source builds accept numeric root `--param` inputs; see the [CLI contract](cli.md#root-parameter-inputs-unreleased).
+Kessetsu 1.2.0 accepts numeric root `--param` inputs; see the [CLI contract](cli.md#root-parameter-inputs).
 Module defaults and component expressions
 do not implicitly capture global or caller parameters. Evaluator-owned
 `.kessreq` files remain independent and assertion-only.
 
-### Independent module parameters (unreleased)
+### Independent module parameters
 
 ```kessetsu
 param base_cutoff: Hz = 500Hz
@@ -102,12 +101,12 @@ dependencies. Ambiguous flattened paths are rejected rather than silently rename
 Declared interface pins are checked by ERC. Module-local named nets are scoped too.
 
 Put analyses and assertions at the root: parameterized module-local analysis/assertion
-contexts are not supported yet and fail explicitly. Source builds accept root CLI inputs
-such as `--param supply=15V`; see the [CLI contract](cli.md#root-parameter-inputs-unreleased)
+contexts are not supported yet and fail explicitly. Kessetsu 1.2.0 accepts root CLI inputs
+such as `--param supply=15V`; see the [CLI contract](cli.md#root-parameter-inputs)
 for effective-source export and reproducibility. No model-name expressions,
 automatic topology generation or extra editor panel is introduced.
 
-### Compilation safety (unreleased)
+### Compilation safety
 
 Source builds bound input to 8 MiB and 100,000 parsed declarations/statements; module
 expansion also stops at 100,000 statements and 64 instance levels. At most 4,096 effective
@@ -136,7 +135,7 @@ Canonical pins are `p1/p2` for two-terminal passives and diodes, `plus/minus` fo
 
 ## Analyses and assertions
 
-### Parameterized excitation and analyses (unreleased)
+### Parameterized excitation and analyses
 
 ```kessetsu
 param amplitude: V = 1V
@@ -168,7 +167,7 @@ the circuit root. Independently owned requirements cannot refer to design parame
 For combined AC/transient simulations,
 use explicit transient time windows when asserting waveform reductions such as RMS.
 
-### Parameterized inline measurements (unreleased)
+### Parameterized inline measurements
 
 ```kessetsu
 param settling: s = 2ms
@@ -219,7 +218,7 @@ An evaluator-owned `.kessreq` file uses the same assertion syntax but permits on
 Modules provide reusable topology. A module instance is flattened before semantic analysis; backend-specific module shortcuts do not exist.
 
 For complete parameterized filter/amplifier circuits and a step-by-step workflow, see
-[reuse a circuit block](../guides/cookbook.md#reuse-a-circuit-block-unreleased).
+[reuse a circuit block](../guides/cookbook.md#reuse-a-circuit-block).
 Module definitions are source-local, not imported circuit packages. Structured instance
 paths survive in IR interface metadata independently of flattened electrical identifiers.
 
@@ -246,7 +245,7 @@ external_subcircuit opamp OPA197 (in_p,in_n,vcc,vee,out) file="models/OPAx197.LI
 
 Raw `.include`, `.model`, `.subckt` and `.control` injection is intentionally rejected. Model kinds have parameter allowlists; package imports require an exact version and produce a provenance-bearing `kessetsu.lock`. External declarations bind a user-owned source-relative file by exact SHA-256, entry name, canonical pin order, provenance, simulator mode, and redistribution policy. Ordinary reports/exports never embed its body. Native stdin cannot bind files; native file commands resolve contained local files. The [model cookbook](../guides/cookbook.md#choose-and-verify-a-component-model) shows the complete directory, hash and command workflow.
 
-### Additional external interfaces (unreleased)
+### Additional external interfaces
 
 Use `external_subcircuit comparator Name (in_p,in_n,vcc,vee,out)` or
 `external_subcircuit two_terminal Name (p1,p2)` with the same required metadata fields
@@ -261,7 +260,7 @@ PSpice compatibility/unsupported constructs require native CLI. Files stay in me
 not in drafts/shares/exports. See the [model catalog](model-catalog.md) for complete
 examples, supported setups, licenses and dependency handling.
 
-For models that require capacitor initial conditions, development source accepts
+For models that require capacitor initial conditions, Kessetsu 1.2.0 accepts
 `simulate tran <step> <stop> uic`. This skips the DC operating point and applies the
 model's initial conditions; it is not the default. Ordinary transient forms and
 legacy analysis serialization are unchanged.

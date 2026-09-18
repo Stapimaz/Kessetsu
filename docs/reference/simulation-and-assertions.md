@@ -8,7 +8,7 @@ Kessetsu compiles each source to canonical SPICE and runs the same typed analysi
 |---|---|---|
 | `simulate op` | scalar operating point | bias voltages/currents |
 | `simulate tran <step> <stop>` | time series | waveform, RMS, THD, clipping, dissipation |
-| `simulate tran <step> <stop> uic` (unreleased) | initialized time series | skips DC operating point; applies model capacitor initial conditions |
+| `simulate tran <step> <stop> uic` | initialized time series | skips DC operating point; applies model capacitor initial conditions |
 | `simulate ac dec|lin|oct <points> <start> <stop>` | complex frequency series | gain, phase and low-pass cutoff |
 | `simulate dc <source> <start> <stop> <step>` | swept real series | transfer curve |
 
@@ -25,7 +25,7 @@ The form is `assert metric(arguments) comparator threshold`. Comparators are `<`
 
 Unsupported metric names and invalid argument shapes fail semantic validation with `KES-C006` before a simulator starts. Strict inequalities are not loosened. Equality and inclusive comparisons use the versioned absolute/relative tolerance reported with `kessetsu.assertion.v1`.
 
-For supervised agents and CI, the same assertions may live in an evaluator-owned `.kessreq` file and be supplied with `kess test design.kess --requirements limits.kessreq`. This mode forbids inline assertions in the design, records the exact requirement-file SHA-256, and optionally verifies `--requirements-sha256`. See [ADR 0004](../decisions/0004-evaluator-owned-requirements.md) for the ownership and threat boundary.
+For supervised agents and CI, the same assertions may live in an evaluator-owned `.kessreq` file and be supplied with `kess test design.kess --requirements limits.kessreq`. This mode forbids inline assertions in the design, records the exact requirement-file SHA-256, and optionally verifies `--requirements-sha256`. See the [CLI reference](cli.md) for ownership and file behavior. Hash pinning detects changed limits; it is not a substitute for filesystem permissions controlled by the supervising process.
 
 ## Measurements
 

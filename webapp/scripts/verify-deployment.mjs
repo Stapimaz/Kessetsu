@@ -24,7 +24,7 @@ for (const file of pages) {
     if (!existsSync(resolve(dist, relative))) throw new Error(`Deployment asset is missing: ${file} -> ${relative}`);
     referenceCount++;
   }
-  if (route.startsWith('docs/') && /<script\b/.test(text)) throw new Error(`Static documentation unexpectedly loads JavaScript: ${file}`);
+  if ((route.startsWith('docs/') || route === 'changelog/') && /<script\b/.test(text)) throw new Error(`Static documentation unexpectedly loads JavaScript: ${file}`);
 }
 for (const directive of ["default-src 'self'", "script-src 'self' 'wasm-unsafe-eval'", "worker-src 'self' blob:", "object-src 'none'"]) {
   if (!html.includes(directive)) throw new Error(`Production CSP is missing: ${directive}`);
@@ -41,6 +41,8 @@ for (const required of [
   'CNAME',
   'install/index.html',
   'docs/index.html',
+  'changelog/index.html',
+  'docs/guides/web-editor/index.html',
   'docs/guides/tutorial/index.html',
   'docs.css',
   'install.ps1',

@@ -13,7 +13,9 @@ The project is not limited to a particular educational scenario or circuit class
 ## Current capabilities
 
 - Rust parser, module flattening, and typed Circuit IR
-- Versioned compile reports (`kessetsu.compile.v4` in 1.1.0; v5 in current source) and the `kessetsu.schematic.v2` schematic contract
+- Unit-checked named parameters, reusable circuit modules and CLI numeric overrides
+- Hash-verified local op-amp/comparator/two-terminal models, with explicit browser file selection
+- Versioned compile reports (`kessetsu.compile.v5`) and the `kessetsu.schematic.v2` schematic contract
 - Deterministic net naming and `KES-P/C/E/I/S/F` diagnostic namespaces
 - SPICE generation, simulator discovery/provenance, and a Windows Ngspice sidecar runtime
 - Typed OP/transient/AC/DC simulation results and PASS/FAIL/ERROR/SKIPPED assertion evaluation
@@ -27,7 +29,7 @@ The project is not limited to a particular educational scenario or circuit class
 - Versioned, compressed, package-aware share URLs
 - Shared loaded-divider and RC-filter tools with typed inputs, standard component selection and editable circuit generation (CLI 1.1.0+)
 
-The [roadmap](docs/ROADMAP.md) summarizes shipped capabilities and candidate product directions. The [architecture](docs/architecture.md), [supported domain](docs/reference/supported-domain.md), and [engineering measurement contract](docs/reference/measurements.md) are the normative references for implementation boundaries and formulas.
+Read the [documentation](https://kessetsu.com/docs/) and [changelog](https://kessetsu.com/changelog/) on the website. The [architecture](docs/architecture.md), [component and simulation reference](docs/reference/supported-domain.md), and [measurement reference](docs/reference/measurements.md) define technical behavior and assumptions.
 
 ## Web Hub
 
@@ -45,7 +47,7 @@ The current repository build can:
 - Share source and exact package versions in a compressed URL
 - Start from a [loaded divider](https://kessetsu.com/tools/voltage-divider/) or [RC filter](https://kessetsu.com/tools/rc-lowpass/) calculation and continue in the editor
 
-The first release deliberately has no AI chat inside Web Hub. The CLI's stdin plus versioned JSON tool contract is the AI/automation surface, while Web Hub is the direct human surface; both use the same Core. A provider-independent Web AI design surface is reserved for a later phase.
+Use your own AI agent through the CLI's stdin and versioned JSON contract. The Web Hub is a direct editing and simulation workspace, not a built-in AI chat; both use the same Core.
 
 ![Kessetsu Web Hub RC workspace](docs/assets/web-hub-workspace.png)
 
@@ -84,7 +86,7 @@ macOS or Linux: open **Terminal**, paste, and press Enter:
 curl -fsSL https://kessetsu.com/install.sh | sh
 ```
 
-Open a new terminal afterward (restart VS Code if needed) and run `kess --version`. Run the same installation command to update. These commands execute installer code from the website; inspect [PowerShell](webapp/public/install.ps1) or [POSIX](webapp/public/install.sh) source first if preferred. Installers verify archive/executable SHA-256 and version before replacing the managed launcher, and retain old bundles. Checksums are integrity checks, not publisher signatures.
+On Windows, run `kess --version` in the same PowerShell session after installation. Otherwise, open a new terminal. Restart an already-running IDE/agent if it still cannot find the command, or use the full launcher path printed by the installer. Run the same installation command to update. These commands execute installer code from the website; inspect [PowerShell](webapp/public/install.ps1) or [POSIX](webapp/public/install.sh) source first if preferred. Installers verify archive/executable SHA-256 and version before replacing the managed launcher, and retain old bundles. Checksums are integrity checks, not publisher signatures.
 
 Windows includes Ngspice. Linux/macOS simulation requires a separate trusted Ngspice installation: `brew install ngspice` on macOS with [Homebrew](https://brew.sh/), or `sudo apt-get update && sudo apt-get install ngspice` on Ubuntu/Debian. Other distributions use their package manager. Compile, check, and export do not require Ngspice; installers never silently execute privileged package installation.
 
@@ -172,7 +174,7 @@ npm.cmd run build
 - `core/`: Rust library, CLI, WASM adapter, test corpus, and Windows Ngspice runtime
 - `examples/`: polished, runnable `.kess` circuits for new users
 - `webapp/`: React/TypeScript zero-friction Web Hub
-- `docs/`: indexed guides, reference contracts, maintainer records, decisions, and evaluation evidence
+- `docs/`: user guides, language/CLI/model/export references and contributor architecture
 - `scripts/verify.ps1`: root quality gate
 
 ## Important boundaries
@@ -180,8 +182,8 @@ npm.cmd run build
 - Backends consume typed Circuit IR only.
 - Generated output does not replace physical validation or engineering review.
 - Embedded-runtime provenance and licensing notes live in the [Ngspice runtime README](core/tools/ngspice/README.md).
-- The first release targets schematic-level analog/mixed-signal work; it does not provide PCB layout/DRC, RF/EM, thermal/reliability, Monte Carlo, or laboratory validation.
-- [SECURITY.md](SECURITY.md) defines vulnerability reporting; the [release contract](docs/maintainers/release.md) defines release, rollback, and telemetry boundaries.
+- Kessetsu targets schematic-level analog/mixed-signal work; it does not provide PCB layout/DRC, RF/EM, thermal/reliability, Monte Carlo, or laboratory validation.
+- [SECURITY.md](SECURITY.md) defines vulnerability reporting. The browser runs locally without telemetry; released versions and download checksums remain immutable.
 
 ## License
 

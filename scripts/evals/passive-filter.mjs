@@ -146,7 +146,7 @@ function main() {
   const [arm, candidatePath] = process.argv.slice(2);
   const record = { schema_version: 'kessetsu.u1-evaluation.v2', task: 'U1', arm };
   try {
-  record.spec_sha256 = digest(readFileSync(join(root, 'docs/evals/unseen-design-v1.md')));
+  record.spec_sha256 = digest(readFileSync(join(root, 'scripts/evals/specs/unseen-design-v1.md')));
   if (!['kessetsu', 'direct'].includes(arm) || !candidatePath) throw new Error('Usage: node scripts/evals/passive-filter.mjs <kessetsu|direct> <candidate-file>');
   const candidate = readFileSync(resolve(candidatePath), 'utf8');
   Object.assign(record, { candidate_source: candidate, candidate_sha256: digest(candidate) });

@@ -1,40 +1,40 @@
 # Why Kessetsu?
 
-Kessetsu is not a claim that existing simulators or EDA tools are inadequate. It connects several jobs that are usually separate: a compact circuit language, deterministic validation, real SPICE simulation, engineering assertions, structured agent feedback, automatic schematic rendering, editable exports and a no-account browser workspace.
+Kessetsu connects jobs that are often separate: describe a circuit, validate connections,
+simulate, check engineering requirements, draw a schematic and export editable artifacts.
+It uses Ngspice for simulation, not a replacement physics engine.
 
-## Measurable differences
+## What it adds to a SPICE workflow
 
-| Workflow | What the established tool optimizes for | What Kessetsu adds |
-|---|---|---|
-| Raw Ngspice netlist | Broad open-source SPICE simulation from file/CLI; Ngspice itself does not provide schematic entry | Typed/allowlisted source, source-located diagnostics, ERC, versioned datasets/measurements/assertions, automatic schematic and seven exports |
-| KiCad or LTspice | Mature graphical schematic capture plus integrated simulation/waveform workflows | One text source callable by an AI agent, deterministic JSON feedback and the same Core in a zero-install browser; editable files are outputs, not replacements for those editors |
-| Python circuit DSL such as SKiDL | General-purpose Python composition, ERC and multiple netlist/PCB/graphics outputs | A small data-like DSL with no arbitrary code execution, direct measurement assertions and native/browser contract parity |
+- A compact circuit language with units, named parameters and reusable modules.
+- Structural ERC and diagnostics before simulation.
+- Executable assertions with actual measurements and explicit failure reasons.
+- Automatic schematics and seven visual, numeric and editable engineering exports.
+- The same circuit semantics in a no-install browser workspace and a local CLI.
 
-The repository tests these mechanisms through real Ngspice benchmarks, native/browser engineering-decision parity, schematic connectivity/visual gates, KiCad 10 and LTspice round-trip smoke tests, and evaluator-owned unseen-design comparisons. These tests establish bounded workflow behavior; they do not prove general circuit-design success or superiority over direct simulator/EDA workflows.
+You can use Ngspice directly when its broader netlist language is what you need. Kessetsu
+is useful when you want the complete edit → verify → draw → handoff loop in one workflow.
+It does not promise every SPICE construct, better electrical results or faster execution.
 
-## Competitive reality check — 2026-09-10
+## Use your own AI agent
 
-[Flux](https://www.flux.ai/p/blog/simulate-circuits-with-a-prompt) documents AI-driven SPICE simulation and iteration against specifications. [tscircuit](https://docs.tscircuit.com/) documents a code-based workflow for schematics, simulation, PCBs, and manufacturing outputs. [Quilter](https://docs.quilter.ai/using-quilter/introduction) documents automated placement, routing, and validation from a schematic and starter board. AI-assisted circuit engineering is therefore not unique to Kessetsu.
+An agent writes `.kess`, invokes `kess check` or `kess test --format json`, reads the
+diagnostics and measured failures, then revises the design. No Kessetsu AI subscription
+is needed. Keep acceptance limits in a separate `.kessreq` when the agent must not change them.
+See the [agent cookbook](cookbook.md#give-an-external-agent-a-complete-task).
 
-Kessetsu's proposed value is the combined provider-independent CLI, local/browser execution, executable requirements, and readable portable artifacts. In the frozen six-task comparison recorded in the [evaluation summary](../evals/unseen-design-summary-2026-09-13.md), Kessetsu and direct Ngspice both reached the electrical targets on supported tasks; Kessetsu repeatedly added automatic visual and editable artifacts, while neither workflow was universally faster. Exact external-subcircuit support was added after the comparison exposed that blocker. Cross-model transferability, broad circuit coverage, hardware validation, and market demand remain unproven. See the [support matrix](../reference/supported-domain.md).
+## Keep working in your preferred EDA tool
 
-## Who it is for
+KiCad and LTspice remain full graphical design environments. Kessetsu produces editable
+schematics so you can continue there; source-level assertions and model dependencies do
+not automatically become native EDA features. Review the [export reference](../reference/exports.md).
 
-Kessetsu can serve learners, working engineers, hobbyists, automation and AI agents within its [declared analog/mixed-signal boundary](../reference/supported-domain.md). It is not limited to coursework, and it does not claim to replace PCB layout, RF/EM, thermal/reliability analysis, laboratory validation or engineering review.
+## Know what a result means
 
-## Product split
+A passing assertion establishes a result for the supplied model and simulation conditions,
+not a physical hardware guarantee. Generic models can omit important device effects.
+The [component reference](../reference/supported-domain.md) and
+[model catalog](../reference/model-catalog.md) explain those boundaries.
 
-- The CLI is the AI/automation surface: stdin, versioned JSON, stable exit codes and deterministic artifacts.
-- Web Hub is the human surface: edit, compile, simulate, inspect, export and share without an account or local installation.
-- Both are thin adapters over the same Rust Core. Web Hub deliberately has no provider-specific AI chat in the first release; a future chat layer can call the same contracts without becoming the source of circuit truth.
-
-## Sources checked for the first release
-
-Claims were reviewed on 2026-08-13 against primary product documentation:
-
-- Ngspice describes itself as an open-source circuit simulator driven by netlists and explicitly notes that it has no schematic entry: <https://ngspice.sourceforge.io/index.html>
-- KiCad documents schematic ERC, Ngspice-backed simulation and graphical analysis workflows: <https://docs.kicad.org/master/en/eeschema/eeschema.html>
-- Analog Devices describes LTspice as a SPICE simulator, schematic-capture tool and waveform viewer: <https://www.analog.com/en/resources/design-tools-and-calculators/ltspice-simulator.html>
-- SKiDL documents Python circuit description, ERC and netlist/PCB/SVG generation: <https://devbisme.github.io/skidl/api/html/rst_output/skidl.html>
-
-This comparison is scoped to documented first-release behavior, not a permanent claim about competitors.
+Start with the [tutorial](tutorial.md), [Web editor](web-editor.md) or
+[CLI installation](https://kessetsu.com/install/).

@@ -17,7 +17,7 @@ tries the explicit executable path in `KESSETSU_NGSPICE`, then repository/releas
 Windows sidecar locations, and finally the platform-appropriate system fallback
 of `ngspice_con.exe` or `ngspice`. First-release Linux/macOS packages use a
 version-probed `ngspice` installed by the system package manager; the exact
-matrix and smoke contract are in the [release document](../../../docs/maintainers/release.md).
+platform setup is described in the [installation guide](https://kessetsu.com/install/).
 
 ## Tracked runtime profile
 

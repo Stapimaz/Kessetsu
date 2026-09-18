@@ -122,7 +122,11 @@ function Install-Kessetsu([string]$RequestedVersion = 'latest', [string]$Root = 
         Write-Host "Installed Kessetsu $resolvedVersion. Ngspice is included."
         Write-Host "Location: $Root"
         if ($SkipPath) { Write-Host "Run: & '$launcher' --version" }
-        else { Write-Host 'Open a NEW terminal (restart VS Code if needed), then run: kess --version' }
+        else {
+            Write-Host 'In this PowerShell session, run: kess --version'
+            Write-Host 'If an already-running IDE or AI agent cannot find kess, restart that application to refresh its PATH.'
+            Write-Host "Without restarting, use the full command path: & '$launcher' --version"
+        }
         Write-Host 'Update: run the same installation command again. Previous bundles are kept for recovery.'
     } finally {
         if ($lock) { $lock.Dispose() }

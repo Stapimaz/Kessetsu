@@ -38,9 +38,10 @@ test('opens the landing page, enters Web Hub, initializes WASM and compiles the 
   expect(nodeAlignmentError).toBeLessThanOrEqual(0.5);
   expect(await page.locator('.landing-hero .eyebrow').evaluate((element) => (element as HTMLElement).innerText))
     .toBe('EXECUTABLE CIRCUIT ENGINEERING');
-  await expect(page.getByText('First-release scope:')).toBeVisible();
+  await expect(page.getByText('First-release scope:')).toHaveCount(0);
+  await expect(page.locator('.preview-generated-schematic [data-component="VIN"].reference')).toBeVisible();
   await expect(page.getByRole('contentinfo')).toContainText(`Kessetsu ${productVersion}`);
-  await expect(page.getByRole('navigation', { name: 'Footer navigation' }).getByRole('link')).toHaveCount(5);
+  await expect(page.getByRole('navigation', { name: 'Footer navigation' }).getByRole('link')).toHaveCount(4);
   await expect(page.locator('.monaco-editor')).toHaveCount(0);
   if (process.env.KESSETSU_E2E_SCREENSHOTS) {
     await page.screenshot({ path: 'test-results/landing-desktop.png', fullPage: true });

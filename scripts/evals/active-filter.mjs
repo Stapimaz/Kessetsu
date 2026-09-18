@@ -198,7 +198,7 @@ export function evaluateU2(netlist, simulator, runSimulator = spawnSync) {
 
 function main() {
   const [arm, candidatePath] = process.argv.slice(2);
-  const record = { schema_version: 'kessetsu.u2-evaluation.v2', task: 'U2', arm, spec_sha256: digest(readFileSync(join(root, 'docs/evals/unseen-design-v1.md'))) };
+  const record = { schema_version: 'kessetsu.u2-evaluation.v2', task: 'U2', arm, spec_sha256: digest(readFileSync(join(root, 'scripts/evals/specs/unseen-design-v1.md'))) };
   try {
     if (!['kessetsu', 'direct'].includes(arm) || !candidatePath) throw new Error('Usage: node scripts/evals/active-filter.mjs <kessetsu|direct> <candidate-file>');
     const candidate = readFileSync(resolve(candidatePath), 'utf8');

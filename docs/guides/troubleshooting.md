@@ -8,7 +8,20 @@ Check the reported line/column against [language reference](../reference/languag
 
 Verify names, pin identifiers, physical units, one unambiguous `GND`, and that every required component pin is connected. Raw SPICE directives and unversioned model packages are intentionally rejected.
 
-For external subcircuits, `KES-C014` means the typed metadata, path, or compatibility value is invalid; `KES-C015` means the declared resource bytes were not supplied; `KES-C016` means their SHA-256 differs from the declaration; and `KES-C017` means the file is not valid UTF-8 or does not contain exactly one matching `.SUBCKT` entry with the declared terminal count. Native CLI commands resolve resources relative to a file-based `.kess` source. Stdin and the current browser runtime intentionally return `KES-C015` because neither has an external-byte binding; they never substitute a generic model.
+For external subcircuits, `KES-C014` means the typed metadata, path, or compatibility value is invalid; `KES-C015` means the declared resource bytes were not supplied; `KES-C016` means their SHA-256 differs from the declaration; and `KES-C017` means the file is not valid UTF-8 or does not contain exactly one matching `.SUBCKT` entry with the declared terminal count. Native CLI commands resolve resources relative to a file-based `.kess` source; stdin cannot bind these files. On Web, select the exact local file in **View → Circuit details…**. Browser-incompatible models need the CLI. No generic model is substituted. See the [model catalog](../reference/model-catalog.md).
+
+## Installed on Windows, but the agent cannot find `kess`
+
+The installer updates User PATH and the PowerShell session executing it. An already-running
+IDE/agent or its parent process may still hold the previous PATH. Restart that application,
+or give your agent the full launcher path printed by the installer. This is not necessarily
+an installation failure. In ordinary PowerShell you can also run:
+
+```powershell
+& "$env:LOCALAPPDATA\Kessetsu\bin\kess.cmd" --version
+```
+
+For a custom installation directory, use its printed command path instead.
 
 ## Simulator not found or exit 3
 
@@ -32,7 +45,7 @@ Kessetsu accepts only `kessetsu.share.v1`, limits compressed input and decompres
 
 ## Web simulation does not start
 
-Confirm that JavaScript, WebAssembly and module Workers are allowed and reload once. The production build pins and integrity-checks the runtime. Browser simulation runs locally; the first release sends no telemetry and has no server-side fallback.
+Confirm that JavaScript, WebAssembly and module Workers are allowed and reload once. The production build pins and integrity-checks the runtime. Browser simulation runs locally; the Web Hub sends no telemetry and has no server-side fallback.
 
 ## KiCad/LTspice warning on open
 

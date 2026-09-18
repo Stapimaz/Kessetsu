@@ -1,6 +1,7 @@
-# Kessetsu First-Release Support Matrix
+# Components and Simulation Limits
 
-This document freezes the electrical scope advertised for Phase 4. “Supported” means more than parsing syntax: typed IR, canonical SPICE, ERC, and the relevant native/Web verification gates must all exist. Features outside this matrix must produce fail-closed diagnostics and must not be presented as approximately supported.
+This reference describes Kessetsu 1.2.0's component families, analyses and modeling assumptions.
+Unsupported constructs produce diagnostics rather than silently approximate results.
 
 ## Component and source scope
 
@@ -11,31 +12,31 @@ This document freezes the electrical scope advertised for Phase 4. “Supported�
 | BJT NPN/PNP | Supported | `c`, `b`, `e` | Three-terminal model; no substrate or thermal pin |
 | MOSFET NMOS/PMOS | Supported | `d`, `g`, `s` | Three-terminal model; body is not a separate pin |
 | Op-amp | Supported | `in_p`, `in_n`, `vcc`, `vee`, `out` | Safe canonical template or hash-bound native external subcircuit; no arbitrary raw directives |
+| External comparator | Supported | `in_p`, `in_n`, `vcc`, `vee`, `out` | Exact local model; browser portable-profile restrictions apply |
+| External two-terminal device | Supported | `p1`, `p2` | Exact local subcircuit, e.g. the characterized memristor demonstration; no universal device fidelity |
 | Voltage/current source | Supported | `plus`, `minus` | Typed DC, `sine`, `pulse`, `pwl`, `ac`, and `sine_ac` waveforms |
 | Module port | Flattening-only element | Defined by the module | Not a public physical component |
 
 ## Model scope
 
-Development source additionally supports catalog-backed external comparator/two-terminal
+Kessetsu 1.2.0 additionally supports catalog-backed external comparator/two-terminal
 interfaces and explicit local Web bindings for a bounded self-contained Ngspice text
 profile. The [model catalog](model-catalog.md) defines the characterized comparator,
-threshold-memristor and native-only manufacturer op-amp cases. These additions are not
-in published 1.1.0 or the deployed Web Hub; they do not widen the first-release matrix
-into arbitrary vendor, memristor or research-device support.
+threshold-memristor and native-only manufacturer op-amp cases. This does not imply
+arbitrary vendor, memristor or research-device support.
 
 - Built-ins: `2N3904`, `2N3906`, `2N2222`, `KESSETSU_POWER_NPN_V1`, `KESSETSU_POWER_PNP_V1`, `1N4148`, `1N4007`, `IRF540`, `KESSETSU_PMOS_V1`, and `KESSETSU_OPAMP_V1`.
-- Known 1.1.0 issue: builtin `1N4148`/`1N4007` (including the default diode) contain
-  fields that abort standard Ngspice simulation. The unreleased source repair removes
-  descriptive/non-enforced rating fields and records model version `1.0.1` with new
-  hashes, without changing electrical coefficients or legacy provenance. It is not yet
-  in published downloads or the deployed Web Hub; an explicit typed user diode model is
-  a workaround for 1.1.0. This repair does not provide datasheet-limit enforcement.
+- Builtin `1N4148`/`1N4007` use portable electrical directives in 1.2.0, repairing an
+  issue in older downloads. Provenance version `1.0.1` records the repaired hashes without
+  changing electrical coefficients. Descriptive ratings are not enforced device limits.
 - Verified generic PMOS: `KESSETSU_PMOS_V1@1.0.1`, a portable Ngspice `MOS1` DC model with no manufacturer, datasheet, or parasitic-model claim.
 - User models: typed diode/BJT/MOSFET parameter allowlists.
 - User subcircuits: the typed op-amp template and native, source-relative, exact-hash external op-amp references. External model bodies remain user-owned and are never embedded in Kessetsu source, manifests, or exports.
 - Op-amp fidelity: the current generic template is a controlled voltage source with an RC pole. Its declared supply pins are unused internally; it does not model supply consumption, rail saturation, or a realistic output-current limit. Amplifier power, efficiency, and clipping assertions cover only the modeled circuit and supplied measurements, not those missing device effects.
 - Package/model records: `kessetsu.models.v2`/`kessetsu.lock.v2` with exact identity, content hash, license, simulator capability, and external dependency metadata where applicable.
-- Unsupported: raw `.include`, `.model`, `.subckt`, or `.control`; floating package versions; arbitrary vendor script/model injection; external model upload or execution in the current browser runtime.
+- Unsupported: raw directives in `.kess`, floating package versions, arbitrary vendor scripts,
+  model uploads and compiled browser model plugins. Explicit local browser execution is limited
+  to the portable library profile in the model catalog.
 
 ## Analysis, dataset, and measurement scope
 
@@ -45,10 +46,10 @@ into arbitrary vendor, memristor or research-device support.
 | Dataset | OP scalar; transient/DC real series; AC complex series | Simulator raw format is not a public contract |
 | Primitive | `V(net/device)`, `I(device)`, `P(device)` | Safe op-amp internal/output branch current fails closed |
 | Reduction | `value`, `min`, `max`, absolute `peak`, `average`, `rms` | No real reduction over complex AC data |
-| Derived | gain, bandwidth/cutoff, frequency, phase, output power, efficiency, THD, clipping, dissipation | Only under documented analysis and signal conditions |
+| Derived | gain, gain_at, bandwidth/cutoff, lower_cutoff, upper_cutoff, frequency, phase, output power, efficiency, THD, clipping, dissipation | Only under documented analysis and signal conditions |
 | Assertion | `<`, `>`, `==`, `<=`, `>=`; PASS/FAIL/ERROR/SKIPPED | Missing data is never treated as `0` or PASS |
 
-## First-release verification circuits
+## Example circuits
 
 - RC low-pass: the first vertical Web/CLI parity path.
 - Op-amp gain stage: feedback, AC bandwidth, and transient clipping.
@@ -57,4 +58,8 @@ into arbitrary vendor, memristor or research-device support.
 
 ## Deliberate physical boundaries
 
-Kessetsu's first release is a schematic-level SPICE engineering tool. It does not provide PCB layout/DRC, transmission-line or EM-field solving, RF S-parameter workflows, digital HDL, thermal/aging/reliability analysis, package/PCB parasitic extraction, EMC/ESD analysis, manufacturing-tolerance Monte Carlo, or a datasheet-limit database. Simulation does not replace laboratory measurement or engineering review. Typed domain contracts may expand the supported analog/mixed-signal SPICE scope later; the architecture is not limited to educational circuits.
+Kessetsu is a schematic-level SPICE engineering tool. It does not provide PCB layout/DRC,
+EM-field solving, RF S-parameter workflows, digital HDL, thermal/aging/reliability analysis,
+PCB parasitic extraction, EMC/ESD analysis, manufacturing-tolerance Monte Carlo or a
+datasheet-limit database. Simulation does not replace laboratory measurement or engineering
+review. These are current capability boundaries, not a restriction to educational circuits.
