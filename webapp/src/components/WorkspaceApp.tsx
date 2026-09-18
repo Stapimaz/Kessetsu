@@ -22,8 +22,9 @@ import { ResultsPanel } from './ResultsPanel';
 import { SchematicPanel } from './SchematicPanel';
 import { ShareDialog } from './ShareDialog';
 import { WorkspaceLayout } from './WorkspaceLayout';
+import { StudyDialog } from './StudyDialog';
 
-type MenuId = 'file' | 'view' | 'help';
+type MenuId = 'file' | 'view' | 'analyze' | 'help';
 const productVersion = productVersionSource.trim();
 
 export function WorkspaceApp() {
@@ -31,6 +32,7 @@ export function WorkspaceApp() {
     state, setCode, loadExample, newDocument, openDocument, markSaved, saveBrowserDocument, renameDocument,
     run, cancel, createExport, share,
     modelRequirements, boundModelResources, bindModelFile, clearModelFiles,
+    modelResources,
   } = useKessetsuWorkspace();
   const [openMenu, setOpenMenu] = useState<MenuId | null>(null);
   const [examplesOpen, setExamplesOpen] = useState(false);
@@ -38,6 +40,7 @@ export function WorkspaceApp() {
   const [circuitDetailsOpen, setCircuitDetailsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
+  const [studyOpen, setStudyOpen] = useState(false);
   const [documentError, setDocumentError] = useState('');
   const [documentNotice, setDocumentNotice] = useState('');
   const menusRef = useRef<HTMLElement>(null);
@@ -273,7 +276,7 @@ export function WorkspaceApp() {
                     </button>
                   ))}
                   <span className="menu-group-label">Local model files</span>
-                  {(['comparator', 'memristor'] as const).map((id) => (
+                  {(['comparator', 'memristor', 'study_filter', 'study_driver'] as const).map((id) => (
                     <button key={id} role="menuitem" aria-label={examples[id].label} onClick={() => selectExample(id)}>
                       <strong>{examples[id].label}</strong><small>{examples[id].description}</small>
                     </button>
@@ -291,6 +294,12 @@ export function WorkspaceApp() {
               <button role="menuitem" onClick={() => { setResetRequest((current) => current + 1); setOpenMenu(null); }}>
                 <span>Reset panel layout</span>
               </button>
+            </div>}
+          </div>
+          <div className="application-menu">
+            <button aria-haspopup="menu" aria-expanded={openMenu === 'analyze'} onClick={() => toggleMenu('analyze')}>Analyze</button>
+            {openMenu === 'analyze' && <div className="menu-popover" role="menu" aria-label="Analyze menu">
+              <button role="menuitem" disabled={!state.wasmLoaded || state.simulationState === 'running'} onClick={() => { setStudyOpen(true); setOpenMenu(null); }}><span>Parameter study…</span></button>
             </div>}
           </div>
           <div className="application-menu">
@@ -365,6 +374,8 @@ export function WorkspaceApp() {
         onClose={() => setRenameOpen(false)}
         onRename={renameCurrentDocument}
       />
+      {state.wasmLoaded && <StudyDialog open={studyOpen} source={state.code} name={documentName} resources={modelResources}
+        onClose={() => setStudyOpen(false)} onApplySource={setCode} />}
       <WorkspaceLayout
         resetRequest={resetRequest}
         source={(panelControls) => <EditorPanel

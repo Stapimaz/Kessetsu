@@ -10,6 +10,7 @@ Use the free [Web Hub](https://kessetsu.com/#editor) without an account or insta
 - [Web editor](guides/web-editor.md): examples, files, panels, simulation, exports and sharing.
 - [Why Kessetsu?](guides/why-kessetsu.md): how the combined workflow complements SPICE and EDA tools.
 - [Cookbook](guides/cookbook.md): calculations, reusable blocks, agent loops and device models.
+- [Parameter studies](guides/parameter-studies.md): multi-condition experiments and reports (development source).
 
 ## Language and command reference
 

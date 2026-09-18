@@ -334,6 +334,7 @@ fn unit_suffix(unit: SIUnit) -> &'static str {
         SIUnit::Hertz => "Hz",
         SIUnit::Second => "s",
         SIUnit::Watt => "W",
+        SIUnit::Joule => "J",
         SIUnit::Ratio => "",
         SIUnit::Percent => "%",
         SIUnit::Degree => "°",

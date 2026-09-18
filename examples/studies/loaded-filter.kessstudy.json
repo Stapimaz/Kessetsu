@@ -1,0 +1,15 @@
+{
+  "schema_version": "kessetsu.experiment.v1",
+  "name": "Loaded RC filter",
+  "source": "// Loaded RC filter: ideal passives, finite output load, fixed electrical requirements.\nparam resistance: Ohm = 1kOhm\nparam capacitance: F = 159.154943nF\nparam load: Ohm = 10kOhm\nnet GND\nnet IN\nnet OUT\nsource VIN ac(1V)\nresistor R1 {resistance}\ncapacitor C1 {capacitance}\nresistor RL {load}\nconnect VIN.plus, R1.p1 to IN\nconnect VIN.minus, C1.p2, RL.p2 to GND\nconnect R1.p2, C1.p1, RL.p1 to OUT\nsimulate ac dec 60 10Hz 100kHz\nassert gain_at(V(OUT),V(IN),100Hz) > 0.8\nassert upper_cutoff(V(OUT),V(IN)) > 700Hz\nassert upper_cutoff(V(OUT),V(IN)) < 2kHz\n",
+  "axes": [
+    {"parameter": "resistance", "values": {"kind": "list", "values": ["820Ohm", "1kOhm", "1.2kOhm"]}},
+    {"parameter": "load", "values": {"kind": "list", "values": ["2kOhm", "10kOhm"]}}
+  ],
+  "temperatures_c": [27],
+  "measurements": [
+    {"name": "gain_100Hz", "expression": "gain_at(V(OUT),V(IN),100Hz)", "unit": "Ratio"},
+    {"name": "cutoff", "expression": "upper_cutoff(V(OUT),V(IN))", "unit": "Hertz"}
+  ],
+  "objective": {"measurement": "cutoff", "direction": "minimize"}
+}

@@ -233,6 +233,7 @@ pub fn format_quantity(value: f64, unit: SIUnit) -> String {
         SIUnit::Hertz => "Hz",
         SIUnit::Second => "s",
         SIUnit::Watt => "W",
+        SIUnit::Joule => "J",
         SIUnit::Ratio => "",
         SIUnit::Percent => "%",
         SIUnit::Degree => "deg",

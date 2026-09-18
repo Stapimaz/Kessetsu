@@ -134,6 +134,7 @@ pub enum SIUnit {
     Hertz,
     Second,
     Watt,
+    Joule,
     Ratio,
     Percent,
     Degree,
@@ -406,6 +407,7 @@ fn parse_unit_suffix(suffix: &str) -> Result<(f64, Option<SIUnit>), String> {
         "Hz" | "hz" | "HZ" => Some(SIUnit::Hertz),
         "s" | "S" => Some(SIUnit::Second),
         "W" | "w" => Some(SIUnit::Watt),
+        "J" | "j" => Some(SIUnit::Joule),
         "%" => Some(SIUnit::Percent),
         "deg" | "degree" | "degrees" => Some(SIUnit::Degree),
         _ => return Err(format!("unsupported unit or trailing text '{suffix}'")),
@@ -1177,7 +1179,7 @@ pub fn ast_to_ir_with_resources(
                     return Err(semantic_error(
                         "KES-C006",
                         format!(
-                            "unsupported assertion metric '{}'; expected value, min, max, peak, average, avg, rms, gain, gain_at, lower_cutoff, upper_cutoff, bandwidth, cutoff, frequency, phase, output_power, dissipation, efficiency, thd or clipping",
+                            "unsupported assertion metric '{}'; expected value, min, max, peak, average, avg, rms, gain, gain_at, lower_cutoff, upper_cutoff, bandwidth, cutoff, frequency, phase, output_power, dissipation, efficiency, thd, clipping, rise_time, fall_time, settling_time, overshoot or energy",
                             assert.metric
                         ),
                         None,
@@ -1438,6 +1440,11 @@ fn is_supported_assertion_metric(metric: &str) -> bool {
             | "efficiency"
             | "thd"
             | "clipping"
+            | "rise_time"
+            | "fall_time"
+            | "settling_time"
+            | "overshoot"
+            | "energy"
     )
 }
 
@@ -1446,6 +1453,35 @@ fn assertion_result_unit(
     arguments: &[&str],
     numeric: &[ResolvedArgument],
 ) -> Option<SIUnit> {
+    if matches!(
+        metric,
+        "rise_time" | "fall_time" | "settling_time" | "overshoot" | "energy"
+    ) {
+        let count = if metric == "energy" { 4 } else { 5 };
+        if arguments.len() != count {
+            return None;
+        }
+        let mut values = Vec::new();
+        for index in (if metric == "energy" { 2 } else { 1 })..count {
+            let unit = assertion_numeric_unit(metric, arguments, index)?;
+            let quantity = numeric
+                .iter()
+                .find(|a| a.index == index)
+                .map(|a| Ok(a.quantity.clone()))
+                .unwrap_or_else(|| parse_quantity(arguments[index], unit))
+                .ok()?;
+            values.push(quantity.value);
+        }
+        let n = values.len();
+        if values[n - 2] < 0.0
+            || values[n - 2] >= values[n - 1]
+            || (matches!(metric, "rise_time" | "fall_time") && values[0] >= values[1])
+            || (metric == "settling_time" && values[1] <= 0.0)
+            || (metric == "overshoot" && values[0] == values[1])
+        {
+            return None;
+        }
+    }
     match metric {
         "value" | "min" | "max" | "peak" | "average" | "avg" | "rms" => {
             if matches!(arguments.len(), 1 | 3) {
@@ -1499,6 +1535,15 @@ fn assertion_result_unit(
         "efficiency" => matches!(arguments.len(), 4 | 6 | 8).then_some(SIUnit::Percent),
         "thd" => (arguments.len() == 5).then_some(SIUnit::Percent),
         "clipping" => (arguments.len() == 3).then_some(SIUnit::Percent),
+        "rise_time" | "fall_time" | "settling_time" => (arguments.len() == 5
+            && signal_unit(arguments[0]) == Some(SIUnit::Volt))
+        .then_some(SIUnit::Second),
+        "overshoot" => (arguments.len() == 5 && signal_unit(arguments[0]) == Some(SIUnit::Volt))
+            .then_some(SIUnit::Percent),
+        "energy" => (arguments.len() == 4
+            && signal_unit(arguments[0]) == Some(SIUnit::Volt)
+            && signal_unit(arguments[1]) == Some(SIUnit::Ampere))
+        .then_some(SIUnit::Joule),
         _ => None,
     }
 }
@@ -1527,6 +1572,17 @@ fn assertion_numeric_unit(metric: &str, arguments: &[&str], index: usize) -> Opt
         "thd" if count == 5 && index == 1 => Some(SIUnit::Hertz),
         "thd" if count == 5 && matches!(index, 2 | 3) => Some(SIUnit::Second),
         "clipping" if count == 3 && matches!(index, 1 | 2) => Some(SIUnit::Volt),
+        "rise_time" | "fall_time" | "settling_time" | "overshoot"
+            if count == 5 && matches!(index, 1 | 2) =>
+        {
+            Some(SIUnit::Volt)
+        }
+        "rise_time" | "fall_time" | "settling_time" | "overshoot"
+            if count == 5 && matches!(index, 3 | 4) =>
+        {
+            Some(SIUnit::Second)
+        }
+        "energy" if count == 4 && matches!(index, 2 | 3) => Some(SIUnit::Second),
         _ => None,
     }
 }

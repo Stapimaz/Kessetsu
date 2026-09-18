@@ -1,0 +1,15 @@
+{
+  "schema_version": "kessetsu.experiment.v1",
+  "name": "Emitter-follower operating conditions",
+  "source": "// Emitter-follower condition study. Generic builtin BJT, not a rated hardware design.\nparam supply: V = 5V\nparam load: Ohm = 1kOhm\nparam bias: V = 3.3V\nnet GND\nnet VCC\nnet IN\nnet OUT\nsource VS {supply}\nsource VIN sine_ac({bias},100mV,1kHz,1V)\ntransistor Q1 npn 2N3904\nresistor RL {load}\nconnect VS.plus, Q1.c to VCC\nconnect VIN.plus, Q1.b to IN\nconnect Q1.e, RL.p1 to OUT\nconnect VS.minus, VIN.minus, RL.p2 to GND\nsimulate ac dec 40 10Hz 100kHz\nsimulate tran 2us 3ms\nassert gain_at(V(OUT),V(IN),1kHz) > 0.9\nassert peak(V(OUT)) > 2V\nassert peak(V(OUT)) < 3.3V\nassert dissipation(Q1,1ms,3ms) < 40mW\n",
+  "axes": [
+    {"parameter": "supply", "values": {"kind": "list", "values": ["2.5V", "5V", "9V"]}},
+    {"parameter": "load", "values": {"kind": "list", "values": ["470Ohm", "1kOhm"]}}
+  ],
+  "temperatures_c": [27, 85],
+  "measurements": [
+    {"name": "gain_1kHz", "expression": "gain_at(V(OUT),V(IN),1kHz)", "unit": "Ratio"},
+    {"name": "transistor_power", "expression": "dissipation(Q1,1ms,3ms)", "unit": "Watt"}
+  ],
+  "objective": {"measurement": "transistor_power", "direction": "minimize"}
+}

@@ -1,0 +1,22 @@
+// Emitter-follower condition study. Generic builtin BJT, not a rated hardware design.
+param supply: V = 5V
+param load: Ohm = 1kOhm
+param bias: V = 3.3V
+net GND
+net VCC
+net IN
+net OUT
+source VS {supply}
+source VIN sine_ac({bias},100mV,1kHz,1V)
+transistor Q1 npn 2N3904
+resistor RL {load}
+connect VS.plus, Q1.c to VCC
+connect VIN.plus, Q1.b to IN
+connect Q1.e, RL.p1 to OUT
+connect VS.minus, VIN.minus, RL.p2 to GND
+simulate ac dec 40 10Hz 100kHz
+simulate tran 2us 3ms
+assert gain_at(V(OUT),V(IN),1kHz) > 0.9
+assert peak(V(OUT)) > 2V
+assert peak(V(OUT)) < 3.3V
+assert dissipation(Q1,1ms,3ms) < 40mW

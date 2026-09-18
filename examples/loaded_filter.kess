@@ -1,0 +1,18 @@
+// Loaded RC filter: ideal passives, finite output load, fixed electrical requirements.
+param resistance: Ohm = 1kOhm
+param capacitance: F = 159.154943nF
+param load: Ohm = 10kOhm
+net GND
+net IN
+net OUT
+source VIN ac(1V)
+resistor R1 {resistance}
+capacitor C1 {capacitance}
+resistor RL {load}
+connect VIN.plus, R1.p1 to IN
+connect VIN.minus, C1.p2, RL.p2 to GND
+connect R1.p2, C1.p1, RL.p1 to OUT
+simulate ac dec 60 10Hz 100kHz
+assert gain_at(V(OUT),V(IN),100Hz) > 0.8
+assert upper_cutoff(V(OUT),V(IN)) > 700Hz
+assert upper_cutoff(V(OUT),V(IN)) < 2kHz

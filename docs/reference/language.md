@@ -42,7 +42,7 @@ resistor RF {(target_gain - 1) * resistance}
 ```
 
 Parameters are optional, declared at the top level or inside modules, and explicitly typed: `Ohm`, `F`, `H`, `V`, `A`, `Hz`,
-`s`, `W`, `ratio`, `percent` or `deg`. Forward references are allowed; duplicate/unknown
+`s`, `W`, `ratio`, `percent` or `deg` (`J` for energy in development source). Forward references are allowed; duplicate/unknown
 names and dependency cycles produce errors. `pi` is read-only. Expressions support finite
 SI literals, names, parentheses, unary signs and `+ - * /`, with ordinary precedence.
 

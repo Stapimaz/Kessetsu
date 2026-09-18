@@ -1,5 +1,9 @@
 # Kessetsu CLI Reference
 
+Development source also provides `kess study create/plan/run/export`; see the
+[study guide](../guides/parameter-studies.md) for specifications, checkpoints, exit codes
+and reports. Published 1.2.0 does not include these commands yet.
+
 The Kessetsu CLI sends `.kess` source through the shared Rust compilation pipeline and provides ERC, SPICE generation, Ngspice execution, and assertion evaluation commands. Human output is intended for people; versioned JSON output is intended for automation and AI agents.
 
 Kessetsu 1.2.0 uses compile contract v5 and supports typed parameters, reusable blocks

@@ -10,7 +10,7 @@ test('loaded amplifier AC gain and both cutoff edges match native measurements',
   const native = JSON.parse(execFileSync(binary, ['test', '-', '--format', 'json'], {
     input: source, encoding: 'utf8', timeout: 60_000,
   }));
-  expect(native.domain_versions.measurement).toBe('kessetsu.measurement.v2');
+  expect(native.domain_versions.measurement).toBe('kessetsu.measurement.v3');
   const fragment = await encodeShareFragment(source, 'kessetsu.compile.v5', null, 'AC-coupled amplifier');
   await page.goto(`/${fragment}`);
   await expect(page.getByTestId('compile-success')).toBeVisible();

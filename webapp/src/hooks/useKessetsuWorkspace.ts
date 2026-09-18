@@ -16,6 +16,8 @@ import reusableFilters from '../../../examples/reusable_filters.kess?raw';
 import reusableAmplifiers from '../../../examples/reusable_amplifiers.kess?raw';
 import externalComparator from '../../../examples/external_comparator.kess?raw';
 import externalMemristor from '../../../examples/external_memristor.kess?raw';
+import loadedFilter from '../../../examples/loaded_filter.kess?raw';
+import transistorDriver from '../../../examples/transistor_driver.kess?raw';
 import type { CompileReport, ExportArtifact, ExportFormat, WorkspaceState } from '../domain';
 import {
   decodeWorkspaceDraft,
@@ -31,6 +33,8 @@ import type { BrowserEvaluation, BrowserSimulationPlan } from '../simulation/typ
 import { assertSharedPackages, decodeShareFragment, encodeShareFragment, type ShareEnvelope } from '../share';
 
 export const examples = {
+  study_filter: { label: 'Loaded Filter', description: 'Parameterized RC filter with finite loading', source: loadedFilter },
+  study_driver: { label: 'Transistor Driver', description: 'BJT supply, load and bias condition study', source: transistorDriver },
   rc: { label: 'RC Low-pass', description: '1 kHz cutoff, AC analysis', source: rcFilter },
   gain: { label: 'Gain Stage', description: 'Op-amp OP, AC and transient', source: gainStage },
   power: { label: 'Power Amplifier', description: '8 Ω multi-stage benchmark', source: powerAmplifier },
@@ -437,6 +441,7 @@ export function useKessetsuWorkspace() {
     state,
     modelRequirements,
     boundModelResources: Object.keys(modelResources),
+    modelResources,
     bindModelFile,
     clearModelFiles,
     setCode,

@@ -85,7 +85,7 @@ fn external_agent_revises_a_real_rc_design_from_structured_feedback() {
     );
     assert_eq!(
         failing["domain_versions"]["measurement"],
-        "kessetsu.measurement.v2"
+        "kessetsu.measurement.v3"
     );
     let cutoff_failure = failing["assertions"]["assertions"]
         .as_array()

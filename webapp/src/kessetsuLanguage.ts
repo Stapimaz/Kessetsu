@@ -55,6 +55,11 @@ export const metricCompletions: readonly KessetsuCompletion[] = [
   { label: 'efficiency', detail: 'Output power divided by supply input power.', insertText: 'efficiency(${1:V(OUT)},${2:RL},${3:V(VCC)},${4:I(VP)},${5:V(VEE)},${6:I(VN)},${7:2ms},${8:10ms}) ${9:>} ${10:50%}' },
   { label: 'thd', detail: 'Windowed total harmonic distortion.', insertText: 'thd(${1:V(OUT)},${2:1kHz},${3:2ms},${4:10ms},${5:hann}) ${6:<} ${7:3%}' },
   { label: 'clipping', detail: 'Fraction of samples outside lower and upper limits.', insertText: 'clipping(${1:V(OUT)},${2:-10V},${3:10V}) ${4:<} ${5:0.1%}' },
+  { label: 'rise_time', detail: 'First directed low-to-high transition within an explicit transient window.', insertText: 'rise_time(${1:V(OUT)},${2:0.1V},${3:0.9V},${4:0ms},${5:10ms}) ${6:<} ${7:3ms}' },
+  { label: 'fall_time', detail: 'First directed high-to-low transition within an explicit transient window.', insertText: 'fall_time(${1:V(OUT)},${2:0.1V},${3:0.9V},${4:0ms},${5:10ms}) ${6:<} ${7:3ms}' },
+  { label: 'settling_time', detail: 'Last re-entry into target ± voltage tolerance, relative to window start.', insertText: 'settling_time(${1:V(OUT)},${2:1V},${3:20mV},${4:0ms},${5:10ms}) ${6:<} ${7:6ms}' },
+  { label: 'overshoot', detail: 'Directional excess past a target, as a percentage of the declared step.', insertText: 'overshoot(${1:V(OUT)},${2:0V},${3:1V},${4:0ms},${5:10ms}) ${6:<} ${7:5%}' },
+  { label: 'energy', detail: 'Signed integrated voltage × current over an explicit transient window.', insertText: 'energy(${1:V(OUT)},${2:I(RL)},${3:0ms},${4:10ms}) ${5:<} ${6:1mJ}' },
 ] as const;
 
 export const waveformCompletions: readonly KessetsuCompletion[] = [

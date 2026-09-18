@@ -12,6 +12,261 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use wasm_bindgen::prelude::*;
 
+fn study_error(message: impl AsRef<str>) -> JsValue {
+    JsValue::from_str(message.as_ref())
+}
+fn decode_study<T: serde::de::DeserializeOwned>(value: JsValue) -> Result<T, JsValue> {
+    serde_wasm_bindgen::from_value(value)
+        .map_err(|e| study_error(format!("Invalid study data: {e}")))
+}
+
+#[wasm_bindgen]
+pub fn study_parameters(source: &str, resources: JsValue) -> Result<JsValue, JsValue> {
+    let resources = decode_resources(resources)?;
+    let report = crate::compiler::compile_source_with_resources(
+        source,
+        CompileOptions::default(),
+        &resources,
+    );
+    if report.has_errors() {
+        return Err(study_error(crate::experiment::diagnostic_text(&report)));
+    }
+    let circuit = report.ir.ok_or_else(|| study_error("Missing IR"))?;
+    to_json_compatible(
+        &circuit
+            .parameter_manifest
+            .parameters
+            .into_iter()
+            .filter(|p| p.instance_path.is_empty())
+            .collect::<Vec<_>>(),
+        "study parameters",
+    )
+}
+
+#[wasm_bindgen]
+pub fn plan_study(spec: JsValue, resources: JsValue) -> Result<JsValue, JsValue> {
+    let plan =
+        crate::experiment::plan_experiment(decode_study(spec)?, &decode_resources(resources)?)
+            .map_err(study_error)?;
+    to_json_compatible(&plan, "study plan")
+}
+
+#[wasm_bindgen]
+pub fn prepare_study_case(
+    plan: JsValue,
+    index: usize,
+    resources: JsValue,
+) -> Result<JsValue, JsValue> {
+    let plan: crate::experiment::ExperimentPlan = decode_study(plan)?;
+    let case = plan
+        .cases
+        .get(index)
+        .ok_or_else(|| study_error("Unknown study case"))?;
+    let resources = decode_resources(resources)?;
+    let report = crate::experiment::compile_case(&plan, case, &resources).map_err(study_error)?;
+    let circuit = report.ir.ok_or_else(|| study_error("Missing IR"))?;
+    let graph = NetlistGraph::build(&circuit);
+    let analyses = circuit
+        .analyses
+        .iter()
+        .enumerate()
+        .map(|(index, analysis)| {
+            let spice = crate::model_resources::browser_analysis_with_resources(
+                &circuit, &graph, analysis, &resources,
+            )
+            .map_err(study_error)?;
+            Ok(BrowserAnalysisPlan {
+                index,
+                analysis: analysis.clone(),
+                netlist: crate::experiment::temperature_netlist(&spice, case.temperature_c)
+                    .map_err(study_error)?,
+            })
+        })
+        .collect::<Result<Vec<_>, JsValue>>()?;
+    to_json_compatible(
+        &BrowserSimulationPlan {
+            schema_version: SIMULATION_SCHEMA_VERSION.into(),
+            simulator_adapter: "eecircuit-engine@1.7.0".into(),
+            analyses,
+        },
+        "study simulation",
+    )
+}
+
+#[wasm_bindgen]
+pub fn start_study_results(
+    plan: JsValue,
+    simulator: JsValue,
+    fingerprint: &str,
+) -> Result<JsValue, JsValue> {
+    let results = crate::experiment::new_results(
+        decode_study(plan)?,
+        decode_study(simulator)?,
+        fingerprint.into(),
+    );
+    to_json_compatible(&results, "study results")
+}
+
+#[wasm_bindgen]
+pub fn evaluate_study_case(
+    plan: JsValue,
+    index: usize,
+    simulation: JsValue,
+    resources: JsValue,
+    error: &str,
+    cancelled: bool,
+) -> Result<JsValue, JsValue> {
+    let plan: crate::experiment::ExperimentPlan = decode_study(plan)?;
+    let case = plan
+        .cases
+        .get(index)
+        .ok_or_else(|| study_error("Unknown study case"))?;
+    let row = if simulation.is_null() || simulation.is_undefined() {
+        crate::experiment::failed_case(
+            &case.id,
+            if cancelled {
+                crate::experiment::CaseStatus::Cancelled
+            } else {
+                crate::experiment::CaseStatus::Error
+            },
+            error.into(),
+        )
+    } else {
+        let report = crate::experiment::compile_case(&plan, case, &decode_resources(resources)?)
+            .map_err(study_error)?;
+        crate::experiment::evaluate_case(&plan, case, &report, decode_study(simulation)?)
+    };
+    to_json_compatible(&row, "study case")
+}
+
+#[wasm_bindgen]
+pub fn inspect_study_results(results: JsValue) -> Result<JsValue, JsValue> {
+    let mut results: crate::experiment::ExperimentResults = decode_study(results)?;
+    crate::experiment::validate_results(
+        &results,
+        &results.plan,
+        &results.simulator,
+        &results.solver_fingerprint,
+    )
+    .map_err(study_error)?;
+    crate::experiment::summarize(&mut results);
+    to_json_compatible(&results, "study results")
+}
+
+#[wasm_bindgen]
+pub fn resume_study_results(
+    results: JsValue,
+    spec: JsValue,
+    resources: JsValue,
+    simulator: JsValue,
+    fingerprint: &str,
+) -> Result<JsValue, JsValue> {
+    let mut results: crate::experiment::ExperimentResults = decode_study(results)?;
+    let plan =
+        crate::experiment::plan_experiment(decode_study(spec)?, &decode_resources(resources)?)
+            .map_err(study_error)?;
+    let simulator = decode_study(simulator)?;
+    crate::experiment::validate_results(&results, &plan, &simulator, fingerprint)
+        .map_err(study_error)?;
+    crate::experiment::summarize(&mut results);
+    to_json_compatible(&results, "resumed study")
+}
+
+#[wasm_bindgen]
+pub fn export_study_results(
+    results: JsValue,
+    target: &str,
+    analysis: usize,
+    signal: &str,
+    selected: JsValue,
+) -> Result<String, JsValue> {
+    let mut results: crate::experiment::ExperimentResults = decode_study(results)?;
+    crate::experiment::validate_results(
+        &results,
+        &results.plan,
+        &results.simulator,
+        &results.solver_fingerprint,
+    )
+    .map_err(study_error)?;
+    crate::experiment::summarize(&mut results);
+    match target {
+        "json" => serde_json::to_string(&results).map_err(|e| study_error(e.to_string())),
+        "csv" => Ok(crate::experiment::results_csv(&results)),
+        "data_csv" => Ok(crate::experiment::datasets_csv(&results)),
+        "svg" => crate::experiment::plot_svg(
+            &results,
+            analysis,
+            signal,
+            &decode_study::<Vec<String>>(selected)?,
+        )
+        .map_err(study_error),
+        "html" => Ok(crate::experiment::report_html(&results)),
+        _ => Err(study_error("Unknown study export format")),
+    }
+}
+
+#[wasm_bindgen]
+pub fn study_effective_source(
+    plan: JsValue,
+    index: usize,
+    resources: JsValue,
+) -> Result<String, JsValue> {
+    let plan: crate::experiment::ExperimentPlan = decode_study(plan)?;
+    let case = plan
+        .cases
+        .get(index)
+        .ok_or_else(|| study_error("Unknown study case"))?;
+    let report = crate::experiment::compile_case(&plan, case, &decode_resources(resources)?)
+        .map_err(study_error)?;
+    Ok(report
+        .effective_source
+        .unwrap_or_else(|| crate::experiment::case_source(&plan, case).to_owned()))
+}
+
+#[wasm_bindgen]
+pub fn compare_study_plot(
+    left: JsValue,
+    right: JsValue,
+    analysis: usize,
+    signal: &str,
+) -> Result<String, JsValue> {
+    let mut left: crate::experiment::ExperimentResults = decode_study(left)?;
+    let right: crate::experiment::ExperimentResults = decode_study(right)?;
+    crate::experiment::validate_results(
+        &left,
+        &left.plan,
+        &left.simulator,
+        &left.solver_fingerprint,
+    )
+    .map_err(study_error)?;
+    crate::experiment::validate_results(
+        &right,
+        &right.plan,
+        &right.simulator,
+        &right.solver_fingerprint,
+    )
+    .map_err(study_error)?;
+    let mut selected = Vec::new();
+    for (case, row) in left.plan.cases.iter_mut().zip(&left.cases) {
+        case.name = format!("{} / {}", left.plan.spec.name, case.name);
+        if row.simulation.is_some() && selected.len() < 6 {
+            selected.push(case.id.clone());
+        }
+    }
+    let first_count = selected.len();
+    for (mut case, mut row) in right.plan.cases.into_iter().zip(right.cases) {
+        case.id = format!("comparison-{}", case.id);
+        row.case_id = case.id.clone();
+        case.name = format!("{} / {}", right.plan.spec.name, case.name);
+        if row.simulation.is_some() && selected.len() < first_count + 6 {
+            selected.push(case.id.clone());
+        }
+        left.plan.cases.push(case);
+        left.cases.push(row);
+    }
+    crate::experiment::plot_svg(&left, analysis, signal, &selected).map_err(study_error)
+}
+
 #[wasm_bindgen]
 pub fn calculate_circuit_tool(request: JsValue) -> Result<JsValue, JsValue> {
     let request: crate::tools::ToolRequest = serde_wasm_bindgen::from_value(request)

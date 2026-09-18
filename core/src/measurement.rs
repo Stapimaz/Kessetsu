@@ -5,7 +5,7 @@ use crate::ir::{
 };
 use crate::simulation::{ComplexSeries, Dataset, RealSeriesDataset, SimulationResult};
 
-pub const MEASUREMENT_SCHEMA_VERSION: &str = "kessetsu.measurement.v2";
+pub const MEASUREMENT_SCHEMA_VERSION: &str = "kessetsu.measurement.v3";
 
 pub fn evaluate_assertion_metric(
     assertion: &Assertion,
@@ -32,10 +32,158 @@ pub fn evaluate_assertion_metric(
         "thd" => evaluate_thd(&arguments, circuit, simulation),
         "clipping" => evaluate_clipping(&arguments, circuit, simulation),
         "dissipation" => evaluate_dissipation(&arguments, circuit, simulation),
+        "rise_time" | "fall_time" | "settling_time" | "overshoot" | "energy" => {
+            evaluate_dynamic(&metric, &arguments, circuit, simulation)
+        }
         _ => Err(format!(
             "unsupported assertion metric '{}'; supported engineering metrics are value, min, max, peak, average, rms, gain, gain_at, lower_cutoff, upper_cutoff, bandwidth, cutoff, frequency, phase, output_power, efficiency, thd, clipping and dissipation",
             assertion.metric
         )),
+    }
+}
+
+fn bounded_transient(
+    signal: &str,
+    circuit: &CircuitIR,
+    simulation: &SimulationResult,
+    start: f64,
+    stop: f64,
+) -> Result<(Vec<f64>, Vec<f64>), String> {
+    let (axis, values) = transient_signal(signal, circuit, simulation)?;
+    interpolate_window(&axis, &values, start, stop)
+}
+
+fn interpolate_window(
+    axis: &[f64],
+    values: &[f64],
+    start: f64,
+    stop: f64,
+) -> Result<(Vec<f64>, Vec<f64>), String> {
+    if axis.len() < 2
+        || axis.len() != values.len()
+        || !start.is_finite()
+        || !stop.is_finite()
+        || start < 0.0
+        || start >= stop
+        || axis[0] > start
+        || *axis.last().unwrap() < stop
+        || axis.iter().chain(values).any(|v| !v.is_finite())
+        || axis.windows(2).any(|w| w[0] >= w[1])
+    {
+        return Err("Dynamic measurement needs finite increasing transient data covering 0 <= start < stop; no extrapolation".into());
+    }
+    let value_at = |x: f64| {
+        let i = axis
+            .partition_point(|t| *t <= x)
+            .saturating_sub(1)
+            .min(axis.len() - 2);
+        values[i] + (values[i + 1] - values[i]) * (x - axis[i]) / (axis[i + 1] - axis[i])
+    };
+    let mut times = vec![start];
+    let mut selected = vec![value_at(start)];
+    for (t, v) in axis.iter().zip(values) {
+        if *t > start && *t < stop {
+            times.push(*t);
+            selected.push(*v);
+        }
+    }
+    times.push(stop);
+    selected.push(value_at(stop));
+    Ok((times, selected))
+}
+
+fn evaluate_dynamic(
+    metric: &str,
+    arguments: &MetricArguments<'_>,
+    circuit: &CircuitIR,
+    simulation: &SimulationResult,
+) -> Result<f64, String> {
+    let energy = metric == "energy";
+    if arguments.len() != if energy { 4 } else { 5 } {
+        return Err("Invalid dynamic measurement arguments".into());
+    }
+    let start = arguments
+        .quantity(if energy { 2 } else { 3 }, SIUnit::Second)?
+        .value;
+    let stop = arguments
+        .quantity(if energy { 3 } else { 4 }, SIUnit::Second)?
+        .value;
+    if energy {
+        let (axis, voltage) = transient_signal(arguments[0], circuit, simulation)?;
+        let (current_axis, current) = transient_signal(arguments[1], circuit, simulation)?;
+        if axis != current_axis || voltage.len() != current.len() {
+            return Err("Energy signals must share the same transient samples".into());
+        }
+        let power = voltage
+            .iter()
+            .zip(current)
+            .map(|(v, i)| v * i)
+            .collect::<Vec<_>>();
+        let (axis, power) = interpolate_window(&axis, &power, start, stop)?;
+        return Ok(axis
+            .windows(2)
+            .zip(power.windows(2))
+            .map(|(t, p)| (t[1] - t[0]) * (p[0] + p[1]) * 0.5)
+            .sum());
+    }
+    let a = arguments.quantity(1, SIUnit::Volt)?.value;
+    let b = arguments.quantity(2, SIUnit::Volt)?.value;
+    let (axis, values) = bounded_transient(arguments[0], circuit, simulation, start, stop)?;
+    match metric {
+        "rise_time" | "fall_time" => {
+            if a >= b {
+                return Err("Transition thresholds require low < high".into());
+            }
+            let rising = metric == "rise_time";
+            let (first, second) = if rising { (a, b) } else { (b, a) };
+            let crossing = |threshold: f64, after: f64| {
+                axis.windows(2).zip(values.windows(2)).find_map(|(t, v)| {
+                    let directed = if rising {
+                        v[0] < threshold && v[1] >= threshold
+                    } else {
+                        v[0] > threshold && v[1] <= threshold
+                    };
+                    if !directed {
+                        return None;
+                    }
+                    let time = t[0] + (t[1] - t[0]) * (threshold - v[0]) / (v[1] - v[0]);
+                    (time >= after).then_some(time)
+                })
+            };
+            let first_time = crossing(first, start)
+                .ok_or("First directed threshold crossing not observed in window")?;
+            let second_time = crossing(second, first_time)
+                .ok_or("Second directed threshold crossing not observed in window")?;
+            Ok(second_time - first_time)
+        }
+        "settling_time" => {
+            if b <= 0.0 {
+                return Err("Settling tolerance must be positive volts".into());
+            }
+            if (values.last().unwrap() - a).abs() > b {
+                return Err("Signal has not settled by the end of the specified window".into());
+            }
+            let Some(index) = values.iter().rposition(|v| (*v - a).abs() > b) else {
+                return Ok(0.0);
+            };
+            let boundary = if values[index] > a { a + b } else { a - b };
+            let time = axis[index]
+                + (axis[index + 1] - axis[index]) * (boundary - values[index])
+                    / (values[index + 1] - values[index]);
+            Ok(time - start)
+        }
+        "overshoot" => {
+            if a == b {
+                return Err("Overshoot needs distinct initial and target voltages".into());
+            }
+            let direction = (b - a).signum();
+            let peak = values
+                .iter()
+                .map(|v| direction * (v - b))
+                .fold(0.0, f64::max);
+            Ok(100.0 * peak / (b - a).abs())
+        }
+        _ => Err("Unsupported dynamic metric".into()),
     }
 }
 

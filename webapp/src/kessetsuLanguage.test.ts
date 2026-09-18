@@ -35,6 +35,7 @@ describe('Kessetsu editor language support', () => {
       'value', 'min', 'max', 'peak', 'average', 'avg', 'rms', 'gain', 'bandwidth',
       'cutoff', 'frequency', 'phase', 'output_power', 'dissipation', 'efficiency',
       'thd', 'clipping', 'gain_at', 'lower_cutoff', 'upper_cutoff',
+      'rise_time', 'fall_time', 'settling_time', 'overshoot', 'energy',
     ]));
   });
 });

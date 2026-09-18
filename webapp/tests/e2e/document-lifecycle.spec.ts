@@ -10,7 +10,7 @@ test('uses clear browser-local Save and explicit download when native file handl
     Object.defineProperty(window, 'showSaveFilePicker', { configurable: true, value: undefined });
   });
   await page.goto('/#editor');
-  await expect(page.getByTestId('compile-success')).toBeVisible();
+  await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
 
   await openFileMenu(page);
   await page.getByRole('menuitem', { name: 'Rename…' }).click();

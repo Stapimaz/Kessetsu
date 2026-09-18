@@ -53,6 +53,7 @@ New-Item -ItemType Directory -Path $examplesDirectory | Out-Null
 Copy-Item -Path (Join-Path $repoRoot "examples/*.kess") -Destination $examplesDirectory
 Copy-Item -Path (Join-Path $repoRoot "examples/*.kessreq") -Destination $examplesDirectory
 Copy-Item -LiteralPath (Join-Path $repoRoot "examples/models") -Destination (Join-Path $examplesDirectory "models") -Recurse
+Copy-Item -LiteralPath (Join-Path $repoRoot "examples/studies") -Destination (Join-Path $examplesDirectory "studies") -Recurse
 $webDocumentationDirectory = Join-Path $stage "webapp"
 New-Item -ItemType Directory -Path (Join-Path $webDocumentationDirectory "public") -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $repoRoot "webapp/README.md") -Destination (Join-Path $webDocumentationDirectory "README.md")

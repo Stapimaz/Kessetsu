@@ -301,6 +301,13 @@ mod native {
             Ok(version.to_string())
         }
 
+        pub fn info(&self) -> Result<SimulatorInfo, SimulationRunError> {
+            Ok(SimulatorInfo {
+                executable: self.executable.to_string_lossy().into_owned(),
+                version: self.probe_version()?,
+            })
+        }
+
         pub fn run_with_context(
             &self,
             request: &SimulationRequest,

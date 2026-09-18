@@ -4,6 +4,20 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### Local parameter studies
+
+- Shared versioned study specifications and deterministic list/linear/log grids, revisions,
+  temperatures, nominal/corner and seeded uniform/Gaussian tolerance studies.
+- Native `kess study create/plan/run/export`, durable per-case checkpoints and cancellation/resume
+  guarded by source, requirements, models and solver/Core build identity.
+- Web Analyze → Parameter study: configure, run, stop/resume, inspect failures, compare reports,
+  apply parameters and download full JSON/numeric CSV, summary CSV, SVG or HTML reports.
+- Finite-grid objectives retain all outcomes and choose only feasible evaluated candidates;
+  no global-optimum, hardware-validity or production-yield claims.
+- Explicit-window rise/fall/settling time, directional overshoot and signed integrated energy;
+  measurement contract advances to `kessetsu.measurement.v3`. Legacy metrics retain semantics.
+- Explicit budgets and detailed [study guide](docs/guides/parameter-studies.md).
+
 ## [1.2.0] — 2026-09-18
 
 ### Website and documentation

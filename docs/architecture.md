@@ -116,6 +116,20 @@ into an acceptance range. New shares identify the active compile schema.
 
 ## 2. Language Syntax and Rules
 
+### Local experiment boundary (development source)
+
+`experiment.rs` owns pure `kessetsu.experiment.v1` validation, deterministic case generation,
+identity, shared measurements/constraints and finite feasible candidate selection. Cases
+use canonical root `CompileInputs` and Circuit IR, not AST-generated backends or textual
+expression substitution. Exact independent requirements replace IR assertions before
+regeneration from IR. Native/browser adapters own sequential scheduling, cancellation,
+binding, checkpoints and downloads. Explicit temperature config applies to IR-generated
+decks; conflicting local control/temperature overrides fail closed. Seeded draws belong
+to Core, not frontend RNGs. Full evidence is independent of plot decimation. Resume binds
+plans/provenance/requirements and runtime fingerprints; checksums detect accidental
+corruption, not independent attestation. Dynamic metrics use v3 in development source;
+published 1.2.0 remains v2. See the [study guide](guides/parameter-studies.md).
+
 ### Supported Components
 
 | Keyword | Type | Pins | SPICE Prefix |

@@ -67,6 +67,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Create, plan, run or export a reproducible local parameter study
+    Study(StudyCommand),
     /// Calculate components and generate an editable circuit
     Tool(ToolCommand),
     /// Parse and run Electrical Rules Check (ERC)
@@ -81,6 +83,65 @@ enum Commands {
     Render(RenderCommand),
     /// Export a machine-readable or editable circuit artifact
     Export(ExportCommand),
+}
+
+#[derive(Args)]
+struct StudyCommand {
+    #[command(subcommand)]
+    action: StudyAction,
+}
+
+#[derive(Subcommand)]
+enum StudyAction {
+    /// Create an editable experiment specification from a circuit
+    Create {
+        file: PathBuf,
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Explicit root parameter list, repeatable: resistance=1kOhm,2kOhm
+        #[arg(long)]
+        sweep: Vec<String>,
+        #[arg(long)]
+        force: bool,
+    },
+    /// Validate a specification and list its deterministic cases, without running Ngspice
+    Plan { file: PathBuf },
+    /// Run locally; Ctrl+C saves partial results for --resume
+    Run {
+        file: PathBuf,
+        #[arg(short, long)]
+        output: PathBuf,
+        #[arg(long)]
+        resume: bool,
+        #[arg(long)]
+        force: bool,
+    },
+    /// Export full results as JSON, summary CSV, full numeric CSV, SVG or HTML
+    Export {
+        file: PathBuf,
+        #[arg(short, long)]
+        output: PathBuf,
+        #[arg(long, value_enum)]
+        target: StudyTarget,
+        #[arg(long, default_value = "v(out)")]
+        signal: String,
+        #[arg(long, default_value_t = 0)]
+        analysis: usize,
+        /// Restrict overlay to these case IDs (repeatable, at most 12)
+        #[arg(long = "case")]
+        cases: Vec<String>,
+        #[arg(long)]
+        force: bool,
+    },
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum StudyTarget {
+    Json,
+    Csv,
+    DataCsv,
+    Svg,
+    Html,
 }
 
 #[derive(Args)]
@@ -273,6 +334,8 @@ struct JsonOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
     calculation: Option<ToolResult>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    study: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     debug: Option<BTreeMap<String, Value>>,
 }
 
@@ -286,6 +349,8 @@ struct DomainVersions {
     export: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tool: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    experiment: Option<&'static str>,
 }
 
 #[derive(Clone, Serialize)]
@@ -350,6 +415,385 @@ struct JsonArtifact {
     losses: Vec<String>,
 }
 
+fn emit_study_error(
+    format: &Format,
+    includes: &BTreeSet<Include>,
+    message: impl Into<String>,
+) -> i32 {
+    emit(
+        format,
+        "study",
+        includes,
+        "error",
+        CompileReport::failure(diagnostic("KES-X001", DiagnosticStage::Cli, message)),
+        None,
+        None,
+        None,
+    );
+    2
+}
+
+fn emit_study(
+    format: &Format,
+    includes: &BTreeSet<Include>,
+    status: &str,
+    body: Value,
+    artifact: Option<&Path>,
+) {
+    let report = kessetsu_core::compiler::compile_source("", CompileOptions::default());
+    let mut output = build_json_output("study", includes, status, &report, None, None, None, None);
+    output.domain_versions.experiment = Some(kessetsu_core::experiment::EXPERIMENT_SCHEMA);
+    output.domain_versions.measurement = Some(MEASUREMENT_SCHEMA_VERSION);
+    output.study = Some(body.clone());
+    if let Some(path) = artifact {
+        output.artifacts.push(plain_json_artifact(
+            "study",
+            path.to_string_lossy().into_owned(),
+        ));
+    }
+    if *format == Format::Json {
+        println!("{}", serde_json::to_string(&output).unwrap());
+    } else {
+        println!(
+            "Study {status}: {}",
+            serde_json::to_string_pretty(&body).unwrap()
+        );
+        if let Some(path) = artifact {
+            println!("Saved: {}", path.display());
+        }
+    }
+}
+
+fn study_read(path: &Path, limit: u64) -> Result<Vec<u8>, String> {
+    if fs::metadata(path).map_err(|e| e.to_string())?.len() > limit {
+        return Err("Study file exceeds its size limit".into());
+    }
+    fs::read(path).map_err(|e| e.to_string())
+}
+
+fn study_preflight(input: &Path, output: &Path, force: bool) -> Result<(), String> {
+    let parent = output
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let resolved = fs::canonicalize(parent)
+        .map_err(|e| e.to_string())?
+        .join(output.file_name().ok_or("Output must name a file")?);
+    let input = fs::canonicalize(input).map_err(|e| e.to_string())?;
+    if resolved == input
+        || (output.exists() && fs::canonicalize(output).map_err(|e| e.to_string())? == input)
+    {
+        return Err("Study output cannot overwrite its input".into());
+    }
+    if output.exists() && !force {
+        return Err("Output already exists; use --force or --resume as appropriate".into());
+    }
+    Ok(())
+}
+
+fn study_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    use std::io::Write;
+    let pending = path.with_file_name(format!(".kess-study-{}.tmp", process::id()));
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&pending)
+        .map_err(|e| e.to_string())?;
+    file.write_all(bytes)
+        .and_then(|_| file.sync_all())
+        .map_err(|e| e.to_string())?;
+    drop(file);
+    fs::rename(&pending, path)
+        .map_err(|e| format!("Could not save checkpoint; temporary data is preserved: {e}"))
+}
+
+fn study_resources(
+    file: &Path,
+    spec: &kessetsu_core::experiment::ExperimentSpec,
+) -> Result<ExternalModelResources, String> {
+    let mut resources =
+        load_external_model_resources(file, false, &spec.source).map_err(|e| e.message)?;
+    for revision in &spec.revisions {
+        if let Some(source) = &revision.source {
+            resources
+                .extend(load_external_model_resources(file, false, source).map_err(|e| e.message)?);
+        }
+    }
+    Ok(resources)
+}
+
+fn run_study(command: &StudyCommand, format: &Format, includes: &BTreeSet<Include>) -> i32 {
+    use kessetsu_core::experiment::*;
+    let execute = || -> Result<i32, String> {
+        match &command.action {
+            StudyAction::Create {
+                file,
+                output,
+                sweep,
+                force,
+            } => {
+                study_preflight(file, output, *force)?;
+                let source = String::from_utf8(study_read(file, MAX_SPEC_BYTES as u64)?)
+                    .map_err(|e| e.to_string())?;
+                let mut axes = Vec::new();
+                for axis in sweep {
+                    let (parameter, values) = axis
+                        .split_once('=')
+                        .ok_or("--sweep requires NAME=value,value")?;
+                    axes.push(Axis {
+                        parameter: parameter.into(),
+                        values: Values::List {
+                            values: values.split(',').map(str::to_owned).collect(),
+                        },
+                    });
+                }
+                let spec = ExperimentSpec {
+                    schema_version: EXPERIMENT_SCHEMA.into(),
+                    name: file
+                        .file_stem()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .into_owned(),
+                    source,
+                    requirements: None,
+                    axes,
+                    revisions: Vec::new(),
+                    tolerances: None,
+                    temperatures_c: vec![27.0],
+                    timeout_ms: 30_000,
+                    measurements: Vec::new(),
+                    objective: None,
+                };
+                let resources = study_resources(file, &spec)?;
+                let plan = plan_experiment(spec, &resources)?;
+                study_write(
+                    output,
+                    &serde_json::to_vec_pretty(&plan.spec).map_err(|e| e.to_string())?,
+                )?;
+                emit_study(
+                    format,
+                    includes,
+                    "success",
+                    serde_json::json!({"identity":plan.identity,"cases":plan.cases.len()}),
+                    Some(output),
+                );
+                Ok(0)
+            }
+            StudyAction::Plan { file } => {
+                let spec = decode_spec(&study_read(file, MAX_SPEC_BYTES as u64)?)?;
+                let resources = study_resources(file, &spec)?;
+                let plan = plan_experiment(spec, &resources)?;
+                emit_study(
+                    format,
+                    includes,
+                    "success",
+                    serde_json::json!({"identity":plan.identity,"requirements_sha256":plan.requirements_sha256,"cases":plan.cases}),
+                    None,
+                );
+                Ok(0)
+            }
+            StudyAction::Run {
+                file,
+                output,
+                resume,
+                force,
+            } => {
+                if *resume && *force {
+                    return Err("Choose --resume or --force, not both".into());
+                }
+                study_preflight(file, output, *resume || *force)?;
+                let spec = decode_spec(&study_read(file, MAX_SPEC_BYTES as u64)?)?;
+                let resources = study_resources(file, &spec)?;
+                let output_absolute = fs::canonicalize(
+                    output
+                        .parent()
+                        .filter(|p| !p.as_os_str().is_empty())
+                        .unwrap_or(Path::new(".")),
+                )
+                .map_err(|e| e.to_string())?
+                .join(output.file_name().unwrap());
+                let model_root = fs::canonicalize(
+                    file.parent()
+                        .filter(|p| !p.as_os_str().is_empty())
+                        .unwrap_or(Path::new(".")),
+                )
+                .map_err(|e| e.to_string())?;
+                for reference in resources.keys() {
+                    let model =
+                        fs::canonicalize(model_root.join(reference)).map_err(|e| e.to_string())?;
+                    if model == output_absolute
+                        || (output.exists()
+                            && fs::canonicalize(output).map_err(|e| e.to_string())? == model)
+                    {
+                        return Err("Results cannot overwrite a bound model file".into());
+                    }
+                }
+                let plan = plan_experiment(spec, &resources)?;
+                let runner = NgspiceRunner::discover();
+                let simulator = runner.info().map_err(|e| e.to_string())?;
+                let solver_fingerprint = hash_bytes(
+                    format!(
+                        "{}:{}",
+                        hash_bytes(&fs::read(&simulator.executable).map_err(|e| e.to_string())?),
+                        hash_bytes(
+                            &fs::read(std::env::current_exe().map_err(|e| e.to_string())?)
+                                .map_err(|e| e.to_string())?
+                        )
+                    )
+                    .as_bytes(),
+                );
+                let mut results = if *resume {
+                    let previous: ExperimentResults =
+                        serde_json::from_slice(&study_read(output, MAX_RESULT_BYTES as u64)?)
+                            .map_err(|e| e.to_string())?;
+                    validate_results(&previous, &plan, &simulator, &solver_fingerprint)?;
+                    previous
+                } else {
+                    new_results(plan, simulator, solver_fingerprint)
+                };
+                let cancellation = CancellationToken::new();
+                let signal = cancellation.clone();
+                ctrlc::set_handler(move || signal.cancel()).map_err(|e| e.to_string())?;
+                let checkpoint = |results: &ExperimentResults| -> Result<(), String> {
+                    let bytes = serde_json::to_vec(results).map_err(|e| e.to_string())?;
+                    if bytes.len() > MAX_RESULT_BYTES {
+                        return Err("Results exceed 64 MiB; previous checkpoint is preserved. Narrow the study.".into());
+                    }
+                    study_write(output, &bytes)
+                };
+                summarize(&mut results);
+                checkpoint(&results)?;
+                for index in 0..results.plan.cases.len() {
+                    if cancellation.is_cancelled() {
+                        break;
+                    }
+                    if results.cases[index].status.reusable() {
+                        continue;
+                    }
+                    let case = &results.plan.cases[index];
+                    let row = match compile_case(&results.plan, case, &resources) {
+                        Err(error) => failed_case(&case.id, CaseStatus::Error, error),
+                        Ok(report) => {
+                            let circuit = report.ir.as_ref().unwrap();
+                            let mut context = NativeSimulationContext::default();
+                            for model in &circuit.model_manifest.models {
+                                if let Some(external) = &model.external {
+                                    if external.simulator
+                                        == kessetsu_core::ir::SimulatorCompatibility::NgspicePs
+                                    {
+                                        context.compatibility = external.simulator;
+                                    }
+                                    if let Some(bytes) = resources.get(&external.resource) {
+                                        context
+                                            .resources
+                                            .insert(external.resource.clone(), bytes.clone());
+                                    }
+                                }
+                            }
+                            let spice = temperature_netlist(
+                                report.spice_netlist.as_deref().ok_or("Missing SPICE")?,
+                                case.temperature_c,
+                            )?;
+                            let mut request =
+                                SimulationRequest::new(spice, circuit.analyses.clone());
+                            request.timeout_ms = results.plan.spec.timeout_ms;
+                            match runner.run_with_context(&request, &context, &cancellation) {
+                                Ok(simulation) => {
+                                    evaluate_case(&results.plan, case, &report, simulation)
+                                }
+                                Err(error) => {
+                                    failed_case(&case.id, CaseStatus::Error, error.to_string())
+                                }
+                            }
+                        }
+                    };
+                    eprintln!(
+                        "Study {}/{}: {} {:?}",
+                        index + 1,
+                        results.plan.cases.len(),
+                        case.id,
+                        row.status
+                    );
+                    results.cases[index] = row;
+                    summarize(&mut results);
+                    checkpoint(&results)?;
+                }
+                let exit = if cancellation.is_cancelled() {
+                    130
+                } else if results.summary.errors > 0 {
+                    3
+                } else if results.summary.failed > 0 {
+                    1
+                } else {
+                    0
+                };
+                let body = if includes.contains(&Include::Datasets) {
+                    serde_json::to_value(&results).map_err(|e| e.to_string())?
+                } else {
+                    serde_json::json!({"schema_version":RESULTS_SCHEMA,"identity":results.identity,"summary":results.summary,"cases":results.cases.iter().map(|r| serde_json::json!({"case_id":r.case_id,"status":r.status,"measurements":r.measurements,"assertions":r.assertions,"errors":r.errors})).collect::<Vec<_>>()})
+                };
+                emit_study(
+                    format,
+                    includes,
+                    if exit == 0 {
+                        "success"
+                    } else if exit == 130 {
+                        "cancelled"
+                    } else {
+                        "fail"
+                    },
+                    body,
+                    Some(output),
+                );
+                Ok(exit)
+            }
+            StudyAction::Export {
+                file,
+                output,
+                target,
+                signal,
+                analysis,
+                cases,
+                force,
+            } => {
+                study_preflight(file, output, *force)?;
+                let mut results: ExperimentResults =
+                    serde_json::from_slice(&study_read(file, MAX_RESULT_BYTES as u64)?)
+                        .map_err(|e| e.to_string())?;
+                validate_results(
+                    &results,
+                    &results.plan,
+                    &results.simulator,
+                    &results.solver_fingerprint,
+                )?;
+                summarize(&mut results);
+                let content = match target {
+                    StudyTarget::Json => {
+                        serde_json::to_string_pretty(&results).map_err(|e| e.to_string())?
+                    }
+                    StudyTarget::Csv => results_csv(&results),
+                    StudyTarget::DataCsv => datasets_csv(&results),
+                    StudyTarget::Svg => plot_svg(&results, *analysis, signal, cases)?,
+                    StudyTarget::Html => report_html(&results),
+                };
+                study_write(output, content.as_bytes())?;
+                emit_study(
+                    format,
+                    includes,
+                    "success",
+                    serde_json::json!({"identity":results.identity,"summary":results.summary}),
+                    Some(output),
+                );
+                Ok(0)
+            }
+        }
+    };
+    match execute() {
+        Ok(exit) => exit,
+        Err(error) => emit_study_error(format, includes, error),
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
     process::exit(run(cli));
@@ -399,6 +843,16 @@ fn run(cli: Cli) -> i32 {
             return 2;
         }
         return run_tool(tool, &cli.format, &includes);
+    }
+    if let Commands::Study(study) = &cli.command {
+        if !cli.parameters.is_empty() {
+            return emit_study_error(
+                &cli.format,
+                &includes,
+                "Use study axes/revision inputs, not --param",
+            );
+        }
+        return run_study(study, &cli.format, &includes);
     }
     let mut inputs = CompileInputs::default();
     for parameter in &cli.parameters {
@@ -769,6 +1223,7 @@ fn run(cli: Cli) -> i32 {
 
 fn command_name(command: &Commands) -> &'static str {
     match command {
+        Commands::Study(_) => "study",
         Commands::Tool(_) => "tool",
         Commands::Check { .. } => "check",
         Commands::Compile(_) => "compile",
@@ -1007,7 +1462,9 @@ fn load_external_model_resources(
 
 fn command_path(command: &Commands) -> &Path {
     match command {
-        Commands::Tool(_) => unreachable!("tool commands are handled before reading source"),
+        Commands::Study(_) | Commands::Tool(_) => {
+            unreachable!("non-circuit commands are handled before reading source")
+        }
         Commands::Check { file } => file,
         Commands::Render(command) => &command.file,
         Commands::Export(command) => &command.file,
@@ -1020,9 +1477,11 @@ fn output_command(command: &Commands) -> Option<&OutputCommand> {
     match command {
         Commands::Compile(command) | Commands::Simulate(command) => Some(command),
         Commands::Test(command) => Some(&command.output),
-        Commands::Check { .. } | Commands::Render(_) | Commands::Export(_) | Commands::Tool(_) => {
-            None
-        }
+        Commands::Study(_)
+        | Commands::Check { .. }
+        | Commands::Render(_)
+        | Commands::Export(_)
+        | Commands::Tool(_) => None,
     }
 }
 
@@ -1946,6 +2405,7 @@ fn build_json_output(
             requirements: requirements.as_ref().map(|_| REQUIREMENTS_SCHEMA_VERSION),
             export: None,
             tool: None,
+            experiment: None,
         },
         diagnostics,
         summary,
@@ -1954,6 +2414,7 @@ fn build_json_output(
         requirements,
         artifacts,
         calculation: None,
+        study: None,
         debug: build_debug(includes, report, simulation),
     }
 }

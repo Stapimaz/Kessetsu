@@ -635,7 +635,16 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
                 sp_signal = format!("I({}{})", prefix, inside);
             }
 
-            if main_analysis == "op" {
+            // Fallback .meas is not authoritative: the shared evaluator uses datasets.
+            // Raw complex AC reductions are unsupported, and measurements after a
+            // different final plot otherwise address the wrong analysis domain.
+            if main_analysis == "op"
+                || main_analysis == "ac"
+                || circuit
+                    .analyses
+                    .last()
+                    .is_some_and(|a| a.kind_name() != main_analysis)
+            {
                 continue;
             }
             if assert.metric.eq_ignore_ascii_case("peak") {

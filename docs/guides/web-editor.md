@@ -1,5 +1,9 @@
 # Web Editor Guide
 
+Development source adds **Analyze → Parameter study…** for multi-condition runs,
+tolerances, comparison and reports; see [parameter studies](parameter-studies.md).
+Published 1.2.0 does not include this menu yet.
+
 Open the [Web Hub](https://kessetsu.com/#editor). No account or installation is required.
 Compilation and simulation run locally in your browser; circuit source and model files
 are not uploaded. See the [tutorial](tutorial.md) for a complete first circuit.

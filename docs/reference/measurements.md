@@ -3,6 +3,40 @@
 Kessetsu engineering measurements are evaluated from typed `kessetsu.simulation.v1` datasets. Kessetsu 1.2.0 uses `kessetsu.measurement.v2`, including frequency-specific gain and lower/upper cutoff metrics. Assertions never infer a passing value from missing data: an unavailable signal, incompatible analysis or invalid argument becomes an assertion `ERROR`.
 
 ## Primitives and sign convention
+Development source advances to `kessetsu.measurement.v3` for the dynamic metrics below.
+Published 1.2.0 remains v2; all legacy semantics are unchanged.
+
+## Explicit-window dynamic metrics (v3, development)
+
+All five metrics require finite increasing transient data covering `[start, stop]`, with
+`0 <= start < stop`. Boundaries and crossings are linearly interpolated, with no extrapolation
+or automatic steady-state detection. Numeric inline fields support typed root expressions;
+independent requirements and study observations remain literal.
+
+| Call | Definition | Unit |
+|---|---|---|
+| `rise_time(V(out),low,high,start,stop)` | First rising low crossing to first subsequent rising high crossing, low < high | s |
+| `fall_time(V(out),low,high,start,stop)` | First falling high crossing to first subsequent falling low crossing, low < high | s |
+| `settling_time(V(out),target,tolerance,start,stop)` | Last re-entry into target ± positive voltage tolerance, measured from window start; zero if always in band | s |
+| `overshoot(V(out),initial,target,start,stop)` | Positive directed excess past target / absolute nonzero step × 100, for upward/downward steps | % |
+| `energy(V(out),I(device),start,stop)` | Signed trapezoidal integral of sampled V × I, with interpolated power at window boundaries | J |
+
+Missing directed crossings or an unsettled final sample produce `ERROR`, not zero. Starting
+exactly at a threshold does not fabricate a crossing from before the window. Settling means
+staying in band through this window, not after it. Energy preserves polarity; delivering
+sources may have negative energy. Signals must share a sample axis. This integrates sampled
+power, not an analytical continuous waveform. Legacy reduction/window behavior is unchanged.
+
+```kessetsu
+assert rise_time(V(OUT),0.1V,0.9V,0ms,10ms) < 3ms
+assert settling_time(V(OUT),1V,20mV,0ms,10ms) < 6ms
+assert overshoot(V(OUT),0V,1V,0ms,10ms) < 5%
+assert energy(V(OUT),I(RL),0ms,10ms) < 1mJ
+```
+
+`J`, `mJ`, `uJ` etc. are typed energy quantities. Analysis must cover the supplied window.
+
+## Primitive polarity
 
 | Primitive | Meaning | Sign | Unit |
 |---|---|---|---|

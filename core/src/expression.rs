@@ -159,6 +159,7 @@ pub fn parameter_unit(text: &str) -> Option<SIUnit> {
         "Hz" => SIUnit::Hertz,
         "s" => SIUnit::Second,
         "W" => SIUnit::Watt,
+        "J" => SIUnit::Joule,
         "ratio" => SIUnit::Ratio,
         "percent" => SIUnit::Percent,
         "deg" => SIUnit::Degree,
@@ -356,6 +357,7 @@ fn dimension(unit: SIUnit) -> Dimension {
         SIUnit::Farad => [-1, 1, 1, 0],
         SIUnit::Henry => [1, -1, 1, 0],
         SIUnit::Watt => [1, 1, 0, 0],
+        SIUnit::Joule => [1, 1, 1, 0],
         SIUnit::Degree => [0, 0, 0, 1],
         SIUnit::Ratio | SIUnit::Percent => [0; 4],
     })

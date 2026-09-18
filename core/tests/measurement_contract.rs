@@ -118,7 +118,7 @@ assert peak(V(Q1.c,Q1.e)) == 0V\n";
     assert_eq!(report.assertions[2].unit, SIUnit::Watt);
     assert_eq!(report.assertions[3].unit, SIUnit::Percent);
     assert_eq!(report.assertions[1].unit, SIUnit::Hertz);
-    assert_eq!(MEASUREMENT_SCHEMA_VERSION, "kessetsu.measurement.v2");
+    assert_eq!(MEASUREMENT_SCHEMA_VERSION, "kessetsu.measurement.v3");
 }
 
 #[test]

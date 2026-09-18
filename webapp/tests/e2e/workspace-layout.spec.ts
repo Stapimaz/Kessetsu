@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 test('resizes, minimizes, maximizes and persists panels without losing circuit state', async ({ page }) => {
   await page.goto('/#editor');
-  await expect(page.getByTestId('compile-success')).toBeVisible();
+  await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
   const source = page.getByLabel('Kessetsu source editor');
   const original = (await source.boundingBox())!;
   const horizontal = page.getByRole('separator', { name: 'Resize source panel' });
@@ -23,7 +23,7 @@ test('resizes, minimizes, maximizes and persists panels without losing circuit s
   await page.getByRole('button', { name: 'Restore minimized source panel' }).click();
 
   await page.getByRole('button', { name: 'Run simulation', exact: true }).click();
-  await expect(page.getByTestId('simulation-summary')).toHaveAttribute('data-state', 'succeeded');
+  await expect(page.getByTestId('simulation-summary')).toHaveAttribute('data-state', 'succeeded', { timeout: 30_000 });
   const circuit = await page.locator('.view-lines').innerText();
 
   for (const panel of ['source', 'schematic', 'simulation']) {

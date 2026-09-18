@@ -8,6 +8,7 @@ pub mod compiler;
 pub mod component;
 mod elaboration;
 pub mod erc;
+pub mod experiment;
 pub mod exporter;
 pub mod expression;
 pub mod graph;
