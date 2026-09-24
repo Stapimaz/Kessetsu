@@ -89,9 +89,37 @@ jobs:
             release-artifacts/*.sha256
           if-no-files-found: error
 
+  python:
+    needs: audit
+    name: Python package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: python/pyproject.toml
+      - name: Build and inspect pure-Python artifacts
+        run: |
+          python -m pip install --disable-pip-version-check build
+          python -m build python --outdir release-artifacts
+          python -m pip install --disable-pip-version-check release-artifacts/*.whl
+          python -m unittest discover -s python/tests -p 'test_*.py'
+          python -m pip check
+      - name: Upload Python distribution
+        uses: actions/upload-artifact@v7
+        with:
+          name: kess-python
+          path: |
+            release-artifacts/*.whl
+            release-artifacts/*.tar.gz
+          if-no-files-found: error
+
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: package
+    needs: [package, python]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

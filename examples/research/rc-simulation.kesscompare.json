@@ -1,0 +1,9 @@
+{
+  "schema_version": "kessetsu.data-comparison.v1",
+  "name": "Synthetic scope-style trace versus Kessetsu simulation",
+  "signals": [
+    { "data_signal": "out", "reference_signal": "out" }
+  ],
+  "coverage": "require_full",
+  "interpolation": "linear"
+}

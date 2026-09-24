@@ -55,6 +55,13 @@ Copy-Item -Path (Join-Path $repoRoot "examples/*.kessreq") -Destination $example
 Copy-Item -LiteralPath (Join-Path $repoRoot "examples/models") -Destination (Join-Path $examplesDirectory "models") -Recurse
 Copy-Item -LiteralPath (Join-Path $repoRoot "examples/studies") -Destination (Join-Path $examplesDirectory "studies") -Recurse
 Copy-Item -LiteralPath (Join-Path $repoRoot "examples/research") -Destination (Join-Path $examplesDirectory "research") -Recurse
+Copy-Item -LiteralPath (Join-Path $repoRoot "examples/notebooks") -Destination (Join-Path $examplesDirectory "notebooks") -Recurse
+$pythonDirectory = Join-Path $stage "python"
+New-Item -ItemType Directory -Path $pythonDirectory -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $repoRoot "python/pyproject.toml") -Destination (Join-Path $pythonDirectory "pyproject.toml")
+Copy-Item -LiteralPath (Join-Path $repoRoot "python/README.md") -Destination (Join-Path $pythonDirectory "README.md")
+Copy-Item -LiteralPath (Join-Path $repoRoot "python/LICENSE") -Destination (Join-Path $pythonDirectory "LICENSE")
+Copy-Item -LiteralPath (Join-Path $repoRoot "python/src") -Destination (Join-Path $pythonDirectory "src") -Recurse
 $webDocumentationDirectory = Join-Path $stage "webapp"
 New-Item -ItemType Directory -Path (Join-Path $webDocumentationDirectory "public") -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $repoRoot "webapp/README.md") -Destination (Join-Path $webDocumentationDirectory "README.md")
@@ -117,6 +124,11 @@ $manifest = [ordered]@{
         override = "KESSETSU_NGSPICE"
         version_probe = "ngspice -v"
     }
+    python_adapter = [ordered]@{
+        version = $Version
+        path = "python"
+        requires_python = ">=3.10"
+    }
     generated_from = if ($env:GITHUB_SHA) { $env:GITHUB_SHA } else { (& git -C $repoRoot rev-parse HEAD).Trim() }
 }
 $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $stage "release-manifest.json") -Encoding UTF8
@@ -136,6 +148,7 @@ Override only with a trusted executable: `$env:KESSETSU_NGSPICE='C:\full\path\ng
 
 Optional PATH setup: move this entire extracted folder to a permanent location, then add that folder (not the executable itself) to your user PATH. Open a new terminal and run: kess --version
 Start with README.md and docs\guides\tutorial.md. Supported engineering limits are in SUPPORTED_DOMAIN.md.
+Optional Python/Jupyter adapter: python -m pip install ".\python[notebook]"
 "@
 } else {
 @"
@@ -154,6 +167,7 @@ The simulator executable and reported version are included in each simulation re
 
 Optional PATH setup: place `kess` in a directory already on PATH, or add this extracted directory to PATH. Then open a new terminal and run: kess --version
 Start with README.md and docs/guides/tutorial.md. Supported engineering limits are in SUPPORTED_DOMAIN.md.
+Optional Python/Jupyter adapter: python3 -m pip install "./python[notebook]"
 "@
 }
 $install | Set-Content -LiteralPath (Join-Path $stage "INSTALL.txt") -Encoding UTF8

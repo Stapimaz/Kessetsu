@@ -19,6 +19,12 @@ foreach ($projectNotice in @("LICENSE", "NOTICE", "COMMERCIAL_LICENSE.md")) {
 $rootLicenseHash = (Get-FileHash -LiteralPath (Join-Path $repoRoot "LICENSE") -Algorithm SHA256).Hash
 $coreLicenseHash = (Get-FileHash -LiteralPath (Join-Path $corePath "LICENSE") -Algorithm SHA256).Hash
 if ($rootLicenseHash -ne $coreLicenseHash) { throw "core/LICENSE must exactly match the canonical root LICENSE" }
+$pythonLicenseHash = (Get-FileHash -LiteralPath (Join-Path $repoRoot "python/LICENSE") -Algorithm SHA256).Hash
+if ($rootLicenseHash -ne $pythonLicenseHash) { throw "python/LICENSE must exactly match the canonical root LICENSE" }
+$pythonProject = Get-Content -LiteralPath (Join-Path $repoRoot "python/pyproject.toml") -Raw
+if ($pythonProject -notmatch '(?m)^license\s*=\s*"AGPL-3\.0-only"\s*$') {
+    throw "Kessetsu Python package license must be AGPL-3.0-only"
+}
 Write-Host "Project license audit PASS: AGPL-3.0-only plus explicit commercial-license notice."
 $rustDependencies = @($metadata.packages | Where-Object { $_.name -ne "kessetsu-core" })
 $missingRustLicenses = @($rustDependencies | Where-Object { -not $_.license })

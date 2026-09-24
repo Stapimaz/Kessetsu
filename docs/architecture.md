@@ -132,6 +132,16 @@ A successful typed transient, AC or DC simulation can also be projected through 
 same validated dataset shape. The projection records simulation hash, solver, analysis and
 vector mapping; AC is explicitly linear magnitude rather than a silent complex/phase coercion.
 
+### Python/notebook boundary (development source)
+
+The optional Python package is a local adapter over the versioned CLI and artifact contracts.
+It launches `kess` with an argument vector rather than a shell, checks exact schema names and
+turns simulation, experiment and research-data records into dependency-free typed tables or
+optional pandas DataFrames. It does not parse `.kess`, generate SPICE, evaluate measurements,
+interpolate data or calculate residuals. Simulation projection and comparison continue through
+Core-owned CLI commands. Notebook code runs in the user's Python environment; no Python runtime
+is embedded in Web Core and no circuit/model data is uploaded by the adapter.
+
 ### Local experiment boundary (development source)
 
 `experiment.rs` owns pure `kessetsu.experiment.v1` validation, deterministic case generation,

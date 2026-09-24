@@ -1,0 +1,49 @@
+"""Typed local access to Kessetsu CLI artifacts."""
+
+from .client import KessetsuClient
+from .contracts import (
+    CLI_SCHEMA,
+    COMPARISON_SCHEMA,
+    DATA_SCHEMA,
+    EXPERIMENT_RESULTS_SCHEMA,
+    SIMULATION_SCHEMA,
+    DataComparison,
+    KessetsuCommandError,
+    KessetsuContractError,
+    KessetsuError,
+    KessetsuNotFoundError,
+    KessetsuTimeoutError,
+    ResearchData,
+    RunReport,
+    SimulationResult,
+    StudyResults,
+    Table,
+    load_comparison,
+    load_research_data,
+    load_study_results,
+)
+
+__all__ = [
+    "CLI_SCHEMA",
+    "COMPARISON_SCHEMA",
+    "DATA_SCHEMA",
+    "EXPERIMENT_RESULTS_SCHEMA",
+    "SIMULATION_SCHEMA",
+    "DataComparison",
+    "KessetsuClient",
+    "KessetsuCommandError",
+    "KessetsuContractError",
+    "KessetsuError",
+    "KessetsuNotFoundError",
+    "KessetsuTimeoutError",
+    "ResearchData",
+    "RunReport",
+    "SimulationResult",
+    "StudyResults",
+    "Table",
+    "load_comparison",
+    "load_research_data",
+    "load_study_results",
+]
+
+__version__ = "1.2.0"

@@ -611,3 +611,85 @@ fn cli_preview_import_compare_are_compact_safe_and_do_not_launch_a_solver() {
         Some(2)
     );
 }
+
+#[test]
+fn cli_projects_raw_or_enveloped_simulation_without_reimplementing_data_semantics() {
+    let workspace = TestWorkspace::new("simulation-research-data");
+    let simulation = transient_result();
+    let raw = workspace.write(
+        "simulation.json",
+        &serde_json::to_string(&simulation).unwrap(),
+    );
+    let envelope = workspace.write(
+        "simulation-envelope.json",
+        &serde_json::json!({
+            "schema_version": "kessetsu.cli.v1",
+            "debug": { "simulation": simulation }
+        })
+        .to_string(),
+    );
+    let mapping = workspace.write(
+        "simulation-import.json",
+        &serde_json::to_string(&SimulationImportSpec {
+            schema_version: SIMULATION_IMPORT_SCHEMA.into(),
+            name: "Notebook simulation".into(),
+            analysis_index: 0,
+            signals: vec![SimulationSignalMapping {
+                vector: "V(out)".into(),
+                name: "out".into(),
+            }],
+        })
+        .unwrap(),
+    );
+
+    for (index, input) in [raw, envelope].iter().enumerate() {
+        let output = workspace.path().join(format!("projected-{index}.json"));
+        let result = workspace.run_cli(&[
+            "data",
+            "from-simulation",
+            input.to_str().unwrap(),
+            "--mapping",
+            mapping.to_str().unwrap(),
+            "--output",
+            output.to_str().unwrap(),
+            "--format",
+            "json",
+        ]);
+        assert_eq!(
+            result.status.code(),
+            Some(0),
+            "{}",
+            String::from_utf8_lossy(&result.stdout)
+        );
+        let cli = cli_json(&result);
+        assert_eq!(cli["data"]["origin"], "simulation");
+        assert_eq!(cli["data"]["axis"]["unit"], "Second");
+        let projected: ResearchData =
+            serde_json::from_slice(&std::fs::read(output).unwrap()).unwrap();
+        validate_data(&projected).unwrap();
+        assert_eq!(projected.signals[0].values, [0.0, 0.63, 0.86]);
+    }
+
+    let missing = workspace.write(
+        "compact-envelope.json",
+        r#"{"schema_version":"kessetsu.cli.v1"}"#,
+    );
+    let failed = workspace.run_cli(&[
+        "data",
+        "from-simulation",
+        missing.to_str().unwrap(),
+        "--mapping",
+        mapping.to_str().unwrap(),
+        "--output",
+        workspace.path().join("missing.json").to_str().unwrap(),
+        "--format",
+        "json",
+    ]);
+    assert_eq!(failed.status.code(), Some(2));
+    assert!(
+        cli_json(&failed)["diagnostics"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("--include simulation")
+    );
+}

@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kessetsu"
+version = "1.2.0"
+description = "Typed local Python access to the Kessetsu circuit-engineering CLI"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "AGPL-3.0-only"
+license-files = ["LICENSE"]
+authors = [{ name = "Kessetsu contributors" }]
+keywords = ["circuits", "spice", "electronics", "jupyter", "simulation"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
+]
+dependencies = []
+
+[project.optional-dependencies]
+tables = ["pandas>=2.2"]
+notebook = [
+  "ipykernel>=6.29",
+  "jupyterlab>=4.2",
+  "matplotlib>=3.8",
+  "nbclient>=0.10",
+  "nbformat>=5.10",
+  "pandas>=2.2",
+]
+verify = [
+  "ipykernel>=6.29",
+  "matplotlib>=3.8",
+  "nbclient>=0.10",
+  "nbformat>=5.10",
+  "pandas>=2.2",
+]
+
+[project.urls]
+Homepage = "https://kessetsu.com/"
+Documentation = "https://kessetsu.com/docs/guides/python-notebooks/"
+Repository = "https://github.com/Stapimaz/Kessetsu"
+Issues = "https://github.com/Stapimaz/Kessetsu/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]

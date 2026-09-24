@@ -19,6 +19,10 @@ $npmPackageText = Get-Content -LiteralPath (Join-Path $repoRoot "webapp/package.
 $npmLockText = Get-Content -LiteralPath (Join-Path $repoRoot "webapp/package-lock.json") -Raw
 $npmPackageVersion = [regex]::Match($npmPackageText, '"version"\s*:\s*"([^\"]+)"').Groups[1].Value
 $npmLockVersions = [regex]::Matches($npmLockText, '"version"\s*:\s*"([^\"]+)"')
+$pythonProjectText = Get-Content -LiteralPath (Join-Path $repoRoot "python/pyproject.toml") -Raw
+$pythonModuleText = Get-Content -LiteralPath (Join-Path $repoRoot "python/src/kessetsu/__init__.py") -Raw
+$pythonProjectVersion = [regex]::Match($pythonProjectText, '(?m)^version\s*=\s*"([^"]+)"').Groups[1].Value
+$pythonModuleVersion = [regex]::Match($pythonModuleText, '(?m)^__version__\s*=\s*"([^"]+)"').Groups[1].Value
 if (-not $npmPackageVersion -or $npmLockVersions.Count -lt 2) {
     throw "Could not read npm product versions"
 }
@@ -28,6 +32,8 @@ $versions = [ordered]@{
     NpmPackage = $npmPackageVersion
     NpmLock = $npmLockVersions[0].Groups[1].Value
     NpmLockRoot = $npmLockVersions[1].Groups[1].Value
+    PythonProject = $pythonProjectVersion
+    PythonModule = $pythonModuleVersion
 }
 $mismatches = @($versions.GetEnumerator() | Where-Object { $_.Value -ne $version })
 if ($mismatches.Count -gt 0) {

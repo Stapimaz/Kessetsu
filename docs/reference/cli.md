@@ -13,7 +13,7 @@ and local external devices. Earlier CLI versions require an update for these add
 
 ```bash
 kess [--format human|json] [--schema-version kessetsu.cli.v1] \
-  [--include ast,ir,graph,spice,datasets,models,raw-log,effective-source] \
+  [--include ast,ir,graph,spice,datasets,simulation,models,raw-log,effective-source] \
   [--param NAME=VALUE] <COMMAND> [OPTIONS] [FILE]
 ```
 
@@ -86,6 +86,9 @@ simulator:
 ```bash
 kess data preview capture.csv --delimiter semicolon --decimal comma --skip-records 2 --format json
 kess data import capture.csv --mapping capture.kessimport.json --output capture.kessdata.json
+kess simulate circuit.kess --format json --include simulation > simulation.json
+kess data from-simulation simulation.json --mapping circuit.kesssim.json \
+  --output simulation.kessdata.json
 kess data compare capture.kessdata.json --reference reference.kessdata.json \
   --mapping comparison.kesscompare.json --output residuals.json --format json
 ```
@@ -96,6 +99,14 @@ column/unit mapping, normalized SI values, metadata and skipped-row reasons in
 coverage policy and writes the point-by-point residual evidence plus bias, MAE, RMSE and
 maximum absolute error. Default JSON stdout stays compact; `--include datasets` includes
 the complete imported arrays or comparison points.
+
+`data from-simulation` accepts either raw `kessetsu.simulation.v1` JSON or a
+`kessetsu.cli.v1` envelope produced with `--include simulation`. It applies the same
+Core-owned projection as the Web research-data workflow and records the solver, result hash,
+analysis index and vector mapping. Operating-point results have no comparison axis and are
+rejected. The explicit simulation include contains the complete typed result, including raw
+simulator logs and artifact paths; review it before sharing. Use the smaller `datasets`
+include when that provenance is not needed.
 
 Existing outputs require `--force`, and an output may never alias a CSV, mapping, dataset
 or reference input. Data commands reject `--param` and return exit code `2` for invalid
@@ -212,7 +223,7 @@ JSON stdout is exactly one JSON object for every invocation. Progress and simula
 
 See the [engineering-measurement contract](measurements.md) for assertion primitives, derived-metric formulas, analysis requirements, and sign conventions.
 
-Default output is intentionally compact. In addition to command/schema metadata, it contains only `status`, diagnostics, summary, measurements, assertions, and artifact references. Canonical AST/IR/graph/SPICE, analysis datasets, model manifest/lock content, and raw logs appear under `debug` only when selected through the corresponding `--include` option.
+Default output is intentionally compact. In addition to command/schema metadata, it contains only `status`, diagnostics, summary, measurements, assertions, and artifact references. Canonical AST/IR/graph/SPICE, analysis datasets, the complete typed simulation, model manifest/lock content, and raw logs appear under `debug` only when selected through the corresponding `--include` option.
 
 Successful `check` summary:
 
@@ -250,10 +261,11 @@ Examples that request debug fields:
 ```bash
 kess compile circuit.kess --format json --include ast,ir,graph,spice
 kess simulate circuit.kess --format json --include datasets,raw-log --force
+kess simulate circuit.kess --format json --include simulation --force
 kess compile circuit.kess --format json --include models --force
 ```
 
-The first command adds `debug.ast`, `debug.ir`, `debug.graph`, and `debug.spice_netlist`; the second adds `debug.datasets` and `debug.raw_log`; and the third adds `debug.models.manifest` and `debug.models.lock`. Unselected large fields are omitted entirely rather than serialized as `null`.
+The first command adds `debug.ast`, `debug.ir`, `debug.graph`, and `debug.spice_netlist`; the second adds `debug.datasets` and `debug.raw_log`; the third adds the complete `debug.simulation`; and the fourth adds `debug.models.manifest` and `debug.models.lock`. Unselected large fields are omitted entirely rather than serialized as `null`.
 
 The assertion field of a `test` result is independently versioned and summarized:
 

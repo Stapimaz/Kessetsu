@@ -93,13 +93,13 @@ const routes = new Map(documents.map((file) => [file, file === 'docs/README.md' 
 // Public example sources and their open model sidecars are downloadable on-site.
 for (const file of readdirSync(resolve(repo, 'examples'), { recursive: true })) {
   const relative = file.replaceAll('\\', '/');
-  if (!/(?:\.(?:kess|kessreq|lib|md|csv)|\.kess(?:study|import|compare)\.json)$/.test(relative)) continue;
+  if (!/(?:\.(?:kess|kessreq|lib|md|csv|ipynb)|\.kess(?:study|import|compare|sim)\.json)$/.test(relative)) continue;
   const destination = resolve(dist, 'examples', relative);
   mkdirSync(dirname(destination), { recursive: true });
   copyFileSync(resolve(repo, 'examples', relative), destination);
 }
 const navigationGroups = [
-  ['Getting started', ['docs/README.md', 'docs/guides/tutorial.md', 'docs/guides/web-editor.md', 'docs/guides/why-kessetsu.md', 'docs/guides/cookbook.md', 'docs/guides/parameter-studies.md', 'docs/guides/research-data.md']],
+  ['Getting started', ['docs/README.md', 'docs/guides/tutorial.md', 'docs/guides/web-editor.md', 'docs/guides/why-kessetsu.md', 'docs/guides/cookbook.md', 'docs/guides/parameter-studies.md', 'docs/guides/research-data.md', 'docs/guides/python-notebooks.md']],
   ['Reference', documents.filter((file) => file.startsWith('docs/reference/'))],
   ['Help and updates', ['docs/guides/troubleshooting.md', 'CHANGELOG.md']],
 ];

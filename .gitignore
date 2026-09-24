@@ -19,6 +19,11 @@
 /webapp/playwright-report/
 /release-artifacts/
 /.artifacts/
+/python/src/*.egg-info/
+/python/build/
+/python/dist/
+__pycache__/
+*.py[cod]
 
 # Defense in depth: internal plans belong outside this checkout.
 /private/

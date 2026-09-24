@@ -378,7 +378,7 @@ fn simulator_process_status_and_json_status_cannot_disagree() {
             "json",
             "--force",
             "--include",
-            "datasets,raw-log",
+            "datasets,raw-log,simulation",
         ],
         "KESSETSU_NGSPICE",
         &success_simulator,
@@ -392,6 +392,11 @@ fn simulator_process_status_and_json_status_cannot_disagree() {
             .as_str()
             .is_some_and(|log| log.contains("No. of Data Rows"))
     );
+    assert_eq!(
+        verbose_json["debug"]["simulation"]["schema_version"],
+        "kessetsu.simulation.v1"
+    );
+    assert_eq!(verbose_json["debug"]["simulation"]["status"], "succeeded");
 
     let human = workspace.run_cli_with_env(
         &["simulate", &source_arg, "--force"],

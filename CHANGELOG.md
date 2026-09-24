@@ -14,8 +14,13 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
   residual metrics and evidence download without changing the open circuit or uploading data.
 - Typed projection of the current successful transient, AC-magnitude or DC simulation into
   the same research-data comparison flow, retaining solver/result/vector provenance.
+- Native `--include simulation` evidence and `kess data from-simulation` close Web/CLI
+  projection parity without moving interpolation or residual semantics into adapters.
+- Optional local Python package for safe CLI invocation, exact contract validation, typed
+  simulation/study/research tables and pandas conversion; includes a headlessly verified
+  Jupyter workflow from circuit simulation through residual evidence and plots.
 - Synthetic tutorial files and detailed [research-data guide](docs/guides/research-data.md).
-  Direct multi-case study comparison, notebook integration and fitting are not yet delivered.
+  Direct multi-case study comparison and fitting are not yet delivered.
 
 ### Local parameter studies
 

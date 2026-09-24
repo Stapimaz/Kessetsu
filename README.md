@@ -28,6 +28,7 @@ The project is not limited to a particular educational scenario or circuit class
 - SVG, PNG, PDF, Schematic JSON, SPICE, KiCad, and LTspice exports
 - Versioned, compressed, package-aware share URLs
 - Shared loaded-divider and RC-filter tools with typed inputs, standard component selection and editable circuit generation (CLI 1.1.0+)
+- Development source: reproducible parameter studies, local research-data comparison and a thin Python/Jupyter adapter over the same Core contracts
 
 Read the [documentation](https://kessetsu.com/docs/) and [changelog](https://kessetsu.com/changelog/) on the website. The [architecture](docs/architecture.md), [component and simulation reference](docs/reference/supported-domain.md), and [measurement reference](docs/reference/measurements.md) define technical behavior and assumptions.
 
@@ -140,6 +141,18 @@ cargo run --release -- check ../examples/rc_low_pass.kess --format json
 
 Existing output files are not overwritten by default; intentional replacement requires `--force`. The [CLI reference](docs/reference/cli.md) defines commands, JSON fields, and exit codes. Continue with the [tutorial](docs/guides/tutorial.md), [cookbook](docs/guides/cookbook.md), [troubleshooting guide](docs/guides/troubleshooting.md), or [Why Kessetsu?](docs/guides/why-kessetsu.md).
 
+Python and Jupyter users can install the optional local adapter from a source checkout or
+release bundle. It invokes the CLI and preserves Core-owned semantics rather than embedding
+a second simulator:
+
+```sh
+python -m pip install "./python[notebook]"
+jupyter lab examples/notebooks/research-data-workflow.ipynb
+```
+
+See the [Python/Jupyter guide](docs/guides/python-notebooks.md) for simulations, parameter
+study tables, research-data comparison, error handling and provenance.
+
 ## Build and verification
 
 Run the repository's canonical quality gate from the root:
@@ -173,6 +186,7 @@ npm.cmd run build
 
 - `core/`: Rust library, CLI, WASM adapter, test corpus, and Windows Ngspice runtime
 - `examples/`: polished, runnable `.kess` circuits for new users
+- `python/`: optional typed local adapter and Python contract tests
 - `webapp/`: React/TypeScript zero-friction Web Hub
 - `docs/`: user guides, language/CLI/model/export references and contributor architecture
 - `scripts/verify.ps1`: root quality gate
@@ -182,7 +196,7 @@ npm.cmd run build
 - Backends consume typed Circuit IR only.
 - Generated output does not replace physical validation or engineering review.
 - Embedded-runtime provenance and licensing notes live in the [Ngspice runtime README](core/tools/ngspice/README.md).
-- Kessetsu targets schematic-level analog/mixed-signal work; it does not provide PCB layout/DRC, RF/EM, thermal/reliability, Monte Carlo, or laboratory validation.
+- Kessetsu targets schematic-level analog/mixed-signal work; it does not provide PCB layout/DRC, RF/EM, thermal/reliability or laboratory validation. Development-source tolerance/Monte Carlo studies describe the selected models and declared distributions, not production yield.
 - [SECURITY.md](SECURITY.md) defines vulnerability reporting. The browser runs locally without telemetry; released versions and download checksums remain immutable.
 
 ## License

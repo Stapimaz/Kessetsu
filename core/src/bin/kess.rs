@@ -117,6 +117,17 @@ enum DataAction {
         #[arg(long)]
         force: bool,
     },
+    /// Convert one successful typed simulation result into research-data JSON
+    FromSimulation {
+        /// Raw kessetsu.simulation.v1 JSON, or a CLI envelope containing debug.simulation
+        file: PathBuf,
+        #[arg(long)]
+        mapping: PathBuf,
+        #[arg(short, long)]
+        output: PathBuf,
+        #[arg(long)]
+        force: bool,
+    },
     /// Compare two imported datasets with an explicit residual/coverage mapping
     Compare {
         file: PathBuf,
@@ -360,6 +371,7 @@ enum Include {
     Graph,
     Spice,
     Datasets,
+    Simulation,
     Models,
     RawLog,
     EffectiveSource,
@@ -900,6 +912,52 @@ fn run_data(command: &DataCommand, format: &Format, includes: &BTreeSet<Include>
                 study_write(
                     output,
                     &serde_json::to_vec_pretty(&result).map_err(|e| e.to_string())?,
+                )?;
+                Ok((body, Some(output.as_path())))
+            }
+            DataAction::FromSimulation {
+                file,
+                mapping,
+                output,
+                force,
+            } => {
+                for input in [file, mapping] {
+                    study_preflight(input, output, *force)?;
+                }
+                let input: Value = serde_json::from_str(&read_text(file, 64 * 1024 * 1024)?)
+                    .map_err(|error| format!("Invalid simulation JSON: {error}"))?;
+                let simulation_value = if input.get("schema_version").and_then(Value::as_str)
+                    == Some(SIMULATION_SCHEMA_VERSION)
+                {
+                    input
+                } else if input.get("schema_version").and_then(Value::as_str)
+                    == Some(CLI_SCHEMA_VERSION)
+                {
+                    input
+                        .get("debug")
+                        .and_then(|debug| debug.get("simulation"))
+                        .cloned()
+                        .ok_or(
+                            "CLI input does not contain debug.simulation; rerun with --include simulation",
+                        )?
+                } else {
+                    return Err(
+                        "Expected kessetsu.simulation.v1 or kessetsu.cli.v1 simulation JSON".into(),
+                    );
+                };
+                let simulation: SimulationResult = serde_json::from_value(simulation_value)
+                    .map_err(|error| format!("Invalid typed simulation result: {error}"))?;
+                let spec: SimulationImportSpec =
+                    serde_json::from_str(&read_text(mapping, 64 * 1024)?)
+                        .map_err(|error| error.to_string())?;
+                let result = import_simulation_data(&simulation, spec)?;
+                let mut body = serde_json::json!({ "schema_version": result.schema_version, "identity": result.identity, "raw_sha256": result.raw_sha256, "rows": result.source_records.len(), "skipped": result.skipped.len(), "origin": result.spec.metadata.origin, "axis": {"name": result.axis.name, "unit": result.axis.unit}, "signals": result.signals.iter().map(|column| serde_json::json!({"name":column.name,"unit":column.unit})).collect::<Vec<_>>() });
+                if includes.contains(&Include::Datasets) {
+                    body = serde_json::to_value(&result).map_err(|error| error.to_string())?;
+                }
+                study_write(
+                    output,
+                    &serde_json::to_vec_pretty(&result).map_err(|error| error.to_string())?,
                 )?;
                 Ok((body, Some(output.as_path())))
             }
@@ -2646,6 +2704,7 @@ fn build_debug(
                 "datasets",
                 to_json_value(&simulation.map(|simulation| &simulation.datasets)),
             ),
+            Include::Simulation => ("simulation", to_json_value(&simulation)),
             Include::Models => (
                 "models",
                 to_json_value(&serde_json::json!({

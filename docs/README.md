@@ -12,6 +12,7 @@ Use the free [Web Hub](https://kessetsu.com/#editor) without an account or insta
 - [Cookbook](guides/cookbook.md): calculations, reusable blocks, agent loops and device models.
 - [Parameter studies](guides/parameter-studies.md): multi-condition experiments and reports (development source).
 - [Research data](guides/research-data.md): local CSV mapping, evidence and scalar comparisons (development source).
+- [Python and Jupyter](guides/python-notebooks.md): inspect simulations, studies and research evidence in Python (development source).
 
 ## Language and command reference
 

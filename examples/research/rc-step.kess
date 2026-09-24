@@ -1,0 +1,14 @@
+// Reproducible RC step used by the Python/Jupyter research-data workflow.
+// Ideal 1 V input, 1 ms time constant; the comparison data is explicitly synthetic.
+param resistance: Ohm = 1kOhm
+param capacitance: F = 1uF
+net GND
+net IN
+net OUT
+source VIN pwl(0s,0V,1ns,1V,10ms,1V)
+resistor R1 {resistance}
+capacitor C1 {capacitance}
+connect VIN.plus, R1.p1 to IN
+connect VIN.minus, C1.p2 to GND
+connect R1.p2, C1.p1 to OUT
+simulate tran 10us 5ms

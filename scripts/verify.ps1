@@ -30,7 +30,7 @@ function Get-WorktreeSnapshot {
     return $statusLines -join "`n"
 }
 
-foreach ($requiredCommand in @('cargo', 'git', 'wasm-pack', $npmCommand)) {
+foreach ($requiredCommand in @('cargo', 'git', 'python', 'wasm-pack', $npmCommand)) {
     if (-not (Get-Command $requiredCommand -ErrorAction SilentlyContinue)) {
         throw "Required command is not available: $requiredCommand"
     }
@@ -53,6 +53,11 @@ try {
 }
 finally {
     Pop-Location
+}
+
+$cliName = if ($env:OS -eq 'Windows_NT') { 'kess.exe' } else { 'kess' }
+Invoke-NativeStep 'Python adapter and headless research notebook' {
+    & (Join-Path $repoRoot 'scripts/verify-python.ps1') -CliPath (Join-Path $corePath "target/release/$cliName")
 }
 
 Push-Location $webPath
