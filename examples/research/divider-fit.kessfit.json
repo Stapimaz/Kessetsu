@@ -1,0 +1,54 @@
+{
+  "schema_version": "kessetsu.fit.v1",
+  "name": "Synthetic divider resistance fit",
+  "parameters": [
+    { "name": "resistance", "lower": "500Ohm", "upper": "2kOhm" }
+  ],
+  "observations": [
+    {
+      "name": "one-volt calibration",
+      "role": "calibration",
+      "revision": "Calibration",
+      "temperature_c": 27.0,
+      "data": "calibration",
+      "simulation": {
+        "schema_version": "kessetsu.simulation-data-import.v1",
+        "name": "Calibration candidate",
+        "analysis_index": 0,
+        "signals": [{ "vector": "out", "name": "output" }]
+      },
+      "comparison": {
+        "schema_version": "kessetsu.data-comparison.v1",
+        "name": "Calibration residuals",
+        "signals": [{ "data_signal": "output", "reference_signal": "output" }],
+        "coverage": "require_full",
+        "interpolation": "linear",
+        "window": [0.0, 0.02]
+      },
+      "signals": [{ "data_signal": "output", "uncertainty": 0.005, "weight": 1.0 }]
+    },
+    {
+      "name": "two-volt holdout",
+      "role": "validation",
+      "revision": "Validation",
+      "temperature_c": 27.0,
+      "data": "validation",
+      "simulation": {
+        "schema_version": "kessetsu.simulation-data-import.v1",
+        "name": "Validation candidate",
+        "analysis_index": 0,
+        "signals": [{ "vector": "out", "name": "output" }]
+      },
+      "comparison": {
+        "schema_version": "kessetsu.data-comparison.v1",
+        "name": "Validation residuals",
+        "signals": [{ "data_signal": "output", "reference_signal": "output" }],
+        "coverage": "require_full",
+        "interpolation": "linear",
+        "window": [0.0, 0.02]
+      },
+      "signals": [{ "data_signal": "output", "uncertainty": 0.005, "weight": 1.0 }]
+    }
+  ],
+  "near_equivalent_fraction": 0.01
+}

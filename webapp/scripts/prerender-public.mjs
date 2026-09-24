@@ -99,7 +99,7 @@ for (const file of readdirSync(resolve(repo, 'examples'), { recursive: true })) 
   copyFileSync(resolve(repo, 'examples', relative), destination);
 }
 const navigationGroups = [
-  ['Getting started', ['docs/README.md', 'docs/guides/tutorial.md', 'docs/guides/web-editor.md', 'docs/guides/why-kessetsu.md', 'docs/guides/cookbook.md', 'docs/guides/parameter-studies.md', 'docs/guides/research-data.md', 'docs/guides/python-notebooks.md']],
+  ['Getting started', ['docs/README.md', 'docs/guides/tutorial.md', 'docs/guides/web-editor.md', 'docs/guides/why-kessetsu.md', 'docs/guides/cookbook.md', 'docs/guides/parameter-studies.md', 'docs/guides/research-data.md', 'docs/guides/model-fitting.md', 'docs/guides/python-notebooks.md']],
   ['Reference', documents.filter((file) => file.startsWith('docs/reference/'))],
   ['Help and updates', ['docs/guides/troubleshooting.md', 'CHANGELOG.md']],
 ];

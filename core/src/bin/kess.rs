@@ -69,6 +69,8 @@ struct Cli {
 enum Commands {
     /// Import research CSV and compare unit-mapped local data
     Data(DataCommand),
+    /// Evaluate finite study candidates against calibration and validation data
+    Fit(FitCommand),
     /// Create, plan, run or export a reproducible local parameter study
     Study(StudyCommand),
     /// Calculate components and generate an editable circuit
@@ -85,6 +87,31 @@ enum Commands {
     Render(RenderCommand),
     /// Export a machine-readable or editable circuit artifact
     Export(ExportCommand),
+}
+
+#[derive(Args)]
+struct FitCommand {
+    #[command(subcommand)]
+    action: FitAction,
+}
+
+#[derive(Subcommand)]
+enum FitAction {
+    /// Score a completed study; validation data never influences candidate selection
+    Evaluate {
+        /// Completed kessetsu.experiment-results.v1 JSON
+        file: PathBuf,
+        /// kessetsu.fit.v1 mapping and bounds
+        #[arg(long)]
+        spec: PathBuf,
+        /// Observed dataset binding, repeatable: NAME=path.kessdata.json
+        #[arg(long = "data", required = true)]
+        datasets: Vec<String>,
+        #[arg(short, long)]
+        output: PathBuf,
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 #[derive(Args)]
@@ -396,6 +423,8 @@ struct JsonOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
     data: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    fit: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     debug: Option<BTreeMap<String, Value>>,
 }
 
@@ -413,6 +442,8 @@ struct DomainVersions {
     experiment: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     research_data: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fit: Option<&'static str>,
 }
 
 #[derive(Clone, Serialize)]
@@ -1039,6 +1070,126 @@ fn run_data(command: &DataCommand, format: &Format, includes: &BTreeSet<Include>
     }
 }
 
+fn run_fit(command: &FitCommand, format: &Format, includes: &BTreeSet<Include>) -> i32 {
+    use kessetsu_core::fitting::*;
+    use kessetsu_core::research_data::ResearchData;
+    let read_text = |path: &Path, limit: usize| -> Result<String, String> {
+        String::from_utf8(study_read(path, limit as u64)?).map_err(|_| "Input must be UTF-8".into())
+    };
+    let execute = || -> Result<(Value, &Path), String> {
+        match &command.action {
+            FitAction::Evaluate {
+                file,
+                spec,
+                datasets,
+                output,
+                force,
+            } => {
+                for input in [file, spec] {
+                    study_preflight(input, output, *force)?;
+                }
+                if datasets.len() > 32 {
+                    return Err("At most 32 observed datasets can be bound".into());
+                }
+                let mut bound = BTreeMap::new();
+                for binding in datasets {
+                    let (name, path) = binding
+                        .split_once('=')
+                        .ok_or("--data requires NAME=path.kessdata.json")?;
+                    if name.trim().is_empty() || name.len() > 128 {
+                        return Err("Dataset binding names must be nonempty and bounded".into());
+                    }
+                    let path = PathBuf::from(path);
+                    study_preflight(&path, output, *force)?;
+                    let data: ResearchData =
+                        serde_json::from_str(&read_text(&path, MAX_FIT_RESULT_BYTES)?)
+                            .map_err(|error| format!("Invalid dataset '{name}': {error}"))?;
+                    if bound.insert(name.to_string(), data).is_some() {
+                        return Err(format!("Duplicate dataset binding '{name}'"));
+                    }
+                }
+                let experiment: kessetsu_core::experiment::ExperimentResults =
+                    serde_json::from_str(&read_text(
+                        file,
+                        kessetsu_core::experiment::MAX_RESULT_BYTES,
+                    )?)
+                    .map_err(|error| format!("Invalid experiment results: {error}"))?;
+                let spec = decode_fit_spec(&study_read(spec, MAX_FIT_SPEC_BYTES as u64)?)?;
+                let result = evaluate_fit(&experiment, &bound, spec)?;
+                study_write(
+                    output,
+                    &serde_json::to_vec_pretty(&result).map_err(|error| error.to_string())?,
+                )?;
+                let body = if includes.contains(&Include::Datasets) {
+                    serde_json::to_value(&result).map_err(|error| error.to_string())?
+                } else {
+                    serde_json::json!({
+                        "schema_version": result.schema_version,
+                        "identity": result.identity,
+                        "experiment_identity": result.experiment_identity,
+                        "selected_candidate": result.selected_candidate,
+                        "near_equivalent_candidates": result.near_equivalent_candidates,
+                        "warnings": result.warnings,
+                        "candidates": result.candidates.iter().map(|candidate| serde_json::json!({
+                            "id": candidate.id,
+                            "parameters": candidate.parameters,
+                            "eligible": candidate.eligible,
+                            "calibration_score": candidate.calibration_score,
+                            "validation_score": candidate.validation_score,
+                            "boundary_hits": candidate.boundary_hits,
+                            "observation_failures": candidate.observations.iter().filter(|observation| observation.error.is_some()).count(),
+                        })).collect::<Vec<_>>()
+                    })
+                };
+                Ok((body, output))
+            }
+        }
+    };
+    match execute() {
+        Ok((body, artifact)) => {
+            let report = kessetsu_core::compiler::compile_source("", CompileOptions::default());
+            let mut output = build_json_output(
+                "fit",
+                includes,
+                "completed",
+                &report,
+                None,
+                None,
+                None,
+                None,
+            );
+            output.domain_versions.experiment = Some(kessetsu_core::experiment::EXPERIMENT_SCHEMA);
+            output.domain_versions.research_data = Some(kessetsu_core::research_data::DATA_SCHEMA);
+            output.domain_versions.fit = Some(FIT_SCHEMA);
+            output.fit = Some(body.clone());
+            output.artifacts.push(plain_json_artifact(
+                "fit_result",
+                artifact.to_string_lossy().into_owned(),
+            ));
+            if *format == Format::Json {
+                println!("{}", serde_json::to_string(&output).unwrap());
+            } else {
+                println!("{}", serde_json::to_string_pretty(&body).unwrap());
+                println!("Saved: {}", artifact.display());
+            }
+            0
+        }
+        Err(error) => {
+            emit(
+                format,
+                "fit",
+                includes,
+                "error",
+                CompileReport::failure(diagnostic("KES-R002", DiagnosticStage::Cli, error)),
+                None,
+                None,
+                None,
+            );
+            2
+        }
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
     process::exit(run(cli));
@@ -1088,6 +1239,26 @@ fn run(cli: Cli) -> i32 {
             return 2;
         }
         return run_data(data, &cli.format, &includes);
+    }
+    if let Commands::Fit(fit) = &cli.command {
+        if !cli.parameters.is_empty() {
+            emit(
+                &cli.format,
+                command,
+                &includes,
+                "error",
+                CompileReport::failure(diagnostic(
+                    "KES-F002",
+                    DiagnosticStage::Cli,
+                    "--param applies to circuits, not completed fit evaluation",
+                )),
+                None,
+                None,
+                None,
+            );
+            return 2;
+        }
+        return run_fit(fit, &cli.format, &includes);
     }
     if let Commands::Tool(tool) = &cli.command {
         if !cli.parameters.is_empty() {
@@ -1489,6 +1660,7 @@ fn run(cli: Cli) -> i32 {
 fn command_name(command: &Commands) -> &'static str {
     match command {
         Commands::Data(_) => "data",
+        Commands::Fit(_) => "fit",
         Commands::Study(_) => "study",
         Commands::Tool(_) => "tool",
         Commands::Check { .. } => "check",
@@ -1728,7 +1900,7 @@ fn load_external_model_resources(
 
 fn command_path(command: &Commands) -> &Path {
     match command {
-        Commands::Data(_) | Commands::Study(_) | Commands::Tool(_) => {
+        Commands::Data(_) | Commands::Fit(_) | Commands::Study(_) | Commands::Tool(_) => {
             unreachable!("non-circuit commands are handled before reading source")
         }
         Commands::Check { file } => file,
@@ -1744,6 +1916,7 @@ fn output_command(command: &Commands) -> Option<&OutputCommand> {
         Commands::Compile(command) | Commands::Simulate(command) => Some(command),
         Commands::Test(command) => Some(&command.output),
         Commands::Data(_)
+        | Commands::Fit(_)
         | Commands::Study(_)
         | Commands::Check { .. }
         | Commands::Render(_)
@@ -2674,6 +2847,7 @@ fn build_json_output(
             tool: None,
             experiment: None,
             research_data: None,
+            fit: None,
         },
         diagnostics,
         summary,
@@ -2684,6 +2858,7 @@ fn build_json_output(
         calculation: None,
         study: None,
         data: None,
+        fit: None,
         debug: build_debug(includes, report, simulation),
     }
 }

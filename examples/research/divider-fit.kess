@@ -1,0 +1,14 @@
+// Synthetic fitting tutorial: recover the series resistance from two stimulus conditions.
+// This is workflow evidence, not a physical measurement or model-identification claim.
+param resistance: Ohm = 1k
+param drive: V = 1V
+net GND
+net IN
+net OUT
+source VIN sine(0V,{drive},100Hz)
+resistor RS {resistance}
+resistor RL 1k
+connect VIN.minus, RL.p2 to GND
+connect VIN.plus, RS.p1 to IN
+connect RS.p2, RL.p1 to OUT
+simulate tran 50us 20ms

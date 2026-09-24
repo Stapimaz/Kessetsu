@@ -142,6 +142,21 @@ interpolate data or calculate residuals. Simulation projection and comparison co
 Core-owned CLI commands. Notebook code runs in the user's Python environment; no Python runtime
 is embedded in Web Core and no circuit/model data is uploaded by the adapter.
 
+### Finite fitting boundary (development source)
+
+`fitting.rs` consumes checksum-validated completed experiment results and validated
+`ResearchData`; it never launches a simulator or parses source independently. Fit parameters
+must be explicit study axes with typed bounds. Observation selectors bind a candidate to one
+revision, temperature and optional non-fit condition. Core projects the retained simulation
+through `research_data.rs`, preserves the complete comparison and scores declared calibration
+observations using weighted RMS residual/uncertainty. Holdout validation is reported separately
+and cannot influence selection. Failed candidates, masks, boundary hits and near-equivalent
+candidates remain evidence in `kessetsu.fit-result.v1`. The result claims only the best eligible
+point on the finite evaluated grid: no continuous/global optimum, physical mechanism,
+identifiability or extrapolation is inferred. CLI and Python are adapters over this contract;
+the Web editor does not carry a placeholder fitting UI or include the unused fitting module in
+its current WASM bundle.
+
 ### Local experiment boundary (development source)
 
 `experiment.rs` owns pure `kessetsu.experiment.v1` validation, deterministic case generation,

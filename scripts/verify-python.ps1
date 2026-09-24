@@ -40,6 +40,11 @@ try {
         --working-directory $repoRoot `
         --output (Join-Path $artifactRoot 'research-data-workflow.executed.ipynb')
     if ($LASTEXITCODE -ne 0) { throw 'Headless research notebook failed.' }
+    & $python (Join-Path $repoRoot 'python/tests/run_notebook.py') `
+        (Join-Path $repoRoot 'examples/notebooks/finite-parameter-fit.ipynb') `
+        --working-directory $repoRoot `
+        --output (Join-Path $artifactRoot 'finite-parameter-fit.executed.ipynb')
+    if ($LASTEXITCODE -ne 0) { throw 'Headless fitting notebook failed.' }
     & $python -m pip check
     if ($LASTEXITCODE -ne 0) { throw 'Python dependency check failed.' }
 }
@@ -49,4 +54,4 @@ finally {
     $env:MPLBACKEND = $previousMatplotlibBackend
 }
 
-Write-Output 'Python adapter and headless notebook verification passed.'
+Write-Output 'Python adapter and headless notebook verifications passed.'

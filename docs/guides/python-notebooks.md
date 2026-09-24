@@ -1,8 +1,9 @@
 # Python and Jupyter
 
 Available in development source, not published 1.2.0 packages. The optional Python package
-provides typed, local access to Kessetsu simulations, parameter studies and research-data
-evidence. It calls the installed `kess` CLI; it is not another simulator or circuit language.
+provides typed, local access to Kessetsu simulations, parameter studies, research-data
+evidence and finite parameter fitting. It calls the installed `kess` CLI; it is not another
+simulator, circuit language or fitting engine.
 
 ## Install
 
@@ -19,6 +20,13 @@ For pandas, plots and JupyterLab, open the
 ```sh
 python -m pip install "./python[notebook]"
 jupyter lab examples/notebooks/research-data-workflow.ipynb
+```
+
+For calibration-only candidate selection with separate holdout validation, open the
+[finite parameter fitting notebook](../../examples/notebooks/finite-parameter-fit.ipynb):
+
+```sh
+jupyter lab examples/notebooks/finite-parameter-fit.ipynb
 ```
 
 The adapter finds `kess` on `PATH`. Set `KESSETSU_CLI` to a trusted full executable path,
@@ -118,6 +126,43 @@ print(cases[["case_id", "status", "measurement.cutoff"]])
 The table retains every case status, raw parameter literal, measurement value and measurement
 error. Failed/cancelled cases do not disappear. Use `results.simulation(case_id).table(index)`
 to inspect the full typed dataset retained for a completed case.
+
+## Evaluate a finite parameter fit
+
+Run a completed study against explicit calibration and validation datasets through Core:
+
+```python
+import json
+from pathlib import Path
+from kessetsu import KessetsuClient
+
+root = Path("examples/research")
+read = lambda path: json.loads(path.read_text(encoding="utf-8"))
+client = KessetsuClient()
+
+study = client.run_study(root / "divider-fit.kessstudy.json", "study.json")
+calibration = client.import_csv(
+    root / "divider-calibration.csv",
+    read(root / "divider-calibration.kessimport.json"),
+)
+validation = client.import_csv(
+    root / "divider-validation.csv",
+    read(root / "divider-validation.kessimport.json"),
+)
+fit = client.evaluate_fit(
+    study,
+    read(root / "divider-fit.kessfit.json"),
+    {"calibration": calibration, "validation": validation},
+)
+
+print(fit.candidates_table().to_pandas())
+print(fit.observations_table().to_pandas())
+```
+
+Selection uses only observations marked `calibration`; `validation` scores are reported
+separately. `fit.comparison(candidate_id, observation_name)` returns the complete retained
+residual evidence. Python only adapts the versioned Core result. See the
+[fitting guide](model-fitting.md) for scoring, masks, failure behavior and interpretation.
 
 ## Contracts and privacy
 

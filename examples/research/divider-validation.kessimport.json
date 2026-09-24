@@ -1,0 +1,25 @@
+{
+  "schema_version": "kessetsu.data-import.v1",
+  "name": "Synthetic divider validation",
+  "file_name": "divider-validation.csv",
+  "metadata": {
+    "origin": "synthetic",
+    "device": "ideal 1 kOhm loaded divider",
+    "citation": "Kessetsu synthetic fitting tutorial",
+    "conditions": { "drive": "2 V peak holdout", "frequency": "100 Hz" }
+  },
+  "axis": {
+    "column": 0,
+    "name": "time",
+    "unit": "Second",
+    "source_unit": "s"
+  },
+  "signals": [
+    {
+      "column": 1,
+      "name": "output",
+      "unit": "Volt",
+      "source_unit": "V"
+    }
+  ]
+}

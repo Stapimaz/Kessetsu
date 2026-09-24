@@ -1,8 +1,10 @@
 # Kessetsu CLI Reference
 
-Development source also provides `kess study create/plan/run/export`; see the
-[study guide](../guides/parameter-studies.md) for specifications, checkpoints, exit codes
-and reports. Published 1.2.0 does not include these commands yet.
+Development source also provides `kess study create/plan/run/export` and
+`kess fit evaluate`; see the [study guide](../guides/parameter-studies.md) for
+specifications, checkpoints, exit codes and reports, and the
+[fitting guide](../guides/model-fitting.md) for calibration/validation semantics.
+Published 1.2.0 does not include these commands yet.
 
 The Kessetsu CLI sends `.kess` source through the shared Rust compilation pipeline and provides ERC, SPICE generation, Ngspice execution, and assertion evaluation commands. Human output is intended for people; versioned JSON output is intended for automation and AI agents.
 
@@ -110,10 +112,37 @@ include when that provenance is not needed.
 
 Existing outputs require `--force`, and an output may never alias a CSV, mapping, dataset
 or reference input. Data commands reject `--param` and return exit code `2` for invalid
-data, mappings, identity checks or file operations. They currently compare real scalar
-signals; model fitting, direct study-result comparison and Web import are not implied.
+data, mappings, identity checks or file operations. They compare real scalar signals.
+Finite fitting is a separate command over completed study results; direct arbitrary
+study-result comparison and Web import are not implied.
 See the [research-data guide](../guides/research-data.md) for mapping schemas, locale and
 unit rules, missing-data behavior, comparison semantics, provenance and limits.
+
+## Finite parameter fitting
+
+Development builds can score candidates from a completed parameter study against explicit
+calibration and holdout-validation datasets:
+
+```bash
+kess fit evaluate study-results.json --spec model.kessfit.json \
+  --data calibration=capture.kessdata.json \
+  --data validation=holdout.kessdata.json \
+  --output fit-result.json --format json
+```
+
+The specification binds 1-8 fitted parameters to existing study axes and 2-32 observations
+to exact revision, temperature and optional non-fit conditions. At least one calibration and
+one validation observation are required. Selection uses only calibration scores; validation
+is reported separately and cannot change the selected candidate. Failed observations, full
+residual comparisons, masks, boundary hits and near-equivalent candidates remain in the
+`kessetsu.fit-result.v1` artifact.
+
+Default stdout is a compact candidate summary. `--include datasets` also places complete
+residual evidence in stdout; the output artifact is always complete. Existing output requires
+`--force`, but cannot alias any input. The command rejects global `--param` and returns exit
+code `2` with `KES-R002` on invalid input or file operations. See the
+[fitting guide](../guides/model-fitting.md) for the specification, dimensionless score and
+interpretation limits.
 
 ## Stdin and File-Free Agent Use
 
@@ -219,7 +248,7 @@ kess export circuit.kess --target ltspice --output circuit.asc
 
 ## JSON Contract
 
-JSON stdout is exactly one JSON object for every invocation. Progress and simulator logs are never written to stdout. The default agent envelope is `kessetsu.cli.v1`. Current development compile reports use `kessetsu.compile.v6`, canonical schematics use `kessetsu.schematic.v3`, model manifests/locks use `kessetsu.models.v3`/`kessetsu.lock.v3`, simulation results use `kessetsu.simulation.v1`, engineering measurements use `kessetsu.measurement.v3`, assertion reports use `kessetsu.assertion.v1`, and external requirement sets use `kessetsu.requirements.v1`. Published 1.2.0 uses compile v5/schematic v2/model v2/lock v2/measurement v2; 1.1.0 uses compile v4/measurement v1. Active subcontracts appear in `domain_versions`. Resolved parameter/field provenance (`kessetsu.parameters.v1`) is opt-in through `--include ir`, not additional default JSON bulk.
+JSON stdout is exactly one JSON object for every invocation. Progress and simulator logs are never written to stdout. The default agent envelope is `kessetsu.cli.v1`. Current development compile reports use `kessetsu.compile.v6`, canonical schematics use `kessetsu.schematic.v3`, model manifests/locks use `kessetsu.models.v3`/`kessetsu.lock.v3`, simulation results use `kessetsu.simulation.v1`, engineering measurements use `kessetsu.measurement.v3`, assertion reports use `kessetsu.assertion.v1`, external requirement sets use `kessetsu.requirements.v1`, and finite fitting uses `kessetsu.fit.v1` plus `kessetsu.fit-result.v1`. Published 1.2.0 uses compile v5/schematic v2/model v2/lock v2/measurement v2; 1.1.0 uses compile v4/measurement v1. Active subcontracts appear in `domain_versions`. Resolved parameter/field provenance (`kessetsu.parameters.v1`) is opt-in through `--include ir`, not additional default JSON bulk.
 
 See the [engineering-measurement contract](measurements.md) for assertion primitives, derived-metric formulas, analysis requirements, and sign conventions.
 

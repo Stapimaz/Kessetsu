@@ -18,6 +18,7 @@ SIMULATION_SCHEMA = "kessetsu.simulation.v1"
 DATA_SCHEMA = "kessetsu.research-data.v1"
 COMPARISON_SCHEMA = "kessetsu.data-comparison.v1"
 EXPERIMENT_RESULTS_SCHEMA = "kessetsu.experiment-results.v1"
+FIT_RESULT_SCHEMA = "kessetsu.fit-result.v1"
 
 
 class KessetsuError(RuntimeError):
@@ -471,6 +472,142 @@ class StudyResults:
         raise KessetsuContractError(f"Study case {case_id!r} was not found")
 
 
+@dataclass(frozen=True)
+class FitResults:
+    raw: Mapping[str, Any]
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> "FitResults":
+        _schema(value, FIT_RESULT_SCHEMA, "Fit results")
+        _text(value.get("identity"), "fit identity")
+        _text(value.get("experiment_identity"), "fit experiment identity")
+        _mapping(value.get("spec"), "fit specification")
+        _mapping(value.get("data_identities"), "fit data identities")
+        candidates = _sequence(value.get("candidates"), "fit candidates")
+        if not candidates:
+            raise KessetsuContractError("Fit results must retain at least one candidate")
+        for item in candidates:
+            candidate = _mapping(item, "fit candidate")
+            _text(candidate.get("id"), "fit candidate id")
+            _mapping(candidate.get("parameters"), "fit candidate parameters")
+            _sequence(candidate.get("observations"), "fit candidate observations")
+        return cls(value)
+
+    @property
+    def selected_candidate(self) -> str | None:
+        value = self.raw.get("selected_candidate")
+        if value is None:
+            return None
+        return _text(value, "selected candidate")
+
+    def candidates_table(self) -> Table:
+        candidates = tuple(_mapping(item, "fit candidate") for item in self.raw["candidates"])
+        parameter_names = sorted(
+            {
+                name
+                for candidate in candidates
+                for name in _mapping(candidate.get("parameters"), "fit candidate parameters")
+            }
+        )
+        columns = (
+            "candidate_id",
+            "selected",
+            "eligible",
+            "calibration_score",
+            "validation_score",
+            "boundary_hits",
+            *(f"parameter.{name}" for name in parameter_names),
+        )
+        rows = []
+        for candidate in candidates:
+            candidate_id = _text(candidate.get("id"), "fit candidate id")
+            parameters = _mapping(candidate.get("parameters"), "fit candidate parameters")
+            calibration = candidate.get("calibration_score")
+            validation = candidate.get("validation_score")
+            rows.append(
+                (
+                    candidate_id,
+                    candidate_id == self.selected_candidate,
+                    bool(candidate.get("eligible")),
+                    None if calibration is None else _number(calibration, "calibration score"),
+                    None if validation is None else _number(validation, "validation score"),
+                    ", ".join(str(item) for item in _sequence(candidate.get("boundary_hits"), "boundary hits")),
+                    *(parameters.get(name) for name in parameter_names),
+                )
+            )
+        return Table(
+            columns,
+            tuple(rows),
+            {"calibration_score": "normalized_rms", "validation_score": "normalized_rms"},
+            {
+                "schema_version": FIT_RESULT_SCHEMA,
+                "identity": self.raw["identity"],
+                "experiment_identity": self.raw["experiment_identity"],
+                "selected_candidate": self.selected_candidate,
+                "warnings": tuple(self.raw.get("warnings", [])),
+            },
+        )
+
+    def observations_table(self) -> Table:
+        rows = []
+        for candidate_value in self.raw["candidates"]:
+            candidate = _mapping(candidate_value, "fit candidate")
+            candidate_id = _text(candidate.get("id"), "fit candidate id")
+            for observation_value in _sequence(candidate.get("observations"), "fit observations"):
+                observation = _mapping(observation_value, "fit observation")
+                score = observation.get("score")
+                comparison = observation.get("comparison")
+                comparison_identity = (
+                    _mapping(comparison, "fit comparison").get("identity")
+                    if comparison is not None
+                    else None
+                )
+                rows.append(
+                    (
+                        candidate_id,
+                        _text(observation.get("name"), "fit observation name"),
+                        _text(observation.get("role"), "fit observation role"),
+                        observation.get("case_id"),
+                        None if score is None else _number(score, "fit observation score"),
+                        int(observation.get("scored_points", 0)),
+                        observation.get("error"),
+                        comparison_identity,
+                    )
+                )
+        return Table(
+            (
+                "candidate_id",
+                "observation",
+                "role",
+                "case_id",
+                "score",
+                "scored_points",
+                "error",
+                "comparison_identity",
+            ),
+            tuple(rows),
+            {"score": "normalized_rms"},
+            {"schema_version": FIT_RESULT_SCHEMA, "identity": self.raw["identity"]},
+        )
+
+    def comparison(self, candidate_id: str, observation_name: str) -> DataComparison:
+        for candidate_value in self.raw["candidates"]:
+            candidate = _mapping(candidate_value, "fit candidate")
+            if candidate.get("id") != candidate_id:
+                continue
+            for observation_value in _sequence(candidate.get("observations"), "fit observations"):
+                observation = _mapping(observation_value, "fit observation")
+                if observation.get("name") == observation_name:
+                    comparison = observation.get("comparison")
+                    if not isinstance(comparison, dict):
+                        raise KessetsuContractError(
+                            f"Observation {observation_name!r} has no successful comparison"
+                        )
+                    return DataComparison.from_mapping(comparison)
+            raise KessetsuContractError(f"Fit observation {observation_name!r} was not found")
+        raise KessetsuContractError(f"Fit candidate {candidate_id!r} was not found")
+
+
 def load_research_data(path: str | Path) -> ResearchData:
     return ResearchData.from_mapping(_load(path))
 
@@ -481,6 +618,10 @@ def load_comparison(path: str | Path) -> DataComparison:
 
 def load_study_results(path: str | Path) -> StudyResults:
     return StudyResults.from_mapping(_load(path))
+
+
+def load_fit_results(path: str | Path) -> FitResults:
+    return FitResults.from_mapping(_load(path))
 
 
 def dump_json(path: str | Path, value: Mapping[str, Any]) -> None:

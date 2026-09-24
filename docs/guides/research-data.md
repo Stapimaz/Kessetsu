@@ -3,8 +3,8 @@
 Available in development Core, CLI and Web source, not published 1.2.0 binaries or the live
 website. This guide covers working CSV import and scalar-data comparison, including a current
 Web simulation as reference. Development source also provides a thin local Python/Jupyter
-adapter over these same contracts; direct multi-case study comparison and fitting are not
-delivered yet.
+adapter over these same contracts and a separate, evidence-preserving
+[finite fitting workflow](model-fitting.md) over completed parameter studies.
 
 Import local CSV with explicit columns and units, preserve its original text and compare
 it with a separately imported reference. These commands do not launch a simulator, upload

@@ -11,6 +11,8 @@ pub mod erc;
 pub mod experiment;
 pub mod exporter;
 pub mod expression;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod fitting;
 pub mod graph;
 pub mod ir;
 pub mod kicad;

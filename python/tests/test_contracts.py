@@ -8,6 +8,7 @@ from pathlib import Path
 
 from kessetsu import (
     DataComparison,
+    FitResults,
     KessetsuContractError,
     ResearchData,
     SimulationResult,
@@ -121,6 +122,90 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(record["parameter.r"], "1kOhm")
         self.assertIsNone(record["measurement.gain"])
         self.assertEqual(record["measurement.gain.error"], "missing vector")
+
+    def test_fit_tables_keep_selection_holdout_scores_failures_and_residual_access(self) -> None:
+        comparison = {
+            "schema_version": "kessetsu.data-comparison.v1",
+            "identity": "sha256:comparison",
+            "data_identity": "sha256:data",
+            "reference_identity": "sha256:reference",
+            "data_origin": "measured",
+            "reference_origin": "simulation",
+            "axis_unit": "Second",
+            "spec": {},
+            "signals": [
+                {
+                    "mapping": {"data_signal": "out", "reference_signal": "out"},
+                    "unit": "Volt",
+                    "metrics": {"total": 1, "matched": 1, "excluded_by_window": 0, "unmatched": 0, "bias": 0.0, "mae": 0.0, "rmse": 0.0, "max_absolute": 0.0},
+                    "points": [
+                        {"source_record": 2, "axis": 0.0, "observed": 1.0, "predicted": 1.0, "residual": 0.0, "status": "matched"}
+                    ],
+                }
+            ],
+        }
+        value = {
+            "schema_version": "kessetsu.fit-result.v1",
+            "identity": "sha256:fit",
+            "experiment_identity": "sha256:study",
+            "simulator": {"executable": "ngspice", "version": "46"},
+            "solver_fingerprint": "sha256:solver",
+            "data_identities": {"cal": "sha256:data"},
+            "spec": {},
+            "selected_candidate": "candidate-a",
+            "near_equivalent_candidates": ["candidate-a"],
+            "warnings": ["finite grid"],
+            "candidates": [
+                {
+                    "id": "candidate-a",
+                    "parameters": {"resistance": "1kOhm"},
+                    "eligible": True,
+                    "calibration_score": 0.0,
+                    "validation_score": 0.2,
+                    "boundary_hits": [],
+                    "observations": [
+                        {
+                            "name": "calibration",
+                            "role": "calibration",
+                            "data_identity": "sha256:data",
+                            "case_id": "case-a",
+                            "score": 0.0,
+                            "scored_points": 1,
+                            "comparison": comparison,
+                            "error": None,
+                        }
+                    ],
+                },
+                {
+                    "id": "candidate-b",
+                    "parameters": {"resistance": "2kOhm"},
+                    "eligible": False,
+                    "calibration_score": None,
+                    "validation_score": None,
+                    "boundary_hits": ["resistance"],
+                    "observations": [
+                        {
+                            "name": "calibration",
+                            "role": "calibration",
+                            "data_identity": "sha256:data",
+                            "case_id": "case-b",
+                            "score": None,
+                            "scored_points": 0,
+                            "comparison": None,
+                            "error": "simulation failed",
+                        }
+                    ],
+                },
+            ],
+        }
+        fit = FitResults.from_mapping(value)
+        candidates = fit.candidates_table().records()
+        self.assertTrue(candidates[0]["selected"])
+        self.assertEqual(candidates[0]["validation_score"], 0.2)
+        self.assertEqual(candidates[1]["boundary_hits"], "resistance")
+        observations = fit.observations_table().records()
+        self.assertEqual(observations[1]["error"], "simulation failed")
+        self.assertEqual(fit.comparison("candidate-a", "calibration").metrics("out")["rmse"], 0.0)
 
 
 def simulation(data: dict, analysis: dict) -> dict:

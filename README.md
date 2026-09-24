@@ -28,7 +28,8 @@ The project is not limited to a particular educational scenario or circuit class
 - SVG, PNG, PDF, Schematic JSON, SPICE, KiCad, and LTspice exports
 - Versioned, compressed, package-aware share URLs
 - Shared loaded-divider and RC-filter tools with typed inputs, standard component selection and editable circuit generation (CLI 1.1.0+)
-- Development source: reproducible parameter studies, local research-data comparison and a thin Python/Jupyter adapter over the same Core contracts
+- Development source: reproducible parameter studies, local research-data comparison,
+  finite calibration/holdout fitting and a thin Python/Jupyter adapter over the same Core contracts
 
 Read the [documentation](https://kessetsu.com/docs/) and [changelog](https://kessetsu.com/changelog/) on the website. The [architecture](docs/architecture.md), [component and simulation reference](docs/reference/supported-domain.md), and [measurement reference](docs/reference/measurements.md) define technical behavior and assumptions.
 
@@ -148,10 +149,12 @@ a second simulator:
 ```sh
 python -m pip install "./python[notebook]"
 jupyter lab examples/notebooks/research-data-workflow.ipynb
+# Or finite calibration plus holdout validation:
+jupyter lab examples/notebooks/finite-parameter-fit.ipynb
 ```
 
 See the [Python/Jupyter guide](docs/guides/python-notebooks.md) for simulations, parameter
-study tables, research-data comparison, error handling and provenance.
+study tables, research-data comparison, finite fitting, error handling and provenance.
 
 ## Build and verification
 

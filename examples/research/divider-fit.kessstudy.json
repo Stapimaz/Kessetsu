@@ -1,0 +1,26 @@
+{
+  "schema_version": "kessetsu.experiment.v1",
+  "name": "Synthetic divider resistance fit",
+  "source": "// Synthetic fitting tutorial: recover the series resistance from two stimulus conditions.\n// This is workflow evidence, not a physical measurement or model-identification claim.\nparam resistance: Ohm = 1k\nparam drive: V = 1V\nnet GND\nnet IN\nnet OUT\nsource VIN sine(0V,{drive},100Hz)\nresistor RS {resistance}\nresistor RL 1k\nconnect VIN.minus, RL.p2 to GND\nconnect VIN.plus, RS.p1 to IN\nconnect RS.p2, RL.p1 to OUT\nsimulate tran 50us 20ms\n",
+  "axes": [
+    {
+      "parameter": "resistance",
+      "values": {
+        "kind": "list",
+        "values": ["500Ohm", "750Ohm", "1kOhm", "1.5kOhm", "2kOhm"]
+      }
+    }
+  ],
+  "revisions": [
+    {
+      "name": "Calibration",
+      "parameters": { "drive": "1V" }
+    },
+    {
+      "name": "Validation",
+      "parameters": { "drive": "2V" }
+    }
+  ],
+  "temperatures_c": [27.0],
+  "timeout_ms": 30000
+}

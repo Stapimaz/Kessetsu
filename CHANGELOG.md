@@ -4,6 +4,20 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### Finite calibration and validation
+
+- Core-owned `kessetsu.fit.v1` evaluation selects only among completed finite study
+  candidates using declared calibration observations; holdout validation never influences
+  selection.
+- Dimensionless weighted RMS scoring uses explicit per-signal uncertainty and weight while
+  preserving complete residual comparisons, score masks, failures, case/data/model/solver
+  identities, boundary hits and near-equivalent candidates in `kessetsu.fit-result.v1`.
+- `kess fit evaluate`, typed Python tables and a headlessly executable synthetic notebook
+  share the same contract. The workflow makes no continuous/global optimum, physical-mechanism,
+  identifiability or extrapolation claim.
+- Typed external subcircuit parameters can be swept as ordinary root study axes, allowing
+  exact hash-bound local models to participate without editing their model text.
+
 ### Typed external model parameters
 
 - External subcircuits may expose a bounded, unit-typed allowlist of existing `.SUBCKT`
@@ -31,7 +45,7 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
   simulation/study/research tables and pandas conversion; includes a headlessly verified
   Jupyter workflow from circuit simulation through residual evidence and plots.
 - Synthetic tutorial files and detailed [research-data guide](docs/guides/research-data.md).
-  Direct multi-case study comparison and fitting are not yet delivered.
+  Arbitrary direct study-result comparison remains outside this data-command surface.
 
 ### Local parameter studies
 

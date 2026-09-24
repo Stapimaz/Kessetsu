@@ -27,9 +27,10 @@ const stages = [
   {
     id: 'editor_activation',
     description: 'Editor UI, Monaco worker and canonical Core WASM loaded after Open Web Hub',
-    // Reviewed shared experiment/measurement contract growth: measured 2970 KiB.
-    // Keep a close feature ceiling; landing and Ngspice payload budgets are unchanged.
-    budget_gzip_bytes: 3020 * 1024,
+    // Reviewed shared experiment/measurement and typed external-parameter growth:
+    // measured 3026 KiB after excluding native-only fitting code from WASM.
+    // Retain roughly 49 KiB headroom; landing and Ngspice budgets are unchanged.
+    budget_gzip_bytes: 3075 * 1024,
     assets: select('editor activation', [/^WorkspaceApp-.*\.js$/, /^WorkspaceApp-.*\.css$/, /^editor\.worker-.*\.js$/, /^kessetsu_core_bg-.*\.wasm$/]),
   },
   {

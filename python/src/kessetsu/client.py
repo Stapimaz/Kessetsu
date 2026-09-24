@@ -13,6 +13,7 @@ from typing import Any, Mapping, Sequence
 from .contracts import (
     CLI_SCHEMA,
     DataComparison,
+    FitResults,
     KessetsuCommandError,
     KessetsuContractError,
     KessetsuNotFoundError,
@@ -23,6 +24,7 @@ from .contracts import (
     StudyResults,
     dump_json,
     load_comparison,
+    load_fit_results,
     load_research_data,
     load_study_results,
 )
@@ -223,6 +225,54 @@ class KessetsuClient:
             self._run(args, "data")
             comparison = load_comparison(target)
         return comparison
+
+    def evaluate_fit(
+        self,
+        study: StudyResults | str | os.PathLike[str],
+        specification: Mapping[str, Any],
+        datasets: Mapping[str, ResearchData | str | os.PathLike[str]],
+        *,
+        output: str | os.PathLike[str] | None = None,
+        force: bool = False,
+    ) -> FitResults:
+        """Evaluate a finite Core study against explicit calibration/validation datasets."""
+        if not datasets:
+            raise ValueError("datasets must contain at least one named research dataset")
+        with tempfile.TemporaryDirectory(prefix="kessetsu-python-") as directory:
+            root = Path(directory)
+            if isinstance(study, StudyResults):
+                study_path = root / "study-results.json"
+                dump_json(study_path, study.raw)
+            else:
+                study_path = Path(study).resolve()
+            specification_path = root / "fit-spec.json"
+            dump_json(specification_path, specification)
+            bindings: list[str] = []
+            for index, (name, dataset) in enumerate(datasets.items()):
+                if not name or "=" in name:
+                    raise ValueError("dataset names must be non-empty and cannot contain '='")
+                if isinstance(dataset, ResearchData):
+                    path = root / f"dataset-{index + 1}.json"
+                    dump_json(path, dataset.raw)
+                else:
+                    path = Path(dataset).resolve()
+                bindings.extend(["--data", f"{name}={path}"])
+            target = Path(output).resolve() if output is not None else root / "fit-result.json"
+            args = [
+                "fit",
+                "evaluate",
+                str(study_path),
+                "--spec",
+                str(specification_path),
+                *bindings,
+                "--output",
+                str(target),
+            ]
+            if force:
+                args.append("--force")
+            self._run(args, "fit")
+            result = load_fit_results(target)
+        return result
 
     @staticmethod
     def _parameter_args(parameters: Mapping[str, str] | None) -> list[str]:
