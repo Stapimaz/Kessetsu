@@ -1,8 +1,8 @@
 # Research Data Import and Comparison
 
-Available in development Core/CLI source, not published 1.2.0 binaries or the live website.
-This guide covers working CSV import and scalar-data comparison. Web import/plots,
-direct study-result comparison, fitting and notebook workflows are not delivered yet.
+Available in development Core, CLI and Web source, not published 1.2.0 binaries or the live
+website. This guide covers working CSV import and scalar-data comparison. Direct study-result
+or ordinary-simulation comparison, fitting and notebook workflows are not delivered yet.
 
 Import local CSV with explicit columns and units, preserve its original text and compare
 it with a separately imported reference. These commands do not launch a simulator, upload
@@ -33,6 +33,24 @@ Invalid input, identity, coverage or I/O returns `2` with `KES-R001`; malformed 
 arguments and unsupported CLI schema also fail before file writes. Global `--param`
 does not apply to data commands. Existing output needs `--force`, which cannot authorize
 overwriting any input CSV, mapping, dataset or reference.
+
+## Web workflow
+
+In a development Web build, open **Analyze > Research data**. The three explicit steps are:
+
+1. Choose the observed CSV, review its dialect/preview, map axis and signal columns, units,
+   calibration, missing-value behavior and origin, then import it.
+2. Repeat for the independent reference CSV.
+3. Pair logical signals, select coverage/interpolation and any explicit shift/window/gap,
+   then compare. The result shows an overlay and complete residual metrics and downloads as
+   `.kesscompare.json`; either normalized source dataset can download as `.kessdata.json`.
+
+The browser enforces the same Core schemas and limits as CLI. Files stay in the current tab,
+are not uploaded or placed in browser storage, and do not change the open circuit. Closing and
+reopening the dialog during the same editor session retains the local working set; refreshing
+the page deliberately clears it. The visible plot may decimate very large series for display,
+while the downloaded evidence retains every point. Current Web comparison is CSV-to-CSV; it
+does not imply that a reference is a simulator result or a physically validated model.
 
 ## Preview and import mapping
 

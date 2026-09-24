@@ -18,6 +18,7 @@ import { BrandWordmark } from './BrandWordmark';
 import { CircuitDetailsDialog } from './CircuitDetailsDialog';
 import { EditorPanel } from './EditorPanel';
 import { RenameDialog } from './RenameDialog';
+import { ResearchDataDialog } from './ResearchDataDialog';
 import { ResultsPanel } from './ResultsPanel';
 import { SchematicPanel } from './SchematicPanel';
 import { ShareDialog } from './ShareDialog';
@@ -41,6 +42,7 @@ export function WorkspaceApp() {
   const [shareOpen, setShareOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [studyOpen, setStudyOpen] = useState(false);
+  const [researchDataOpen, setResearchDataOpen] = useState(false);
   const [documentError, setDocumentError] = useState('');
   const [documentNotice, setDocumentNotice] = useState('');
   const menusRef = useRef<HTMLElement>(null);
@@ -300,6 +302,7 @@ export function WorkspaceApp() {
             <button aria-haspopup="menu" aria-expanded={openMenu === 'analyze'} onClick={() => toggleMenu('analyze')}>Analyze</button>
             {openMenu === 'analyze' && <div className="menu-popover" role="menu" aria-label="Analyze menu">
               <button role="menuitem" disabled={!state.wasmLoaded || state.simulationState === 'running'} onClick={() => { setStudyOpen(true); setOpenMenu(null); }}><span>Parameter study…</span></button>
+              <button role="menuitem" disabled={!state.wasmLoaded} onClick={() => { setResearchDataOpen(true); setOpenMenu(null); }}><span>Research data…</span></button>
             </div>}
           </div>
           <div className="application-menu">
@@ -376,6 +379,7 @@ export function WorkspaceApp() {
       />
       {state.wasmLoaded && <StudyDialog open={studyOpen} source={state.code} name={documentName} resources={modelResources}
         onClose={() => setStudyOpen(false)} onApplySource={setCode} />}
+      {state.wasmLoaded && <ResearchDataDialog open={researchDataOpen} onClose={() => setResearchDataOpen(false)} />}
       <WorkspaceLayout
         resetRequest={resetRequest}
         source={(panelControls) => <EditorPanel

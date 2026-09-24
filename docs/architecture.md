@@ -125,6 +125,9 @@ origins are caller declarations, never attestations. Comparison retains coverage
 exclusions and full residual arrays; it does not extrapolate, silently align, fit a model or
 change circuit requirements. Validation reconstructs normalized data from original CSV and
 mapping. See the [research-data guide](guides/research-data.md) for implemented scope/bounds.
+The Web adapter exposes this boundary as a local-only modal workflow: the user previews two
+CSV files, explicitly confirms mappings, compares normalized datasets and downloads the full
+evidence object. It does not mutate or persist the open circuit and does not upload data.
 
 ### Local experiment boundary (development source)
 
