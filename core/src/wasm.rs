@@ -475,6 +475,44 @@ pub struct BrowserEvaluation {
 }
 
 #[wasm_bindgen]
+pub fn preview_research_csv(input: &str, dialect: JsValue) -> Result<JsValue, JsValue> {
+    let dialect = if dialect.is_null() || dialect.is_undefined() {
+        crate::research_data::CsvDialect::default()
+    } else {
+        serde_wasm_bindgen::from_value(dialect).map_err(|e| JsValue::from_str(&e.to_string()))?
+    };
+    let result =
+        crate::research_data::preview_csv(input, &dialect).map_err(|e| JsValue::from_str(&e))?;
+    to_json_compatible(&result, "CSV preview")
+}
+
+#[wasm_bindgen]
+pub fn import_research_csv(input: &str, specification: JsValue) -> Result<JsValue, JsValue> {
+    let spec = serde_wasm_bindgen::from_value(specification)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let result =
+        crate::research_data::import_csv(input, spec).map_err(|e| JsValue::from_str(&e))?;
+    to_json_compatible(&result, "research data")
+}
+
+#[wasm_bindgen]
+pub fn compare_research_data(
+    data: JsValue,
+    reference: JsValue,
+    specification: JsValue,
+) -> Result<JsValue, JsValue> {
+    let data =
+        serde_wasm_bindgen::from_value(data).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let reference =
+        serde_wasm_bindgen::from_value(reference).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let spec = serde_wasm_bindgen::from_value(specification)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let result = crate::research_data::compare_data(&data, &reference, spec)
+        .map_err(|e| JsValue::from_str(&e))?;
+    to_json_compatible(&result, "data comparison")
+}
+
+#[wasm_bindgen]
 pub fn evaluate_browser_simulation(input: &str, simulation: JsValue) -> Result<JsValue, JsValue> {
     evaluate_browser_simulation_with_resources(input, simulation, JsValue::NULL)
 }

@@ -116,6 +116,16 @@ into an acceptance range. New shares identify the active compile schema.
 
 ## 2. Language Syntax and Rules
 
+### Research-data boundary (development source)
+
+`research_data.rs` owns pure versioned CSV preview/import, explicit quantity/calibration
+mapping, retained raw evidence and scalar comparison. Research data is not fabricated
+`SimulationResult` data. Native/WASM adapters own local reads/writes and later Web interaction;
+origins are caller declarations, never attestations. Comparison retains coverage/window
+exclusions and full residual arrays; it does not extrapolate, silently align, fit a model or
+change circuit requirements. Validation reconstructs normalized data from original CSV and
+mapping. See the [research-data guide](guides/research-data.md) for implemented scope/bounds.
+
 ### Local experiment boundary (development source)
 
 `experiment.rs` owns pure `kessetsu.experiment.v1` validation, deterministic case generation,

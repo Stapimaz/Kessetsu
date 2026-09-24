@@ -4,6 +4,15 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### Research-data foundation
+
+- Local `kess data preview/import/compare` and shared Core/WASM contracts for explicitly
+  mapped CSV, engineering units, calibration, raw-source identity and missing-row accounting.
+- Scalar reference comparison with explicit windows/shifts, interpolation and coverage;
+  full residuals and sample-weighted bias, MAE, RMSE and maximum error.
+- Synthetic tutorial files and detailed [research-data guide](docs/guides/research-data.md).
+  Web import/plots, direct study comparison, notebook integration and fitting are not yet delivered.
+
 ### Local parameter studies
 
 - Shared versioned study specifications and deterministic list/linear/log grids, revisions,

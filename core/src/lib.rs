@@ -21,6 +21,7 @@ pub mod model_resources;
 pub mod models;
 pub mod parser;
 pub mod requirements;
+pub mod research_data;
 pub mod schematic;
 mod schematic_geometry;
 pub mod schematic_svg;

@@ -77,6 +77,33 @@ with units, equations, assumptions and editable source. Calculations are analyti
 simulation PASS claims. Use normal `simulate`, `test`, `render` and `export` commands on the
 generated source to continue. Source builds expose command details through `kess tool --help`.
 
+## Research data
+
+Development builds can preview instrument-style CSV, preserve an explicitly mapped and
+unit-normalized dataset, and compare two imported scalar datasets without launching a
+simulator:
+
+```bash
+kess data preview capture.csv --delimiter semicolon --decimal comma --skip-records 2 --format json
+kess data import capture.csv --mapping capture.kessimport.json --output capture.kessdata.json
+kess data compare capture.kessdata.json --reference reference.kessdata.json \
+  --mapping comparison.kesscompare.json --output residuals.json --format json
+```
+
+Preview never guesses a final mapping. Import records the original CSV bytes, SHA-256,
+column/unit mapping, normalized SI values, metadata and skipped-row reasons in
+`kessetsu.research-data.v1`. Compare uses an explicit signal mapping, interpolation and
+coverage policy and writes the point-by-point residual evidence plus bias, MAE, RMSE and
+maximum absolute error. Default JSON stdout stays compact; `--include datasets` includes
+the complete imported arrays or comparison points.
+
+Existing outputs require `--force`, and an output may never alias a CSV, mapping, dataset
+or reference input. Data commands reject `--param` and return exit code `2` for invalid
+data, mappings, identity checks or file operations. They currently compare real scalar
+signals; model fitting, direct study-result comparison and Web import are not implied.
+See the [research-data guide](../guides/research-data.md) for mapping schemas, locale and
+unit rules, missing-data behavior, comparison semantics, provenance and limits.
+
 ## Stdin and File-Free Agent Use
 
 When the file path is `-`, Kessetsu reads source from stdin:

@@ -67,6 +67,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Import research CSV and compare unit-mapped local data
+    Data(DataCommand),
     /// Create, plan, run or export a reproducible local parameter study
     Study(StudyCommand),
     /// Calculate components and generate an editable circuit
@@ -83,6 +85,50 @@ enum Commands {
     Render(RenderCommand),
     /// Export a machine-readable or editable circuit artifact
     Export(ExportCommand),
+}
+
+#[derive(Args)]
+struct DataCommand {
+    #[command(subcommand)]
+    action: DataAction,
+}
+
+#[derive(Subcommand)]
+enum DataAction {
+    /// Preview CSV before selecting an explicit column/unit mapping
+    Preview {
+        file: PathBuf,
+        #[arg(long, default_value = "comma", value_parser = ["comma", "semicolon", "tab"])]
+        delimiter: String,
+        #[arg(long, default_value = "dot", value_parser = ["dot", "comma"])]
+        decimal: String,
+        #[arg(long)]
+        no_header: bool,
+        #[arg(long, default_value_t = 0)]
+        skip_records: usize,
+    },
+    /// Preserve raw CSV and normalized values in versioned research JSON
+    Import {
+        file: PathBuf,
+        #[arg(long)]
+        mapping: PathBuf,
+        #[arg(short, long)]
+        output: PathBuf,
+        #[arg(long)]
+        force: bool,
+    },
+    /// Compare two imported datasets with an explicit residual/coverage mapping
+    Compare {
+        file: PathBuf,
+        #[arg(long)]
+        reference: PathBuf,
+        #[arg(long)]
+        mapping: PathBuf,
+        #[arg(short, long)]
+        output: PathBuf,
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 #[derive(Args)]
@@ -336,6 +382,8 @@ struct JsonOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
     study: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     debug: Option<BTreeMap<String, Value>>,
 }
 
@@ -351,6 +399,8 @@ struct DomainVersions {
     tool: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     experiment: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    research_data: Option<&'static str>,
 }
 
 #[derive(Clone, Serialize)]
@@ -794,6 +844,143 @@ fn run_study(command: &StudyCommand, format: &Format, includes: &BTreeSet<Includ
     }
 }
 
+fn run_data(command: &DataCommand, format: &Format, includes: &BTreeSet<Include>) -> i32 {
+    use kessetsu_core::research_data::*;
+    let read_text = |path: &Path, limit: usize| -> Result<String, String> {
+        String::from_utf8(study_read(path, limit as u64)?).map_err(|_| "Input must be UTF-8".into())
+    };
+    let execute = || -> Result<(Value, Option<&Path>), String> {
+        match &command.action {
+            DataAction::Preview {
+                file,
+                delimiter,
+                decimal,
+                no_header,
+                skip_records,
+            } => {
+                let dialect = CsvDialect {
+                    delimiter: match delimiter.as_str() {
+                        "semicolon" => Delimiter::Semicolon,
+                        "tab" => Delimiter::Tab,
+                        _ => Delimiter::Comma,
+                    },
+                    decimal: if decimal == "comma" {
+                        Decimal::Comma
+                    } else {
+                        Decimal::Dot
+                    },
+                    header: !no_header,
+                    preamble_records: *skip_records,
+                };
+                Ok((
+                    serde_json::to_value(preview_csv(&read_text(file, MAX_CSV_BYTES)?, &dialect)?)
+                        .map_err(|e| e.to_string())?,
+                    None,
+                ))
+            }
+            DataAction::Import {
+                file,
+                mapping,
+                output,
+                force,
+            } => {
+                for input in [file, mapping] {
+                    study_preflight(input, output, *force)?;
+                }
+                let spec: ImportSpec = serde_json::from_str(&read_text(mapping, 64 * 1024)?)
+                    .map_err(|e| e.to_string())?;
+                let result = import_csv(&read_text(file, MAX_CSV_BYTES)?, spec)?;
+                let mut body = serde_json::json!({ "schema_version": result.schema_version, "identity": result.identity, "raw_sha256": result.raw_sha256, "rows": result.source_records.len(), "skipped": result.skipped.len(), "origin": result.spec.metadata.origin, "axis": {"name": result.axis.name, "unit": result.axis.unit}, "signals": result.signals.iter().map(|c| serde_json::json!({"name":c.name,"unit":c.unit})).collect::<Vec<_>>() });
+                if includes.contains(&Include::Datasets) {
+                    body["axis"]["values"] =
+                        serde_json::to_value(&result.axis.values).map_err(|e| e.to_string())?;
+                    body["signals"] =
+                        serde_json::to_value(&result.signals).map_err(|e| e.to_string())?;
+                }
+                study_write(
+                    output,
+                    &serde_json::to_vec_pretty(&result).map_err(|e| e.to_string())?,
+                )?;
+                Ok((body, Some(output.as_path())))
+            }
+            DataAction::Compare {
+                file,
+                reference,
+                mapping,
+                output,
+                force,
+            } => {
+                for input in [file, reference, mapping] {
+                    study_preflight(input, output, *force)?;
+                }
+                let data: ResearchData = serde_json::from_str(&read_text(file, 64 * 1024 * 1024)?)
+                    .map_err(|e| e.to_string())?;
+                let reference: ResearchData =
+                    serde_json::from_str(&read_text(reference, 64 * 1024 * 1024)?)
+                        .map_err(|e| e.to_string())?;
+                let spec: ComparisonSpec = serde_json::from_str(&read_text(mapping, 64 * 1024)?)
+                    .map_err(|e| e.to_string())?;
+                let result = compare_data(&data, &reference, spec)?;
+                let body = if includes.contains(&Include::Datasets) {
+                    serde_json::to_value(&result).map_err(|e| e.to_string())?
+                } else {
+                    serde_json::json!({ "schema_version": result.schema_version, "identity": result.identity, "data_identity": result.data_identity, "reference_identity": result.reference_identity, "axis_unit": result.axis_unit, "signals": result.signals.iter().map(|c| serde_json::json!({"mapping":c.mapping,"unit":c.unit,"metrics":c.metrics})).collect::<Vec<_>>() })
+                };
+                study_write(
+                    output,
+                    &serde_json::to_vec_pretty(&result).map_err(|e| e.to_string())?,
+                )?;
+                Ok((body, Some(output.as_path())))
+            }
+        }
+    };
+    match execute() {
+        Ok((body, artifact)) => {
+            let report = kessetsu_core::compiler::compile_source("", CompileOptions::default());
+            let mut output = build_json_output(
+                "data",
+                includes,
+                "completed",
+                &report,
+                None,
+                None,
+                None,
+                None,
+            );
+            output.domain_versions.research_data = Some(DATA_SCHEMA);
+            output.data = Some(body.clone());
+            if let Some(path) = artifact {
+                output.artifacts.push(plain_json_artifact(
+                    "research_data",
+                    path.to_string_lossy().into_owned(),
+                ));
+            }
+            if *format == Format::Json {
+                println!("{}", serde_json::to_string(&output).unwrap());
+            } else {
+                println!("{}", serde_json::to_string_pretty(&body).unwrap());
+                if let Some(path) = artifact {
+                    println!("Saved: {}", path.display());
+                }
+            }
+            0
+        }
+        Err(error) => {
+            emit(
+                format,
+                "data",
+                includes,
+                "error",
+                CompileReport::failure(diagnostic("KES-R001", DiagnosticStage::Cli, error)),
+                None,
+                None,
+                None,
+            );
+            2
+        }
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
     process::exit(run(cli));
@@ -824,6 +1011,26 @@ fn run(cli: Cli) -> i32 {
         return 2;
     }
 
+    if let Commands::Data(data) = &cli.command {
+        if !cli.parameters.is_empty() {
+            emit(
+                &cli.format,
+                command,
+                &includes,
+                "error",
+                CompileReport::failure(diagnostic(
+                    "KES-F002",
+                    DiagnosticStage::Cli,
+                    "--param applies to circuits, not research-data imports/comparisons",
+                )),
+                None,
+                None,
+                None,
+            );
+            return 2;
+        }
+        return run_data(data, &cli.format, &includes);
+    }
     if let Commands::Tool(tool) = &cli.command {
         if !cli.parameters.is_empty() {
             emit(
@@ -1223,6 +1430,7 @@ fn run(cli: Cli) -> i32 {
 
 fn command_name(command: &Commands) -> &'static str {
     match command {
+        Commands::Data(_) => "data",
         Commands::Study(_) => "study",
         Commands::Tool(_) => "tool",
         Commands::Check { .. } => "check",
@@ -1462,7 +1670,7 @@ fn load_external_model_resources(
 
 fn command_path(command: &Commands) -> &Path {
     match command {
-        Commands::Study(_) | Commands::Tool(_) => {
+        Commands::Data(_) | Commands::Study(_) | Commands::Tool(_) => {
             unreachable!("non-circuit commands are handled before reading source")
         }
         Commands::Check { file } => file,
@@ -1477,7 +1685,8 @@ fn output_command(command: &Commands) -> Option<&OutputCommand> {
     match command {
         Commands::Compile(command) | Commands::Simulate(command) => Some(command),
         Commands::Test(command) => Some(&command.output),
-        Commands::Study(_)
+        Commands::Data(_)
+        | Commands::Study(_)
         | Commands::Check { .. }
         | Commands::Render(_)
         | Commands::Export(_)
@@ -2406,6 +2615,7 @@ fn build_json_output(
             export: None,
             tool: None,
             experiment: None,
+            research_data: None,
         },
         diagnostics,
         summary,
@@ -2415,6 +2625,7 @@ fn build_json_output(
         artifacts,
         calculation: None,
         study: None,
+        data: None,
         debug: build_debug(includes, report, simulation),
     }
 }

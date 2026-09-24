@@ -1,0 +1,12 @@
+{
+  "schema_version": "kessetsu.data-import.v1",
+  "name": "Synthetic scope-style RC trace",
+  "file_name": "scope-style.csv",
+  "metadata": {
+    "origin": "synthetic",
+    "citation": "Illustrative numbers, not an actual oscilloscope capture",
+    "conditions": { "reference_time_constant": "1 ms", "step_amplitude": "1 V" }
+  },
+  "axis": { "column": 0, "name": "time", "unit": "Second", "source_unit": "ms" },
+  "signals": [{ "column": 1, "name": "out", "unit": "Volt", "source_unit": "mV" }]
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": "kessetsu.data-import.v1",
+  "name": "Analytical RC reference",
+  "file_name": "rc-reference.csv",
+  "metadata": {
+    "origin": "synthetic",
+    "citation": "Analytical 1 V RC step: 1-exp(-time/0.001), not measured or solver output",
+    "conditions": { "time_constant": "1 ms" }
+  },
+  "axis": { "column": 0, "name": "time", "unit": "Second", "source_unit": "s" },
+  "signals": [{ "column": 1, "name": "out", "unit": "Volt", "source_unit": "V" }]
+}
