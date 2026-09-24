@@ -1,6 +1,7 @@
 //! Pure research-data import and comparison. No I/O, simulator launch or physical claims.
 use crate::experiment::hash_bytes;
 use crate::ir::{SIUnit, parse_value};
+use crate::simulation::{Dataset, SIMULATION_SCHEMA_VERSION, SimulationResult, SimulationStatus};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -8,6 +9,7 @@ pub const IMPORT_SCHEMA: &str = "kessetsu.data-import.v1";
 pub const PREVIEW_SCHEMA: &str = "kessetsu.csv-preview.v1";
 pub const DATA_SCHEMA: &str = "kessetsu.research-data.v1";
 pub const COMPARISON_SCHEMA: &str = "kessetsu.data-comparison.v1";
+pub const SIMULATION_IMPORT_SCHEMA: &str = "kessetsu.simulation-data-import.v1";
 pub const MAX_CSV_BYTES: usize = 8 * 1024 * 1024;
 pub const MAX_ROWS: usize = 100_000;
 pub const MAX_COLUMNS: usize = 64;
@@ -59,6 +61,7 @@ impl Default for CsvDialect {
 pub enum Origin {
     Measured,
     PublishedSimulation,
+    Simulation,
     Synthetic,
     #[default]
     Unspecified,
@@ -154,6 +157,22 @@ pub struct ResearchData {
     pub source_records: Vec<usize>,
     pub skipped: Vec<SkippedRow>,
     pub records_seen: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SimulationSignalMapping {
+    pub vector: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SimulationImportSpec {
+    pub schema_version: String,
+    pub name: String,
+    pub analysis_index: usize,
+    pub signals: Vec<SimulationSignalMapping>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PreviewRow {
@@ -640,6 +659,248 @@ pub fn validate_data(data: &ResearchData) -> Result<(), String> {
         return Err("Research data differs from its raw evidence/mapping or identity".into());
     }
     Ok(())
+}
+
+fn unit_suffix(unit: SIUnit) -> &'static str {
+    match unit {
+        SIUnit::Ohm => "Ohm",
+        SIUnit::Farad => "F",
+        SIUnit::Henry => "H",
+        SIUnit::Volt => "V",
+        SIUnit::Ampere => "A",
+        SIUnit::Hertz => "Hz",
+        SIUnit::Second => "s",
+        SIUnit::Watt => "W",
+        SIUnit::Joule => "J",
+        SIUnit::Ratio => "",
+        SIUnit::Percent => "%",
+        SIUnit::Degree => "deg",
+    }
+}
+
+fn vector_unit(vector: &str) -> Result<SIUnit, String> {
+    let upper = vector.trim().to_ascii_uppercase();
+    if upper.starts_with("V(") && upper.ends_with(')') {
+        Ok(SIUnit::Volt)
+    } else if (upper.starts_with("I(") && upper.ends_with(')')) || upper.ends_with("#BRANCH") {
+        Ok(SIUnit::Ampere)
+    } else if !upper.is_empty()
+        && upper
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '.'))
+    {
+        // Ngspice/browser adapters expose node-voltage vectors as bare node names.
+        Ok(SIUnit::Volt)
+    } else {
+        Err(format!(
+            "Simulation vector '{vector}' has no supported electrical-unit contract"
+        ))
+    }
+}
+
+fn csv_field(value: &str) -> String {
+    if value.contains([',', '"', '\r', '\n']) {
+        format!("\"{}\"", value.replace('"', "\"\""))
+    } else {
+        value.to_owned()
+    }
+}
+
+/// Project one successful typed simulation dataset into the ordinary research-data contract.
+/// The generated CSV is derived evidence; its metadata retains the simulator/result identity.
+pub fn import_simulation_data(
+    simulation: &SimulationResult,
+    spec: SimulationImportSpec,
+) -> Result<ResearchData, String> {
+    if spec.schema_version != SIMULATION_IMPORT_SCHEMA {
+        return Err("Unsupported simulation-data import schema".into());
+    }
+    text(&spec.name, "Dataset name", 200)?;
+    if simulation.schema_version != SIMULATION_SCHEMA_VERSION
+        || simulation.status != SimulationStatus::Succeeded
+        || !simulation.process.success
+    {
+        return Err("Only a successful typed simulation result can be imported".into());
+    }
+    if spec.signals.is_empty() || spec.signals.len() > 16 {
+        return Err("Choose 1-16 simulation signals".into());
+    }
+    let selected = simulation
+        .datasets
+        .iter()
+        .find(|dataset| dataset.index == spec.analysis_index)
+        .ok_or("Simulation analysis index not found")?;
+    let (axis_name, axis_unit, axis_values, available, ac) = match &selected.data {
+        Dataset::OperatingPoint { .. } => {
+            return Err("Operating-point data has no comparison axis".into());
+        }
+        Dataset::Transient(series) => (
+            series.axis.name.clone(),
+            SIUnit::Second,
+            series.axis.values.clone(),
+            series.signals.keys().cloned().collect::<Vec<_>>(),
+            false,
+        ),
+        Dataset::DcSweep(series) => {
+            let unit = match &selected.analysis {
+                crate::ir::Analysis::DcSweep { start, .. } => start.unit,
+                _ => return Err("DC dataset/analysis metadata does not agree".into()),
+            };
+            (
+                series.axis.name.clone(),
+                unit,
+                series.axis.values.clone(),
+                series.signals.keys().cloned().collect::<Vec<_>>(),
+                false,
+            )
+        }
+        Dataset::Ac(series) => (
+            "frequency".into(),
+            SIUnit::Hertz,
+            series.frequency_hz.clone(),
+            series.signals.keys().cloned().collect::<Vec<_>>(),
+            true,
+        ),
+    };
+    if axis_values.len() < 2 {
+        return Err("Simulation analysis needs at least two ordered samples".into());
+    }
+    let mut logical_names = BTreeSet::new();
+    logical_names.insert(axis_name.to_ascii_lowercase());
+    let mut vectors = BTreeSet::new();
+    let mut projected = Vec::new();
+    for mapping in &spec.signals {
+        text(&mapping.vector, "Simulation vector", 256)?;
+        text(&mapping.name, "Signal name", 128)?;
+        if !available.iter().any(|name| name == &mapping.vector) {
+            return Err(format!(
+                "Simulation vector '{}' was not found",
+                mapping.vector
+            ));
+        }
+        if !vectors.insert(mapping.vector.clone())
+            || !logical_names.insert(mapping.name.to_ascii_lowercase())
+        {
+            return Err("Simulation vectors and logical signal names must be unique".into());
+        }
+        let unit = vector_unit(&mapping.vector)?;
+        let values = match &selected.data {
+            Dataset::Transient(series) | Dataset::DcSweep(series) => series
+                .signals
+                .get(&mapping.vector)
+                .cloned()
+                .ok_or("Simulation signal not found")?,
+            Dataset::Ac(series) => {
+                let values = series
+                    .signals
+                    .get(&mapping.vector)
+                    .ok_or("Simulation signal not found")?;
+                if values.real.len() != values.imaginary.len() {
+                    return Err("Complex simulation vector lengths do not agree".into());
+                }
+                values
+                    .real
+                    .iter()
+                    .zip(&values.imaginary)
+                    .map(|(real, imaginary)| real.hypot(*imaginary))
+                    .collect()
+            }
+            Dataset::OperatingPoint { .. } => unreachable!(),
+        };
+        if values.len() != axis_values.len() {
+            return Err("Simulation axis and signal lengths do not agree".into());
+        }
+        projected.push((mapping, unit, values));
+    }
+    let descending = axis_values.first() > axis_values.last();
+    if matches!(axis_unit, SIUnit::Second | SIUnit::Hertz) && descending {
+        return Err("Time/frequency simulation axes must increase".into());
+    }
+    let result_sha256 = hash_bytes(
+        &serde_json::to_vec(simulation)
+            .map_err(|error| format!("Could not hash simulation: {error}"))?,
+    );
+    let mut conditions = BTreeMap::from([
+        ("analysis_index".into(), spec.analysis_index.to_string()),
+        ("analysis_kind".into(), selected.analysis.kind_name().into()),
+        ("simulation_sha256".into(), result_sha256),
+        (
+            "simulator".into(),
+            format!(
+                "{} {}",
+                simulation.simulator.executable, simulation.simulator.version
+            ),
+        ),
+        (
+            "complex_projection".into(),
+            if ac { "magnitude" } else { "real" }.into(),
+        ),
+    ]);
+    for (index, (mapping, _, _)) in projected.iter().enumerate() {
+        conditions.insert(
+            format!("signal_{}_vector", index + 1),
+            mapping.vector.clone(),
+        );
+    }
+    let mut csv = std::iter::once(csv_field(&axis_name))
+        .chain(
+            projected
+                .iter()
+                .map(|(mapping, _, _)| csv_field(&mapping.name)),
+        )
+        .collect::<Vec<_>>()
+        .join(",");
+    csv.push('\n');
+    for (index, axis) in axis_values.iter().enumerate() {
+        csv.push_str(&format!("{axis:.17e}"));
+        for (_, _, values) in &projected {
+            csv.push(',');
+            csv.push_str(&format!("{:.17e}", values[index]));
+        }
+        csv.push('\n');
+    }
+    let import_spec = ImportSpec {
+        schema_version: IMPORT_SCHEMA.into(),
+        name: spec.name,
+        file_name: format!("simulation-analysis-{}.csv", spec.analysis_index + 1),
+        dialect: CsvDialect::default(),
+        metadata: DataMetadata {
+            origin: Origin::Simulation,
+            citation: Some(
+                "Derived from a typed Kessetsu simulation result; see metadata conditions".into(),
+            ),
+            conditions,
+            ..DataMetadata::default()
+        },
+        axis: ColumnMapping {
+            column: 0,
+            name: axis_name,
+            unit: axis_unit,
+            source_unit: unit_suffix(axis_unit).into(),
+            gain: 1.0,
+            offset: 0.0,
+        },
+        axis_order: if descending {
+            AxisOrder::Decreasing
+        } else {
+            AxisOrder::Increasing
+        },
+        signals: projected
+            .iter()
+            .enumerate()
+            .map(|(index, (mapping, unit, _))| ColumnMapping {
+                column: index + 1,
+                name: mapping.name.clone(),
+                unit: *unit,
+                source_unit: unit_suffix(*unit).into(),
+                gain: 1.0,
+                offset: 0.0,
+            })
+            .collect(),
+        missing: MissingPolicy::Error,
+        missing_tokens: vec![String::new()],
+    };
+    import_csv(&csv, import_spec)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]

@@ -128,6 +128,9 @@ mapping. See the [research-data guide](guides/research-data.md) for implemented 
 The Web adapter exposes this boundary as a local-only modal workflow: the user previews two
 CSV files, explicitly confirms mappings, compares normalized datasets and downloads the full
 evidence object. It does not mutate or persist the open circuit and does not upload data.
+A successful typed transient, AC or DC simulation can also be projected through Core into the
+same validated dataset shape. The projection records simulation hash, solver, analysis and
+vector mapping; AC is explicitly linear magnitude rather than a silent complex/phase coercion.
 
 ### Local experiment boundary (development source)
 

@@ -1,9 +1,14 @@
 mod common;
 use common::TestWorkspace;
 use kessetsu_core::experiment::hash_bytes;
-use kessetsu_core::ir::SIUnit;
+use kessetsu_core::ir::{Analysis, Quantity, SIUnit};
 use kessetsu_core::research_data::*;
+use kessetsu_core::simulation::{
+    AnalysisDataset, ArtifactPolicy, Dataset, RealSeriesDataset, SeriesAxis, SimulationRequest,
+    SimulationResult, SimulationStatus, SimulatorInfo, SimulatorLog, SimulatorProcessStatus,
+};
 use serde_json::Value;
+use std::collections::BTreeMap;
 
 fn mapping(column: usize, name: &str, unit: SIUnit, source_unit: &str) -> ColumnMapping {
     ColumnMapping {
@@ -52,6 +57,117 @@ fn data(csv: &str) -> ResearchData {
 }
 fn near(actual: f64, expected: f64) {
     assert!((actual - expected).abs() < 1e-12, "{actual} != {expected}");
+}
+
+fn transient_result() -> SimulationResult {
+    let analysis = Analysis::Transient {
+        step: Quantity {
+            value: 1e-3,
+            unit: SIUnit::Second,
+        },
+        stop: Quantity {
+            value: 2e-3,
+            unit: SIUnit::Second,
+        },
+        use_initial_conditions: false,
+    };
+    // Constructing a request here also pins the public simulation schema constant.
+    let request = SimulationRequest::new("title\n.end\n", vec![analysis.clone()]);
+    assert_eq!(request.artifact_policy, ArtifactPolicy::CleanupAlways);
+    SimulationResult {
+        schema_version: request.schema_version,
+        status: SimulationStatus::Succeeded,
+        analyses: vec![analysis.clone()],
+        simulator: SimulatorInfo {
+            executable: "ngspice".into(),
+            version: "test-1".into(),
+        },
+        process: SimulatorProcessStatus {
+            exit_code: Some(0),
+            success: true,
+        },
+        measurements: BTreeMap::new(),
+        datasets: vec![AnalysisDataset {
+            index: 0,
+            analysis,
+            data: Dataset::Transient(RealSeriesDataset {
+                axis: SeriesAxis {
+                    name: "time".into(),
+                    values: vec![0.0, 1e-3, 2e-3],
+                },
+                signals: BTreeMap::from([
+                    ("V(out)".into(), vec![0.0, 0.63, 0.86]),
+                    ("I(V1)".into(), vec![0.0, -0.001, -0.002]),
+                ]),
+            }),
+        }],
+        diagnostics: vec![],
+        warnings: vec![],
+        errors: vec![],
+        raw_log: SimulatorLog {
+            stdout: String::new(),
+            stderr: String::new(),
+        },
+        artifacts: vec![],
+    }
+}
+
+#[test]
+fn successful_simulation_projection_is_typed_reconstructable_and_comparable() {
+    let simulation = transient_result();
+    let projected = import_simulation_data(
+        &simulation,
+        SimulationImportSpec {
+            schema_version: SIMULATION_IMPORT_SCHEMA.into(),
+            name: "Current simulation".into(),
+            analysis_index: 0,
+            signals: vec![
+                SimulationSignalMapping {
+                    vector: "V(out)".into(),
+                    name: "out".into(),
+                },
+                SimulationSignalMapping {
+                    vector: "I(V1)".into(),
+                    name: "source_current".into(),
+                },
+            ],
+        },
+    )
+    .unwrap();
+    assert_eq!(projected.spec.metadata.origin, Origin::Simulation);
+    assert_eq!(projected.axis.unit, SIUnit::Second);
+    assert_eq!(projected.signals[0].unit, SIUnit::Volt);
+    assert_eq!(projected.signals[1].unit, SIUnit::Ampere);
+    assert_eq!(projected.signals[0].values, [0.0, 0.63, 0.86]);
+    assert_eq!(
+        projected.spec.metadata.conditions["complex_projection"],
+        "real"
+    );
+    assert!(projected.spec.metadata.conditions["simulation_sha256"].starts_with("sha256:"));
+    validate_data(&projected).unwrap();
+
+    let observed = data("time,out\n0,0\n0.001,0.62\n0.002,0.85\n");
+    let compared = compare_data(&observed, &projected, comparison()).unwrap();
+    assert_eq!(compared.reference_origin, Origin::Simulation);
+    near(compared.signals[0].metrics.mae, 0.02 / 3.0);
+
+    let mut failed = simulation;
+    failed.status = SimulationStatus::Failed;
+    assert!(
+        import_simulation_data(
+            &failed,
+            SimulationImportSpec {
+                schema_version: SIMULATION_IMPORT_SCHEMA.into(),
+                name: "Failed".into(),
+                analysis_index: 0,
+                signals: vec![SimulationSignalMapping {
+                    vector: "V(out)".into(),
+                    name: "out".into()
+                }],
+            }
+        )
+        .is_err()
+    );
 }
 
 #[test]

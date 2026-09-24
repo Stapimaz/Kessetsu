@@ -1,8 +1,9 @@
 # Research Data Import and Comparison
 
 Available in development Core, CLI and Web source, not published 1.2.0 binaries or the live
-website. This guide covers working CSV import and scalar-data comparison. Direct study-result
-or ordinary-simulation comparison, fitting and notebook workflows are not delivered yet.
+website. This guide covers working CSV import and scalar-data comparison, including a current
+Web simulation as reference. Direct multi-case study comparison, fitting and notebook
+workflows are not delivered yet.
 
 Import local CSV with explicit columns and units, preserve its original text and compare
 it with a separately imported reference. These commands do not launch a simulator, upload
@@ -40,7 +41,9 @@ In a development Web build, open **Analyze > Research data**. The three explicit
 
 1. Choose the observed CSV, review its dialect/preview, map axis and signal columns, units,
    calibration, missing-value behavior and origin, then import it.
-2. Repeat for the independent reference CSV.
+2. Repeat for an independent reference CSV, or select an analysis and vectors from the current
+   successful Web simulation. Transient/DC vectors retain real values; AC uses linear complex
+   magnitude. The derived dataset records simulator identity, result hash, analysis and vectors.
 3. Pair logical signals, select coverage/interpolation and any explicit shift/window/gap,
    then compare. The result shows an overlay and complete residual metrics and downloads as
    `.kesscompare.json`; either normalized source dataset can download as `.kessdata.json`.
@@ -49,8 +52,8 @@ The browser enforces the same Core schemas and limits as CLI. Files stay in the 
 are not uploaded or placed in browser storage, and do not change the open circuit. Closing and
 reopening the dialog during the same editor session retains the local working set; refreshing
 the page deliberately clears it. The visible plot may decimate very large series for display,
-while the downloaded evidence retains every point. Current Web comparison is CSV-to-CSV; it
-does not imply that a reference is a simulator result or a physically validated model.
+while the downloaded evidence retains every point. A projected simulation has explicit
+`simulation` origin; comparing against it does not make the simulator model physically valid.
 
 ## Preview and import mapping
 
@@ -141,7 +144,9 @@ values from raw text/mapping and rejects altered arrays/counts. Comparison recor
 dataset identities and its complete mapping/settings. Keep both dataset JSON files and
 comparison mapping with a report so another user can repeat it.
 
-Origins are `measured`, `published_simulation`, `synthetic` or `unspecified` (default).
+Origins are `measured`, `published_simulation`, `simulation`, `synthetic` or `unspecified`
+(default). `simulation` is assigned by the typed current-simulation projection and may also
+describe an explicitly imported simulator export; it is distinct from a published reference.
 Origin/device/sample/citation are **user declarations**, not verified attestations. Hashes
 detect changes, not deliberate rewriting by an owner. Exported dataset JSON contains raw
 data and potentially private device/capture metadata; review before sharing it.

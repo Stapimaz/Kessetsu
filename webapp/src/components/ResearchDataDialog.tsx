@@ -1,21 +1,34 @@
 import { BarChart3, CheckCircle2, Download, Plus, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { compare_research_data, import_research_csv, preview_research_csv } from 'kessetsu-core';
+import { compare_research_data, import_research_csv, import_simulation_research_data, preview_research_csv } from 'kessetsu-core';
 import { downloadTextFile, sanitizeFileStem } from '../document';
 import {
   column, emptySlot, engineering, logicalName, mappingSpec, parseOptional, researchUnits,
   sourceUnit, type ColumnMapping, type CsvDialect, type CsvPreview, type DataComparison, type DatasetSlot,
   type ResearchData, type ResearchUnit, type SignalPair,
 } from '../research';
+import type { BrowserEvaluation, Dataset } from '../simulation/types';
 import './ResearchDataDialog.css';
 
 type SlotId = 'data' | 'reference';
 type Step = SlotId | 'compare';
 
-interface Props { open: boolean; onClose: () => void }
+interface Props { open: boolean; evaluation: BrowserEvaluation | null; circuitName: string; onClose: () => void }
 
 function message(cause: unknown) {
   return cause instanceof Error ? cause.message : String(cause);
+}
+
+function seriesSignals(dataset: Dataset | undefined): string[] {
+  if (!dataset || dataset.kind === 'operating_point') return [];
+  return Object.keys(dataset.signals);
+}
+
+function analysisLabel(dataset: Dataset, index: number) {
+  if (dataset.kind === 'transient') return `${index + 1}: Transient`;
+  if (dataset.kind === 'ac') return `${index + 1}: AC magnitude`;
+  if (dataset.kind === 'dc_sweep') return `${index + 1}: DC sweep`;
+  return `${index + 1}: Operating point`;
 }
 
 function MappingRow({ mapping, headers, axis, onChange, onRemove }: {
@@ -61,7 +74,7 @@ function DatasetEditor({ slot, role, onRead, onUpdate, onPreview, onImport }: {
     onUpdate((current) => ({ ...current, dialect, dataset: null, error: '' }));
     if (slot.csv) onPreview(dialect);
   };
-  const fileName = slot.file?.name ?? 'No CSV selected';
+  const fileName = slot.file?.name ?? (slot.dataset?.spec.metadata.origin === 'simulation' ? 'Current simulation projection' : 'No CSV selected');
   return <section className="research-dataset" aria-label={title}>
     <div className="research-file-row">
       <label className="research-file-button"><Upload size={15} /> Choose CSV
@@ -99,7 +112,7 @@ function DatasetEditor({ slot, role, onRead, onUpdate, onPreview, onImport }: {
           <label>Dataset name<input value={slot.draft.name} onChange={(event) => updateDraft({ name: event.target.value })} /></label>
           <label>Origin<select value={slot.draft.origin} onChange={(event) => updateDraft({ origin: event.target.value as DatasetSlot['draft']['origin'] })}>
             <option value="measured">Measured</option><option value="published_simulation">Published simulation</option>
-            <option value="synthetic">Synthetic</option><option value="unspecified">Unspecified</option>
+            <option value="simulation">Simulation export</option><option value="synthetic">Synthetic</option><option value="unspecified">Unspecified</option>
           </select></label>
           <label>Axis order<select value={slot.draft.axisOrder} onChange={(event) => updateDraft({ axisOrder: event.target.value as DatasetSlot['draft']['axisOrder'] })}>
             <option value="increasing">Increasing</option><option value="decreasing">Decreasing</option>
@@ -172,7 +185,7 @@ function ComparisonPlot({ comparison, signalIndex }: { comparison: DataCompariso
   </figure>;
 }
 
-export function ResearchDataDialog({ open, onClose }: Props) {
+export function ResearchDataDialog({ open, evaluation, circuitName, onClose }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [step, setStep] = useState<Step>('data');
   const [data, setData] = useState(() => emptySlot('Observed dataset'));
@@ -188,6 +201,12 @@ export function ResearchDataDialog({ open, onClose }: Props) {
   const [comparison, setComparison] = useState<DataComparison | null>(null);
   const [comparisonError, setComparisonError] = useState('');
   const [plotSignal, setPlotSignal] = useState(0);
+  const eligibleAnalyses = useMemo(() => evaluation?.simulation.datasets.filter((item) => item.data.kind !== 'operating_point') ?? [], [evaluation]);
+  const [simulationAnalysis, setSimulationAnalysis] = useState(0);
+  const selectedAnalysis = useMemo(() => eligibleAnalyses.find((item) => item.index === simulationAnalysis) ?? eligibleAnalyses[0], [eligibleAnalyses, simulationAnalysis]);
+  const availableSimulationSignals = useMemo(() => seriesSignals(selectedAnalysis?.data), [selectedAnalysis]);
+  const [simulationSignals, setSimulationSignals] = useState<Array<{ vector: string; name: string }>>([]);
+  const [simulationError, setSimulationError] = useState('');
 
   useEffect(() => {
     const current = dialog.current;
@@ -195,6 +214,17 @@ export function ResearchDataDialog({ open, onClose }: Props) {
     if (open && !current.open) current.showModal();
     if (!open && current.open) current.close();
   }, [open]);
+
+  useEffect(() => {
+    if (!selectedAnalysis) { setSimulationSignals([]); return; }
+    if (selectedAnalysis.index !== simulationAnalysis) setSimulationAnalysis(selectedAnalysis.index);
+    setSimulationSignals((current) => {
+      const valid = current.filter((mapping) => availableSimulationSignals.includes(mapping.vector));
+      if (valid.length > 0) return valid;
+      const vector = availableSimulationSignals[0];
+      return vector ? [{ vector, name: logicalName(vector.replace(/[()]/g, '_'), 'signal') }] : [];
+    });
+  }, [selectedAnalysis, simulationAnalysis, availableSimulationSignals]);
 
   const slot = (id: SlotId) => id === 'data' ? data : reference;
   const setSlot = (id: SlotId, next: DatasetSlot | ((current: DatasetSlot) => DatasetSlot)) => {
@@ -270,6 +300,22 @@ export function ResearchDataDialog({ open, onClose }: Props) {
       setComparison(result); setComparisonError(''); setPlotSignal(0);
     } catch (cause) { setComparison(null); setComparisonError(message(cause)); }
   };
+  const importSimulation = () => {
+    if (!evaluation || !selectedAnalysis) return;
+    try {
+      const dataset = import_simulation_research_data(evaluation.simulation, {
+        schema_version: 'kessetsu.simulation-data-import.v1',
+        name: `${circuitName} simulation`,
+        analysis_index: selectedAnalysis.index,
+        signals: simulationSignals,
+      }) as ResearchData;
+      setReference((current) => ({
+        ...current, file: null, csv: '', preview: null, dataset, error: '',
+        draft: { ...current.draft, name: dataset.spec.name, origin: 'simulation' },
+      }));
+      setComparison(null); setComparisonError(''); setSimulationError(''); setStep('compare');
+    } catch (cause) { setSimulationError(message(cause)); }
+  };
   const selectedSignal = comparison?.signals[plotSignal];
   const totalRetained = useMemo(() => (data.dataset?.axis.values.length ?? 0) + (reference.dataset?.axis.values.length ?? 0), [data.dataset, reference.dataset]);
 
@@ -280,10 +326,29 @@ export function ResearchDataDialog({ open, onClose }: Props) {
       <button aria-pressed={step === 'reference'} onClick={() => setStep('reference')}>2 · Reference {reference.dataset && <CheckCircle2 size={13} />}</button>
       <button aria-pressed={step === 'compare'} disabled={!canCompare} onClick={() => setStep('compare')}>3 · Compare</button>
     </nav>
-    {step !== 'compare' ? <DatasetEditor slot={step === 'data' ? data : reference} role={step}
-      onRead={(file) => void read(step, file)}
-      onUpdate={(change) => setSlot(step, change)}
-      onPreview={(dialect) => preview(step, dialect)} onImport={() => importSlot(step)} /> : <section className="research-comparison" aria-label="Compare research datasets">
+    {step !== 'compare' ? <>
+      {step === 'reference' && <section className="research-simulation-source" aria-label="Current simulation reference">
+        <div><h3>Use the current simulation</h3><p>Project one completed transient, AC or DC dataset through Core. AC signals use linear magnitude; the exact simulation hash and solver identity are retained.</p></div>
+        {selectedAnalysis ? <>
+          <div className="research-simulation-controls"><label>Analysis<select value={selectedAnalysis.index} onChange={(event) => { setSimulationAnalysis(Number(event.target.value)); setSimulationSignals([]); setSimulationError(''); }}>
+            {eligibleAnalyses.map((item) => <option key={item.index} value={item.index}>{analysisLabel(item.data, item.index)}</option>)}
+          </select></label></div>
+          <div className="research-section-heading"><h3>Simulation signals</h3><button disabled={simulationSignals.length >= Math.min(16, availableSimulationSignals.length)} onClick={() => {
+            const used = new Set(simulationSignals.map((mapping) => mapping.vector));
+            const vector = availableSimulationSignals.find((candidate) => !used.has(candidate));
+            if (vector) setSimulationSignals((current) => [...current, { vector, name: logicalName(vector.replace(/[()]/g, '_'), `signal_${current.length + 1}`) }]);
+          }}><Plus size={14} /> Add signal</button></div>
+          {simulationSignals.map((mapping, index) => <div className="research-pair" key={index}><label>Simulation vector<select value={mapping.vector} onChange={(event) => setSimulationSignals((current) => current.map((item, i) => i === index ? { ...item, vector: event.target.value } : item))}>{availableSimulationSignals.map((signal) => <option key={signal}>{signal}</option>)}</select></label><label>Logical name<input value={mapping.name} onChange={(event) => setSimulationSignals((current) => current.map((item, i) => i === index ? { ...item, name: event.target.value } : item))} /></label>{simulationSignals.length > 1 && <button className="research-icon-button" aria-label={`Remove simulation signal ${index + 1}`} onClick={() => setSimulationSignals((current) => current.filter((_, i) => i !== index))}><Trash2 size={14} /></button>}</div>)}
+          <button className="research-primary" disabled={simulationSignals.length === 0} onClick={importSimulation}>Use simulation as reference</button>
+        </> : <p className="research-note">Run a transient, AC or DC simulation in the Simulation panel first, or import a reference CSV below.</p>}
+        {simulationError && <p className="research-error" role="alert">{simulationError}</p>}
+        <div className="research-or"><span>or import a reference CSV</span></div>
+      </section>}
+      <DatasetEditor slot={step === 'data' ? data : reference} role={step}
+        onRead={(file) => void read(step, file)}
+        onUpdate={(change) => setSlot(step, change)}
+        onPreview={(dialect) => preview(step, dialect)} onImport={() => importSlot(step)} />
+    </> : <section className="research-comparison" aria-label="Compare research datasets">
       <div className="research-comparison-summary"><article><span>Observed</span><strong>{data.dataset?.spec.name}</strong><small>{data.dataset?.spec.metadata.origin} · {data.dataset?.axis.values.length} rows</small></article><article><span>Reference</span><strong>{reference.dataset?.spec.name}</strong><small>{reference.dataset?.spec.metadata.origin} · {reference.dataset?.axis.values.length} rows</small></article></div>
       <div className="research-form-grid">
         <label className="research-wide">Comparison name<input value={comparisonName} onChange={(event) => { setComparisonName(event.target.value); setComparison(null); }} /></label>

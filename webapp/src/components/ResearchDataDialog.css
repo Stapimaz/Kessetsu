@@ -7,6 +7,12 @@
 .research-steps button svg, .research-ready svg { color: var(--success); }
 .research-dialog button:disabled { cursor: default; opacity: .45; }
 .research-dataset, .research-comparison { padding: 18px 22px 24px; }
+.research-simulation-source { margin: 18px 22px 0; padding: 14px 16px 0 !important; border: 1px solid #286d63; border-radius: 7px; background: #0e211d; }
+.research-simulation-source > div:first-child h3 { margin: 0 0 5px; font-size: 13px; }
+.research-simulation-source > div:first-child p { margin: 0 0 12px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.research-simulation-controls { display: grid; grid-template-columns: minmax(180px, 360px); margin-bottom: 8px; }
+.research-or { position: relative; margin-top: 16px; border-top: 1px solid #285047; text-align: center; }
+.research-or span { position: relative; top: -8px; padding: 0 9px; color: var(--muted); background: #0e211d; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
 .research-file-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .research-file-row > span:not(.research-ready) { min-width: 0; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; font: 11px ui-monospace, monospace; }
 .research-ready { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; color: var(--success); font-size: 11px; white-space: nowrap; }

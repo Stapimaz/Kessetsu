@@ -6,7 +6,7 @@ export const researchUnits = [
 export type ResearchUnit = typeof researchUnits[number];
 export type Delimiter = 'comma' | 'semicolon' | 'tab';
 export type Decimal = 'dot' | 'comma';
-export type Origin = 'measured' | 'published_simulation' | 'synthetic' | 'unspecified';
+export type Origin = 'measured' | 'published_simulation' | 'simulation' | 'synthetic' | 'unspecified';
 
 export interface CsvDialect {
   delimiter: Delimiter;

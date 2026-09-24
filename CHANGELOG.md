@@ -12,8 +12,10 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
   full residuals and sample-weighted bias, MAE, RMSE and maximum error.
 - Local Web research-data workspace for CSV preview, explicit mapping, two-dataset overlay,
   residual metrics and evidence download without changing the open circuit or uploading data.
+- Typed projection of the current successful transient, AC-magnitude or DC simulation into
+  the same research-data comparison flow, retaining solver/result/vector provenance.
 - Synthetic tutorial files and detailed [research-data guide](docs/guides/research-data.md).
-  Direct study/simulation comparison, notebook integration and fitting are not yet delivered.
+  Direct multi-case study comparison, notebook integration and fitting are not yet delivered.
 
 ### Local parameter studies
 

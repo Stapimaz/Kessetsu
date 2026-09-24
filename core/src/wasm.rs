@@ -496,6 +496,20 @@ pub fn import_research_csv(input: &str, specification: JsValue) -> Result<JsValu
 }
 
 #[wasm_bindgen]
+pub fn import_simulation_research_data(
+    simulation: JsValue,
+    specification: JsValue,
+) -> Result<JsValue, JsValue> {
+    let simulation = serde_wasm_bindgen::from_value(simulation)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let spec = serde_wasm_bindgen::from_value(specification)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let result = crate::research_data::import_simulation_data(&simulation, spec)
+        .map_err(|e| JsValue::from_str(&e))?;
+    to_json_compatible(&result, "simulation research data")
+}
+
+#[wasm_bindgen]
 pub fn compare_research_data(
     data: JsValue,
     reference: JsValue,
