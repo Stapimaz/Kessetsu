@@ -1,5 +1,6 @@
 use crate::ast::{ComponentType, Connection, Program, Statement};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -23,6 +24,9 @@ pub struct IRComponent {
     pub kind: ComponentKind,
     pub parameters: ComponentParams,
     pub model: Option<ModelRef>,
+    /// Resolved per-instance values keyed by the model's exact parameter name.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub instance_parameters: BTreeMap<String, Quantity>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -184,6 +188,14 @@ pub struct ExternalModelMetadata {
     pub pins: Vec<String>,
     pub simulator: SimulatorCompatibility,
     pub redistribution: RedistributionPolicy,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub instance_parameters: Vec<ExternalParameterDefinition>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ExternalParameterDefinition {
+    pub name: String,
+    pub unit: SIUnit,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -588,6 +600,99 @@ fn evaluate_numeric(
         .map_err(|cause| cause.message)
 }
 
+fn resolve_instance_parameters(
+    declaration: &crate::ast::ComponentDecl,
+    model: &ModelRef,
+    parameter_values: &BTreeMap<String, Quantity>,
+    expression_work: &mut usize,
+    parameter_manifest: &mut crate::expression::ParameterManifest,
+) -> Result<BTreeMap<String, Quantity>, SemanticDiagnostic> {
+    if declaration.instance_parameters.is_empty() {
+        return Ok(BTreeMap::new());
+    }
+    let ModelDefinition::ExternalSubcircuit { metadata } = &model.definition else {
+        return Err(semantic_error(
+            "KES-C022",
+            format!(
+                "model '{}' does not expose typed per-instance parameters",
+                model.name
+            ),
+            Some(&declaration.name),
+            Some("instance_parameters"),
+        ));
+    };
+    let mut seen = std::collections::BTreeSet::new();
+    let mut resolved = BTreeMap::new();
+    for override_value in &declaration.instance_parameters {
+        let Some(definition) = metadata
+            .instance_parameters
+            .iter()
+            .find(|definition| definition.name.eq_ignore_ascii_case(&override_value.name))
+        else {
+            return Err(semantic_error(
+                "KES-C022",
+                format!(
+                    "model '{}' does not expose an instance parameter named '{}'; available parameters: {}",
+                    model.name,
+                    override_value.name,
+                    if metadata.instance_parameters.is_empty() {
+                        "none".to_string()
+                    } else {
+                        metadata
+                            .instance_parameters
+                            .iter()
+                            .map(|definition| definition.name.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    }
+                ),
+                Some(&declaration.name),
+                Some(&override_value.name),
+            ));
+        };
+        if !seen.insert(definition.name.to_ascii_lowercase()) {
+            return Err(semantic_error(
+                "KES-C022",
+                format!("duplicate instance parameter '{}'", definition.name),
+                Some(&declaration.name),
+                Some(&definition.name),
+            ));
+        }
+        let quantity = evaluate_numeric(
+            &override_value.expression,
+            definition.unit,
+            parameter_values,
+            expression_work,
+        )
+        .map_err(|cause| {
+            semantic_error(
+                "KES-C022",
+                format!(
+                    "invalid value for instance parameter '{}': {cause}",
+                    definition.name
+                ),
+                Some(&declaration.name),
+                Some(&definition.name),
+            )
+        })?;
+        parameter_manifest
+            .bindings
+            .push(crate::expression::ParameterBinding {
+                component: declaration.name.clone(),
+                field: format!("instance_parameter.{}", definition.name),
+                expression: override_value.expression.source.clone(),
+                dependencies: override_value
+                    .expression
+                    .dependencies()
+                    .into_iter()
+                    .collect(),
+                resolved: quantity.clone(),
+            });
+        resolved.insert(definition.name.clone(), quantity);
+    }
+    Ok(resolved)
+}
+
 pub fn resolve_model(name: &str) -> Option<ModelRef> {
     crate::models::builtin_model(name)
 }
@@ -827,6 +932,7 @@ pub fn ast_to_ir_with_resources(
                     }
                 };
                 let mut model = None;
+                let mut instance_parameters = BTreeMap::new();
 
                 let (kind, params) = match decl.comp_type {
                     ComponentType::ModulePort => (
@@ -1130,6 +1236,13 @@ pub fn ast_to_ir_with_resources(
                             &ComponentKind::OpAmp,
                             &resolved,
                         )?;
+                        instance_parameters = resolve_instance_parameters(
+                            decl,
+                            &resolved,
+                            &parameter_values,
+                            &mut expression_work,
+                            &mut parameter_manifest,
+                        )?;
                         model = Some(resolved);
                         (ComponentKind::OpAmp, ComponentParams::OpAmpParams)
                     }
@@ -1154,6 +1267,13 @@ pub fn ast_to_ir_with_resources(
                             ));
                         }
                         crate::models::validate_component_model_pins(&resolved.kind, &resolved)?;
+                        instance_parameters = resolve_instance_parameters(
+                            decl,
+                            &resolved,
+                            &parameter_values,
+                            &mut expression_work,
+                            &mut parameter_manifest,
+                        )?;
                         let kind = resolved.kind.clone();
                         model = Some(resolved);
                         (kind, ComponentParams::ExternalDeviceParams)
@@ -1165,6 +1285,7 @@ pub fn ast_to_ir_with_resources(
                     kind,
                     parameters: params,
                     model,
+                    instance_parameters,
                 });
             }
             Statement::Connect(conn) => {

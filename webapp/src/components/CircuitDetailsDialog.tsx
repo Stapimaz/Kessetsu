@@ -72,6 +72,9 @@ export function CircuitDetailsDialog({ open, spice, models, onClose, resources, 
                 <strong>{model.name}</strong>
                 <span>{model.provenance.version} · {model.provenance.license} · {model.provenance.simulator}</span>
                 <small>{model.provenance.source}</small>
+                {!!model.external?.instance_parameters?.length && <small>
+                  Instance parameters: {model.external.instance_parameters.map((parameter) => parameter.name).join(', ')}
+                </small>}
               </article>
             ))
             : <span className="empty-detail">No packaged models are resolved for this circuit.</span>}

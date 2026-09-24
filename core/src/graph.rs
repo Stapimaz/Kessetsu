@@ -445,6 +445,18 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
 
     for comp in components {
         let value_str = format_spice_value(comp);
+        let instance_parameters = if comp.instance_parameters.is_empty() {
+            String::new()
+        } else {
+            format!(
+                " params: {}",
+                comp.instance_parameters
+                    .iter()
+                    .map(|(name, value)| format!("{name}={}", format_spice_number(value.value)))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            )
+        };
         let definition = component_definition(&comp.kind);
         let nets = component_net_names(graph, comp);
         match &comp.kind {
@@ -469,8 +481,15 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
                     "X_"
                 };
                 spice.push_str(&format!(
-                    "{prefix}{} {} {} {} {} {} {}\n",
-                    comp.id, nets[0], nets[1], nets[2], nets[3], nets[4], value_str
+                    "{prefix}{} {} {} {} {} {} {}{}\n",
+                    comp.id,
+                    nets[0],
+                    nets[1],
+                    nets[2],
+                    nets[3],
+                    nets[4],
+                    value_str,
+                    instance_parameters
                 ));
             }
             ComponentKind::Resistor
@@ -488,7 +507,13 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
                 ));
             }
             ComponentKind::ExternalDevice(_) => {
-                spice.push_str(&format!("X{} {} {}\n", comp.id, nets.join(" "), value_str));
+                spice.push_str(&format!(
+                    "X{} {} {}{}\n",
+                    comp.id,
+                    nets.join(" "),
+                    value_str,
+                    instance_parameters
+                ));
             }
             ComponentKind::ModulePort => {}
         }

@@ -37,6 +37,75 @@ fn external_model_source(hash: &str, file: &str, alias: &str) -> String {
     )
 }
 
+fn parameterized_external_source(hash: &str, declaration: &str, instance: &str) -> String {
+    format!(
+        "external_subcircuit two_terminal TUNABLE (p1,p2) file=\"models/tunable.lib\" entry=TUNABLE sha256={hash} version=1.0.0 license=MIT source=\"synthetic contract fixture\" simulator=ngspice redistribution=permitted {declaration}\n\
+         param target: Ohm = 2k\nnet GND\nnet OUT\nsource VIN 1V\ndevice X1 TUNABLE {instance}\n\
+         connect VIN.minus, X1.p2 to GND\nconnect VIN.plus, X1.p1 to OUT\nsimulate op\n"
+    )
+}
+
+#[test]
+fn external_instance_parameters_are_typed_resolved_and_preserved_by_exports() {
+    let bytes = b".SUBCKT TUNABLE p n PARAMS: Rvalue=1k Vlimit=5\nR1 p n {Rvalue}\n.ENDS TUNABLE\n"
+        .to_vec();
+    let hash = format!("{:x}", Sha256::digest(&bytes));
+    let source = parameterized_external_source(
+        &hash,
+        "instance_parameters=\"Rvalue:Ohm,Vlimit:V\"",
+        "(rvalue={target}, Vlimit=3V)",
+    );
+    let resources = BTreeMap::from([("models/tunable.lib".to_string(), bytes)]);
+
+    let report = compile_source_with_resources(&source, CompileOptions::all_outputs(), &resources);
+    assert!(!report.has_errors(), "{:?}", report.diagnostics);
+    let circuit = report.ir.as_ref().expect("IR should exist");
+    let component = circuit
+        .components
+        .iter()
+        .find(|component| component.id == "X1")
+        .expect("external device should exist");
+    assert_eq!(component.instance_parameters["Rvalue"].value, 2_000.0);
+    assert_eq!(component.instance_parameters["Vlimit"].value, 3.0);
+    assert!(circuit.parameter_manifest.bindings.iter().any(|binding| {
+        binding.component == "X1"
+            && binding.field == "instance_parameter.Rvalue"
+            && binding.dependencies == vec!["target"]
+    }));
+    let spice = report.spice_netlist.as_deref().expect("SPICE should exist");
+    assert!(spice.contains("TUNABLE params: Rvalue=2000 Vlimit=3"));
+    let kicad = report.kicad_sch.as_deref().expect("KiCad should exist");
+    assert!(kicad.contains("Kessetsu_Instance_Parameters"));
+    assert!(kicad.contains("Rvalue=2000; Vlimit=3"));
+    let ltspice = export_report(&report, ExportFormat::Ltspice, ExportOptions::default())
+        .expect("LTspice export should exist");
+    let ltspice = std::str::from_utf8(&ltspice.bytes).expect("LTspice should be text");
+    assert!(ltspice.contains("SYMATTR SpiceLine Rvalue=2000 Vlimit=3"));
+}
+
+#[test]
+fn external_instance_parameters_fail_closed_on_unknown_names_units_and_library_contracts() {
+    let bytes = b".SUBCKT TUNABLE p n PARAMS: Rvalue=1k\nR1 p n {Rvalue}\n.ENDS TUNABLE\n".to_vec();
+    let hash = format!("{:x}", Sha256::digest(&bytes));
+    let resources = BTreeMap::from([("models/tunable.lib".to_string(), bytes)]);
+
+    let unknown =
+        parameterized_external_source(&hash, "instance_parameters=\"Rvalue:Ohm\"", "(Missing=2k)");
+    let report = compile_source_with_resources(&unknown, CompileOptions::default(), &resources);
+    assert_eq!(report.diagnostics[0].code, "KES-C022");
+
+    let wrong_unit =
+        parameterized_external_source(&hash, "instance_parameters=\"Rvalue:Ohm\"", "(Rvalue=2V)");
+    let report = compile_source_with_resources(&wrong_unit, CompileOptions::default(), &resources);
+    assert_eq!(report.diagnostics[0].code, "KES-C022");
+
+    let absent_from_library =
+        parameterized_external_source(&hash, "instance_parameters=\"Other:Ohm\"", "(Other=2k)");
+    let report =
+        compile_source_with_resources(&absent_from_library, CompileOptions::default(), &resources);
+    assert_eq!(report.diagnostics[0].code, "KES-C014");
+}
+
 #[test]
 fn external_subcircuit_is_hash_bound_without_serializing_its_body() {
     let bytes = external_model_fixture();

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap, VecDeque};
 
-pub const SCHEMATIC_SCHEMA_VERSION: &str = "kessetsu.schematic.v2";
+pub const SCHEMATIC_SCHEMA_VERSION: &str = "kessetsu.schematic.v3";
 
 #[derive(
     Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
@@ -138,6 +138,8 @@ pub struct SchematicComponent {
     pub value: Option<String>,
     pub model: Option<String>,
     pub model_metadata: Option<SchematicModelMetadata>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub instance_parameters: BTreeMap<String, String>,
     pub orientation: Orientation,
     pub mirrored_x: bool,
     pub origin: Point,
@@ -1036,6 +1038,11 @@ fn placed_component_mirrored(
         value,
         model,
         model_metadata,
+        instance_parameters: component
+            .instance_parameters
+            .iter()
+            .map(|(name, value)| (name.clone(), format_spice_number(value.value)))
+            .collect(),
         orientation,
         mirrored_x,
         origin,

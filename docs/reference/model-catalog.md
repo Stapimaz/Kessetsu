@@ -1,6 +1,7 @@
 # External model catalog
 
-These workflows require Kessetsu 1.2.0. This is a small characterized catalog, not a universal model
+Local external-model workflows require Kessetsu 1.2.0; typed instance parameters are part of
+the current unreleased source. This is a small characterized catalog, not a universal model
 marketplace. Model identity, simulation evidence and physical-device accuracy are distinct.
 
 ## Supported interfaces
@@ -12,14 +13,19 @@ marketplace. Model identity, simulation evidence and physical-device accuracy ar
 | `two_terminal` | `device` | `p1,p2` | Generic two-terminal box, not an R instance |
 
 The family describes the electrical interface, not a package, footprint or device rating.
-Only these catalog-backed interfaces are supported. Circuit-side model coefficient
-overrides and arbitrary pin/geometry descriptors are not implemented. Change a model's
-defaults only by creating a deliberately different file/version/hash.
+Only these catalog-backed interfaces are supported. Arbitrary pin/geometry descriptors are
+not implemented. A declaration may expose up to 32 existing `.SUBCKT` header parameters
+through a unit-typed allowlist; all other coefficients remain fixed by the exact file/version/hash.
 
 ## Local-file workflow
 
 Start with [external_comparator.kess](../../examples/external_comparator.kess) or
 [external_memristor.kess](../../examples/external_memristor.kess).
+
+The memristor example exposes only `Rinit`, `Vt` and `stime` from its exact library header.
+Its instance binds the first two through ordinary root parameters, so `--param`, parameter
+studies and future calibration workflows all use the same typed input path. This changes
+an instance value, not the hash-bound model file.
 
 On the CLI, keep the `models/` directory beside the source:
 

@@ -109,7 +109,7 @@ fn external_agent_loop_compiles_measures_and_revises_without_parsing_human_text(
     assert_eq!(compile_json["status"], "success");
     assert_eq!(
         compile_json["domain_versions"]["compile"],
-        "kessetsu.compile.v5"
+        "kessetsu.compile.v6"
     );
 
     let simulate = workspace.run_cli_with_stdin_and_env(

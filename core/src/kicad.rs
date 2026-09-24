@@ -168,6 +168,21 @@ fn instance(schematic: &Schematic, component: &SchematicComponent, root_uuid: &s
     if let Some(model) = &component.model {
         out.push_str(&property("Kessetsu_Model", model, &x, &y, true));
     }
+    if !component.instance_parameters.is_empty() {
+        let parameters = component
+            .instance_parameters
+            .iter()
+            .map(|(name, value)| format!("{name}={value}"))
+            .collect::<Vec<_>>()
+            .join("; ");
+        out.push_str(&property(
+            "Kessetsu_Instance_Parameters",
+            &parameters,
+            &x,
+            &y,
+            true,
+        ));
+    }
     if let Some(metadata) = &component.model_metadata
         && metadata.resource.is_some()
     {

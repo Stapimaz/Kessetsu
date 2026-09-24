@@ -248,6 +248,7 @@ mod tests {
             value: None,
             model: None,
             model_metadata: None,
+            instance_parameters: BTreeMap::new(),
             orientation: Orientation::Right,
             mirrored_x: false,
             origin: point,

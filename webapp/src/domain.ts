@@ -50,6 +50,10 @@ export interface ModelInfo {
     pins: string[];
     simulator: 'ngspice' | 'ngspice_ps';
     redistribution: 'permitted' | 'prohibited';
+    instance_parameters?: Array<{
+      name: string;
+      unit: 'Ohm' | 'Farad' | 'Henry' | 'Volt' | 'Ampere' | 'Hertz' | 'Second' | 'Watt' | 'Joule' | 'Ratio' | 'Percent' | 'Degree';
+    }>;
   };
 }
 

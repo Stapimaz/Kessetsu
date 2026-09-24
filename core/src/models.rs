@@ -2,16 +2,16 @@ use crate::ast::{ExternalSubcircuitDecl, ModelDecl, ModelDeclKind, Program, Subc
 use crate::component::component_definition;
 use crate::graph::format_spice_number;
 use crate::ir::{
-    BJTPolarity, ComponentKind, ExternalModelMetadata, FETPolarity, IRComponent, ModelDefinition,
-    ModelManifest, ModelManifestEntry, ModelProvenance, ModelRef, ModelSource,
-    RedistributionPolicy, ResolvedModelPackage, SemanticDiagnostic, SimulatorCompatibility,
-    parse_si_value,
+    BJTPolarity, ComponentKind, ExternalModelMetadata, ExternalParameterDefinition, FETPolarity,
+    IRComponent, ModelDefinition, ModelManifest, ModelManifestEntry, ModelProvenance, ModelRef,
+    ModelSource, RedistributionPolicy, ResolvedModelPackage, SemanticDiagnostic,
+    SimulatorCompatibility, parse_si_value,
 };
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub const MODEL_MANIFEST_SCHEMA_VERSION: &str = "kessetsu.models.v2";
-pub const MODEL_LOCK_SCHEMA_VERSION: &str = "kessetsu.lock.v2";
+pub const MODEL_MANIFEST_SCHEMA_VERSION: &str = "kessetsu.models.v3";
+pub const MODEL_LOCK_SCHEMA_VERSION: &str = "kessetsu.lock.v3";
 const SIMULATOR_CAPABILITY: &str = "ngspice-35+";
 pub const MAX_EXTERNAL_MODEL_BYTES: usize = 16 * 1024 * 1024;
 pub type ExternalModelResources = BTreeMap<String, Vec<u8>>;
@@ -446,6 +446,7 @@ fn compile_external_subcircuit(
         "source",
         "simulator",
         "redistribution",
+        "instance_parameters",
     ];
     let mut values = BTreeMap::new();
     for value in &declaration.parameters {
@@ -515,6 +516,10 @@ fn compile_external_subcircuit(
             ));
         }
     };
+    let instance_parameters = parse_external_parameter_definitions(
+        values.remove("instance_parameters").as_deref(),
+        &declaration.name,
+    )?;
 
     validate_external_resource_reference(&resource).map_err(|reason| {
         error(
@@ -598,7 +603,21 @@ fn compile_external_subcircuit(
             "file",
         )
     })?;
-    validate_external_subcircuit_text(text, &entry, expected_pins.len(), &declaration.name)?;
+    let library_parameters =
+        validate_external_subcircuit_text(text, &entry, expected_pins.len(), &declaration.name)?;
+    for parameter in &instance_parameters {
+        if !library_parameters.contains(&parameter.name.to_ascii_lowercase()) {
+            return Err(error(
+                "KES-C014",
+                format!(
+                    "external parameter '{}' is not declared by '.SUBCKT {entry} PARAMS:'",
+                    parameter.name
+                ),
+                Some(&declaration.name),
+                "instance_parameters",
+            ));
+        }
+    }
 
     let metadata = ExternalModelMetadata {
         resource,
@@ -606,6 +625,7 @@ fn compile_external_subcircuit(
         pins: expected_pins,
         simulator,
         redistribution,
+        instance_parameters,
     };
     Ok(ModelRef {
         name: declaration.name.clone(),
@@ -633,13 +653,87 @@ fn is_safe_identifier(value: &str) -> bool {
         && characters.all(|character| character.is_ascii_alphanumeric() || character == '_')
 }
 
+fn parse_external_parameter_definitions(
+    value: Option<&str>,
+    model_name: &str,
+) -> Result<Vec<ExternalParameterDefinition>, SemanticDiagnostic> {
+    let Some(value) = value else {
+        return Ok(Vec::new());
+    };
+    if value.trim().is_empty() {
+        return Err(error(
+            "KES-C014",
+            "external instance_parameters cannot be empty",
+            Some(model_name),
+            "instance_parameters",
+        ));
+    }
+    let mut seen = BTreeSet::new();
+    let mut definitions = Vec::new();
+    for item in value.split(',') {
+        if definitions.len() >= 32 {
+            return Err(error(
+                "KES-C014",
+                "external subcircuits expose at most 32 typed instance parameters",
+                Some(model_name),
+                "instance_parameters",
+            ));
+        }
+        let Some((name, unit_name)) = item.trim().split_once(':') else {
+            return Err(error(
+                "KES-C014",
+                format!(
+                    "invalid external instance parameter '{}'; expected Name:Unit",
+                    item.trim()
+                ),
+                Some(model_name),
+                "instance_parameters",
+            ));
+        };
+        let name = name.trim();
+        let unit_name = unit_name.trim();
+        if !is_safe_identifier(name) {
+            return Err(error(
+                "KES-C014",
+                format!("invalid external instance parameter name '{name}'"),
+                Some(model_name),
+                "instance_parameters",
+            ));
+        }
+        let Some(unit) = crate::expression::parameter_unit(unit_name) else {
+            return Err(error(
+                "KES-C014",
+                format!(
+                    "unknown unit '{unit_name}' for external parameter '{name}'; use Ohm, F, H, V, A, Hz, s, W, J, ratio, percent or deg"
+                ),
+                Some(model_name),
+                "instance_parameters",
+            ));
+        };
+        if !seen.insert(name.to_ascii_lowercase()) {
+            return Err(error(
+                "KES-C014",
+                format!("duplicate external instance parameter '{name}'"),
+                Some(model_name),
+                "instance_parameters",
+            ));
+        }
+        definitions.push(ExternalParameterDefinition {
+            name: name.to_string(),
+            unit,
+        });
+    }
+    Ok(definitions)
+}
+
 fn validate_external_subcircuit_text(
     text: &str,
     entry: &str,
     expected_pin_count: usize,
     model_name: &str,
-) -> Result<(), SemanticDiagnostic> {
+) -> Result<BTreeSet<String>, SemanticDiagnostic> {
     let mut declarations = Vec::new();
+    let mut declaration_parameters = Vec::new();
     let mut endings = 0usize;
     let mut scope = Vec::new();
     let statements = crate::model_resources::library_statements(text)
@@ -685,15 +779,39 @@ fn validate_external_subcircuit_text(
                 .get(1)
                 .is_some_and(|name| name.eq_ignore_ascii_case(entry))
         {
-            declarations.push(
-                fields[2..]
-                    .iter()
-                    .take_while(|field| {
-                        !field.eq_ignore_ascii_case("params:") && !field.contains('=')
-                    })
-                    .copied()
-                    .collect::<Vec<_>>(),
-            );
+            let body = &fields[2..];
+            let split = body
+                .iter()
+                .position(|field| field.eq_ignore_ascii_case("params:") || field.contains('='))
+                .unwrap_or(body.len());
+            declarations.push(body[..split].to_vec());
+            let mut parameters = BTreeSet::new();
+            let mut previous = None;
+            for field in &body[split..] {
+                let field = field
+                    .get(..7)
+                    .filter(|prefix| prefix.eq_ignore_ascii_case("params:"))
+                    .map_or(*field, |_| &field[7..]);
+                if field.is_empty() {
+                    continue;
+                }
+                if let Some((name, _)) = field.split_once('=') {
+                    let name = name.trim();
+                    if is_safe_identifier(name) {
+                        parameters.insert(name.to_ascii_lowercase());
+                    }
+                    previous = None;
+                } else if field == "=" {
+                    if let Some(name) = previous.take() {
+                        parameters.insert(name);
+                    }
+                } else if is_safe_identifier(field) {
+                    previous = Some(field.to_ascii_lowercase());
+                } else {
+                    previous = None;
+                }
+            }
+            declaration_parameters.push(parameters);
         }
         if fields
             .first()
@@ -749,7 +867,10 @@ fn validate_external_subcircuit_text(
             "pins",
         ));
     }
-    Ok(())
+    Ok(declaration_parameters
+        .into_iter()
+        .next()
+        .unwrap_or_default())
 }
 
 struct Metadata {

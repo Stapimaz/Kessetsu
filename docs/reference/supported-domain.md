@@ -33,7 +33,7 @@ arbitrary vendor, memristor or research-device support.
 - User models: typed diode/BJT/MOSFET parameter allowlists.
 - User subcircuits: the typed op-amp template and native, source-relative, exact-hash external op-amp references. External model bodies remain user-owned and are never embedded in Kessetsu source, manifests, or exports.
 - Op-amp fidelity: the current generic template is a controlled voltage source with an RC pole. Its declared supply pins are unused internally; it does not model supply consumption, rail saturation, or a realistic output-current limit. Amplifier power, efficiency, and clipping assertions cover only the modeled circuit and supplied measurements, not those missing device effects.
-- Package/model records: `kessetsu.models.v2`/`kessetsu.lock.v2` with exact identity, content hash, license, simulator capability, and external dependency metadata where applicable.
+- Package/model records: `kessetsu.models.v3`/`kessetsu.lock.v3` with exact identity, content hash, license, simulator capability, typed external parameter interfaces, and dependency metadata where applicable.
 - Unsupported: raw directives in `.kess`, floating package versions, arbitrary vendor scripts,
   model uploads and compiled browser model plugins. Explicit local browser execution is limited
   to the portable library profile in the model catalog.

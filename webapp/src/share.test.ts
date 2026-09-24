@@ -9,7 +9,7 @@ import {
 
 const compileSchema = 'kessetsu.compile.v4';
 const manifest: ModelManifest = {
-  schema_version: 'kessetsu.models.v2',
+  schema_version: 'kessetsu.models.v3',
   models: [],
   packages: [{ name: 'kessetsu_analog', version: '1.0.0' }],
 };
@@ -44,16 +44,18 @@ describe('versioned circuit share URLs', () => {
     await expect(decodeShareFragment(fragment, compileSchema)).rejects.toThrow(/decompressed size limit/);
   });
 
-  it('accepts v4 source shares in v5 without accepting unknown or newer schemas', async () => {
+  it('accepts v4/v5 source shares in v6 without accepting unknown or newer schemas', async () => {
     const fragment = await encodeShareFragment('net GND\n', 'kessetsu.compile.v4', manifest, 'Legacy circuit');
-    const decoded = await decodeShareFragment(fragment, 'kessetsu.compile.v5');
+    const decoded = await decodeShareFragment(fragment, 'kessetsu.compile.v6');
     expect(decoded?.name).toBe('Legacy circuit');
     expect(() => assertSharedPackages(decoded!, null)).toThrow(/package versions/);
-    for (const unsupported of ['kessetsu.compile.v3', 'kessetsu.compile.v6']) {
+    const v5 = await encodeShareFragment('net GND\n', 'kessetsu.compile.v5', null);
+    await expect(decodeShareFragment(v5, 'kessetsu.compile.v6')).resolves.toBeTruthy();
+    for (const unsupported of ['kessetsu.compile.v3', 'kessetsu.compile.v7']) {
       const other = await encodeShareFragment('net GND\n', unsupported, null);
-      await expect(decodeShareFragment(other, 'kessetsu.compile.v5')).rejects.toThrow(/unsupported Core schema/);
+      await expect(decodeShareFragment(other, 'kessetsu.compile.v6')).rejects.toThrow(/unsupported Core schema/);
     }
-    const future = await encodeShareFragment('net GND\n', 'kessetsu.compile.v5', null);
+    const future = await encodeShareFragment('net GND\n', 'kessetsu.compile.v6', null);
     await expect(decodeShareFragment(future, 'kessetsu.compile.v4')).rejects.toThrow(/unsupported Core schema/);
   });
 

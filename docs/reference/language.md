@@ -252,7 +252,13 @@ Use `external_subcircuit comparator Name (in_p,in_n,vcc,vee,out)` or
 shown above, then instantiate with `device U1 Name` or `device X1 Name`. The model
 determines the catalog-backed interface; `device` cannot masquerade as an op-amp or
 infer arbitrary pin lists. Header defaults/continuations are supported; positional
-terminal count excludes `.SUBCKT` parameter defaults. Coefficients stay in the exact file.
+terminal count excludes `.SUBCKT` parameter defaults. By default, coefficients stay in the
+exact file. A declaration may explicitly expose existing header parameters with
+`instance_parameters="Rinit:Ohm,Vt:V"`; instances then use
+`device XM Name (Rinit={initial_resistance}, Vt=1.6V)` (or the same parenthesized form
+after an external `opamp`). Names are matched case-insensitively but emitted using the
+declared spelling. Unknown names, duplicates, missing library defaults and unit mismatches
+fail closed; the library body is never rewritten.
 
 Development Web builds allow explicit local selection in View → Circuit details.
 Only the portable self-contained Ngspice profile can simulate in the browser;

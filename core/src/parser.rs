@@ -284,8 +284,6 @@ fn parse_statement(
                         "inductor" => ComponentType::Inductor,
                         "diode" => ComponentType::Diode,
                         "mosfet" => ComponentType::Mosfet,
-                        "opamp" => ComponentType::OpAmp,
-                        "device" => ComponentType::ExternalDevice,
                         _ => unreachable!(),
                     };
                     let name = inner_rules.next().unwrap().as_str().to_string();
@@ -310,6 +308,38 @@ fn parse_statement(
                         value,
                         value_expression,
                         waveform_expression: None,
+                        instance_parameters: Vec::new(),
+                        interface_pins: Vec::new(),
+                        instance_path: Vec::new(),
+                    }))
+                }
+                Rule::opamp_decl | Rule::device_decl => {
+                    let comp_type = if decl_inner.as_rule() == Rule::opamp_decl {
+                        ComponentType::OpAmp
+                    } else {
+                        ComponentType::ExternalDevice
+                    };
+                    let mut inner_rules = decl_inner.into_inner();
+                    let name = inner_rules.next().unwrap().as_str().to_string();
+                    let mut value = None;
+                    let mut instance_parameters = Vec::new();
+                    for pair in inner_rules {
+                        match pair.as_rule() {
+                            Rule::comp_value => value = Some(unquote(pair.as_str())),
+                            Rule::param_override => {
+                                instance_parameters.push(parse_parameter_override(pair)?);
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
+                    Some(Statement::Decl(ComponentDecl {
+                        comp_type,
+                        name,
+                        subtype: None,
+                        value,
+                        value_expression: None,
+                        waveform_expression: None,
+                        instance_parameters,
                         interface_pins: Vec::new(),
                         instance_path: Vec::new(),
                     }))
@@ -341,6 +371,7 @@ fn parse_statement(
                         value,
                         value_expression: None,
                         waveform_expression: None,
+                        instance_parameters: Vec::new(),
                         interface_pins: Vec::new(),
                         instance_path: Vec::new(),
                     }))
@@ -385,6 +416,7 @@ fn parse_statement(
                         value,
                         value_expression,
                         waveform_expression,
+                        instance_parameters: Vec::new(),
                         interface_pins: Vec::new(),
                         instance_path: Vec::new(),
                     }))
@@ -461,25 +493,7 @@ fn parse_statement(
             let inst_name = inner_rules.next().unwrap().as_str().to_string();
             let mut overrides = Vec::new();
             for pair in inner_rules {
-                let (line, column) = pair.as_span().start_pos().line_col();
-                let mut fields = pair.into_inner();
-                let name = fields.next().unwrap().as_str().to_string();
-                let value = fields.next().unwrap().into_inner().next().unwrap();
-                if value.as_rule() != Rule::value_expr
-                    && crate::ir::parse_value(value.as_str()).is_err()
-                {
-                    return Err(pest::error::Error::new_from_span(
-                        pest::error::ErrorVariant::CustomError { message: "A parameter override expects a numeric literal or a braced expression".into() },
-                        value.as_span(),
-                    ));
-                }
-                let expression = expression_pair(&value, value.as_rule() == Rule::value_expr)?;
-                overrides.push(ParameterOverride {
-                    name,
-                    expression,
-                    line,
-                    column,
-                });
+                overrides.push(parse_parameter_override(pair)?);
             }
             Some(Statement::Use(UseStmt {
                 module_name,
@@ -512,6 +526,31 @@ fn parse_statement(
             }))
         }
         _ => None,
+    })
+}
+
+fn parse_parameter_override(
+    pair: pest::iterators::Pair<Rule>,
+) -> Result<ParameterOverride, pest::error::Error<Rule>> {
+    let (line, column) = pair.as_span().start_pos().line_col();
+    let mut fields = pair.into_inner();
+    let name = fields.next().unwrap().as_str().to_string();
+    let value = fields.next().unwrap().into_inner().next().unwrap();
+    if value.as_rule() != Rule::value_expr && crate::ir::parse_value(value.as_str()).is_err() {
+        return Err(pest::error::Error::new_from_span(
+            pest::error::ErrorVariant::CustomError {
+                message: "A parameter override expects a numeric literal or a braced expression"
+                    .into(),
+            },
+            value.as_span(),
+        ));
+    }
+    let expression = expression_pair(&value, value.as_rule() == Rule::value_expr)?;
+    Ok(ParameterOverride {
+        name,
+        expression,
+        line,
+        column,
     })
 }
 

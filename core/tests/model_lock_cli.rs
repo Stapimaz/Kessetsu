@@ -31,7 +31,7 @@ fn different_lock_requires_force_before_any_netlist_is_written() {
     let forced = workspace.run_cli(&["compile", "circuit.kess", "--force", "--format", "json"]);
     assert_eq!(forced.status.code(), Some(0));
     let content = fs::read_to_string(&lock).unwrap();
-    assert!(content.contains("kessetsu.lock.v2"));
+    assert!(content.contains("kessetsu.lock.v3"));
     assert!(workspace.path().join("circuit.spice").is_file());
     assert!(
         report(&forced)["artifacts"]

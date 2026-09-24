@@ -1,13 +1,15 @@
 // Published threshold-model demonstration, not a calibrated physical device.
 // On Web, select models/memristor.lib through View > Circuit details.
 // uic is essential: it applies the model's Rinit capacitor initial condition.
-external_subcircuit two_terminal MEM (p1,p2) file="models/memristor.lib" entry=memristor sha256=cd4bac38581fb00c1b5667e9d5ec440cf954efb5e26105ae2775853cc90301f6 version=1.0.0 license=BSD-3-Clause source="Ngspice Pershin-Di-Ventra threshold example; see MEMRISTOR_NOTICE.md" simulator=ngspice redistribution=permitted
+external_subcircuit two_terminal MEM (p1,p2) file="models/memristor.lib" entry=memristor sha256=cd4bac38581fb00c1b5667e9d5ec440cf954efb5e26105ae2775853cc90301f6 version=1.0.0 license=BSD-3-Clause source="Ngspice Pershin-Di-Ventra threshold example; see MEMRISTOR_NOTICE.md" simulator=ngspice redistribution=permitted instance_parameters="Rinit:Ohm,Vt:V,stime:s"
+param initial_resistance: Ohm = 7k
+param switching_threshold: V = 1.6V
 net GND
 net IN
 net TOP
 source VIN sine(0V,3V,100MHz)
 source VSENSE 0V
-device XM MEM
+device XM MEM (Rinit={initial_resistance}, Vt={switching_threshold})
 connect VIN.minus, XM.p2 to GND
 connect VIN.plus, VSENSE.plus to IN
 connect VSENSE.minus, XM.p1 to TOP

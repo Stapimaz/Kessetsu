@@ -44,7 +44,7 @@ fn visual_and_eda_payloads_have_real_format_signatures() {
     );
     let json: serde_json::Value =
         serde_json::from_slice(&export(ExportFormat::SchematicJson).bytes).unwrap();
-    assert_eq!(json["schema_version"], "kessetsu.schematic.v2");
+    assert_eq!(json["schema_version"], "kessetsu.schematic.v3");
 }
 
 #[test]

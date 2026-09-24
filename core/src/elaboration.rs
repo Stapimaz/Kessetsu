@@ -169,6 +169,9 @@ impl Elaborator<'_> {
                             }
                         }
                     }
+                    for parameter in &mut decl.instance_parameters {
+                        parameter.expression = parameter.expression.qualify(&parameter_prefix);
+                    }
                     self.emit(Statement::Decl(decl), scope)?;
                 }
                 Statement::Net(net) => self.emit(
@@ -324,6 +327,7 @@ impl Elaborator<'_> {
                             value: Some(instance.module_name.clone()),
                             value_expression: None,
                             waveform_expression: None,
+                            instance_parameters: Vec::new(),
                             interface_pins: module.pins.clone(),
                             instance_path: child.path.clone(),
                         }),

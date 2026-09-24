@@ -9,8 +9,8 @@ export const FOLLOWUP_SPEC = 'scripts/evals/specs/unseen-design-u6-followup-v1.m
 export function validateKessetsuU6Compilation(compilation, netlist, expectedHash = OFFICIAL_MODEL_SHA256) {
   const manifest = compilation?.debug?.models?.manifest;
   const models = manifest?.models;
-  if (manifest?.schema_version !== 'kessetsu.models.v2' || !Array.isArray(models)) {
-    throw new Error('U6_FOLLOWUP_CONTRACT_ERROR: missing kessetsu.models.v2 manifest');
+  if (manifest?.schema_version !== 'kessetsu.models.v3' || !Array.isArray(models)) {
+    throw new Error('U6_FOLLOWUP_CONTRACT_ERROR: missing kessetsu.models.v3 manifest');
   }
   const external = models.filter((model) => model?.external);
   if (external.length !== 1) {

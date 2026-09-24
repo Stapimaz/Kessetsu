@@ -133,7 +133,7 @@ test('U6 follow-up accepts only the exact typed external-model compilation contr
       simulator: 'ngspice_ps', redistribution: 'prohibited',
     },
   };
-  const compilation = { debug: { models: { manifest: { schema_version: 'kessetsu.models.v2', models: [model] } } } };
+  const compilation = { debug: { models: { manifest: { schema_version: 'kessetsu.models.v3', models: [model] } } } };
   const netlist = valid.replace('.end', '.include "models/OPAx197.LIB"\n.end');
   const checked = validateKessetsuU6Compilation(compilation, netlist);
   assert.equal(FOLLOWUP_SCHEMA, 'kessetsu.u6-followup-evaluation.v1');
@@ -146,7 +146,7 @@ test('U6 follow-up accepts only the exact typed external-model compilation contr
     { ...model, external: { ...model.external, simulator: 'ngspice' } },
     { ...model, external: { ...model.external, redistribution: 'permitted' } },
   ]) {
-    const altered = { debug: { models: { manifest: { schema_version: 'kessetsu.models.v2', models: [changed] } } } };
+    const altered = { debug: { models: { manifest: { schema_version: 'kessetsu.models.v3', models: [changed] } } } };
     assert.throws(() => validateKessetsuU6Compilation(altered, netlist), /FOLLOWUP_CONTRACT_ERROR/);
   }
   assert.throws(() => validateKessetsuU6Compilation(compilation, valid), /FOLLOWUP_CONTRACT_ERROR/);

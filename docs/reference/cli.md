@@ -219,7 +219,7 @@ kess export circuit.kess --target ltspice --output circuit.asc
 
 ## JSON Contract
 
-JSON stdout is exactly one JSON object for every invocation. Progress and simulator logs are never written to stdout. The default agent envelope is `kessetsu.cli.v1`. Kessetsu 1.2.0 compile reports use `kessetsu.compile.v5`, canonical schematics use `kessetsu.schematic.v2`, model manifests/locks use `kessetsu.models.v2`/`kessetsu.lock.v2`, simulation results use `kessetsu.simulation.v1`, engineering measurements use `kessetsu.measurement.v2`, assertion reports use `kessetsu.assertion.v1`, and external requirement sets use `kessetsu.requirements.v1`. Older 1.1.0 uses compile v4 and measurement v1. Active subcontracts appear in `domain_versions`. Resolved parameter/field provenance (`kessetsu.parameters.v1`) is opt-in through `--include ir`, not additional default JSON bulk.
+JSON stdout is exactly one JSON object for every invocation. Progress and simulator logs are never written to stdout. The default agent envelope is `kessetsu.cli.v1`. Current development compile reports use `kessetsu.compile.v6`, canonical schematics use `kessetsu.schematic.v3`, model manifests/locks use `kessetsu.models.v3`/`kessetsu.lock.v3`, simulation results use `kessetsu.simulation.v1`, engineering measurements use `kessetsu.measurement.v3`, assertion reports use `kessetsu.assertion.v1`, and external requirement sets use `kessetsu.requirements.v1`. Published 1.2.0 uses compile v5/schematic v2/model v2/lock v2/measurement v2; 1.1.0 uses compile v4/measurement v1. Active subcontracts appear in `domain_versions`. Resolved parameter/field provenance (`kessetsu.parameters.v1`) is opt-in through `--include ir`, not additional default JSON bulk.
 
 See the [engineering-measurement contract](measurements.md) for assertion primitives, derived-metric formulas, analysis requirements, and sign conventions.
 
@@ -233,7 +233,7 @@ Successful `check` summary:
   "command": "check",
   "status": "success",
   "domain_versions": {
-    "compile": "kessetsu.compile.v5",
+    "compile": "kessetsu.compile.v6",
     "simulation": null,
     "measurement": null,
     "assertion": null,

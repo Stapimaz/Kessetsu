@@ -10,7 +10,7 @@ Two-terminal LTspice exports use its rectangular native outline with explicit `P
 not resistor semantics. Known symbol mappings are unchanged. See the
 [model catalog](model-catalog.md) for characterized setups and simulator-compatibility losses.
 
-Kessetsu's export layer belongs to neither Web nor CLI. Every output is produced through the `kessetsu.export.v1` contract from connectivity-verified `kessetsu.schematic.v2`, which itself derives from typed Circuit IR. CLI and Web call only this shared Core API.
+Kessetsu's export layer belongs to neither Web nor CLI. Every output is produced through the `kessetsu.export.v1` contract from connectivity-verified `kessetsu.schematic.v3`, which itself derives from typed Circuit IR. CLI and Web call only this shared Core API.
 
 Every artifact reports the exporter name/version, MIME type and extension, byte length, SHA-256, `connectivity_verified`, capability fields, warnings, and known semantic losses. Unsupported topology or symbol geometry is never approximated silently; a `KES-Xxxx` diagnostic stops the export.
 
@@ -21,7 +21,7 @@ Every artifact reports the exporter name/version, MIME type and extension, byte 
 | SVG | Scalable visual, documentation, and Web | Yes | No | No | Semantic text, fixed `viewBox`, light export style |
 | PNG | Presentations, reports, and quick sharing | Visual projection | No | No | Pure-Rust canonical SVG raster; `0.25..8` scale, white or transparent background |
 | PDF | Printing and vector documents | Visual projection | No | No | One page, content bounds, automatic orientation, Schematic IR margin, deterministic vector glyphs; no multi-page output |
-| Schematic IR JSON | Lossless machine interchange | Yes | Yes | No | `kessetsu.schematic.v2`, deterministic pretty JSON with model provenance but no external model body |
+| Schematic IR JSON | Lossless machine interchange | Yes | Yes | No | `kessetsu.schematic.v3`, deterministic pretty JSON with model provenance and resolved instance parameters but no external model body |
 | SPICE | Simulation and automation | Yes | Yes | Yes | Canonical Ngspice netlist |
 | KiCad `.kicad_sch` | Continued editing | Yes | Metadata | No | KiCad 10 parser/netlist/ERC smoke; portable embedded symbols may produce a symbol-table warning |
 | LTspice `.asc` | Editing and LTspice simulation | Yes | Yes | Yes | Real LTspice 24.1.9 `-netlist` smoke; assertions remain in the `.kess` source |

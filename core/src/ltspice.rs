@@ -586,6 +586,21 @@ pub fn generate_ltspice_asc(
             "SYMATTR Value {}\n",
             component_value(component, circuit).replace(['\r', '\n'], " ")
         ));
+        if let Some(ir) = circuit
+            .components
+            .iter()
+            .find(|candidate| candidate.id == component.id)
+            && !ir.instance_parameters.is_empty()
+        {
+            out.push_str(&format!(
+                "SYMATTR SpiceLine {}\n",
+                ir.instance_parameters
+                    .iter()
+                    .map(|(name, value)| { format!("{name}={}", format_spice_number(value.value)) })
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            ));
+        }
     }
 
     let mut directive_y = height + 32;

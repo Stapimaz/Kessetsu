@@ -25,6 +25,10 @@ pub struct ComponentDecl {
     pub value_expression: Option<crate::expression::Expression>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub waveform_expression: Option<WaveformCall>,
+    /// Typed, per-instance overrides for model parameters explicitly exposed
+    /// by an external subcircuit declaration.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub instance_parameters: Vec<ParameterOverride>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub interface_pins: Vec<String>,
     /// Structured identity of a virtual module interface; not an electrical ID.
@@ -193,6 +197,11 @@ impl Statement {
                             .map(|e| e.node_count())
                             .sum()
                     })
+                    + decl
+                        .instance_parameters
+                        .iter()
+                        .map(|parameter| parameter.expression.node_count())
+                        .sum::<usize>()
             }
             Self::Use(instance) => instance
                 .overrides

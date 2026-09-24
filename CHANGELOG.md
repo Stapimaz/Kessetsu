@@ -4,6 +4,17 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### Typed external model parameters
+
+- External subcircuits may expose a bounded, unit-typed allowlist of existing `.SUBCKT`
+  parameters; instances can bind literals or root parameter expressions without editing model text.
+- Resolved per-instance values and provenance remain in Circuit IR and survive canonical SPICE,
+  LTspice, KiCad and Schematic JSON export. Unknown names, unit mismatches, duplicates and
+  parameters absent from the exact hash-bound library fail closed.
+- Compile reports advance to `kessetsu.compile.v6`, canonical schematics to
+  `kessetsu.schematic.v3`, and model manifests/locks to v3; v4/v5 source shares remain
+  explicitly supported.
+
 ### Research-data foundation
 
 - Local `kess data preview/import/compare` and shared Core/WASM contracts for explicitly

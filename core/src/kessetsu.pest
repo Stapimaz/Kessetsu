@@ -11,10 +11,13 @@ parameter_expr = @{ (!NEWLINE ~ !"//" ~ ANY)+ }
 param_decl = { "param" ~ ident ~ ":" ~ ident ~ "=" ~ parameter_expr }
 
 // Components
-comp_type = { "resistor" | "capacitor" | "inductor" | "diode" | "mosfet" | "opamp" | "device" }
+comp_type = { "resistor" | "capacitor" | "inductor" | "diode" | "mosfet" }
 polarity = { ^"npn" | ^"pnp" }
 transistor_decl = { "transistor" ~ ident ~ polarity? ~ comp_value? }
 standard_decl = { comp_type ~ ident ~ numeric_value? }
+instance_overrides = _{ "(" ~ param_override ~ ("," ~ param_override)* ~ ")" }
+opamp_decl = { "opamp" ~ ident ~ comp_value? ~ instance_overrides? }
+device_decl = { "device" ~ ident ~ comp_value ~ instance_overrides? }
 
 // Sources
 source_type = { "source" | "current_source" }
@@ -25,7 +28,7 @@ func_call = { ident ~ "(" ~ source_argument ~ ("," ~ source_argument)* ~ ")" }
 source_param = { value_expr | func_call | comp_value }
 source_decl = { source_type ~ ident ~ (value_expr | source_param) }
 
-decl = { transistor_decl | standard_decl | source_decl }
+decl = { transistor_decl | opamp_decl | device_decl | standard_decl | source_decl }
 
 // Nets and Connections
 net_stmt = { "net" ~ ident }
