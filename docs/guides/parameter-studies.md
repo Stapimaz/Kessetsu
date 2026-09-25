@@ -36,6 +36,7 @@ kess study export filter-results.json --output filter.csv --target csv
 kess study export filter-results.json --output samples.csv --target data-csv
 kess study export filter-results.json --output overlay.svg --target svg --signal "V(OUT)"
 kess study export filter-results.json --output report.html --target html
+kess study package filter.kessstudy.json --results filter-results.json --output filter-package --signal "V(OUT)"
 ```
 
 The run exits `1` because some constraints fail, but writes the full result file.
@@ -155,6 +156,10 @@ Native model paths resolve relative to the spec directory. Creating a spec does 
 resources; keep exact referenced paths/bytes when moving it. In Web open its source in the
 editor and bind matching files through Circuit details. Bodies are never uploaded or embedded
 in spec/results exports. Without those files a model-dependent study is not self-contained.
+
+For publication or transfer, [create a portable research package](portable-research-packages.md).
+It copies permitted dependencies, records prohibited dependencies precisely, and places the
+complete result, numeric tables, plot, report, hashes and rerun instructions in one new folder.
 
 ## Reading and exporting evidence
 

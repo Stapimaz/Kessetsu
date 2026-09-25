@@ -217,6 +217,25 @@ enum StudyAction {
         #[arg(long)]
         force: bool,
     },
+    /// Create a new portable folder with results, data, plot, report and allowed model files
+    Package {
+        /// Original kessetsu.experiment.v1 specification
+        file: PathBuf,
+        /// Completed kessetsu.experiment-results.v1 JSON
+        #[arg(long)]
+        results: PathBuf,
+        /// New output directory; existing directories are never overwritten
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Signal to plot, for example V(OUT) or I(VSENSE)
+        #[arg(long)]
+        signal: String,
+        #[arg(long, default_value_t = 0)]
+        analysis: usize,
+        /// Restrict the plot to these case IDs (repeatable, at most 12)
+        #[arg(long = "case")]
+        cases: Vec<String>,
+    },
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -600,6 +619,65 @@ fn study_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
         .map_err(|e| format!("Could not save checkpoint; temporary data is preserved: {e}"))
 }
 
+fn study_write_package(
+    output: &Path,
+    package: &kessetsu_core::research_package::ResearchPackage,
+) -> Result<PathBuf, String> {
+    if output.exists() {
+        return Err("Package output already exists; choose a new directory".into());
+    }
+    let parent = output
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let parent = fs::canonicalize(parent).map_err(|e| e.to_string())?;
+    let name = output
+        .file_name()
+        .ok_or("Package output must name a directory")?;
+    let target = parent.join(name);
+    let pending = parent.join(format!(".kess-package-{}.tmp", process::id()));
+    if pending.exists() {
+        return Err(format!(
+            "Temporary package directory already exists: {}",
+            pending.display()
+        ));
+    }
+    fs::create_dir(&pending).map_err(|e| e.to_string())?;
+    let write = || -> Result<(), String> {
+        for (relative, bytes) in &package.files {
+            validate_external_resource_reference(relative)?;
+            let destination = pending.join(relative);
+            if let Some(directory) = destination.parent() {
+                fs::create_dir_all(directory).map_err(|e| e.to_string())?;
+            }
+            fs::write(destination, bytes).map_err(|e| e.to_string())?;
+        }
+        fs::write(
+            pending.join("manifest.json"),
+            serde_json::to_vec_pretty(&package.manifest).map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    };
+    if let Err(error) = write() {
+        let cleanup = fs::remove_dir_all(&pending);
+        return Err(match cleanup {
+            Ok(()) => error,
+            Err(cleanup) => format!(
+                "{error}; incomplete package remains at '{}': {cleanup}",
+                pending.display()
+            ),
+        });
+    }
+    fs::rename(&pending, &target).map_err(|error| {
+        format!(
+            "Could not publish package; complete temporary directory remains at '{}': {error}",
+            pending.display()
+        )
+    })?;
+    Ok(target.join("manifest.json"))
+}
+
 fn study_resources(
     file: &Path,
     spec: &kessetsu_core::experiment::ExperimentSpec,
@@ -876,6 +954,37 @@ fn run_study(command: &StudyCommand, format: &Format, includes: &BTreeSet<Includ
                     "success",
                     serde_json::json!({"identity":results.identity,"summary":results.summary}),
                     Some(output),
+                );
+                Ok(0)
+            }
+            StudyAction::Package {
+                file,
+                results,
+                output,
+                signal,
+                analysis,
+                cases,
+            } => {
+                let spec = decode_spec(&study_read(file, MAX_SPEC_BYTES as u64)?)?;
+                let resources = study_resources(file, &spec)?;
+                let completed: ExperimentResults =
+                    serde_json::from_slice(&study_read(results, MAX_RESULT_BYTES as u64)?)
+                        .map_err(|e| e.to_string())?;
+                if serde_json::to_value(&spec).map_err(|e| e.to_string())?
+                    != serde_json::to_value(&completed.plan.spec).map_err(|e| e.to_string())?
+                {
+                    return Err("Package specification does not match the completed results".into());
+                }
+                let package = kessetsu_core::research_package::build_research_package(
+                    &completed, &resources, *analysis, signal, cases,
+                )?;
+                let manifest_path = study_write_package(output, &package)?;
+                emit_study(
+                    format,
+                    includes,
+                    "success",
+                    serde_json::to_value(&package.manifest).map_err(|e| e.to_string())?,
+                    Some(&manifest_path),
                 );
                 Ok(0)
             }
@@ -1825,6 +1934,7 @@ fn load_external_model_resources(
     }
     let source_directory = source_path
         .parent()
+        .filter(|path| !path.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."))
         .canonicalize()
         .map_err(|error| {

@@ -14,6 +14,7 @@ Use the free [Web Hub](https://kessetsu.com/#editor) without an account or insta
 - [Research data](guides/research-data.md): local CSV mapping, evidence and scalar comparisons (development source).
 - [Finite parameter fitting](guides/model-fitting.md): calibration-only selection with separate holdout validation (development source).
 - [Memristor pulse protocol](guides/memristor-protocol.md): a reproducible threshold-model study with convergence and held-out stimulus checks (development source).
+- [Portable research packages](guides/portable-research-packages.md): bundle exact study evidence, permitted dependencies and rerun instructions (development source).
 - [Python and Jupyter](guides/python-notebooks.md): inspect simulations, studies and research evidence in Python (development source).
 
 ## Language and command reference

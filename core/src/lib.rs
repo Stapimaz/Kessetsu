@@ -24,6 +24,8 @@ pub mod models;
 pub mod parser;
 pub mod requirements;
 pub mod research_data;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod research_package;
 pub mod schematic;
 mod schematic_geometry;
 pub mod schematic_svg;

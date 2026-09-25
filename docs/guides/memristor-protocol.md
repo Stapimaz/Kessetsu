@@ -20,6 +20,8 @@ kess study run examples/memristor_convergence.kessstudy.json \
   --output memristor-convergence.json
 kess study run examples/memristor_holdout.kessstudy.json \
   --output memristor-holdout.json
+kess study package examples/memristor_pulse_protocol.kessstudy.json \
+  --results memristor-results.json --output memristor-package --signal "V(TOP)"
 ```
 
 The main matrix contains 24 cases:

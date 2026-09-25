@@ -4,6 +4,15 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### Portable research packages
+
+- `kess study package` writes a new atomic research folder with the exact specification and
+  source, complete result JSON, summary/full-data CSV, labeled SVG, printable HTML and rerun guide.
+- `kessetsu.research-package.v1` records every payload hash, plotted analysis/signal/case,
+  model citation/license/hash, original simulator and solver identity, and interpretation limits.
+- Redistributable external models retain their exact relative paths; prohibited model bodies
+  are never copied and remain precise user-supplied dependency requirements.
+
 ### Reproducible memristor protocol
 
 - A 24-case signed pulse study characterizes amplitude, duration, starting state, modeled
