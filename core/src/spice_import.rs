@@ -29,6 +29,7 @@ pub struct ImportDiagnostic {
 pub enum ImportNameKind {
     Component,
     Net,
+    Parameter,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -98,6 +99,41 @@ struct LogicalLine {
     text: String,
 }
 
+#[derive(Debug, Clone)]
+struct ImportedParameter {
+    original_name: String,
+    mapped_name: String,
+    value: String,
+    line: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ImportUnit {
+    Ohm,
+    Farad,
+    Henry,
+    Volt,
+    Ampere,
+    Hertz,
+    Second,
+    Ratio,
+}
+
+impl ImportUnit {
+    const fn kessetsu_name(self) -> &'static str {
+        match self {
+            Self::Ohm => "Ohm",
+            Self::Farad => "F",
+            Self::Henry => "H",
+            Self::Volt => "V",
+            Self::Ampere => "A",
+            Self::Hertz => "Hz",
+            Self::Second => "s",
+            Self::Ratio => "ratio",
+        }
+    }
+}
+
 type ImportedNames = (BTreeMap<String, String>, BTreeMap<String, String>);
 type NameAllocationError = (usize, String);
 
@@ -136,6 +172,15 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
     if report.has_errors() {
         return report;
     }
+    let parameters = collect_parameters(&logical, &mut report);
+    if report.has_errors() {
+        return report;
+    }
+    let parameter_lookup = parameters
+        .iter()
+        .map(|parameter| (parameter.original_name.to_ascii_lowercase(), parameter))
+        .collect::<BTreeMap<_, _>>();
+    let mut parameter_units = BTreeMap::<String, ImportUnit>::new();
     let mut components = Vec::new();
     let mut analyses = Vec::<(usize, Vec<String>)>::new();
     let mut ended = false;
@@ -170,6 +215,7 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
                 ".op" | ".tran" | ".ac" | ".dc" => {
                     analyses.push((line.number, fields));
                 }
+                ".param" => {}
                 ".control" | ".endc" => push_unsupported(
                     &mut report,
                     line.number,
@@ -185,11 +231,6 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
                     line.number,
                     "inline model and subcircuit definitions are outside the first typed import subset",
                 ),
-                ".param" => push_unsupported(
-                    &mut report,
-                    line.number,
-                    "SPICE parameter expressions are not silently translated",
-                ),
                 _ => push_unsupported(
                     &mut report,
                     line.number,
@@ -199,7 +240,7 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
             continue;
         }
 
-        match parse_component(text, line.number) {
+        match parse_component(text, line.number, &parameter_lookup, &mut parameter_units) {
             Ok(component) => components.push(component),
             Err(message) => push_error(&mut report, "KES-N002", message, Some(line.number)),
         }
@@ -224,6 +265,22 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
             return report;
         }
     };
+    let mut translated_analyses = Vec::new();
+    for (line, fields) in &analyses {
+        match translate_analysis(
+            fields,
+            &component_names,
+            &components,
+            &parameter_lookup,
+            &mut parameter_units,
+        ) {
+            Ok(analysis) => translated_analyses.push(analysis),
+            Err(message) => push_error(&mut report, "KES-N002", message, Some(*line)),
+        }
+    }
+    if report.has_errors() {
+        return report;
+    }
     report.names.extend(
         component_names
             .iter()
@@ -233,6 +290,13 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
                 kessetsu: mapped.clone(),
             }),
     );
+    report
+        .names
+        .extend(parameters.iter().map(|parameter| ImportNameMapping {
+            kind: ImportNameKind::Parameter,
+            original: parameter.original_name.clone(),
+            kessetsu: parameter.mapped_name.clone(),
+        }));
     report.names.extend(
         net_names
             .iter()
@@ -252,6 +316,48 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
         generated.push_str(&format!("net {net}\n"));
     }
     if !declared_nets.is_empty() {
+        generated.push('\n');
+    }
+
+    for parameter in &parameters {
+        let Some(unit) = parameter_units.get(&parameter.original_name.to_ascii_lowercase()) else {
+            push_error(
+                &mut report,
+                "KES-N006",
+                format!(
+                    "parameter '{}' is unused, so its electrical unit cannot be inferred",
+                    parameter.original_name
+                ),
+                Some(parameter.line),
+            );
+            continue;
+        };
+        let value = match canonical_number(&parameter.value) {
+            Ok(value) => value,
+            Err(message) => {
+                push_error(
+                    &mut report,
+                    "KES-N006",
+                    format!(
+                        "parameter '{}' must be a literal value in the supported subset: {message}",
+                        parameter.original_name
+                    ),
+                    Some(parameter.line),
+                );
+                continue;
+            }
+        };
+        generated.push_str(&format!(
+            "param {}: {} = {}\n",
+            parameter.mapped_name,
+            unit.kessetsu_name(),
+            value
+        ));
+    }
+    if report.has_errors() {
+        return report;
+    }
+    if !parameters.is_empty() {
         generated.push('\n');
     }
 
@@ -280,14 +386,9 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
         }
     }
 
-    for (line, fields) in &analyses {
-        match translate_analysis(fields, &component_names) {
-            Ok(analysis) => {
-                generated.push_str(&analysis);
-                generated.push('\n');
-            }
-            Err(message) => push_error(&mut report, "KES-N002", message, Some(*line)),
-        }
+    for analysis in translated_analyses {
+        generated.push_str(&analysis);
+        generated.push('\n');
     }
     if report.has_errors() {
         return report;
@@ -381,37 +482,136 @@ fn logical_lines(source: &str, report: &mut SpiceImportReport) -> Vec<LogicalLin
     logical
 }
 
-fn parse_component(text: &str, line: usize) -> Result<ImportedComponent, String> {
+fn collect_parameters(
+    lines: &[LogicalLine],
+    report: &mut SpiceImportReport,
+) -> Vec<ImportedParameter> {
+    let mut parameters = Vec::new();
+    let mut seen = BTreeMap::<String, (String, usize)>::new();
+    let mut used = BTreeSet::new();
+    for line in lines {
+        let fields = split_fields(line.text.trim());
+        if fields
+            .first()
+            .is_none_or(|field| !field.eq_ignore_ascii_case(".param"))
+        {
+            continue;
+        }
+        if fields.len() < 2 {
+            push_error(
+                report,
+                "KES-N006",
+                ".param requires at least one NAME=literal assignment",
+                Some(line.number),
+            );
+            continue;
+        }
+        for assignment in &fields[1..] {
+            let Some((name, value)) = assignment.split_once('=') else {
+                push_error(
+                    report,
+                    "KES-N006",
+                    format!(
+                        "parameter assignment '{assignment}' must use NAME=literal without spaces around '='"
+                    ),
+                    Some(line.number),
+                );
+                continue;
+            };
+            if name.is_empty() || value.is_empty() || !is_spice_name(name) {
+                push_error(
+                    report,
+                    "KES-N006",
+                    format!("invalid SPICE parameter assignment '{assignment}'"),
+                    Some(line.number),
+                );
+                continue;
+            }
+            let folded = name.to_ascii_lowercase();
+            if let Some((previous, previous_line)) = seen.get(&folded) {
+                push_error(
+                    report,
+                    "KES-N006",
+                    format!(
+                        "parameter '{name}' duplicates '{previous}' from line {previous_line}; SPICE names are case-insensitive"
+                    ),
+                    Some(line.number),
+                );
+                continue;
+            }
+            seen.insert(folded, (name.into(), line.number));
+            parameters.push(ImportedParameter {
+                original_name: name.into(),
+                mapped_name: unique_identifier(name, "P", &mut used),
+                value: value.into(),
+                line: line.number,
+            });
+        }
+    }
+    parameters
+}
+
+fn is_spice_name(value: &str) -> bool {
+    value
+        .chars()
+        .next()
+        .is_some_and(|character| character.is_ascii_alphabetic() || character == '_')
+        && value
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '_')
+}
+
+fn parse_component(
+    text: &str,
+    line: usize,
+    parameters: &BTreeMap<String, &ImportedParameter>,
+    parameter_units: &mut BTreeMap<String, ImportUnit>,
+) -> Result<ImportedComponent, String> {
     let fields = split_fields(text);
     let name = fields
         .first()
         .filter(|name| !name.is_empty())
         .ok_or_else(|| "empty SPICE statement".to_string())?;
     let prefix = name.chars().next().unwrap().to_ascii_uppercase();
-    let two_terminal = |kind: fn(String) -> ImportedKind| -> Result<ImportedComponent, String> {
-        if fields.len() != 4 {
-            return Err(format!(
-                "{} expects name, two nodes and one literal value",
-                prefix
-            ));
-        }
-        Ok(ImportedComponent {
-            original_name: name.clone(),
-            nodes: fields[1..3].to_vec(),
-            pins: &["p1", "p2"],
-            kind: kind(canonical_number(&fields[3])?),
-            line,
-        })
-    };
+    let mut two_terminal =
+        |kind: fn(String) -> ImportedKind, unit: ImportUnit| -> Result<ImportedComponent, String> {
+            if fields.len() != 4 {
+                return Err(format!(
+                    "{} expects name, two nodes and one literal value",
+                    prefix
+                ));
+            }
+            Ok(ImportedComponent {
+                original_name: name.clone(),
+                nodes: fields[1..3].to_vec(),
+                pins: &["p1", "p2"],
+                kind: kind(translate_numeric(
+                    &fields[3],
+                    unit,
+                    parameters,
+                    parameter_units,
+                )?),
+                line,
+            })
+        };
     match prefix {
-        'R' => two_terminal(ImportedKind::Resistor),
-        'C' => two_terminal(ImportedKind::Capacitor),
-        'L' => two_terminal(ImportedKind::Inductor),
+        'R' => two_terminal(ImportedKind::Resistor, ImportUnit::Ohm),
+        'C' => two_terminal(ImportedKind::Capacitor, ImportUnit::Farad),
+        'L' => two_terminal(ImportedKind::Inductor, ImportUnit::Henry),
         'V' | 'I' => {
             if fields.len() < 4 {
                 return Err(format!("{prefix} source is missing its value or waveform"));
             }
-            let value = translate_source(&fields[3..])?;
+            let value = translate_source(
+                &fields[3..],
+                if prefix == 'V' {
+                    ImportUnit::Volt
+                } else {
+                    ImportUnit::Ampere
+                },
+                parameters,
+                parameter_units,
+            )?;
             Ok(ImportedComponent {
                 original_name: name.clone(),
                 nodes: fields[1..3].to_vec(),
@@ -503,12 +703,52 @@ fn parse_component(text: &str, line: usize) -> Result<ImportedComponent, String>
     }
 }
 
-fn translate_source(fields: &[String]) -> Result<String, String> {
+fn translate_numeric(
+    input: &str,
+    unit: ImportUnit,
+    parameters: &BTreeMap<String, &ImportedParameter>,
+    parameter_units: &mut BTreeMap<String, ImportUnit>,
+) -> Result<String, String> {
+    let (candidate, braced) = input
+        .strip_prefix('{')
+        .and_then(|value| value.strip_suffix('}'))
+        .map_or((input, false), |value| (value.trim(), true));
+    if is_spice_name(candidate)
+        && let Some(parameter) = parameters.get(&candidate.to_ascii_lowercase())
+    {
+        let key = parameter.original_name.to_ascii_lowercase();
+        if let Some(previous) = parameter_units.insert(key.clone(), unit)
+            && previous != unit
+        {
+            parameter_units.insert(key, previous);
+            return Err(format!(
+                "parameter '{}' is used as both {} and {}",
+                parameter.original_name,
+                previous.kessetsu_name(),
+                unit.kessetsu_name()
+            ));
+        }
+        return Ok(format!("{{{}}}", parameter.mapped_name));
+    }
+    if braced {
+        return Err(format!(
+            "SPICE expression '{{{candidate}}}' is outside the literal parameter subset"
+        ));
+    }
+    canonical_number(input)
+}
+
+fn translate_source(
+    fields: &[String],
+    value_unit: ImportUnit,
+    parameters: &BTreeMap<String, &ImportedParameter>,
+    parameter_units: &mut BTreeMap<String, ImportUnit>,
+) -> Result<String, String> {
     if fields.len() == 1 {
         if let Some((name, args)) = parse_call(&fields[0])? {
-            return translate_waveform(name, args, None);
+            return translate_waveform(name, args, value_unit, None, parameters, parameter_units);
         }
-        return canonical_number(&fields[0]);
+        return translate_numeric(&fields[0], value_unit, parameters, parameter_units);
     }
     if fields[0].eq_ignore_ascii_case("ac") {
         if fields.len() > 3 {
@@ -517,11 +757,14 @@ fn translate_source(fields: &[String]) -> Result<String, String> {
         if fields.len() == 3 && canonical_number(&fields[2])? != "0" {
             return Err("non-zero AC source phase is not representable in Kessetsu yet".into());
         }
-        return Ok(format!("ac({})", canonical_number(&fields[1])?));
+        return Ok(format!(
+            "ac({})",
+            translate_numeric(&fields[1], value_unit, parameters, parameter_units)?
+        ));
     }
     if fields[0].eq_ignore_ascii_case("dc") {
         if fields.len() == 2 {
-            return canonical_number(&fields[1]);
+            return translate_numeric(&fields[1], value_unit, parameters, parameter_units);
         }
         if fields.len() >= 4 && fields[2].eq_ignore_ascii_case("ac") {
             if canonical_number(&fields[1])? != "0" {
@@ -535,13 +778,16 @@ fn translate_source(fields: &[String]) -> Result<String, String> {
             if fields.len() == 5 && canonical_number(&fields[4])? != "0" {
                 return Err("non-zero AC source phase is not representable in Kessetsu yet".into());
             }
-            return Ok(format!("ac({})", canonical_number(&fields[3])?));
+            return Ok(format!(
+                "ac({})",
+                translate_numeric(&fields[3], value_unit, parameters, parameter_units)?
+            ));
         }
         return Err("source has unsupported DC/AC field combination".into());
     }
     if let Some((name, args)) = parse_call(&fields[0])? {
         if fields.len() == 1 {
-            return translate_waveform(name, args, None);
+            return translate_waveform(name, args, value_unit, None, parameters, parameter_units);
         }
         if fields.len() >= 3 && fields[1].eq_ignore_ascii_case("ac") {
             if fields.len() > 4 {
@@ -550,7 +796,19 @@ fn translate_source(fields: &[String]) -> Result<String, String> {
             if fields.len() == 4 && canonical_number(&fields[3])? != "0" {
                 return Err("non-zero AC source phase is not representable in Kessetsu yet".into());
             }
-            return translate_waveform(name, args, Some(canonical_number(&fields[2])?));
+            return translate_waveform(
+                name,
+                args,
+                value_unit,
+                Some(translate_numeric(
+                    &fields[2],
+                    value_unit,
+                    parameters,
+                    parameter_units,
+                )?),
+                parameters,
+                parameter_units,
+            );
         }
     }
     Err("source value must be a literal, AC, SINE, PULSE or PWL form".into())
@@ -570,7 +828,14 @@ fn parse_call(field: &str) -> Result<Option<(&str, Vec<&str>)>, String> {
     Ok(Some((&field[..open], args)))
 }
 
-fn translate_waveform(name: &str, args: Vec<&str>, ac: Option<String>) -> Result<String, String> {
+fn translate_waveform(
+    name: &str,
+    args: Vec<&str>,
+    value_unit: ImportUnit,
+    ac: Option<String>,
+    parameters: &BTreeMap<String, &ImportedParameter>,
+    parameter_units: &mut BTreeMap<String, ImportUnit>,
+) -> Result<String, String> {
     let expected = match name.to_ascii_lowercase().as_str() {
         "sin" | "sine" => 3,
         "pulse" => 7,
@@ -585,9 +850,19 @@ fn translate_waveform(name: &str, args: Vec<&str>, ac: Option<String>) -> Result
             args.len()
         ));
     }
+    let waveform = name.to_ascii_lowercase();
     let values = args
         .into_iter()
-        .map(canonical_number)
+        .enumerate()
+        .map(|(index, value)| {
+            let unit = match waveform.as_str() {
+                "sin" | "sine" if index == 2 => ImportUnit::Hertz,
+                "pulse" if index >= 2 => ImportUnit::Second,
+                "pwl" if index.is_multiple_of(2) => ImportUnit::Second,
+                _ => value_unit,
+            };
+            translate_numeric(value, unit, parameters, parameter_units)
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let normalized = match name.to_ascii_lowercase().as_str() {
         "sin" | "sine" if ac.is_some() => "sine_ac",
@@ -606,7 +881,10 @@ fn translate_waveform(name: &str, args: Vec<&str>, ac: Option<String>) -> Result
 
 fn translate_analysis(
     fields: &[String],
-    components: &BTreeMap<String, String>,
+    component_names: &BTreeMap<String, String>,
+    imported_components: &[ImportedComponent],
+    parameters: &BTreeMap<String, &ImportedParameter>,
+    parameter_units: &mut BTreeMap<String, ImportUnit>,
 ) -> Result<String, String> {
     match fields[0].to_ascii_lowercase().as_str() {
         ".op" if fields.len() == 1 => Ok("simulate op".into()),
@@ -616,8 +894,8 @@ fn translate_analysis(
         {
             Ok(format!(
                 "simulate tran {} {}{}",
-                canonical_number(&fields[1])?,
-                canonical_number(&fields[2])?,
+                translate_numeric(&fields[1], ImportUnit::Second, parameters, parameter_units,)?,
+                translate_numeric(&fields[2], ImportUnit::Second, parameters, parameter_units,)?,
                 if fields.len() == 4 { " uic" } else { "" }
             ))
         }
@@ -627,32 +905,47 @@ fn translate_analysis(
             if !matches!(scale.as_str(), "dec" | "oct" | "lin") {
                 return Err("AC scale must be DEC, OCT or LIN".into());
             }
-            let points = canonical_number(&fields[2])?;
-            if points.contains(['.', 'e', 'E']) {
+            let points =
+                translate_numeric(&fields[2], ImportUnit::Ratio, parameters, parameter_units)?;
+            if !points.starts_with('{') && points.contains(['.', 'e', 'E']) {
                 return Err("AC points must be a positive integer".into());
             }
             Ok(format!(
                 "simulate ac {scale} {points} {} {}",
-                canonical_number(&fields[3])?,
-                canonical_number(&fields[4])?
+                translate_numeric(&fields[3], ImportUnit::Hertz, parameters, parameter_units,)?,
+                translate_numeric(&fields[4], ImportUnit::Hertz, parameters, parameter_units,)?
             ))
         }
         ".ac" => Err("AC expects scale, points, start and stop".into()),
         ".dc" if fields.len() == 5 => {
-            let mapped = components
+            let mapped = component_names
                 .get(&fields[1])
                 .or_else(|| {
-                    components
+                    component_names
                         .iter()
                         .find(|(name, _)| name.eq_ignore_ascii_case(&fields[1]))
                         .map(|(_, mapped)| mapped)
                 })
                 .ok_or_else(|| format!("DC sweep source '{}' does not exist", fields[1]))?;
+            let source_unit = imported_components
+                .iter()
+                .find(|component| component.original_name.eq_ignore_ascii_case(&fields[1]))
+                .and_then(|component| match component.kind {
+                    ImportedKind::VoltageSource(_) => Some(ImportUnit::Volt),
+                    ImportedKind::CurrentSource(_) => Some(ImportUnit::Ampere),
+                    _ => None,
+                })
+                .ok_or_else(|| {
+                    format!(
+                        "DC sweep target '{}' is not an independent source",
+                        fields[1]
+                    )
+                })?;
             Ok(format!(
                 "simulate dc {mapped} {} {} {}",
-                canonical_number(&fields[2])?,
-                canonical_number(&fields[3])?,
-                canonical_number(&fields[4])?
+                translate_numeric(&fields[2], source_unit, parameters, parameter_units)?,
+                translate_numeric(&fields[3], source_unit, parameters, parameter_units)?,
+                translate_numeric(&fields[4], source_unit, parameters, parameter_units)?
             ))
         }
         ".dc" => Err("DC expects source, start, stop and step".into()),
@@ -806,6 +1099,14 @@ fn canonical_number(input: &str) -> Result<String, String> {
         .parse()
         .map_err(|_| format!("'{input}' is not a finite SPICE number"))?;
     let suffix = input[index..].to_ascii_lowercase();
+    if !suffix
+        .chars()
+        .all(|character| character.is_ascii_alphabetic())
+    {
+        return Err(format!(
+            "'{input}' is not a literal SPICE number; expressions are not supported"
+        ));
+    }
     let factor = if suffix.starts_with("meg") {
         1e6
     } else if suffix.starts_with("mil") {

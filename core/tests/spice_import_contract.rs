@@ -95,6 +95,53 @@ fn unsupported_or_executable_constructs_fail_closed_at_their_source_lines() {
 }
 
 #[test]
+fn literal_parameters_preserve_editable_relationships_and_infer_units() {
+    let input = ".param RVAL=1k CVAL=159.154943n POINTS=40 FSTART=10 FSTOP=100k
+V1 in 0 AC 1
+R1 in out {RVAL}
+C1 out 0 CVAL
+.ac dec POINTS FSTART FSTOP
+.end
+";
+    let report = import_spice(input);
+    assert!(!report.has_errors(), "{:?}", report.diagnostics);
+    let source = report.kess_source.expect("verified source");
+    for declaration in [
+        "param RVAL: Ohm = 1e3",
+        "param CVAL: F = 1.59154943e-7",
+        "param POINTS: ratio = 40",
+        "param FSTART: Hz = 10",
+        "param FSTOP: Hz = 1e5",
+        "resistor R1 {RVAL}",
+        "capacitor C1 {CVAL}",
+        "simulate ac dec {POINTS} {FSTART} {FSTOP}",
+    ] {
+        assert!(
+            source.contains(declaration),
+            "missing {declaration}:\n{source}"
+        );
+    }
+    let compile = compile_source(&source, CompileOptions::default());
+    assert!(!compile.has_errors(), "{:?}", compile.diagnostics);
+    let spice = compile.spice_netlist.expect("canonical netlist");
+    assert!(spice.contains("R_R1 in out 1000"), "{spice}");
+    assert!(spice.contains("C_C1 out 0 1.59154943e-7"), "{spice}");
+
+    let conflict = import_spice(".param VALUE=1k\nR1 a 0 VALUE\nC1 a 0 VALUE\n.end\n");
+    assert!(conflict.has_errors());
+    assert!(conflict.diagnostics.iter().any(|diagnostic| {
+        diagnostic.line == Some(3) && diagnostic.message.contains("both Ohm and F")
+    }));
+    assert!(conflict.kess_source.is_none());
+
+    let expression = import_spice(".param RVAL=1k*2\nR1 a 0 RVAL\n.end\n");
+    assert!(expression.has_errors());
+    assert!(expression.diagnostics.iter().any(|diagnostic| {
+        diagnostic.line == Some(1) && diagnostic.message.contains("must be a literal value")
+    }));
+}
+
+#[test]
 fn cli_writes_verified_source_and_refuses_an_accidental_overwrite() {
     let workspace = TestWorkspace::new("spice-import");
     let input = workspace.write(

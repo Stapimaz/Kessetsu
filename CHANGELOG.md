@@ -12,6 +12,8 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
   sources, selected built-in diode/BJT/MOSFET models and OP/TRAN/AC/DC analyses.
 - Original component/net names receive deterministic reversible mappings. SPICE numeric suffixes,
   including its case-insensitive milli `M`, are normalized without changing electrical values.
+- Literal `.param NAME=value` relationships remain typed editable parameters; Kessetsu infers the
+  unit from supported uses and rejects unused or dimensionally conflicting parameters.
 - Unsupported directives, control blocks, include paths, models, subcircuits, expressions and
   device families fail with source-line diagnostics instead of producing a partial circuit.
 

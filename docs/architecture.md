@@ -67,9 +67,11 @@ It never sends imported text directly to a backend or simulator. Unknown directi
 control blocks, arbitrary include paths, expressions and unsupported device families fail with
 source-line diagnostics; they are not silently dropped. Frontends retain the original input bytes,
 own safe output writes and expose name mappings. Initial source supports literal R/C/L, independent
-V/I sources, selected built-in D/Q/M models and OP/TRAN/AC/DC analyses. Model libraries,
-subcircuits, `.param`, controlled/behavioral sources and schematic-file import remain outside that
-declared subset until typed semantics and resource binding are implemented.
+V/I sources, selected built-in D/Q/M models, OP/TRAN/AC/DC analyses and literal `.param`
+assignments whose single electrical unit is inferred from supported uses. Ambiguous/unused
+parameters and SPICE parameter expressions fail closed. Model libraries, subcircuits,
+controlled/behavioral sources and schematic-file import remain outside that declared subset until
+typed semantics and resource binding are implemented.
 
 ### Parameter-expression boundary
 

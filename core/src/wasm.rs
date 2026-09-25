@@ -349,7 +349,10 @@ pub fn compile_schema_version() -> String {
 /// canonical recompilation. Browser file selection and persistence stay in JS.
 #[wasm_bindgen]
 pub fn import_spice_netlist(input: &str) -> Result<JsValue, JsValue> {
-    to_json_compatible(&crate::spice_import::import_spice(input), "SPICE import report")
+    to_json_compatible(
+        &crate::spice_import::import_spice(input),
+        "SPICE import report",
+    )
 }
 
 #[wasm_bindgen]

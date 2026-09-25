@@ -27,6 +27,7 @@ import opens as an unsaved editable circuit; a rejected import leaves the curren
 | `Q` | selected typed built-in NPN/PNP models |
 | Three-terminal `M`, or four-terminal with bulk tied to source | selected built-in MOSFET models |
 | `.op`, bounded `.tran`, `.ac`, single-source `.dc` | typed `simulate` statements |
+| `.param NAME=literal` | typed editable parameter, with unit inferred from its supported uses |
 
 Continuation lines beginning with `+`, comments, `.title` and `.end` are understood. SPICE node
 `0` becomes the explicit `GND` net. Other node and component names are preserved when valid or
@@ -44,7 +45,8 @@ The initial importer rejects these constructs instead of guessing or silently re
 
 - `.control`/`.endc`, shell-like or simulator-control content;
 - arbitrary `.include`/`.lib` paths;
-- inline `.model`, `.subckt`, `.param` and expressions;
+- inline `.model`, `.subckt` and general SPICE expressions;
+- parameter expressions, unused parameters or one parameter used across conflicting electrical units;
 - controlled or behavioral sources and unsupported component families;
 - unknown semiconductor models, untied MOSFET bulk nodes, non-zero AC source phase, or analysis
   options that the typed Kessetsu IR cannot represent.
