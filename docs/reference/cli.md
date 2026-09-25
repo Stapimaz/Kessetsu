@@ -245,9 +245,17 @@ kess export circuit.kess --target schematic-json --output circuit.kessetsu.json
 kess export circuit.kess --target spice --output circuit.spice
 kess export circuit.kess --target kicad --output circuit.kicad_sch
 kess export circuit.kess --target ltspice --output circuit.asc
+kess export circuit.kess --target bom-csv --output circuit.bom.csv
+kess export circuit.kess --target handoff-json --output circuit.handoff.json
 ```
 
-`render` and `export` stop without creating output and emit a `KES-X...` diagnostic when canonical connectivity is not verified or when the target cannot safely represent a required feature. Replacing an existing file requires `--force`. With `--format json`, artifacts report schema/version, MIME type, SHA-256, byte length, connectivity, capability, warnings, and known losses. See the [export matrix](exports.md) for format boundaries.
+`bom-csv` groups physical selections and keeps unresolved rows explicit. `handoff-json` records
+part/footprint readiness and exact external model dependencies without embedding prohibited model
+bodies. `render` and connectivity-preserving exports stop without creating output and emit a
+`KES-X...` diagnostic when canonical connectivity is not verified or when the target cannot safely
+represent a required feature. Replacing an existing file requires `--force`. With `--format json`,
+artifacts report schema/version, MIME type, SHA-256, byte length, connectivity, capability,
+warnings, and known losses. See the [export matrix](exports.md) for format boundaries.
 
 ### `study package`
 

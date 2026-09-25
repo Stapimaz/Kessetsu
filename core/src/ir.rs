@@ -1586,6 +1586,17 @@ fn compile_physical_parts(
                 Some("part"),
             ));
         }
+        if matches!(
+            component.kind,
+            ComponentKind::VoltageSource | ComponentKind::CurrentSource
+        ) {
+            return Err(semantic_error(
+                "KES-C024",
+                "independent simulation sources are abstract stimuli and cannot receive a physical part",
+                Some(&declaration.component),
+                Some("part"),
+            ));
+        }
 
         let mut fields = BTreeMap::<String, String>::new();
         for field in &declaration.fields {

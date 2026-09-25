@@ -331,13 +331,38 @@ fn render_and_export_emit_versioned_artifacts_with_safe_overwrite() {
     assert_eq!(json.status.code(), Some(0));
     assert!(json.stderr.is_empty());
     let value: Value = serde_json::from_slice(&json.stdout).expect("stdout should be JSON only");
-    assert_eq!(value["domain_versions"]["export"], "kessetsu.export.v1");
+    assert_eq!(value["domain_versions"]["export"], "kessetsu.export.v2");
     assert_eq!(
         value["artifacts"][0]["schema_version"],
-        "kessetsu.export.v1"
+        "kessetsu.export.v2"
     );
     assert_eq!(value["artifacts"][0]["connectivity_verified"], true);
     assert_eq!(value["artifacts"][0]["sha256"].as_str().unwrap().len(), 64);
+
+    let bom = workspace.path().join("circuit.bom.csv");
+    let bom_arg = path_argument(&bom);
+    let bom_export =
+        workspace.run_cli(&["export", &source_arg, "--target", "bom-csv", "-o", &bom_arg]);
+    assert_eq!(bom_export.status.code(), Some(0));
+    assert!(
+        fs::read_to_string(&bom)
+            .unwrap()
+            .starts_with("item,quantity,references")
+    );
+
+    let handoff = workspace.path().join("circuit.handoff.json");
+    let handoff_arg = path_argument(&handoff);
+    let handoff_export = workspace.run_cli(&[
+        "export",
+        &source_arg,
+        "--target",
+        "handoff-json",
+        "-o",
+        &handoff_arg,
+    ]);
+    assert_eq!(handoff_export.status.code(), Some(0));
+    let handoff: Value = serde_json::from_slice(&fs::read(&handoff).unwrap()).unwrap();
+    assert_eq!(handoff["schema_version"], "kessetsu.handoff.v1");
 }
 
 #[test]

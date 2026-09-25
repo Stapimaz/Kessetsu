@@ -87,7 +87,7 @@ export interface ModelInfo {
   };
 }
 
-export type ExportFormat = 'svg' | 'png' | 'pdf' | 'schematic_json' | 'spice' | 'kicad' | 'ltspice';
+export type ExportFormat = 'svg' | 'png' | 'pdf' | 'schematic_json' | 'spice' | 'kicad' | 'ltspice' | 'bom_csv' | 'handoff_json';
 
 export interface ExportCapability {
   visual: boolean;
@@ -96,6 +96,7 @@ export interface ExportCapability {
   preserves_connectivity: boolean;
   preserves_models: boolean;
   preserves_analysis: boolean;
+  preserves_physical_parts: boolean;
 }
 
 export interface ExportDescriptor {

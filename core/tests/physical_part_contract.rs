@@ -71,6 +71,10 @@ fn invalid_or_ambiguous_physical_assignments_fail_closed() {
             "module M(a,b) {\nresistor R 1k\nconnect R.p1 to a\nconnect R.p2 to b\n}\nuse M X\npart X mpn=\"not-a-real-part\"\n",
             "module interfaces are virtual",
         ),
+        (
+            "source VIN 1V\npart VIN manufacturer=\"Example\" mpn=\"SUPPLY\"\n",
+            "abstract stimuli",
+        ),
     ];
     for (source, expected) in cases {
         let report = compile_source(source, CompileOptions::default());

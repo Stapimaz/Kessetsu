@@ -1,7 +1,7 @@
 # Export Contract and Format Matrix
 
 Kessetsu 1.2.0 supports external comparator/two-terminal instances through the same
-seven formats. Export metadata/warnings identify
+nine formats. Export metadata/warnings identify
 required local file/hash/entry dependencies; no external model body is embedded. Native
 SPICE/LTspice file destinations must remain beside their `.kess` source so relative
 references stay valid; when moving exports, deliberately copy matching model directories
@@ -10,27 +10,35 @@ Two-terminal LTspice exports use its rectangular native outline with explicit `P
 not resistor semantics. Known symbol mappings are unchanged. See the
 [model catalog](model-catalog.md) for characterized setups and simulator-compatibility losses.
 
-Kessetsu's export layer belongs to neither Web nor CLI. Every output is produced through the `kessetsu.export.v1` contract from connectivity-verified `kessetsu.schematic.v3`, which itself derives from typed Circuit IR. CLI and Web call only this shared Core API.
+Kessetsu's export layer belongs to neither Web nor CLI. Every output is produced through the `kessetsu.export.v2` contract from typed Circuit IR and, where drawing geometry is required, connectivity-verified `kessetsu.schematic.v3`. CLI and Web call only this shared Core API.
 
 Every artifact reports the exporter name/version, MIME type and extension, byte length, SHA-256, `connectivity_verified`, capability fields, warnings, and known semantic losses. Unsupported topology or symbol geometry is never approximated silently; a `KES-Xxxx` diagnostic stops the export.
 
 ## Export formats
 
-| Format | Purpose | Connectivity | Model | Analysis | Verification / explicit loss |
+| Format | Purpose | Connectivity | Models | Physical parts | Verification / explicit loss |
 |---|---|---:|---:|---:|---|
 | SVG | Scalable visual, documentation, and Web | Yes | No | No | Semantic text, fixed `viewBox`, light export style |
 | PNG | Presentations, reports, and quick sharing | Visual projection | No | No | Pure-Rust canonical SVG raster; `0.25..8` scale, white or transparent background |
 | PDF | Printing and vector documents | Visual projection | No | No | One page, content bounds, automatic orientation, Schematic IR margin, deterministic vector glyphs; no multi-page output |
-| Schematic IR JSON | Lossless machine interchange | Yes | Yes | No | `kessetsu.schematic.v3`, deterministic pretty JSON with model provenance and resolved instance parameters but no external model body |
-| SPICE | Simulation and automation | Yes | Yes | Yes | Canonical Ngspice netlist |
-| KiCad `.kicad_sch` | Continued editing | Yes | Metadata | No | KiCad 10 parser/netlist/ERC smoke; portable embedded symbols may produce a symbol-table warning |
-| LTspice `.asc` | Editing and LTspice simulation | Yes | Yes | Yes | Real LTspice 24.1.9 `-netlist` smoke; assertions remain in the `.kess` source |
+| Schematic IR JSON | Lossless drawing interchange | Yes | Yes | No | `kessetsu.schematic.v3`, deterministic pretty JSON with model provenance but no external model body |
+| SPICE | Simulation and automation | Yes | Yes | No | Canonical Ngspice netlist with analyses; physical selection cannot change simulation |
+| KiCad `.kicad_sch` | Continued editing | Yes | Metadata | Yes | Complete pin maps drive real pad numbers/footprint properties; an unmapped footprint is deliberately not attached |
+| LTspice `.asc` | Editing and LTspice simulation | Yes | Yes | No | Real LTspice 24.1.9 `-netlist` smoke; assertions remain in the `.kess` source |
+| BOM CSV | Sourcing/editable spreadsheet | No | No | Yes | Groups equal selections, excludes abstract sources, and retains `unassigned`/`incomplete`/EDA status rows |
+| Handoff JSON | Dependency and readiness manifest | No | Yes | Yes | `kessetsu.handoff.v1`; IR identity, part assignments, footprint/pin readiness, exact external model dependencies and unresolved components |
 
 The PDF policy is deliberately single-page because splitting an electronic schematic makes connectivity harder to follow. For a very large circuit, Core must first produce readable Schematic IR; the exporter does not invent arbitrary page breaks. The exporter uses a canonical content-sized media box rather than an A4/Letter frame, avoiding unused space and deriving orientation naturally from the content.
 
 Raster and vector font measurement does not depend on system fonts. The repository's SIL OFL 1.1-licensed Roboto Mono is loaded identically for native and WASM rendering. Semantic SVG text remains selectable in the browser; PNG is raster output, while PDF converts glyphs to deterministic vector paths to avoid platform-dependent font-subset identifiers.
 
 An external subcircuit remains a user-owned sidecar dependency. Schematic JSON and KiCad preserve its verified provenance, entry point, pin order, compatibility mode, redistribution policy, and content hash, but never embed the model body. SPICE and LTspice reference the validated relative file and therefore must be written beside the source `.kess` file; their export result includes an explicit dependency warning. Visual exports do not require or contain the model body.
+
+Physical metadata follows a stricter EDA rule. BOM and handoff outputs record a stated footprint
+even when its logical-to-physical mapping is missing, marking that condition explicitly. KiCad
+attaches the footprint and replaces embedded-symbol pin numbers only when the map is complete.
+This prevents a convenient default numbering order from silently becoming a board-level claim.
+Manufacturer/MPN fields are user-provided identity, not verified stock, price or rating data.
 
 ## EDA verification
 
@@ -76,6 +84,8 @@ kess export circuit.kess --target schematic-json --output circuit.schematic.json
 kess export circuit.kess --target spice --output circuit.spice
 kess export circuit.kess --target kicad --output circuit.kicad_sch
 kess export circuit.kess --target ltspice --output circuit.asc
+kess export circuit.kess --target bom-csv --output circuit.bom.csv
+kess export circuit.kess --target handoff-json --output circuit.handoff.json
 ```
 
 Replacing an existing target requires explicit `--force`. Overwriting the source file is always rejected. With `--format json`, artifact bytes are never mixed into stdout; an agent sees only structured artifact metadata and diagnostics.

@@ -15,7 +15,7 @@ fn compile_fixture() -> kessetsu_core::compiler::CompileReport {
 fn advertised_formats_are_versioned_deterministic_and_connectivity_safe() {
     let report = compile_fixture();
     let capabilities = export_capabilities();
-    assert_eq!(capabilities.len(), 7);
+    assert_eq!(capabilities.len(), 9);
     for descriptor in capabilities {
         assert_eq!(descriptor.schema_version, EXPORT_SCHEMA_VERSION);
         let first = export_report(&report, descriptor.format, ExportOptions::default()).unwrap();
@@ -45,6 +45,46 @@ fn visual_and_eda_payloads_have_real_format_signatures() {
     let json: serde_json::Value =
         serde_json::from_slice(&export(ExportFormat::SchematicJson).bytes).unwrap();
     assert_eq!(json["schema_version"], "kessetsu.schematic.v3");
+}
+
+#[test]
+fn bom_handoff_and_kicad_share_explicit_physical_part_data() {
+    let source = "net GND\nnet IN\nnet OUT\nsource VIN 1V\nresistor R1 10k\nresistor R2 10k\ncapacitor C1 100nF\npart R1 manufacturer=\"Yageo\" mpn=\"RC0603FR-0710KL\" footprint=\"Resistor_SMD:R_0603_1608Metric\" pin_map=\"p1:2,p2:1\"\npart R2 manufacturer=\"Yageo\" mpn=\"RC0603FR-0710KL\" footprint=\"Resistor_SMD:R_0603_1608Metric\" pin_map=\"p1:2,p2:1\"\npart C1 footprint=\"Capacitor_SMD:C_0603_1608Metric\"\nconnect VIN.minus,C1.p2 to GND\nconnect VIN.plus,R1.p1 to IN\nconnect R1.p2,R2.p1 to OUT\nconnect R2.p2,C1.p1 to GND\n";
+    let report = compile_source(source, CompileOptions::all_outputs());
+    assert!(!report.has_errors(), "{:?}", report.diagnostics);
+
+    let bom = export_report(&report, ExportFormat::BomCsv, ExportOptions::default()).unwrap();
+    let bom = String::from_utf8(bom.bytes).unwrap();
+    assert!(bom.contains("\"2\",\"R1;R2\""), "{bom}");
+    assert!(bom.contains("\"selected\",\"ready\""), "{bom}");
+    assert!(bom.contains("\"C1\""), "{bom}");
+    assert!(bom.contains("\"incomplete\",\"pin_map_missing\""), "{bom}");
+    assert!(
+        !bom.contains("VIN"),
+        "abstract sources must not become BOM lines"
+    );
+
+    let handoff =
+        export_report(&report, ExportFormat::HandoffJson, ExportOptions::default()).unwrap();
+    let handoff: serde_json::Value = serde_json::from_slice(&handoff.bytes).unwrap();
+    assert_eq!(handoff["schema_version"], "kessetsu.handoff.v1");
+    assert_eq!(handoff["counts"]["electrical_components"], 3);
+    assert_eq!(handoff["counts"]["assigned_parts"], 3);
+    assert_eq!(handoff["counts"]["eda_ready_footprints"], 2);
+    assert_eq!(handoff["footprints"][0]["component"], "C1");
+    assert_eq!(handoff["footprints"][0]["eda_ready"], false);
+
+    let kicad = export_report(&report, ExportFormat::Kicad, ExportOptions::default()).unwrap();
+    assert!(
+        kicad.losses.iter().any(|loss| loss.contains("C1")),
+        "{:?}",
+        kicad.losses
+    );
+    let kicad = String::from_utf8(kicad.bytes).unwrap();
+    assert!(kicad.contains("\"Footprint\" \"Resistor_SMD:R_0603_1608Metric\""));
+    assert!(!kicad.contains("\"Footprint\" \"Capacitor_SMD:C_0603_1608Metric\""));
+    assert!(kicad.contains("\"Kessetsu_Pin_Map\" \"p1:2;p2:1\""));
+    assert!(kicad.contains("(name \"p1\"") && kicad.contains("(number \"2\""));
 }
 
 #[test]

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::str::FromStr;
 
-pub const EXPORT_SCHEMA_VERSION: &str = "kessetsu.export.v1";
+pub const EXPORT_SCHEMA_VERSION: &str = "kessetsu.export.v2";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -16,6 +16,8 @@ pub enum ExportFormat {
     Spice,
     Kicad,
     Ltspice,
+    BomCsv,
+    HandoffJson,
 }
 
 impl ExportFormat {
@@ -28,6 +30,8 @@ impl ExportFormat {
             Self::Spice => "spice",
             Self::Kicad => "kicad",
             Self::Ltspice => "ltspice",
+            Self::BomCsv => "bom-csv",
+            Self::HandoffJson => "handoff-json",
         }
     }
 
@@ -40,6 +44,8 @@ impl ExportFormat {
             Self::Spice => "spice",
             Self::Kicad => "kicad_sch",
             Self::Ltspice => "asc",
+            Self::BomCsv => "bom.csv",
+            Self::HandoffJson => "handoff.json",
         }
     }
 
@@ -48,7 +54,8 @@ impl ExportFormat {
             Self::Svg => "image/svg+xml",
             Self::Png => "image/png",
             Self::Pdf => "application/pdf",
-            Self::SchematicJson => "application/json",
+            Self::SchematicJson | Self::HandoffJson => "application/json",
+            Self::BomCsv => "text/csv",
             Self::Spice | Self::Kicad | Self::Ltspice => "text/plain",
         }
     }
@@ -65,6 +72,7 @@ impl ExportFormat {
                 preserves_connectivity: true,
                 preserves_models: true,
                 preserves_analysis: false,
+                preserves_physical_parts: false,
             },
             Self::Spice => ExportCapability {
                 visual: false,
@@ -73,6 +81,7 @@ impl ExportFormat {
                 preserves_connectivity: true,
                 preserves_models: true,
                 preserves_analysis: true,
+                preserves_physical_parts: false,
             },
             Self::Kicad => ExportCapability {
                 visual: true,
@@ -81,6 +90,7 @@ impl ExportFormat {
                 preserves_connectivity: true,
                 preserves_models: false,
                 preserves_analysis: false,
+                preserves_physical_parts: true,
             },
             Self::Ltspice => ExportCapability {
                 visual: true,
@@ -89,6 +99,16 @@ impl ExportFormat {
                 preserves_connectivity: true,
                 preserves_models: true,
                 preserves_analysis: true,
+                preserves_physical_parts: false,
+            },
+            Self::BomCsv | Self::HandoffJson => ExportCapability {
+                visual: false,
+                machine_readable: true,
+                editable: true,
+                preserves_connectivity: false,
+                preserves_models: matches!(self, Self::HandoffJson),
+                preserves_analysis: false,
+                preserves_physical_parts: true,
             },
         }
     }
@@ -106,8 +126,10 @@ impl FromStr for ExportFormat {
             "spice" | "cir" => Ok(Self::Spice),
             "kicad" | "kicad-sch" | "kicad_sch" => Ok(Self::Kicad),
             "ltspice" | "asc" => Ok(Self::Ltspice),
+            "bom" | "bom-csv" | "bom_csv" | "csv" => Ok(Self::BomCsv),
+            "handoff" | "handoff-json" | "handoff_json" => Ok(Self::HandoffJson),
             _ => Err(format!(
-                "unsupported export format '{value}'; expected svg, png, pdf, schematic-json, spice, kicad, or ltspice"
+                "unsupported export format '{value}'; expected svg, png, pdf, schematic-json, spice, kicad, ltspice, bom-csv, or handoff-json"
             )),
         }
     }
@@ -121,6 +143,7 @@ pub struct ExportCapability {
     pub preserves_connectivity: bool,
     pub preserves_models: bool,
     pub preserves_analysis: bool,
+    pub preserves_physical_parts: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -142,6 +165,8 @@ pub fn export_capabilities() -> Vec<ExportDescriptor> {
         (ExportFormat::Spice, "SPICE"),
         (ExportFormat::Kicad, "KiCad"),
         (ExportFormat::Ltspice, "LTspice"),
+        (ExportFormat::BomCsv, "BOM CSV"),
+        (ExportFormat::HandoffJson, "Handoff manifest"),
     ]
     .into_iter()
     .map(|(format, label)| ExportDescriptor {
@@ -164,6 +189,7 @@ impl ExportCapability {
             preserves_connectivity: true,
             preserves_models,
             preserves_analysis: false,
+            preserves_physical_parts: false,
         }
     }
 }
@@ -411,6 +437,11 @@ pub fn export_report(
         }
         ExportFormat::Kicad => {
             let schematic = schematic(report)?;
+            let circuit = report.ir.as_ref().ok_or_else(|| ExportError {
+                code: "KES-X019".to_string(),
+                message: "typed Circuit IR is unavailable for KiCad export".to_string(),
+                diagnostics: Vec::new(),
+            })?;
             if report.ir.as_ref().is_some_and(|ir| !ir.analyses.is_empty()) {
                 losses.push(
                     "simulation commands and assertions remain in the .kess source; KiCad export contains topology, values and model metadata"
@@ -427,8 +458,21 @@ pub fn export_report(
                     external_models.join("; ")
                 ));
             }
+            let unmapped = circuit
+                .physical_parts
+                .assignments
+                .iter()
+                .filter(|part| part.footprint.is_some() && part.pin_map.is_empty())
+                .map(|part| part.component.as_str())
+                .collect::<Vec<_>>();
+            if !unmapped.is_empty() {
+                losses.push(format!(
+                    "footprints without an explicit complete pin map were not attached in KiCad: {}",
+                    unmapped.join(", ")
+                ));
+            }
             (
-                crate::kicad::generate_kicad_sch(schematic)?.into_bytes(),
+                crate::kicad::generate_kicad_sch_with_parts(schematic, Some(circuit))?.into_bytes(),
                 schematic.connectivity.verified,
             )
         }
@@ -478,6 +522,61 @@ pub fn export_report(
             (
                 crate::ltspice::generate_ltspice_asc(schematic, circuit)?.into_bytes(),
                 schematic.connectivity.verified,
+            )
+        }
+        ExportFormat::BomCsv => {
+            let schematic = schematic(report)?;
+            let circuit = report.ir.as_ref().ok_or_else(|| ExportError {
+                code: "KES-X019".to_string(),
+                message: "typed Circuit IR is unavailable for BOM export".to_string(),
+                diagnostics: Vec::new(),
+            })?;
+            let unassigned = circuit
+                .components
+                .iter()
+                .filter(|component| {
+                    !matches!(
+                        component.kind,
+                        crate::ir::ComponentKind::ModulePort
+                            | crate::ir::ComponentKind::VoltageSource
+                            | crate::ir::ComponentKind::CurrentSource
+                    )
+                })
+                .filter(|component| {
+                    !circuit
+                        .physical_parts
+                        .assignments
+                        .iter()
+                        .any(|part| part.component == component.id)
+                })
+                .count();
+            if unassigned > 0 {
+                warnings.push(format!(
+                    "{unassigned} BOM component(s) have no physical part assignment; rows remain explicitly unassigned"
+                ));
+            }
+            (
+                crate::handoff::generate_bom_csv(circuit, schematic),
+                schematic.connectivity.verified,
+            )
+        }
+        ExportFormat::HandoffJson => {
+            let circuit = report.ir.as_ref().ok_or_else(|| ExportError {
+                code: "KES-X019".to_string(),
+                message: "typed Circuit IR is unavailable for handoff manifest export".to_string(),
+                diagnostics: Vec::new(),
+            })?;
+            (
+                crate::handoff::generate_handoff_manifest(circuit, &report.schema_version)
+                    .map_err(|error| ExportError {
+                        code: "KES-X010".to_string(),
+                        message: format!("could not serialize handoff manifest: {error}"),
+                        diagnostics: Vec::new(),
+                    })?,
+                report
+                    .schematic
+                    .as_ref()
+                    .is_some_and(|schematic| schematic.connectivity.verified),
             )
         }
     };

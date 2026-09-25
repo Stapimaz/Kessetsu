@@ -14,6 +14,7 @@ pub mod expression;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod fitting;
 pub mod graph;
+pub mod handoff;
 pub mod ir;
 pub mod kicad;
 pub mod layout;

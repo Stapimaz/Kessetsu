@@ -397,6 +397,8 @@ enum ExportTarget {
     Spice,
     Kicad,
     Ltspice,
+    BomCsv,
+    HandoffJson,
 }
 
 impl From<ExportTarget> for ExportFormat {
@@ -406,6 +408,8 @@ impl From<ExportTarget> for ExportFormat {
             ExportTarget::Spice => Self::Spice,
             ExportTarget::Kicad => Self::Kicad,
             ExportTarget::Ltspice => Self::Ltspice,
+            ExportTarget::BomCsv => Self::BomCsv,
+            ExportTarget::HandoffJson => Self::HandoffJson,
         }
     }
 }

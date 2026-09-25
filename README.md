@@ -25,7 +25,7 @@ The project is not limited to a particular educational scenario or circuit class
 - Human/JSON CLI modes with safe output, overwrite, and exit-code contracts
 - A React Web Hub with WASM Core and real in-browser simulation
 - A canonical, connectivity-verified automatic schematic engine
-- SVG, PNG, PDF, Schematic JSON, SPICE, KiCad, and LTspice exports
+- SVG, PNG, PDF, Schematic JSON, SPICE, KiCad, LTspice, BOM CSV, and handoff-manifest exports
 - Versioned, compressed, package-aware share URLs
 - Shared loaded-divider and RC-filter tools with typed inputs, standard component selection and editable circuit generation (CLI 1.1.0+)
 - Development source: reproducible parameter studies, local research-data comparison,

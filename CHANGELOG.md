@@ -12,6 +12,12 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
   `kessetsu.physical-parts.v1` separately in Circuit IR. Unknown or incomplete mappings fail closed.
 - Compile reports advance to `kessetsu.compile.v7`; simulation netlists remain byte-identical when
   only physical metadata changes.
+- Deterministic BOM CSV groups matching selections and keeps unresolved/incomplete rows visible;
+  `kessetsu.handoff.v1` records IR identity, footprint readiness and exact model dependencies.
+- KiCad uses the declared footprint and physical pad numbers only with a complete pin map. A bare
+  footprint remains visible in BOM/handoff evidence but is not silently attached to the schematic.
+- The shared export contract advances to `kessetsu.export.v2`; CLI and Web expose BOM CSV and
+  handoff JSON through the existing Export flow.
 
 ### Supported SPICE netlist import
 

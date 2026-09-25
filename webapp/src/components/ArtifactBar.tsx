@@ -14,6 +14,7 @@ const formatDescriptions: Record<ExportFormat, string> = {
   svg: 'Scalable vector image', png: 'Raster image', pdf: 'Print-ready document',
   schematic_json: 'Structured schematic data', spice: 'Simulation netlist',
   kicad: 'Editable KiCad schematic', ltspice: 'Editable LTspice schematic',
+  bom_csv: 'Grouped parts and unresolved selections', handoff_json: 'Parts, footprints, and model dependencies',
 };
 
 function downloadArtifact(artifact: ExportArtifact, filenameStem: string) {
@@ -51,7 +52,7 @@ export function ArtifactBar({ enabled, capabilities, message, filenameStem, onEx
             key={descriptor.format}
             disabled={!enabled}
             onClick={() => exportOne(descriptor.format)}
-            title={`${descriptor.capability.editable ? 'Editable' : 'View-only'} · ${descriptor.capability.preserves_connectivity ? 'connectivity-safe' : 'visual only'}`}
+            title={`${descriptor.capability.editable ? 'Editable' : 'View-only'} · ${descriptor.capability.preserves_connectivity ? 'connectivity-safe' : descriptor.capability.visual ? 'visual projection' : 'supporting data'}`}
             data-export-format={descriptor.format}
           >
             <strong>{descriptor.label}</strong>
@@ -68,11 +69,12 @@ export function ArtifactBar({ enabled, capabilities, message, filenameStem, onEx
               <span>
                 {descriptor.capability.editable ? 'editable' : 'view-only'} ·{' '}
                 {descriptor.capability.machine_readable ? 'machine-readable' : 'visual'} ·{' '}
-                {descriptor.capability.preserves_connectivity ? 'connectivity preserved' : 'visual projection'}
+                {descriptor.capability.preserves_connectivity ? 'connectivity preserved' : descriptor.capability.visual ? 'visual projection' : 'does not encode connectivity'}
               </span>
               <small>
                 models {descriptor.capability.preserves_models ? 'preserved' : 'not represented'} · analyses{' '}
                 {descriptor.capability.preserves_analysis ? 'preserved' : 'not represented'}
+                {' '}· parts {descriptor.capability.preserves_physical_parts ? 'preserved' : 'not represented'}
               </small>
             </article>
           ))}

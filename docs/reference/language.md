@@ -252,7 +252,8 @@ component value, model, connectivity or generated simulation netlist.
 Place `part` beside a component inside a module to assign each flattened instance independently.
 A module interface itself is virtual and cannot receive a physical part. Manufacturer identity is
 not a device model, footprint choice is not pin mapping, and none of these fields constitutes a
-datasheet-rating or availability claim.
+datasheet-rating or availability claim. Independent voltage/current sources are simulation stimuli
+and are not BOM parts; represent a real sourced device through an appropriate typed component.
 
 ## Typed models and packages
 

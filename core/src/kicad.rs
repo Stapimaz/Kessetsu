@@ -1,4 +1,5 @@
 use crate::exporter::ExportError;
+use crate::ir::{CircuitIR, PhysicalPartAssignment};
 use crate::schematic::{Point, Schematic, SchematicComponent, TextAnchor, TextRole};
 use sha2::{Digest, Sha256};
 
@@ -59,7 +60,23 @@ fn property(name: &str, value: &str, x: &str, y: &str, hidden: bool) -> String {
     )
 }
 
-fn library_symbol(component: &SchematicComponent) -> String {
+fn physical_pin_number(
+    part: Option<&PhysicalPartAssignment>,
+    logical: &str,
+    fallback: usize,
+) -> String {
+    part.and_then(|part| part.pin_map.get(logical))
+        .cloned()
+        .unwrap_or_else(|| fallback.to_string())
+}
+
+fn usable_footprint(part: Option<&PhysicalPartAssignment>) -> &str {
+    part.filter(|part| !part.pin_map.is_empty())
+        .and_then(|part| part.footprint.as_deref())
+        .unwrap_or("")
+}
+
+fn library_symbol(component: &SchematicComponent, part: Option<&PhysicalPartAssignment>) -> String {
     let name = format!("Kessetsu:NL_{}", component.id);
     let child_name = format!("NL_{}_0_1", component.id);
     let pin_child_name = format!("NL_{}_1_1", component.id);
@@ -78,7 +95,13 @@ fn library_symbol(component: &SchematicComponent) -> String {
     );
     out.push_str(&property("Reference", &prefix, "0", "-2.54", false));
     out.push_str(&property("Value", "Kessetsu", "0", "2.54", false));
-    out.push_str(&property("Footprint", "", "0", "0", true));
+    out.push_str(&property(
+        "Footprint",
+        usable_footprint(part),
+        "0",
+        "0",
+        true,
+    ));
     out.push_str(&property("Datasheet", "", "0", "0", true));
     out.push_str(&property(
         "Description",
@@ -97,14 +120,19 @@ fn library_symbol(component: &SchematicComponent) -> String {
         out.push_str(&format!(
             "        (pin passive line (at {x} {y} 0) (length 0) (name {} (effects (font (size 1.27 1.27)))) (number {} (effects (font (size 1.27 1.27)))))\n",
             quoted(&pin.name),
-            quoted(&(index + 1).to_string())
+            quoted(&physical_pin_number(part, &pin.name, index + 1))
         ));
     }
     out.push_str("      )\n      (embedded_fonts no)\n    )\n");
     out
 }
 
-fn instance(schematic: &Schematic, component: &SchematicComponent, root_uuid: &str) -> String {
+fn instance(
+    schematic: &Schematic,
+    component: &SchematicComponent,
+    root_uuid: &str,
+    part: Option<&PhysicalPartAssignment>,
+) -> String {
     let (x, y) = point(schematic, component.origin);
     let instance_uuid = uuid(&format!("kicad:component:{}", component.id));
     let lib_id = format!("Kessetsu:NL_{}", component.id);
@@ -156,7 +184,7 @@ fn instance(schematic: &Schematic, component: &SchematicComponent, root_uuid: &s
             out.push_str(&property(name, content, &x, &y, role == TextRole::Value));
         }
     }
-    out.push_str(&property("Footprint", "", &x, &y, true));
+    out.push_str(&property("Footprint", usable_footprint(part), &x, &y, true));
     out.push_str(&property("Datasheet", "", &x, &y, true));
     out.push_str(&property(
         "Description",
@@ -165,6 +193,26 @@ fn instance(schematic: &Schematic, component: &SchematicComponent, root_uuid: &s
         &y,
         true,
     ));
+    if let Some(part) = part {
+        if let Some(manufacturer) = &part.manufacturer {
+            out.push_str(&property("Manufacturer", manufacturer, &x, &y, true));
+        }
+        if let Some(mpn) = &part.mpn {
+            out.push_str(&property("MPN", mpn, &x, &y, true));
+        }
+        if !part.pin_map.is_empty() {
+            let mapping = part
+                .pin_map
+                .iter()
+                .map(|(logical, physical)| format!("{logical}:{physical}"))
+                .collect::<Vec<_>>()
+                .join(";");
+            out.push_str(&property("Kessetsu_Pin_Map", &mapping, &x, &y, true));
+        }
+        if let Some(note) = &part.note {
+            out.push_str(&property("Kessetsu_Part_Note", note, &x, &y, true));
+        }
+    }
     if let Some(model) = &component.model {
         out.push_str(&property("Kessetsu_Model", model, &x, &y, true));
     }
@@ -222,10 +270,10 @@ fn instance(schematic: &Schematic, component: &SchematicComponent, root_uuid: &s
             true,
         ));
     }
-    for (index, _) in component.pins.iter().enumerate() {
+    for (index, pin) in component.pins.iter().enumerate() {
         out.push_str(&format!(
             "    (pin {} (uuid {}))\n",
-            quoted(&(index + 1).to_string()),
+            quoted(&physical_pin_number(part, &pin.name, index + 1)),
             quoted(&uuid(&format!("kicad:pin:{}:{index}", component.id)))
         ));
     }
@@ -242,6 +290,13 @@ fn instance(schematic: &Schematic, component: &SchematicComponent, root_uuid: &s
 /// from verified Schematic IR. Per-instance embedded symbols keep the file
 /// portable and put every KiCad pin exactly on its canonical graph anchor.
 pub fn generate_kicad_sch(schematic: &Schematic) -> Result<String, ExportError> {
+    generate_kicad_sch_with_parts(schematic, None)
+}
+
+pub fn generate_kicad_sch_with_parts(
+    schematic: &Schematic,
+    circuit: Option<&CircuitIR>,
+) -> Result<String, ExportError> {
     if !schematic.connectivity.verified
         || !crate::schematic_geometry::geometry_errors(
             &schematic.components,
@@ -286,7 +341,14 @@ pub fn generate_kicad_sch(schematic: &Schematic) -> Result<String, ExportError> 
         ))
     );
     for component in &schematic.components {
-        out.push_str(&library_symbol(component));
+        let part = circuit.and_then(|circuit| {
+            circuit
+                .physical_parts
+                .assignments
+                .iter()
+                .find(|part| part.component == component.id)
+        });
+        out.push_str(&library_symbol(component, part));
     }
     out.push_str("  )\n");
 
@@ -334,7 +396,14 @@ pub fn generate_kicad_sch(schematic: &Schematic) -> Result<String, ExportError> 
         ));
     }
     for component in &schematic.components {
-        out.push_str(&instance(schematic, component, &root_uuid));
+        let part = circuit.and_then(|circuit| {
+            circuit
+                .physical_parts
+                .assignments
+                .iter()
+                .find(|part| part.component == component.id)
+        });
+        out.push_str(&instance(schematic, component, &root_uuid, part));
     }
     out.push_str("  (sheet_instances (path \"/\" (page \"1\")))\n)\n");
     Ok(out)
