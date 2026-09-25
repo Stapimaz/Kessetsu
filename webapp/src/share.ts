@@ -156,10 +156,14 @@ export async function decodeShareFragment(fragment: string, expectedCompileSchem
     throw new Error('Share payload is not valid UTF-8 JSON');
   }
   const value = migrateShareEnvelope(raw);
-  // v6 preserves v4/v5 source semantics. Recompile normally and still require exact packages.
-  // This deliberately does not accept arbitrary historical or future schemas.
-  const compatibleLegacy = expectedCompileSchema === 'kessetsu.compile.v6'
-    && ['kessetsu.compile.v4', 'kessetsu.compile.v5'].includes(value.compile_schema_version);
+  // These report-schema revisions preserve the same source semantics. Shared source is always
+  // recompiled by the current Core and exact model-package versions are still checked separately.
+  // Keep the matrix explicit so a future compiler revision cannot inherit compatibility by accident.
+  const compatibleLegacy = ({
+    'kessetsu.compile.v6': ['kessetsu.compile.v4', 'kessetsu.compile.v5'],
+    'kessetsu.compile.v7': ['kessetsu.compile.v4', 'kessetsu.compile.v5', 'kessetsu.compile.v6'],
+    'kessetsu.compile.v8': ['kessetsu.compile.v4', 'kessetsu.compile.v5', 'kessetsu.compile.v6', 'kessetsu.compile.v7'],
+  } as Record<string, string[]>)[expectedCompileSchema]?.includes(value.compile_schema_version) ?? false;
   if (value.compile_schema_version !== expectedCompileSchema && !compatibleLegacy) {
     throw new Error('Shared circuit requires an unsupported Core schema');
   }

@@ -445,7 +445,7 @@ export function WorkspaceApp() {
           onCodeChange={setCode}
           panelControls={panelControls}
         />}
-        schematic={(panelControls) => <SchematicPanel schematic={state.schematic} svg={state.schematicSvg} panelControls={panelControls} />}
+        schematic={(panelControls) => <SchematicPanel schematic={state.schematic} circuitIr={state.circuitIr} svg={state.schematicSvg} panelControls={panelControls} />}
         results={(panelControls) => <ResultsPanel
           state={state.simulationState}
           message={state.simulationMessage}

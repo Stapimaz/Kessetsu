@@ -317,7 +317,7 @@ The electrical component kind, value, simulation model and graph connectivity ar
 generation does not consume physical-part metadata. Missing fields remain absent, and a footprint
 without a pin map does not imply one. This separation is the prerequisite for BOM and EDA handoff;
 it is not a sourcing, stock, rating or manufacturability claim. The additive IR field advances the
-compile report contract to `kessetsu.compile.v7`.
+compile report contract to `kessetsu.compile.v8`.
 
 Attempts to hide `.control`, `.include`, shell syntax, or line breaks inside quoted parameters cannot cross typed numeric and metadata validation. When an error exists, the SPICE backend does not run. Regression tests protect this injection boundary.
 
@@ -419,7 +419,7 @@ Circuit IR + Canonical Graph
         → CLI artifact writer or Web download UI
 ```
 
-Renderers and exporters never return to the AST or legacy layout shapes. They do not redefine component pins, connections, or symbol geometry. The shared symbol/pin catalog lives in `core/src/component.rs`. The Web displays Schematic IR/SVG and adds interactions such as zoom, pan, and selection. File writes, overwrite policy, and browser downloads remain outside pure Core exporter results.
+Renderers and exporters never return to the AST or legacy layout shapes. They do not redefine component pins, connections, or symbol geometry. The shared symbol/pin catalog lives in `core/src/component.rs`. The Web displays Schematic IR/SVG and adds interactions such as zoom, pan, component/net inspection and reusable-block navigation. Physical Circuit IR components retain structured module ancestry for this presentation purpose; SPICE identifiers and simulation topology remain flattened and canonical. File writes, overwrite policy, and browser downloads remain outside pure Core exporter results.
 
 The legacy `layout.rs` behavior below remains a characterization baseline during the Phase 4 migration:
 

@@ -1,6 +1,7 @@
 mod common;
 
 use common::TestWorkspace;
+use kessetsu_core::compiler::COMPILE_SCHEMA_VERSION;
 use serde_json::Value;
 
 const CLI_SCHEMA_VERSION: &str = "kessetsu.cli.v1";
@@ -109,7 +110,7 @@ fn external_agent_loop_compiles_measures_and_revises_without_parsing_human_text(
     assert_eq!(compile_json["status"], "success");
     assert_eq!(
         compile_json["domain_versions"]["compile"],
-        "kessetsu.compile.v6"
+        COMPILE_SCHEMA_VERSION
     );
 
     let simulate = workspace.run_cli_with_stdin_and_env(

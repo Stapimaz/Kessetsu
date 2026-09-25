@@ -10,14 +10,17 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
   user notes to an electrical component without changing its value, model or connectivity.
 - Core validates assignments against catalog pins, preserves module-instance identity and exposes
   `kessetsu.physical-parts.v1` separately in Circuit IR. Unknown or incomplete mappings fail closed.
-- Compile reports advance to `kessetsu.compile.v7`; simulation netlists remain byte-identical when
-  only physical metadata changes.
+- Physical metadata and reusable-block navigation advance compile reports to
+  `kessetsu.compile.v8`; simulation netlists remain byte-identical when only metadata changes.
 - Deterministic BOM CSV groups matching selections and keeps unresolved/incomplete rows visible;
   `kessetsu.handoff.v1` records IR identity, footprint readiness and exact model dependencies.
 - KiCad uses the declared footprint and physical pad numbers only with a complete pin map. A bare
   footprint remains visible in BOM/handoff evidence but is not silently attached to the schematic.
 - The shared export contract advances to `kessetsu.export.v2`; CLI and Web expose BOM CSV and
   handoff JSON through the existing Export flow.
+- Physical components retain structured reusable-block ancestry independently of their canonical
+  flattened electrical identifiers. Existing source-only share links from compatible Core revisions
+  are recompiled rather than rejected.
 
 ### Supported SPICE netlist import
 

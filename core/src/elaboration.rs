@@ -159,6 +159,7 @@ impl Elaborator<'_> {
                 Statement::Decl(decl) => {
                     let mut decl = decl.clone();
                     decl.name = format!("{prefix}{}", decl.name);
+                    decl.instance_path = scope.path.clone();
                     if let Some(expression) = &decl.value_expression {
                         decl.value_expression = Some(expression.qualify(&parameter_prefix));
                     }

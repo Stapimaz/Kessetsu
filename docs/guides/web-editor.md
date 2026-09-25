@@ -34,7 +34,11 @@ minimize and maximize controls; minimized panels can be restored. Use
 
 In Schematic, scroll to zoom around the pointer, drag to pan, and use Fit to see the whole
 circuit. Toggle the dotted grid in its header. Select a component to highlight its symbol,
-reference and value. The drawing's connectivity check concerns the schematic, not hardware.
+reference and value. The inspector lists its value/model provenance and maps each logical pin to
+the canonical net; selecting a pin follows and highlights that complete net. Use Find to search
+components or named nets and center them in the view. Reusable module instances appear as
+navigable groups while electrical compilation and simulation remain canonically flattened.
+The drawing's connectivity check concerns the schematic, not hardware.
 
 ## Run and inspect simulation
 

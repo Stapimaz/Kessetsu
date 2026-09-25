@@ -16,6 +16,43 @@ export interface SchematicSummary {
   schema_version: string;
   connectivity: { verified: boolean };
   quality: { passed: boolean; issues: string[] };
+  components: SchematicComponent[];
+  nets: SchematicNet[];
+}
+
+export interface SchematicComponent {
+  id: string;
+  reference: string;
+  value?: string | null;
+  model?: string | null;
+  model_metadata?: {
+    source: string;
+    license: string;
+    version: string;
+    content_hash: string;
+    simulator: string;
+    resource?: string | null;
+    entry?: string | null;
+    redistribution?: string | null;
+  } | null;
+  instance_parameters: Record<string, string>;
+  pins: Array<{ name: string; net?: number | null }>;
+}
+
+export interface SchematicNet {
+  id: number;
+  name: string;
+  kind: 'ground' | 'supply' | 'signal';
+  pins: Array<{ component: string; pin: string }>;
+}
+
+export interface CircuitIrSummary {
+  components: Array<{
+    id: string;
+    instance_path?: string[];
+    kind: string | Record<string, unknown>;
+  }>;
+  model_manifest: ModelManifest;
 }
 
 export interface CompileReport {
@@ -25,7 +62,7 @@ export interface CompileReport {
   schematic_svg: string | null;
   kicad_sch: string | null;
   spice_netlist: string | null;
-  ir?: { model_manifest: ModelManifest } | null;
+  ir?: CircuitIrSummary | null;
 }
 
 export interface SpiceImportDiagnostic {
@@ -133,6 +170,7 @@ export interface WorkspaceState {
   wasmError: string | null;
   wasmLoaded: boolean;
   schematic: SchematicSummary | null;
+  circuitIr: CircuitIrSummary | null;
   schematicSvg: string;
   kicadSch: string;
   spiceNetlist: string;

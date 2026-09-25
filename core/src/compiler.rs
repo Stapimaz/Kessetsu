@@ -11,7 +11,7 @@ use pest::error::LineColLocation;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const COMPILE_SCHEMA_VERSION: &str = "kessetsu.compile.v7";
+pub const COMPILE_SCHEMA_VERSION: &str = "kessetsu.compile.v8";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

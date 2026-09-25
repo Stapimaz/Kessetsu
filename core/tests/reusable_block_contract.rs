@@ -28,6 +28,14 @@ fn structured_module_identity_survives_without_parameters_or_extra_symbols() {
         assert_eq!(instance_path, &path);
     }
     assert_eq!(report.schematic.unwrap().components.len(), 2);
+    assert_eq!(
+        ir.components
+            .iter()
+            .find(|component| component.id == "P_C_R")
+            .unwrap()
+            .instance_path,
+        ["P", "C"]
+    );
     let serialized = serde_json::to_value(&ir).unwrap();
     assert!(serialized.to_string().contains("instance_path"));
     let legacy: ComponentParams =

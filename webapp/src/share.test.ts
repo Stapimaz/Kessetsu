@@ -59,6 +59,17 @@ describe('versioned circuit share URLs', () => {
     await expect(decodeShareFragment(future, 'kessetsu.compile.v4')).rejects.toThrow(/unsupported Core schema/);
   });
 
+  it('keeps existing source-only share links readable after metadata-only compiler revisions', async () => {
+    for (const legacy of ['kessetsu.compile.v4', 'kessetsu.compile.v5', 'kessetsu.compile.v6', 'kessetsu.compile.v7']) {
+      const fragment = await encodeShareFragment('net GND\n', legacy, null);
+      await expect(decodeShareFragment(fragment, 'kessetsu.compile.v8')).resolves.toBeTruthy();
+    }
+    for (const unsupported of ['kessetsu.compile.v3', 'kessetsu.compile.v9']) {
+      const fragment = await encodeShareFragment('net GND\n', unsupported, null);
+      await expect(decodeShareFragment(fragment, 'kessetsu.compile.v8')).rejects.toThrow(/unsupported Core schema/);
+    }
+  });
+
   it('rejects source above the authoring limit and package-manifest mismatches', async () => {
     await expect(encodeShareFragment('x'.repeat(MAX_SHARE_SOURCE_BYTES + 1), compileSchema, null)).rejects.toThrow(/64 KiB/);
     const decoded = await decodeShareFragment(await encodeShareFragment('net GND\n', compileSchema, manifest), compileSchema);

@@ -61,6 +61,10 @@ impl PhysicalPartManifest {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct IRComponent {
     pub id: String,
+    /// Structured reusable-block ancestry. Electrical identifiers remain flat
+    /// and canonical; presentation layers may use this path for navigation.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub instance_path: Vec<String>,
     pub kind: ComponentKind,
     pub parameters: ComponentParams,
     pub model: Option<ModelRef>,
@@ -1323,6 +1327,7 @@ pub fn ast_to_ir_with_resources(
 
                 components.push(IRComponent {
                     id: decl.name.clone(),
+                    instance_path: decl.instance_path.clone(),
                     kind,
                     parameters: params,
                     model,
