@@ -28,6 +28,7 @@ import opens as an unsaved editable circuit; a rejected import leaves the curren
 | Three-terminal `M`, or four-terminal with bulk tied to source | selected built-in MOSFET models |
 | `.op`, bounded `.tran`, `.ac`, single-source `.dc` | typed `simulate` statements |
 | `.param NAME=literal` | typed editable parameter, with unit inferred from its supported uses |
+| Source-embedded `.SUBCKT` plus root `X` instances | editable `module`/`use`, preserving ports, local topology and literal typed overrides |
 
 Continuation lines beginning with `+`, comments, `.title` and `.end` are understood. SPICE node
 `0` becomes the explicit `GND` net. Other node and component names are preserved when valid or
@@ -45,11 +46,23 @@ The initial importer rejects these constructs instead of guessing or silently re
 
 - `.control`/`.endc`, shell-like or simulator-control content;
 - arbitrary `.include`/`.lib` paths;
-- inline `.model`, `.subckt` and general SPICE expressions;
+- inline `.model` and general SPICE expressions;
 - parameter expressions, unused parameters or one parameter used across conflicting electrical units;
 - controlled or behavioral sources and unsupported component families;
 - unknown semiconductor models, untied MOSFET bulk nodes, non-zero AC source phase, or analysis
   options that the typed Kessetsu IR cannot represent.
+
+Embedded subcircuits are intentionally structural, not raw simulator text. A `.SUBCKT` must have
+explicit interface nodes and may contain the same supported component subset as the root circuit.
+Literal defaults declared after `PARAMS:` and named literal/root-parameter overrides on a root `X`
+instance remain typed module parameters. Nested `X` instances, body directives, implicit global
+node `0`, positional parameters and expression-valued defaults/overrides are rejected rather than
+flattened or guessed. Expose ground as an ordinary subcircuit port and pass root node `0` to it.
+
+An external `.include`/`.lib` is different from an embedded topology: its bytes, entry pins,
+provenance, license and redistribution policy cannot be inferred safely from a path. Import
+therefore rejects it. Bind such a dependency through Kessetsu's hash-pinned typed external model
+contract; the importer never opens an arbitrary path or silently substitutes a generic device.
 
 An error includes the original source line and no `.kess` file is written. This is intentionally
 narrower than the complete SPICE language. Support expands only when connectivity, values, models

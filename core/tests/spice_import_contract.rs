@@ -142,6 +142,124 @@ C1 out 0 CVAL
 }
 
 #[test]
+fn embedded_subcircuit_preserves_hierarchy_ports_and_typed_overrides() {
+    let input = ".subckt RC INPUT OUTPUT REF PARAMS: RVAL=1k CVAL=159.154943n
+R1 INPUT OUTPUT {RVAL}
+C1 OUTPUT REF {CVAL}
+.ends rc
+.param OVERRIDE=2k
+V1 in 0 AC 1
+XLP in out 0 RC RVAL={OVERRIDE}
+.ac dec 40 10 100k
+.end
+";
+    let report = import_spice(input);
+    assert!(!report.has_errors(), "{:?}", report.diagnostics);
+    assert_eq!(report.summary.subcircuits, 1);
+    assert_eq!(report.summary.instances, 1);
+    let source = report.kess_source.expect("verified source");
+    for declaration in [
+        "module RC(INPUT,OUTPUT,REF) {",
+        "param RVAL: Ohm = 1e3",
+        "param CVAL: F = 1.59154943e-7",
+        "param OVERRIDE: Ohm = 2e3",
+        "use RC XLP(RVAL={OVERRIDE})",
+        "connect XLP.INPUT to in",
+        "connect XLP.OUTPUT to out",
+        "connect XLP.REF to GND",
+    ] {
+        assert!(
+            source.contains(declaration),
+            "missing {declaration}:\n{source}"
+        );
+    }
+    let compiled = compile_source(&source, CompileOptions::all_outputs());
+    assert!(!compiled.has_errors(), "{:?}", compiled.diagnostics);
+    let schematic = compiled.schematic.as_ref().expect("canonical schematic");
+    assert!(schematic.connectivity.verified);
+    assert!(schematic.quality.passed, "{:?}", schematic.quality.issues);
+    assert!(compiled.schematic_svg.is_some());
+    assert!(compiled.kicad_sch.is_some());
+    let analyses = compiled.ir.as_ref().expect("typed IR").analyses.clone();
+    let spice = compiled.spice_netlist.expect("canonical netlist");
+    assert!(spice.contains("R_XLP_R1 in out 2000"), "{spice}");
+    assert!(spice.contains("C_XLP_C1 out 0 1.59154943e-7"), "{spice}");
+
+    let edited = source.replace("param OVERRIDE: Ohm = 2e3", "param OVERRIDE: Ohm = 4e3");
+    let edited = compile_source(&edited, CompileOptions::default());
+    assert!(!edited.has_errors(), "{:?}", edited.diagnostics);
+    assert!(
+        edited
+            .spice_netlist
+            .expect("edited canonical netlist")
+            .contains("R_XLP_R1 in out 4000")
+    );
+
+    let reference = "Imported subcircuit reference
+.subckt RC INPUT OUTPUT REF PARAMS: RVAL=1k CVAL=159.154943n
+R1 INPUT OUTPUT {RVAL}
+C1 OUTPUT REF {CVAL}
+.ends RC
+V1 in 0 AC 1
+XLP in out 0 RC RVAL=2k
+.control
+set wr_singlescale
+set wr_vecnames
+set numdgt=17
+ac dec 40 10 100k
+wrdata kessetsu-analysis-000-ac.data all
+quit
+.endc
+.end
+";
+    let runner = NgspiceRunner::discover();
+    let reference = runner
+        .run(
+            &SimulationRequest::new(reference, analyses.clone()),
+            &CancellationToken::new(),
+        )
+        .expect("Ngspice subcircuit reference should launch");
+    let generated = runner
+        .run(
+            &SimulationRequest::new(spice, analyses),
+            &CancellationToken::new(),
+        )
+        .expect("Ngspice imported subcircuit should launch");
+    assert!(reference.succeeded(), "{:?}", reference.errors);
+    assert!(generated.succeeded(), "{:?}", generated.errors);
+    let Dataset::Ac(reference) = &reference.datasets[0].data else {
+        panic!("reference AC dataset missing")
+    };
+    let Dataset::Ac(generated) = &generated.datasets[0].data else {
+        panic!("generated AC dataset missing")
+    };
+    assert_eq!(reference.frequency_hz, generated.frequency_hz);
+    for signal in ["in", "out"] {
+        let expected = &reference.signals[signal];
+        let actual = &generated.signals[signal];
+        for ((expected_real, expected_imaginary), (actual_real, actual_imaginary)) in expected
+            .real
+            .iter()
+            .zip(&expected.imaginary)
+            .zip(actual.real.iter().zip(&actual.imaginary))
+        {
+            let scale = expected_real.abs().max(expected_imaginary.abs()).max(1.0);
+            assert!((actual_real - expected_real).abs() <= scale * 1e-12);
+            assert!((actual_imaginary - expected_imaginary).abs() <= scale * 1e-12);
+        }
+    }
+
+    let nested = import_spice(
+        ".subckt CHILD A B\nR1 A B 1k\n.ends\n.subckt PARENT A B\nX1 A B CHILD\n.ends\nXTOP in out PARENT\n.end\n",
+    );
+    assert!(nested.has_errors());
+    assert!(nested.kess_source.is_none());
+    assert!(nested.diagnostics.iter().any(|diagnostic| {
+        diagnostic.line == Some(5) && diagnostic.message.contains("flattening hierarchy")
+    }));
+}
+
+#[test]
 fn cli_writes_verified_source_and_refuses_an_accidental_overwrite() {
     let workspace = TestWorkspace::new("spice-import");
     let input = workspace.write(

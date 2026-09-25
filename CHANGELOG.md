@@ -14,7 +14,10 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
   including its case-insensitive milli `M`, are normalized without changing electrical values.
 - Literal `.param NAME=value` relationships remain typed editable parameters; Kessetsu infers the
   unit from supported uses and rejects unused or dimensionally conflicting parameters.
-- Unsupported directives, control blocks, include paths, models, subcircuits, expressions and
+- Source-embedded `.SUBCKT` topologies become editable `module` definitions and root `X` cards
+  become `use` instances. Explicit ports, local connectivity, literal typed defaults and named
+  overrides are retained; unsupported nesting or implicit globals fail instead of being flattened.
+- Unsupported directives, control blocks, include paths, models, expressions and
   device families fail with source-line diagnostics instead of producing a partial circuit.
 
 ### Portable research packages

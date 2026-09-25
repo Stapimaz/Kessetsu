@@ -42,8 +42,18 @@ export interface SpiceImportReport {
   source_sha256: string;
   source_bytes: number;
   diagnostics: SpiceImportDiagnostic[];
-  names: Array<{ kind: 'component' | 'net'; original: string; kessetsu: string }>;
-  summary: { components: number; nets: number; analyses: number };
+  names: Array<{
+    kind: 'component' | 'net' | 'parameter' | 'module' | 'module_port';
+    original: string;
+    kessetsu: string;
+  }>;
+  summary: {
+    components: number;
+    nets: number;
+    analyses: number;
+    subcircuits: number;
+    instances: number;
+  };
   kess_source?: string;
   compile_schema_version?: string;
 }

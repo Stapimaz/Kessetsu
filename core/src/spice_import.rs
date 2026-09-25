@@ -30,6 +30,8 @@ pub enum ImportNameKind {
     Component,
     Net,
     Parameter,
+    Module,
+    ModulePort,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -44,6 +46,10 @@ pub struct ImportSummary {
     pub components: usize,
     pub nets: usize,
     pub analyses: usize,
+    #[serde(default)]
+    pub subcircuits: usize,
+    #[serde(default)]
+    pub instances: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -104,6 +110,42 @@ struct ImportedParameter {
     original_name: String,
     mapped_name: String,
     value: String,
+    line: usize,
+}
+
+#[derive(Debug, Clone)]
+struct SubcircuitBlock {
+    header: LogicalLine,
+    body: Vec<LogicalLine>,
+    end: LogicalLine,
+}
+
+#[derive(Debug, Clone)]
+struct ImportedPort {
+    original_name: String,
+    mapped_name: String,
+}
+
+#[derive(Debug, Clone)]
+struct ImportedSubcircuit {
+    original_name: String,
+    mapped_name: String,
+    ports: Vec<ImportedPort>,
+    parameters: Vec<ImportedParameter>,
+    parameter_units: BTreeMap<String, ImportUnit>,
+    components: Vec<ImportedComponent>,
+    component_names: BTreeMap<String, String>,
+    node_names: BTreeMap<String, String>,
+    internal_nets: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+struct ImportedInstance {
+    original_name: String,
+    mapped_name: String,
+    module_name: String,
+    nodes: Vec<String>,
+    overrides: Vec<(String, String)>,
     line: usize,
 }
 
@@ -172,7 +214,11 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
     if report.has_errors() {
         return report;
     }
-    let parameters = collect_parameters(&logical, &mut report);
+    let (root_lines, blocks) = partition_subcircuits(logical, &mut report);
+    if report.has_errors() {
+        return report;
+    }
+    let parameters = collect_parameters(&root_lines, &mut report);
     if report.has_errors() {
         return report;
     }
@@ -180,12 +226,73 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
         .iter()
         .map(|parameter| (parameter.original_name.to_ascii_lowercase(), parameter))
         .collect::<BTreeMap<_, _>>();
+    let mut module_identifiers = BTreeSet::new();
+    let mut module_names = BTreeMap::<String, (String, usize)>::new();
+    for block in &blocks {
+        let fields = split_fields(block.header.text.trim());
+        let Some(name) = fields.get(1) else {
+            push_error(
+                &mut report,
+                "KES-N007",
+                ".SUBCKT requires a name and at least one interface node",
+                Some(block.header.number),
+            );
+            continue;
+        };
+        if !is_spice_symbol(name) {
+            push_error(
+                &mut report,
+                "KES-N007",
+                format!("invalid SPICE subcircuit name '{name}'"),
+                Some(block.header.number),
+            );
+            continue;
+        }
+        let folded = name.to_ascii_lowercase();
+        if let Some((previous, previous_line)) = module_names.get(&folded) {
+            push_error(
+                &mut report,
+                "KES-N007",
+                format!(
+                    "subcircuit '{name}' duplicates '{previous}' from line {previous_line}; SPICE names are case-insensitive"
+                ),
+                Some(block.header.number),
+            );
+            continue;
+        }
+        module_names.insert(
+            folded,
+            (
+                unique_identifier(name, "Module", &mut module_identifiers),
+                block.header.number,
+            ),
+        );
+    }
+    if report.has_errors() {
+        return report;
+    }
+    let mut subcircuits = Vec::new();
+    for block in &blocks {
+        match parse_subcircuit(block, &module_names) {
+            Ok(subcircuit) => subcircuits.push(subcircuit),
+            Err((line, message)) => push_error(&mut report, "KES-N007", message, Some(line)),
+        }
+    }
+    if report.has_errors() {
+        return report;
+    }
+    let module_lookup = subcircuits
+        .iter()
+        .map(|module| (module.original_name.to_ascii_lowercase(), module))
+        .collect::<BTreeMap<_, _>>();
+
     let mut parameter_units = BTreeMap::<String, ImportUnit>::new();
     let mut components = Vec::new();
+    let mut instances = Vec::new();
     let mut analyses = Vec::<(usize, Vec<String>)>::new();
     let mut ended = false;
 
-    for line in logical {
+    for line in root_lines {
         let text = line.text.trim();
         if text.is_empty() || text.starts_with('*') || text.starts_with(';') {
             continue;
@@ -226,10 +333,10 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
                     line.number,
                     "model libraries require an explicit resource binding; arbitrary paths are not imported",
                 ),
-                ".model" | ".subckt" | ".ends" => push_unsupported(
+                ".model" | ".ends" => push_unsupported(
                     &mut report,
                     line.number,
-                    "inline model and subcircuit definitions are outside the first typed import subset",
+                    "inline model definitions and unmatched .ENDS directives are not importable",
                 ),
                 _ => push_unsupported(
                     &mut report,
@@ -240,13 +347,30 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
             continue;
         }
 
-        match parse_component(text, line.number, &parameter_lookup, &mut parameter_units) {
-            Ok(component) => components.push(component),
-            Err(message) => push_error(&mut report, "KES-N002", message, Some(line.number)),
+        if text
+            .chars()
+            .next()
+            .is_some_and(|character| character.eq_ignore_ascii_case(&'x'))
+        {
+            match parse_instance(
+                text,
+                line.number,
+                &module_lookup,
+                &parameter_lookup,
+                &mut parameter_units,
+            ) {
+                Ok(instance) => instances.push(instance),
+                Err(message) => push_error(&mut report, "KES-N007", message, Some(line.number)),
+            }
+        } else {
+            match parse_component(text, line.number, &parameter_lookup, &mut parameter_units) {
+                Ok(component) => components.push(component),
+                Err(message) => push_error(&mut report, "KES-N002", message, Some(line.number)),
+            }
         }
     }
 
-    if components.is_empty() {
+    if components.is_empty() && instances.is_empty() {
         push_error(
             &mut report,
             "KES-N002",
@@ -258,13 +382,16 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
         return report;
     }
 
-    let (component_names, net_names) = match allocate_names(&components) {
+    let (component_names, net_names) = match allocate_names(&components, &instances) {
         Ok(names) => names,
         Err((line, message)) => {
             push_error(&mut report, "KES-N004", message, Some(line));
             return report;
         }
     };
+    for instance in &mut instances {
+        instance.mapped_name = component_names[&instance.original_name].clone();
+    }
     let mut translated_analyses = Vec::new();
     for (line, fields) in &analyses {
         match translate_analysis(
@@ -290,6 +417,55 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
                 kessetsu: mapped.clone(),
             }),
     );
+    for module in &subcircuits {
+        report.names.push(ImportNameMapping {
+            kind: ImportNameKind::Module,
+            original: module.original_name.clone(),
+            kessetsu: module.mapped_name.clone(),
+        });
+        report
+            .names
+            .extend(module.ports.iter().map(|port| ImportNameMapping {
+                kind: ImportNameKind::ModulePort,
+                original: format!("{}.{}", module.original_name, port.original_name),
+                kessetsu: format!("{}.{}", module.mapped_name, port.mapped_name),
+            }));
+        let port_names = module
+            .ports
+            .iter()
+            .map(|port| port.original_name.to_ascii_lowercase())
+            .collect::<BTreeSet<_>>();
+        report.names.extend(
+            module
+                .node_names
+                .iter()
+                .filter(|(original, _)| !port_names.contains(&original.to_ascii_lowercase()))
+                .map(|(original, mapped)| ImportNameMapping {
+                    kind: ImportNameKind::Net,
+                    original: format!("{}.{}", module.original_name, original),
+                    kessetsu: format!("{}.{}", module.mapped_name, mapped),
+                }),
+        );
+        report
+            .names
+            .extend(module.parameters.iter().map(|parameter| ImportNameMapping {
+                kind: ImportNameKind::Parameter,
+                original: format!("{}.{}", module.original_name, parameter.original_name),
+                kessetsu: format!("{}.{}", module.mapped_name, parameter.mapped_name),
+            }));
+        report
+            .names
+            .extend(
+                module
+                    .component_names
+                    .iter()
+                    .map(|(original, mapped)| ImportNameMapping {
+                        kind: ImportNameKind::Component,
+                        original: format!("{}.{}", module.original_name, original),
+                        kessetsu: format!("{}.{}", module.mapped_name, mapped),
+                    }),
+            );
+    }
     report
         .names
         .extend(parameters.iter().map(|parameter| ImportNameMapping {
@@ -309,6 +485,10 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
 
     let mut generated = String::from("// Imported from a supported SPICE subset by Kessetsu.\n");
     generated.push_str(&format!("// Original source: {}\n", report.source_sha256));
+    for module in &subcircuits {
+        generated.push_str(&render_subcircuit(module));
+        generated.push('\n');
+    }
     let mut declared_nets = net_names.values().cloned().collect::<Vec<_>>();
     declared_nets.sort();
     declared_nets.dedup();
@@ -363,19 +543,26 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
 
     for component in &components {
         let name = &component_names[&component.original_name];
-        let declaration = match &component.kind {
-            ImportedKind::Resistor(value) => format!("resistor {name} {value}"),
-            ImportedKind::Capacitor(value) => format!("capacitor {name} {value}"),
-            ImportedKind::Inductor(value) => format!("inductor {name} {value}"),
-            ImportedKind::VoltageSource(value) => format!("source {name} {value}"),
-            ImportedKind::CurrentSource(value) => format!("current_source {name} {value}"),
-            ImportedKind::Diode(model) => format!("diode {name} {model}"),
-            ImportedKind::Bjt { polarity, model } => {
-                format!("transistor {name} {polarity} {model}")
-            }
-            ImportedKind::Mosfet(model) => format!("mosfet {name} {model}"),
-        };
-        generated.push_str(&declaration);
+        generated.push_str(&render_component_declaration(component, name));
+        generated.push('\n');
+    }
+    for instance in &instances {
+        generated.push_str(&format!(
+            "use {} {}",
+            instance.module_name, instance.mapped_name
+        ));
+        if !instance.overrides.is_empty() {
+            generated.push('(');
+            generated.push_str(
+                &instance
+                    .overrides
+                    .iter()
+                    .map(|(name, value)| format!("{name}={value}"))
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+            generated.push(')');
+        }
         generated.push('\n');
     }
     generated.push('\n');
@@ -383,6 +570,18 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
         let name = &component_names[&component.original_name];
         for (pin, node) in component.pins.iter().zip(&component.nodes) {
             generated.push_str(&format!("connect {name}.{pin} to {}\n", net_names[node]));
+        }
+    }
+    for instance in &instances {
+        let module = subcircuits
+            .iter()
+            .find(|module| module.mapped_name == instance.module_name)
+            .expect("an imported instance references a known module");
+        for (port, node) in module.ports.iter().zip(&instance.nodes) {
+            generated.push_str(&format!(
+                "connect {}.{} to {}\n",
+                instance.mapped_name, port.mapped_name, net_names[node]
+            ));
         }
     }
 
@@ -402,21 +601,15 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
             DiagnosticSeverity::Warning => ImportSeverity::Warning,
             DiagnosticSeverity::Info => ImportSeverity::Info,
         };
-        let source_line = diagnostic
-            .component
-            .as_ref()
-            .and_then(|mapped| {
-                component_names
-                    .iter()
-                    .find(|(_, candidate)| *candidate == mapped)
-                    .map(|(original, _)| original)
-            })
-            .and_then(|original| {
-                components
-                    .iter()
-                    .find(|component| &component.original_name == original)
-                    .map(|component| component.line)
-            });
+        let source_line = diagnostic.component.as_deref().and_then(|mapped| {
+            imported_component_line(
+                mapped,
+                &components,
+                &component_names,
+                &instances,
+                &subcircuits,
+            )
+        });
         report.diagnostics.push(ImportDiagnostic {
             code: "KES-N005".into(),
             severity,
@@ -429,9 +622,15 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
         });
     }
     report.summary = ImportSummary {
-        components: components.len(),
+        components: components.len()
+            + subcircuits
+                .iter()
+                .map(|module| module.components.len())
+                .sum::<usize>(),
         nets: declared_nets.len(),
         analyses: analyses.len(),
+        subcircuits: subcircuits.len(),
+        instances: instances.len(),
     };
     if !report.has_errors() && compile.ir.is_some() && compile.spice_netlist.is_some() {
         report.kess_source = Some(generated);
@@ -444,6 +643,528 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
         );
     }
     report
+}
+
+fn imported_component_line(
+    mapped: &str,
+    components: &[ImportedComponent],
+    component_names: &BTreeMap<String, String>,
+    instances: &[ImportedInstance],
+    modules: &[ImportedSubcircuit],
+) -> Option<usize> {
+    if let Some((original, _)) = component_names
+        .iter()
+        .find(|(_, candidate)| candidate.as_str() == mapped)
+    {
+        return components
+            .iter()
+            .find(|component| &component.original_name == original)
+            .map(|component| component.line)
+            .or_else(|| {
+                instances
+                    .iter()
+                    .find(|instance| &instance.original_name == original)
+                    .map(|instance| instance.line)
+            });
+    }
+    for instance in instances {
+        let Some(child) = mapped.strip_prefix(&format!("{}_", instance.mapped_name)) else {
+            continue;
+        };
+        let module = modules
+            .iter()
+            .find(|module| module.mapped_name == instance.module_name)?;
+        let original = module
+            .component_names
+            .iter()
+            .find(|(_, candidate)| candidate.as_str() == child)
+            .map(|(original, _)| original)?;
+        return module
+            .components
+            .iter()
+            .find(|component| &component.original_name == original)
+            .map(|component| component.line);
+    }
+    None
+}
+
+fn partition_subcircuits(
+    lines: Vec<LogicalLine>,
+    report: &mut SpiceImportReport,
+) -> (Vec<LogicalLine>, Vec<SubcircuitBlock>) {
+    let mut root = Vec::new();
+    let mut blocks = Vec::new();
+    let mut current: Option<(LogicalLine, Vec<LogicalLine>)> = None;
+    let mut root_ended = false;
+    for line in lines {
+        if root_ended && current.is_none() {
+            root.push(line);
+            continue;
+        }
+        let fields = split_fields(line.text.trim());
+        let directive = fields.first().map(|field| field.to_ascii_lowercase());
+        match directive.as_deref() {
+            Some(".subckt") => {
+                if current.is_some() {
+                    push_error(
+                        report,
+                        "KES-N007",
+                        "nested .SUBCKT definitions are not supported",
+                        Some(line.number),
+                    );
+                } else {
+                    current = Some((line, Vec::new()));
+                }
+            }
+            Some(".ends") => {
+                if let Some((header, body)) = current.take() {
+                    blocks.push(SubcircuitBlock {
+                        header,
+                        body,
+                        end: line,
+                    });
+                } else {
+                    root.push(line);
+                }
+            }
+            _ => {
+                if let Some((_, body)) = &mut current {
+                    body.push(line);
+                } else {
+                    root_ended = directive.as_deref() == Some(".end");
+                    root.push(line);
+                }
+            }
+        }
+    }
+    if let Some((header, _)) = current {
+        push_error(
+            report,
+            "KES-N007",
+            "unterminated .SUBCKT; a matching .ENDS is required",
+            Some(header.number),
+        );
+    }
+    (root, blocks)
+}
+
+fn parse_subcircuit(
+    block: &SubcircuitBlock,
+    module_names: &BTreeMap<String, (String, usize)>,
+) -> Result<ImportedSubcircuit, (usize, String)> {
+    let fields = split_fields(block.header.text.trim());
+    let name = fields
+        .get(1)
+        .ok_or_else(|| {
+            (
+                block.header.number,
+                ".SUBCKT requires a name and at least one interface node".into(),
+            )
+        })?
+        .clone();
+    let mapped_name = module_names[&name.to_ascii_lowercase()].0.clone();
+    let marker = fields
+        .iter()
+        .position(|field| matches!(field.to_ascii_lowercase().as_str(), "params:" | "param:"));
+    let port_end = marker.unwrap_or(fields.len());
+    if port_end <= 2 {
+        return Err((
+            block.header.number,
+            format!("subcircuit '{name}' requires at least one interface node"),
+        ));
+    }
+    if fields[2..port_end].iter().any(|field| field.contains('=')) {
+        return Err((
+            block.header.number,
+            format!("subcircuit '{name}' parameter defaults require an explicit PARAMS: marker"),
+        ));
+    }
+    if marker.is_none() && fields[2..].iter().any(|field| field.contains('=')) {
+        return Err((
+            block.header.number,
+            format!("subcircuit '{name}' parameter defaults require an explicit PARAMS: marker"),
+        ));
+    }
+    let end_fields = split_fields(block.end.text.trim());
+    if end_fields.len() > 2 {
+        return Err((
+            block.end.number,
+            ".ENDS accepts only an optional subcircuit name".into(),
+        ));
+    }
+    if let Some(end_name) = end_fields.get(1)
+        && !end_name.eq_ignore_ascii_case(&name)
+    {
+        return Err((
+            block.end.number,
+            format!(".ENDS name '{end_name}' does not match .SUBCKT '{name}'"),
+        ));
+    }
+
+    let mut used = BTreeSet::new();
+    let mut seen_ports = BTreeMap::<String, String>::new();
+    let mut ports = Vec::new();
+    for port in &fields[2..port_end] {
+        let folded = port.to_ascii_lowercase();
+        if let Some(previous) = seen_ports.insert(folded, port.clone()) {
+            return Err((
+                block.header.number,
+                format!("subcircuit '{name}' ports '{previous}' and '{port}' differ only by case"),
+            ));
+        }
+        ports.push(ImportedPort {
+            original_name: port.clone(),
+            mapped_name: unique_identifier(port, "port", &mut used),
+        });
+    }
+
+    let assignments = marker.map(|index| &fields[index + 1..]).unwrap_or(&[]);
+    if marker.is_some() && assignments.is_empty() {
+        return Err((
+            block.header.number,
+            format!("subcircuit '{name}' has PARAMS: without any defaults"),
+        ));
+    }
+    let parameters = parse_parameter_assignments(assignments, block.header.number, &mut used)?;
+    let parameter_lookup = parameters
+        .iter()
+        .map(|parameter| (parameter.original_name.to_ascii_lowercase(), parameter))
+        .collect::<BTreeMap<_, _>>();
+    let mut parameter_units = BTreeMap::new();
+    let mut components = Vec::new();
+    for line in &block.body {
+        let text = line.text.trim();
+        if text.is_empty() || text.starts_with('*') || text.starts_with(';') {
+            continue;
+        }
+        if text.starts_with('.') {
+            return Err((
+                line.number,
+                format!(
+                    "directive '{}' inside subcircuit '{name}' is outside the embedded topology subset",
+                    split_fields(text)[0]
+                ),
+            ));
+        }
+        if text
+            .chars()
+            .next()
+            .is_some_and(|character| character.eq_ignore_ascii_case(&'x'))
+        {
+            return Err((
+                line.number,
+                format!(
+                    "nested subcircuit instance '{}' is not supported yet; import stops instead of flattening hierarchy",
+                    split_fields(text)[0]
+                ),
+            ));
+        }
+        components.push(
+            parse_component(text, line.number, &parameter_lookup, &mut parameter_units)
+                .map_err(|message| (line.number, message))?,
+        );
+    }
+    if components.is_empty() {
+        return Err((
+            block.header.number,
+            format!("subcircuit '{name}' contains no supported components"),
+        ));
+    }
+    for parameter in &parameters {
+        if !parameter_units.contains_key(&parameter.original_name.to_ascii_lowercase()) {
+            return Err((
+                parameter.line,
+                format!(
+                    "subcircuit parameter '{}' is unused, so its electrical unit cannot be inferred",
+                    parameter.original_name
+                ),
+            ));
+        }
+        canonical_number(&parameter.value).map_err(|message| {
+            (
+                parameter.line,
+                format!(
+                    "subcircuit parameter '{}' must be a literal value: {message}",
+                    parameter.original_name
+                ),
+            )
+        })?;
+    }
+
+    let mut component_names = BTreeMap::new();
+    let mut component_seen = BTreeMap::<String, String>::new();
+    for component in &components {
+        let folded = component.original_name.to_ascii_lowercase();
+        if let Some(previous) = component_seen.insert(folded, component.original_name.clone()) {
+            return Err((
+                component.line,
+                format!(
+                    "subcircuit component names '{previous}' and '{}' differ only by case",
+                    component.original_name
+                ),
+            ));
+        }
+        component_names.insert(
+            component.original_name.clone(),
+            unique_identifier(&component.original_name, "C", &mut used),
+        );
+    }
+    let port_lookup = ports
+        .iter()
+        .map(|port| {
+            (
+                port.original_name.to_ascii_lowercase(),
+                port.mapped_name.clone(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut node_groups = BTreeMap::<String, BTreeSet<String>>::new();
+    for node in components.iter().flat_map(|component| &component.nodes) {
+        node_groups
+            .entry(node.to_ascii_lowercase())
+            .or_default()
+            .insert(node.clone());
+    }
+    let mut node_names = BTreeMap::new();
+    let mut internal_nets = Vec::new();
+    for (folded, spellings) in node_groups {
+        let mapped = if let Some(port) = port_lookup.get(&folded) {
+            port.clone()
+        } else {
+            if folded == "0" {
+                return Err((
+                    block.header.number,
+                    format!(
+                        "subcircuit '{name}' references global node 0 internally; expose ground as an explicit port"
+                    ),
+                ));
+            }
+            let representative = spellings
+                .first()
+                .expect("a node group always contains a spelling");
+            let mapped = unique_identifier(representative, "N", &mut used);
+            internal_nets.push(mapped.clone());
+            mapped
+        };
+        for spelling in spellings {
+            node_names.insert(spelling, mapped.clone());
+        }
+    }
+    for port in &ports {
+        if !node_names
+            .keys()
+            .any(|node| node.eq_ignore_ascii_case(&port.original_name))
+        {
+            return Err((
+                block.header.number,
+                format!(
+                    "subcircuit port '{}' is not connected by any supported body component",
+                    port.original_name
+                ),
+            ));
+        }
+    }
+    internal_nets.sort();
+    internal_nets.dedup();
+    Ok(ImportedSubcircuit {
+        original_name: name,
+        mapped_name,
+        ports,
+        parameters,
+        parameter_units,
+        components,
+        component_names,
+        node_names,
+        internal_nets,
+    })
+}
+
+fn parse_parameter_assignments(
+    assignments: &[String],
+    line: usize,
+    used: &mut BTreeSet<String>,
+) -> Result<Vec<ImportedParameter>, (usize, String)> {
+    let mut parameters = Vec::new();
+    let mut seen = BTreeMap::<String, String>::new();
+    for assignment in assignments {
+        let Some((name, value)) = assignment.split_once('=') else {
+            return Err((
+                line,
+                format!(
+                    "parameter assignment '{assignment}' must use NAME=literal without spaces around '='"
+                ),
+            ));
+        };
+        if name.is_empty() || value.is_empty() || !is_spice_name(name) {
+            return Err((
+                line,
+                format!("invalid SPICE parameter assignment '{assignment}'"),
+            ));
+        }
+        let folded = name.to_ascii_lowercase();
+        if let Some(previous) = seen.insert(folded, name.into()) {
+            return Err((
+                line,
+                format!(
+                    "parameter '{name}' duplicates '{previous}'; SPICE names are case-insensitive"
+                ),
+            ));
+        }
+        parameters.push(ImportedParameter {
+            original_name: name.into(),
+            mapped_name: unique_identifier(name, "P", used),
+            value: value.into(),
+            line,
+        });
+    }
+    Ok(parameters)
+}
+
+fn parse_instance(
+    text: &str,
+    line: usize,
+    modules: &BTreeMap<String, &ImportedSubcircuit>,
+    root_parameters: &BTreeMap<String, &ImportedParameter>,
+    root_parameter_units: &mut BTreeMap<String, ImportUnit>,
+) -> Result<ImportedInstance, String> {
+    let fields = split_fields(text);
+    if fields.len() < 4 {
+        return Err("X expects an instance name, interface nodes and a subcircuit name".into());
+    }
+    let assignment_start = fields
+        .iter()
+        .position(|field| field.contains('=') || field.eq_ignore_ascii_case("params:"))
+        .unwrap_or(fields.len());
+    let module_index = assignment_start.saturating_sub(1);
+    if module_index < 2 {
+        return Err("X is missing interface nodes or a subcircuit name".into());
+    }
+    let requested_module = &fields[module_index];
+    let module = modules
+        .get(&requested_module.to_ascii_lowercase())
+        .copied()
+        .ok_or_else(|| {
+            format!(
+                "subcircuit instance '{}' references unknown embedded .SUBCKT '{}'",
+                fields[0], requested_module
+            )
+        })?;
+    let nodes = fields[1..module_index].to_vec();
+    if nodes.len() != module.ports.len() {
+        return Err(format!(
+            "subcircuit instance '{}' supplies {} nodes, but '{}' declares {} ports",
+            fields[0],
+            nodes.len(),
+            module.original_name,
+            module.ports.len()
+        ));
+    }
+    let mut override_fields = &fields[assignment_start..];
+    if override_fields
+        .first()
+        .is_some_and(|field| field.eq_ignore_ascii_case("params:"))
+    {
+        override_fields = &override_fields[1..];
+    }
+    let parameter_lookup = module
+        .parameters
+        .iter()
+        .map(|parameter| (parameter.original_name.to_ascii_lowercase(), parameter))
+        .collect::<BTreeMap<_, _>>();
+    let mut seen = BTreeSet::new();
+    let mut overrides = Vec::new();
+    for assignment in override_fields {
+        let Some((name, value)) = assignment.split_once('=') else {
+            return Err(format!(
+                "instance parameter '{assignment}' must use NAME=value without spaces"
+            ));
+        };
+        let folded = name.to_ascii_lowercase();
+        let parameter = parameter_lookup.get(&folded).copied().ok_or_else(|| {
+            format!(
+                "instance '{}' overrides unknown parameter '{}' on subcircuit '{}'",
+                fields[0], name, module.original_name
+            )
+        })?;
+        if !seen.insert(folded.clone()) {
+            return Err(format!(
+                "instance '{}' overrides parameter '{}' more than once",
+                fields[0], name
+            ));
+        }
+        let unit = module.parameter_units[&folded];
+        overrides.push((
+            parameter.mapped_name.clone(),
+            translate_numeric(value, unit, root_parameters, root_parameter_units)?,
+        ));
+    }
+    Ok(ImportedInstance {
+        original_name: fields[0].clone(),
+        mapped_name: String::new(),
+        module_name: module.mapped_name.clone(),
+        nodes,
+        overrides,
+        line,
+    })
+}
+
+fn render_component_declaration(component: &ImportedComponent, name: &str) -> String {
+    match &component.kind {
+        ImportedKind::Resistor(value) => format!("resistor {name} {value}"),
+        ImportedKind::Capacitor(value) => format!("capacitor {name} {value}"),
+        ImportedKind::Inductor(value) => format!("inductor {name} {value}"),
+        ImportedKind::VoltageSource(value) => format!("source {name} {value}"),
+        ImportedKind::CurrentSource(value) => format!("current_source {name} {value}"),
+        ImportedKind::Diode(model) => format!("diode {name} {model}"),
+        ImportedKind::Bjt { polarity, model } => {
+            format!("transistor {name} {polarity} {model}")
+        }
+        ImportedKind::Mosfet(model) => format!("mosfet {name} {model}"),
+    }
+}
+
+fn render_subcircuit(module: &ImportedSubcircuit) -> String {
+    let mut generated = format!(
+        "module {}({}) {{\n",
+        module.mapped_name,
+        module
+            .ports
+            .iter()
+            .map(|port| port.mapped_name.as_str())
+            .collect::<Vec<_>>()
+            .join(",")
+    );
+    for parameter in &module.parameters {
+        let unit = module.parameter_units[&parameter.original_name.to_ascii_lowercase()];
+        let value = canonical_number(&parameter.value)
+            .expect("subcircuit parameter literals are validated before rendering");
+        generated.push_str(&format!(
+            "  param {}: {} = {}\n",
+            parameter.mapped_name,
+            unit.kessetsu_name(),
+            value
+        ));
+    }
+    for net in &module.internal_nets {
+        generated.push_str(&format!("  net {net}\n"));
+    }
+    for component in &module.components {
+        let name = &module.component_names[&component.original_name];
+        generated.push_str("  ");
+        generated.push_str(&render_component_declaration(component, name));
+        generated.push('\n');
+    }
+    for component in &module.components {
+        let name = &module.component_names[&component.original_name];
+        for (pin, node) in component.pins.iter().zip(&component.nodes) {
+            generated.push_str(&format!(
+                "  connect {name}.{pin} to {}\n",
+                module.node_names[node]
+            ));
+        }
+    }
+    generated.push_str("}\n");
+    generated
 }
 
 fn logical_lines(source: &str, report: &mut SpiceImportReport) -> Vec<LogicalLine> {
@@ -559,6 +1280,14 @@ fn is_spice_name(value: &str) -> bool {
         && value
             .chars()
             .all(|character| character.is_ascii_alphanumeric() || character == '_')
+}
+
+fn is_spice_symbol(value: &str) -> bool {
+    !value.is_empty()
+        && !value.starts_with('.')
+        && value.chars().all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '_' | '-' | '.' | '$')
+        })
 }
 
 fn parse_component(
@@ -956,29 +1685,41 @@ fn translate_analysis(
     }
 }
 
-fn allocate_names(components: &[ImportedComponent]) -> Result<ImportedNames, NameAllocationError> {
+fn allocate_names(
+    components: &[ImportedComponent],
+    instances: &[ImportedInstance],
+) -> Result<ImportedNames, NameAllocationError> {
     let mut component_names = BTreeMap::new();
     let mut casefolded = BTreeMap::<String, (String, usize)>::new();
     let mut used = BTreeSet::new();
-    for component in components {
-        let folded = component.original_name.to_ascii_lowercase();
+    for (original_name, line) in components
+        .iter()
+        .map(|component| (&component.original_name, component.line))
+        .chain(
+            instances
+                .iter()
+                .map(|instance| (&instance.original_name, instance.line)),
+        )
+    {
+        let folded = original_name.to_ascii_lowercase();
         if let Some((previous, _)) = casefolded.get(&folded) {
             return Err((
-                component.line,
+                line,
                 format!(
                     "SPICE component names '{}' and '{}' differ only by case",
-                    previous, component.original_name
+                    previous, original_name
                 ),
             ));
         }
-        casefolded.insert(folded, (component.original_name.clone(), component.line));
-        let mapped = unique_identifier(&component.original_name, "C", &mut used);
-        component_names.insert(component.original_name.clone(), mapped);
+        casefolded.insert(folded, (original_name.clone(), line));
+        let mapped = unique_identifier(original_name, "C", &mut used);
+        component_names.insert(original_name.clone(), mapped);
     }
     let mut node_groups = BTreeMap::<String, BTreeSet<String>>::new();
     for node in components
         .iter()
         .flat_map(|component| component.nodes.iter())
+        .chain(instances.iter().flat_map(|instance| instance.nodes.iter()))
     {
         node_groups
             .entry(node.to_ascii_lowercase())

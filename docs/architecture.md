@@ -68,10 +68,15 @@ control blocks, arbitrary include paths, expressions and unsupported device fami
 source-line diagnostics; they are not silently dropped. Frontends retain the original input bytes,
 own safe output writes and expose name mappings. Initial source supports literal R/C/L, independent
 V/I sources, selected built-in D/Q/M models, OP/TRAN/AC/DC analyses and literal `.param`
-assignments whose single electrical unit is inferred from supported uses. Ambiguous/unused
-parameters and SPICE parameter expressions fail closed. Model libraries, subcircuits,
-controlled/behavioral sources and schematic-file import remain outside that declared subset until
-typed semantics and resource binding are implemented.
+assignments whose single electrical unit is inferred from supported uses. Source-embedded
+`.SUBCKT` definitions map to source-local modules and root `X` cards map to module instances, so
+port identity, local topology and typed literal defaults/overrides survive instead of being
+silently flattened. Nested instances, implicit subcircuit globals and body directives remain
+fail-closed. Ambiguous/unused parameters and SPICE parameter expressions also fail closed.
+External model libraries remain outside automatic conversion: callers must use the existing
+contained, exact-hash, typed resource contract because a path alone cannot establish bytes, pins,
+license or redistribution policy. Controlled/behavioral sources and schematic-file import remain
+outside the declared subset until typed semantics exist.
 
 ### Parameter-expression boundary
 
