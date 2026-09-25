@@ -4,6 +4,15 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### Reproducible memristor protocol
+
+- A 24-case signed pulse study characterizes amplitude, duration, starting state, modeled
+  resistance change, current and energy for the exact bundled threshold-model dependency.
+- A separate 16-case timestep-refinement study exposes bounded numerical sensitivity, while
+  a held-out stimulus remains separate from the displayed sweep rather than influencing it.
+- An executable regression, headless notebook and public guide retain explicit units, model
+  identity, solver evidence and the distinction between synthetic simulation and physical validation.
+
 ### Finite calibration and validation
 
 - Core-owned `kessetsu.fit.v1` evaluation selects only among completed finite study

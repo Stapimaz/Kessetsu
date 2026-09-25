@@ -24,7 +24,7 @@ Start with [external_comparator.kess](../../examples/external_comparator.kess) o
 
 The memristor example exposes only `Rinit`, `Vt` and `stime` from its exact library header.
 Its instance binds the first two through ordinary root parameters, so `--param`, parameter
-studies and future calibration workflows all use the same typed input path. This changes
+studies and finite calibration workflows all use the same typed input path. This changes
 an instance value, not the hash-bound model file.
 
 On the CLI, keep the `models/` directory beside the source:
@@ -86,7 +86,10 @@ statement/nesting counts. These are resource ceilings, not a hard aggregate memo
   exact library/defaults and initial-condition policy.
 - These coefficients are artificial demonstrations, not calibration to a fabricated
   device. A hysteresis-shaped plot is not proof of physical fidelity or a research pilot.
-  Dataset fitting/measurements and wider model experiments remain future work.
+- The [reproducible pulse protocol](../guides/memristor-protocol.md) covers a 24-case
+  amplitude/duration/starting-state matrix, 25 ps versus 12.5 ps timestep refinement and
+  one separately reported held-out stimulus. It characterizes this exact synthetic model;
+  it does not validate a fabricated device.
 - Measure terminal current with the explicit series zero-volt `VSENSE` source; arbitrary
   subcircuit current/power is not guessed from an internal branch or a resistance value.
 

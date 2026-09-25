@@ -45,6 +45,11 @@ try {
         --working-directory $repoRoot `
         --output (Join-Path $artifactRoot 'finite-parameter-fit.executed.ipynb')
     if ($LASTEXITCODE -ne 0) { throw 'Headless fitting notebook failed.' }
+    & $python (Join-Path $repoRoot 'python/tests/run_notebook.py') `
+        (Join-Path $repoRoot 'examples/notebooks/memristor-pulse-protocol.ipynb') `
+        --working-directory $repoRoot `
+        --output (Join-Path $artifactRoot 'memristor-pulse-protocol.executed.ipynb')
+    if ($LASTEXITCODE -ne 0) { throw 'Headless memristor protocol notebook failed.' }
     & $python -m pip check
     if ($LASTEXITCODE -ne 0) { throw 'Python dependency check failed.' }
 }

@@ -1,0 +1,37 @@
+{
+  "schema_version": "kessetsu.experiment.v1",
+  "name": "Threshold memristor timestep sensitivity",
+  "source": "// Published threshold-model pulse protocol; synthetic simulation, not a physical-device fit.\n// A sub-threshold read pulse surrounds one signed write pulse so state change is observable.\nexternal_subcircuit two_terminal MEM (p1,p2) file=\"models/memristor.lib\" entry=memristor sha256=cd4bac38581fb00c1b5667e9d5ec440cf954efb5e26105ae2775853cc90301f6 version=1.0.0 license=BSD-3-Clause source=\"Ngspice Pershin-Di-Ventra threshold example; see MEMRISTOR_NOTICE.md\" simulator=ngspice redistribution=permitted instance_parameters=\"Rinit:Ohm,Vt:V,stime:s\"\n\nparam initial_resistance: Ohm = 7k\nparam switching_threshold: V = 1.6V\nparam pulse_amplitude: V = 3V\nparam pulse_duration: s = 3ns\nparam timestep: s = 25ps\n\nnet GND\nnet IN\nnet TOP\n\nsource VIN pwl(0s,0V, 200ps,0V, 250ps,0.4V, 750ps,0.4V, 800ps,0V, 1.3ns,0V, 1.35ns,{pulse_amplitude}, {1.35ns+pulse_duration},{pulse_amplitude}, {1.4ns+pulse_duration},0V, {2ns+pulse_duration},0V, {2.05ns+pulse_duration},0.4V, {2.55ns+pulse_duration},0.4V, {2.6ns+pulse_duration},0V, 12ns,0V)\nsource VSENSE 0V\ndevice XM MEM (Rinit={initial_resistance}, Vt={switching_threshold})\n\nconnect VIN.minus, XM.p2 to GND\nconnect VIN.plus, VSENSE.plus to IN\nconnect VSENSE.minus, XM.p1 to TOP\n\nsimulate tran {timestep} 12ns uic\n",
+  "axes": [
+    {
+      "parameter": "pulse_amplitude",
+      "values": {"kind": "list", "values": ["-3V", "3V"]}
+    },
+    {
+      "parameter": "pulse_duration",
+      "values": {"kind": "list", "values": ["1ns", "6ns"]}
+    },
+    {
+      "parameter": "initial_resistance",
+      "values": {"kind": "list", "values": ["3kOhm", "7kOhm"]}
+    },
+    {
+      "parameter": "timestep",
+      "values": {"kind": "list", "values": ["25ps", "12.5ps"]}
+    }
+  ],
+  "temperatures_c": [27.0],
+  "timeout_ms": 30000,
+  "measurements": [
+    {
+      "name": "protocol_energy",
+      "expression": "energy(V(TOP),I(VSENSE),1ps,11.9ns)",
+      "unit": "Joule"
+    },
+    {
+      "name": "peak_current",
+      "expression": "peak(I(VSENSE),0ns,12ns)",
+      "unit": "Ampere"
+    }
+  ]
+}
