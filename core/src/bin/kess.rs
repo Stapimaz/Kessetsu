@@ -24,6 +24,9 @@ use kessetsu_core::simulation::{
     CancellationToken, NativeSimulationContext, NgspiceRunner, SIMULATION_SCHEMA_VERSION,
     SimulationRequest, SimulationResult,
 };
+use kessetsu_core::spice_import::{
+    ImportDiagnostic, ImportSeverity, SPICE_IMPORT_SCHEMA_VERSION, SpiceImportReport, import_spice,
+};
 use kessetsu_core::tools::{
     PreferredValues, TOOL_SCHEMA_VERSION, ToolRequest, ToolResult, calculate_tool,
 };
@@ -67,6 +70,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Convert a supported SPICE netlist into editable, canonically verified .kess source
+    Import(ImportCommand),
     /// Import research CSV and compare unit-mapped local data
     Data(DataCommand),
     /// Evaluate finite study candidates against calibration and validation data
@@ -87,6 +92,18 @@ enum Commands {
     Render(RenderCommand),
     /// Export a machine-readable or editable circuit artifact
     Export(ExportCommand),
+}
+
+#[derive(Args)]
+struct ImportCommand {
+    /// SPICE netlist path, or - for stdin
+    file: PathBuf,
+    /// Generated .kess path; defaults beside a file input
+    #[arg(short, long)]
+    output: Option<PathBuf>,
+    /// Allow replacing an existing output file
+    #[arg(long)]
+    force: bool,
 }
 
 #[derive(Args)]
@@ -525,6 +542,22 @@ struct JsonArtifact {
     warnings: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     losses: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct ImportJsonOutput<'a> {
+    schema_version: &'static str,
+    command: &'static str,
+    status: &'static str,
+    domain_versions: ImportDomainVersions,
+    import: &'a SpiceImportReport,
+    artifacts: Vec<JsonArtifact>,
+}
+
+#[derive(Serialize)]
+struct ImportDomainVersions {
+    compile: &'static str,
+    spice_import: &'static str,
 }
 
 fn emit_study_error(
@@ -1329,6 +1362,22 @@ fn run(cli: Cli) -> i32 {
         return 2;
     }
 
+    if let Commands::Import(import) = &cli.command {
+        if !cli.parameters.is_empty() {
+            let mut report = import_spice("");
+            report.diagnostics.clear();
+            report.diagnostics.push(ImportDiagnostic {
+                code: "KES-F002".into(),
+                severity: ImportSeverity::Error,
+                message: "--param applies after import to editable Kessetsu circuits".into(),
+                line: None,
+                column: None,
+            });
+            return emit_import(&cli.format, &report, None);
+        }
+        return run_spice_import(import, &cli.format);
+    }
+
     if let Commands::Data(data) = &cli.command {
         if !cli.parameters.is_empty() {
             emit(
@@ -1768,6 +1817,7 @@ fn run(cli: Cli) -> i32 {
 
 fn command_name(command: &Commands) -> &'static str {
     match command {
+        Commands::Import(_) => "import",
         Commands::Data(_) => "data",
         Commands::Fit(_) => "fit",
         Commands::Study(_) => "study",
@@ -1779,6 +1829,162 @@ fn command_name(command: &Commands) -> &'static str {
         Commands::Render(_) => "render",
         Commands::Export(_) => "export",
     }
+}
+
+fn run_spice_import(command: &ImportCommand, format: &Format) -> i32 {
+    let source_is_stdin = command.file == Path::new("-");
+    let source = match read_source(&command.file) {
+        Ok(source) => source,
+        Err(error) => {
+            let mut report = import_spice("");
+            report.diagnostics.clear();
+            report.diagnostics.push(ImportDiagnostic {
+                code: "KES-I001".into(),
+                severity: ImportSeverity::Error,
+                message: format!(
+                    "Could not read SPICE input '{}': {error}",
+                    command.file.display()
+                ),
+                line: None,
+                column: None,
+            });
+            return emit_import(format, &report, None);
+        }
+    };
+    let mut report = import_spice(&source);
+    if report.has_errors() {
+        return emit_import(format, &report, None);
+    }
+
+    let output = command
+        .output
+        .clone()
+        .or_else(|| (!source_is_stdin).then(|| command.file.with_extension("kess")));
+    let Some(output) = output else {
+        report.diagnostics.push(ImportDiagnostic {
+            code: "KES-I002".into(),
+            severity: ImportSeverity::Error,
+            message: "stdin import requires --output PATH.kess".into(),
+            line: None,
+            column: None,
+        });
+        return emit_import(format, &report, None);
+    };
+    if output.extension().and_then(|extension| extension.to_str()) != Some("kess") {
+        report.diagnostics.push(ImportDiagnostic {
+            code: "KES-I002".into(),
+            severity: ImportSeverity::Error,
+            message: "SPICE import output must use the .kess extension".into(),
+            line: None,
+            column: None,
+        });
+        return emit_import(format, &report, None);
+    }
+    let output_parent = output
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let resolved_output = match fs::canonicalize(output_parent) {
+        Ok(parent) => parent.join(output.file_name().expect("output has a filename")),
+        Err(error) => {
+            report.diagnostics.push(ImportDiagnostic {
+                code: "KES-I001".into(),
+                severity: ImportSeverity::Error,
+                message: format!("Could not resolve output directory: {error}"),
+                line: None,
+                column: None,
+            });
+            return emit_import(format, &report, None);
+        }
+    };
+    let aliases_input = !source_is_stdin
+        && fs::canonicalize(&command.file).is_ok_and(|input| {
+            input == resolved_output
+                || (output.exists()
+                    && fs::canonicalize(&output).is_ok_and(|existing| existing == input))
+        });
+    if aliases_input {
+        report.diagnostics.push(ImportDiagnostic {
+            code: "KES-I002".into(),
+            severity: ImportSeverity::Error,
+            message: "Import output cannot overwrite the original SPICE file".into(),
+            line: None,
+            column: None,
+        });
+        return emit_import(format, &report, None);
+    }
+    if output.exists() && !command.force {
+        report.diagnostics.push(ImportDiagnostic {
+            code: "KES-I003".into(),
+            severity: ImportSeverity::Error,
+            message: format!(
+                "Output '{}' already exists; use --force to replace it",
+                output.display()
+            ),
+            line: None,
+            column: None,
+        });
+        return emit_import(format, &report, None);
+    }
+    let source = report
+        .kess_source
+        .as_deref()
+        .expect("successful import has canonical source");
+    if let Err(error) = fs::write(&output, source) {
+        report.diagnostics.push(ImportDiagnostic {
+            code: "KES-I004".into(),
+            severity: ImportSeverity::Error,
+            message: format!("Could not write '{}': {error}", output.display()),
+            line: None,
+            column: None,
+        });
+        return emit_import(format, &report, None);
+    }
+    emit_import(format, &report, Some(&output))
+}
+
+fn emit_import(format: &Format, report: &SpiceImportReport, output: Option<&Path>) -> i32 {
+    let failed = report.has_errors();
+    let status = if failed { "error" } else { "success" };
+    if *format == Format::Json {
+        let artifacts = output
+            .map(|path| plain_json_artifact("kessetsu_source", path.to_string_lossy()))
+            .into_iter()
+            .collect();
+        let body = ImportJsonOutput {
+            schema_version: CLI_SCHEMA_VERSION,
+            command: "import",
+            status,
+            domain_versions: ImportDomainVersions {
+                compile: COMPILE_SCHEMA_VERSION,
+                spice_import: SPICE_IMPORT_SCHEMA_VERSION,
+            },
+            import: report,
+            artifacts,
+        };
+        println!("{}", serde_json::to_string_pretty(&body).unwrap());
+    } else {
+        for diagnostic in &report.diagnostics {
+            let location = diagnostic
+                .line
+                .map(|line| format!(" at line {line}"))
+                .unwrap_or_default();
+            eprintln!(
+                "[{:?}] {}{}: {}",
+                diagnostic.severity, diagnostic.code, location, diagnostic.message
+            );
+        }
+        if let Some(path) = output {
+            println!(
+                "[SUCCESS] Imported {} components, {} nets and {} analyses to {}",
+                report.summary.components,
+                report.summary.nets,
+                report.summary.analyses,
+                path.display()
+            );
+        }
+    }
+    if failed { 2 } else { 0 }
 }
 
 fn run_tool(command: &ToolCommand, format: &Format, includes: &BTreeSet<Include>) -> i32 {
@@ -2010,7 +2216,11 @@ fn load_external_model_resources(
 
 fn command_path(command: &Commands) -> &Path {
     match command {
-        Commands::Data(_) | Commands::Fit(_) | Commands::Study(_) | Commands::Tool(_) => {
+        Commands::Import(_)
+        | Commands::Data(_)
+        | Commands::Fit(_)
+        | Commands::Study(_)
+        | Commands::Tool(_) => {
             unreachable!("non-circuit commands are handled before reading source")
         }
         Commands::Check { file } => file,
@@ -2026,6 +2236,7 @@ fn output_command(command: &Commands) -> Option<&OutputCommand> {
         Commands::Compile(command) | Commands::Simulate(command) => Some(command),
         Commands::Test(command) => Some(&command.output),
         Commands::Data(_)
+        | Commands::Import(_)
         | Commands::Fit(_)
         | Commands::Study(_)
         | Commands::Check { .. }

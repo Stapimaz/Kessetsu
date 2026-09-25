@@ -4,6 +4,17 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### Supported SPICE netlist import
+
+- `kess import` converts a declared Ngspice-compatible subset into ordinary editable `.kess`
+  and recompiles it through the canonical Core before writing output.
+- Initial coverage includes literal R/C/L, independent DC/AC/SINE/PULSE/PWL voltage/current
+  sources, selected built-in diode/BJT/MOSFET models and OP/TRAN/AC/DC analyses.
+- Original component/net names receive deterministic reversible mappings. SPICE numeric suffixes,
+  including its case-insensitive milli `M`, are normalized without changing electrical values.
+- Unsupported directives, control blocks, include paths, models, subcircuits, expressions and
+  device families fail with source-line diagnostics instead of producing a partial circuit.
+
 ### Portable research packages
 
 - `kess study package` writes a new atomic research folder with the exact specification and

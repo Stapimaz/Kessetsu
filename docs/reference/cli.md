@@ -6,6 +6,9 @@ specifications, checkpoints, exit codes and reports, and the
 [fitting guide](../guides/model-fitting.md) for calibration/validation semantics.
 Published 1.2.0 does not include these commands yet.
 
+Development source also provides `kess import` for the declared SPICE subset. See the
+[SPICE import guide](../guides/spice-import.md); published 1.2.0 does not include it.
+
 The Kessetsu CLI sends `.kess` source through the shared Rust compilation pipeline and provides ERC, SPICE generation, Ngspice execution, and assertion evaluation commands. Human output is intended for people; versioned JSON output is intended for automation and AI agents.
 
 Kessetsu 1.2.0 uses compile contract v5 and supports typed parameters, reusable blocks

@@ -32,6 +32,7 @@ pub mod schematic_svg;
 pub mod sim_result;
 pub mod simulation;
 pub mod simulation_parser;
+pub mod spice_import;
 pub mod tools;
 pub mod wasm;
 

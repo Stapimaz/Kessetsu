@@ -16,6 +16,7 @@ Use the free [Web Hub](https://kessetsu.com/#editor) without an account or insta
 - [Memristor pulse protocol](guides/memristor-protocol.md): a reproducible threshold-model study with convergence and held-out stimulus checks (development source).
 - [Portable research packages](guides/portable-research-packages.md): bundle exact study evidence, permitted dependencies and rerun instructions (development source).
 - [Python and Jupyter](guides/python-notebooks.md): inspect simulations, studies and research evidence in Python (development source).
+- [SPICE netlist import](guides/spice-import.md): convert the supported subset into editable, canonically verified `.kess` (development source).
 
 ## Language and command reference
 

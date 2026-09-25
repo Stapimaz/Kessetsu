@@ -58,6 +58,19 @@ never invent assertion PASS results or generate SPICE/drawing artifacts independ
 The CLI and WASM adapters share this contract. Frontends own file writes, downloads and
 workspace recovery. Preferred E12/E24 values describe nominal selection, not tolerance analysis.
 
+### SPICE import boundary (development source)
+
+`spice_import.rs` owns a pure, bounded `kessetsu.spice-import.v1` conversion contract.
+It parses only a declared Ngspice-compatible subset into typed import records, emits editable
+`.kess`, and recompiles that source through the canonical compiler before reporting success.
+It never sends imported text directly to a backend or simulator. Unknown directives, executable
+control blocks, arbitrary include paths, expressions and unsupported device families fail with
+source-line diagnostics; they are not silently dropped. Frontends retain the original input bytes,
+own safe output writes and expose name mappings. Initial source supports literal R/C/L, independent
+V/I sources, selected built-in D/Q/M models and OP/TRAN/AC/DC analyses. Model libraries,
+subcircuits, `.param`, controlled/behavioral sources and schematic-file import remain outside that
+declared subset until typed semantics and resource binding are implemented.
+
 ### Parameter-expression boundary
 
 `expression.rs` parses bounded engineering expressions into typed nodes and resolves
