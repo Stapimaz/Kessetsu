@@ -428,6 +428,17 @@ fn parse_statement(
             let name = inner.into_inner().next().unwrap().as_str().to_string();
             Some(Statement::Net(NetDecl { name }))
         }
+        Rule::part_stmt => {
+            let (line, column) = inner.as_span().start_pos().line_col();
+            let mut fields = inner.into_inner();
+            let component = fields.next().unwrap().as_str().to_string();
+            Some(Statement::Part(PartAssignmentDecl {
+                component,
+                fields: fields.map(parse_named_value).collect(),
+                line,
+                column,
+            }))
+        }
         Rule::connect => {
             let mut pins = Vec::new();
             for p in inner.into_inner() {

@@ -180,6 +180,11 @@ impl Elaborator<'_> {
                     }),
                     scope,
                 )?,
+                Statement::Part(part) => {
+                    let mut part = part.clone();
+                    part.component = format!("{prefix}{}", part.component);
+                    self.emit(Statement::Part(part), scope)?;
+                }
                 Statement::Connect(connection) => {
                     let mut pins = Vec::new();
                     for pin in &connection.pins {

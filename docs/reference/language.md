@@ -234,6 +234,26 @@ module divider(p1,p2) {
 use divider DIV1
 ```
 
+## Physical part assignments
+
+An electrical component may carry a separate physical-part assignment:
+
+```kessetsu
+resistor R1 10k
+part R1 manufacturer="Yageo" mpn="RC0603FR-0710KL" footprint="Resistor_SMD:R_0603_1608Metric" pin_map="p1:1,p2:2" note="Verify stock and rating before build"
+```
+
+`manufacturer`, `mpn`, `footprint`, `pin_map` and `note` are the complete field allowlist;
+omit unknown information instead of using a guessed placeholder. A pin map is optional, but when
+present it requires a footprint and must map every logical catalog pin exactly once to a unique
+physical pad. The assignment is stored in the versioned physical-part manifest and never changes
+component value, model, connectivity or generated simulation netlist.
+
+Place `part` beside a component inside a module to assign each flattened instance independently.
+A module interface itself is virtual and cannot receive a physical part. Manufacturer identity is
+not a device model, footprint choice is not pin mapping, and none of these fields constitutes a
+datasheet-rating or availability claim.
+
 ## Typed models and packages
 
 ```kessetsu

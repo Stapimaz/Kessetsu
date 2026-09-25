@@ -4,6 +4,15 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### Physical part identity
+
+- `part` statements attach optional manufacturer, MPN, footprint, complete logical-pin mapping and
+  user notes to an electrical component without changing its value, model or connectivity.
+- Core validates assignments against catalog pins, preserves module-instance identity and exposes
+  `kessetsu.physical-parts.v1` separately in Circuit IR. Unknown or incomplete mappings fail closed.
+- Compile reports advance to `kessetsu.compile.v7`; simulation netlists remain byte-identical when
+  only physical metadata changes.
+
 ### Supported SPICE netlist import
 
 - `kess import` converts a declared Ngspice-compatible subset into ordinary editable `.kess`

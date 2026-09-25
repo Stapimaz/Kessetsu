@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
+pub const PHYSICAL_PART_SCHEMA_VERSION: &str = "kessetsu.physical-parts.v1";
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CircuitIR {
     pub components: Vec<IRComponent>,
@@ -11,11 +13,49 @@ pub struct CircuitIR {
     pub analyses: Vec<Analysis>,
     pub assertions: Vec<Assertion>,
     pub model_manifest: ModelManifest,
+    #[serde(default, skip_serializing_if = "PhysicalPartManifest::is_empty")]
+    pub physical_parts: PhysicalPartManifest,
     #[serde(
         default,
         skip_serializing_if = "crate::expression::ParameterManifest::is_empty"
     )]
     pub parameter_manifest: crate::expression::ParameterManifest,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PhysicalPartAssignment {
+    pub component: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manufacturer: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mpn: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub footprint: Option<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub pin_map: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PhysicalPartManifest {
+    pub schema_version: String,
+    pub assignments: Vec<PhysicalPartAssignment>,
+}
+
+impl Default for PhysicalPartManifest {
+    fn default() -> Self {
+        Self {
+            schema_version: PHYSICAL_PART_SCHEMA_VERSION.into(),
+            assignments: Vec::new(),
+        }
+    }
+}
+
+impl PhysicalPartManifest {
+    pub fn is_empty(&self) -> bool {
+        self.assignments.is_empty()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -882,6 +922,7 @@ pub fn ast_to_ir_with_resources(
     let mut nets = Vec::new();
     let mut analysis_statements = Vec::new();
     let mut assertions = Vec::new();
+    let mut part_assignments = Vec::new();
 
     for stmt in &program.statements {
         match stmt {
@@ -1294,6 +1335,9 @@ pub fn ast_to_ir_with_resources(
             Statement::Net(net) => {
                 nets.push(net.name.clone());
             }
+            Statement::Part(part) => {
+                part_assignments.push(part.clone());
+            }
             Statement::Assert(assert) => {
                 let metric = assert.metric.to_ascii_lowercase();
                 if !is_supported_assertion_metric(&metric) {
@@ -1489,6 +1533,7 @@ pub fn ast_to_ir_with_resources(
     parameter_manifest
         .assertion_bindings
         .sort_by(|a, b| (a.assertion_index, &a.field).cmp(&(b.assertion_index, &b.field)));
+    let physical_parts = compile_physical_parts(&part_assignments, &components)?;
     Ok(CircuitIR {
         components,
         connections,
@@ -1496,8 +1541,205 @@ pub fn ast_to_ir_with_resources(
         analyses,
         assertions,
         model_manifest,
+        physical_parts,
         parameter_manifest,
     })
+}
+
+fn compile_physical_parts(
+    declarations: &[crate::ast::PartAssignmentDecl],
+    components: &[IRComponent],
+) -> Result<PhysicalPartManifest, SemanticDiagnostic> {
+    let mut assignments = Vec::new();
+    let mut assigned = BTreeMap::<String, &crate::ast::PartAssignmentDecl>::new();
+    for declaration in declarations {
+        if let Some(previous) = assigned.insert(declaration.component.clone(), declaration) {
+            return Err(semantic_error(
+                "KES-C024",
+                format!(
+                    "physical part for '{}' is assigned more than once (first assignment at {}:{})",
+                    declaration.component, previous.line, previous.column
+                ),
+                Some(&declaration.component),
+                Some("part"),
+            ));
+        }
+        let component = components
+            .iter()
+            .find(|component| component.id == declaration.component)
+            .ok_or_else(|| {
+                semantic_error(
+                    "KES-C024",
+                    format!(
+                        "physical part target '{}' is not a declared component",
+                        declaration.component
+                    ),
+                    Some(&declaration.component),
+                    Some("part"),
+                )
+            })?;
+        if component.kind == ComponentKind::ModulePort {
+            return Err(semantic_error(
+                "KES-C024",
+                "module interfaces are virtual and cannot receive a physical part",
+                Some(&declaration.component),
+                Some("part"),
+            ));
+        }
+
+        let mut fields = BTreeMap::<String, String>::new();
+        for field in &declaration.fields {
+            let key = field.name.to_ascii_lowercase();
+            if !matches!(
+                key.as_str(),
+                "manufacturer" | "mpn" | "footprint" | "pin_map" | "note"
+            ) {
+                return Err(semantic_error(
+                    "KES-C024",
+                    format!(
+                        "unknown physical-part field '{}'; use manufacturer, mpn, footprint, pin_map or note",
+                        field.name
+                    ),
+                    Some(&declaration.component),
+                    Some(&field.name),
+                ));
+            }
+            if fields.insert(key, field.value.clone()).is_some() {
+                return Err(semantic_error(
+                    "KES-C024",
+                    format!("duplicate physical-part field '{}'", field.name),
+                    Some(&declaration.component),
+                    Some(&field.name),
+                ));
+            }
+        }
+        for (name, value) in &fields {
+            let max = if name == "note" { 1024 } else { 256 };
+            if value.trim().is_empty() || value.len() > max || value.chars().any(char::is_control) {
+                return Err(semantic_error(
+                    "KES-C024",
+                    format!(
+                        "physical-part field '{name}' must be non-empty, control-free and at most {max} bytes"
+                    ),
+                    Some(&declaration.component),
+                    Some(name),
+                ));
+            }
+        }
+
+        let footprint = fields.get("footprint").cloned();
+        let pin_map = if let Some(mapping) = fields.get("pin_map") {
+            if footprint.is_none() {
+                return Err(semantic_error(
+                    "KES-C024",
+                    "pin_map requires an explicit footprint",
+                    Some(&declaration.component),
+                    Some("pin_map"),
+                ));
+            }
+            parse_physical_pin_map(&declaration.component, mapping, component)?
+        } else {
+            BTreeMap::new()
+        };
+        assignments.push(PhysicalPartAssignment {
+            component: declaration.component.clone(),
+            manufacturer: fields.get("manufacturer").cloned(),
+            mpn: fields.get("mpn").cloned(),
+            footprint,
+            pin_map,
+            note: fields.get("note").cloned(),
+        });
+    }
+    assignments.sort_by(|left, right| left.component.cmp(&right.component));
+    Ok(PhysicalPartManifest {
+        schema_version: PHYSICAL_PART_SCHEMA_VERSION.into(),
+        assignments,
+    })
+}
+
+fn parse_physical_pin_map(
+    component_id: &str,
+    input: &str,
+    component: &IRComponent,
+) -> Result<BTreeMap<String, String>, SemanticDiagnostic> {
+    let expected = crate::component::component_definition(&component.kind)
+        .pins
+        .iter()
+        .map(|pin| pin.name)
+        .collect::<Vec<_>>();
+    let mut mapping = BTreeMap::new();
+    let mut physical = std::collections::BTreeSet::new();
+    for entry in input.split(',') {
+        let Some((logical, pad)) = entry.trim().split_once(':') else {
+            return Err(semantic_error(
+                "KES-C024",
+                format!("invalid pin_map entry '{entry}'; expected logical_pin:physical_pad"),
+                Some(component_id),
+                Some("pin_map"),
+            ));
+        };
+        let logical = logical.trim();
+        let pad = pad.trim();
+        if !expected.contains(&logical) {
+            return Err(semantic_error(
+                "KES-C024",
+                format!(
+                    "pin_map names unknown logical pin '{logical}'; expected {}",
+                    expected.join(", ")
+                ),
+                Some(component_id),
+                Some("pin_map"),
+            ));
+        }
+        if pad.is_empty()
+            || !pad.chars().all(|character| {
+                character.is_ascii_alphanumeric() || matches!(character, '_' | '-' | '.')
+            })
+        {
+            return Err(semantic_error(
+                "KES-C024",
+                format!("physical pad '{pad}' must use letters, digits, '_', '-' or '.'"),
+                Some(component_id),
+                Some("pin_map"),
+            ));
+        }
+        if mapping
+            .insert(logical.to_string(), pad.to_string())
+            .is_some()
+        {
+            return Err(semantic_error(
+                "KES-C024",
+                format!("logical pin '{logical}' is mapped more than once"),
+                Some(component_id),
+                Some("pin_map"),
+            ));
+        }
+        if !physical.insert(pad.to_string()) {
+            return Err(semantic_error(
+                "KES-C024",
+                format!("physical pad '{pad}' is assigned more than once"),
+                Some(component_id),
+                Some("pin_map"),
+            ));
+        }
+    }
+    let missing = expected
+        .iter()
+        .filter(|pin| !mapping.contains_key(**pin))
+        .copied()
+        .collect::<Vec<_>>();
+    if !missing.is_empty() {
+        return Err(semantic_error(
+            "KES-C024",
+            format!(
+                "pin_map is incomplete; add mappings for {}",
+                missing.join(", ")
+            ),
+            Some(component_id),
+            Some("pin_map"),
+        ));
+    }
+    Ok(mapping)
 }
 
 fn split_assertion_arguments(arguments: &str) -> Vec<&str> {

@@ -11,7 +11,7 @@ use pest::error::LineColLocation;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const COMPILE_SCHEMA_VERSION: &str = "kessetsu.compile.v6";
+pub const COMPILE_SCHEMA_VERSION: &str = "kessetsu.compile.v7";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -366,6 +366,21 @@ pub fn compile_source_with_inputs(
                 };
                 diagnostic.line = Some(position.0);
                 diagnostic.column = Some(position.1);
+            }
+            if diagnostic.code == "KES-C024"
+                && let Some(component) = diagnostic.component.as_deref()
+                && let Some(part) = flat_program.statements.iter().find_map(|statement| {
+                    if let crate::ast::Statement::Part(part) = statement
+                        && part.component == component
+                    {
+                        Some(part)
+                    } else {
+                        None
+                    }
+                })
+            {
+                diagnostic.line = Some(part.line);
+                diagnostic.column = Some(part.column);
             }
             report.diagnostics.push(diagnostic);
             annotate_source_locations(source, &mut report.diagnostics);

@@ -305,6 +305,20 @@ Exact packages are selected with syntax such as `model_include kessetsu_analog 1
 
 External subcircuits use the typed `external_subcircuit` contract in the [model catalog](reference/model-catalog.md). The declaration carries a source-relative resource reference, exact SHA-256, `.SUBCKT` entry, canonical pin mapping, provenance, closed simulator-compatibility mode, and explicit redistribution policy. It may additionally expose a bounded `instance_parameters="Name:Unit,..."` allowlist, but every exposed name must already exist in the exact library header. Instance literals/expressions are unit-checked, resolved into Circuit IR and emitted by backends without mutating model text. The native CLI resolves only files contained under the `.kess` source directory; Core validates bytes before producing IR. Simulation stages an exact temporary copy and maps `ngspice_ps` only to the bounded Ngspice compatibility option. Op-amp, comparator and two-terminal families use the shared catalog. Web supports explicit in-memory local bindings and a bounded portable analog library profile. Only ephemeral browser simulation decks receive exact validated text through IR-selected references; ordinary SPICE/compile/IR/lock/export data retains dependencies, not resource bodies. Native-only compatibility fails before browser execution. No implicit upload, persistence or model substitution is permitted.
 
+### Physical-part boundary
+
+`part` statements attach optional manufacturer, MPN, footprint, complete logical-pin-to-pad map
+and user note to a declared electrical component. Elaboration qualifies assignments inside modules;
+semantic conversion validates them against the shared component catalog and stores them separately
+in `kessetsu.physical-parts.v1`. Unknown fields, duplicate assignments, missing targets, partial or
+ambiguous pin maps and assignments to virtual module ports fail closed as `KES-C024`.
+
+The electrical component kind, value, simulation model and graph connectivity are unchanged. SPICE
+generation does not consume physical-part metadata. Missing fields remain absent, and a footprint
+without a pin map does not imply one. This separation is the prerequisite for BOM and EDA handoff;
+it is not a sourcing, stock, rating or manufacturability claim. The additive IR field advances the
+compile report contract to `kessetsu.compile.v7`.
+
 Attempts to hide `.control`, `.include`, shell syntax, or line breaks inside quoted parameters cannot cross typed numeric and metadata validation. When an error exists, the SPICE backend does not run. Regression tests protect this injection boundary.
 
 ## 6. ERC (Electrical Rules Check) Engine (`erc.rs`)

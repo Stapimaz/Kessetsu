@@ -53,6 +53,14 @@ pub struct NetDecl {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PartAssignmentDecl {
+    pub component: String,
+    pub fields: Vec<NamedValue>,
+    pub line: usize,
+    pub column: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Cmp {
     Lt,
     Gt,
@@ -179,6 +187,7 @@ pub enum Statement {
     Decl(ComponentDecl),
     Connect(Connection),
     Net(NetDecl),
+    Part(PartAssignmentDecl),
     Assert(AssertStmt),
     Use(UseStmt),
     Simulate(SimulateStmt),
@@ -224,6 +233,7 @@ impl Statement {
                         .map(|arg| arg.expression.node_count())
                         .sum::<usize>()
             }
+            Self::Part(_) => 0,
             _ => 0,
         }
     }
