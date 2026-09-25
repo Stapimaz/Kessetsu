@@ -80,6 +80,13 @@ function Assert-EdaNetlists {
         $expectedRecord = $canonical[$canonicalKey[0]]
         $expectedTail = ($expectedRecord[(1 + $pins.Count)..($expectedRecord.Count - 1)] -join ' ')
         $actualTail = ($ltRecord[$tailStart..($ltRecord.Count - 1)] -join ' ')
+        # Canonical Ngspice emits the optional `params:` separator for X instances;
+        # LTspice removes that keyword when it generates its netlist. Parameter names,
+        # values and order must still match exactly after this one syntax normalization.
+        if ($prefix -eq 'X') {
+            $expectedTail = $expectedTail -replace '^(\S+)\s+params:\s+', '$1 '
+            $actualTail = $actualTail -replace '^(\S+)\s+params:\s+', '$1 '
+        }
         if ($actualTail -ine $expectedTail) { throw "LTspice value/model/stimulus changed: $ref" }
         for ($index = 0; $index -lt $pins.Count; $index++) {
             $pin = $pins[$index]
