@@ -1,6 +1,10 @@
 param(
     [switch]$RequireApplications,
-    [string[]]$Fixtures = @('rc_filter', 'gain_stage', 'power_amplifier', 'external_comparator', 'external_memristor')
+    [string[]]$Fixtures = @(
+        'rc_filter', 'gain_stage', 'power_amplifier',
+        'external_comparator', 'external_memristor',
+        'loaded_filter', 'transistor_driver', 'reusable_filters', 'reusable_amplifiers'
+    )
 )
 
 $ErrorActionPreference = 'Stop'
@@ -34,7 +38,9 @@ if ($LASTEXITCODE -ne 0) { throw 'Kessetsu release build failed.' }
 
 New-Item -ItemType Directory -Force $resultPath | Out-Null
 foreach ($name in $Fixtures) {
-    $source = Join-Path $corePath "tests/fixtures/benchmarks/$name.kess"
+    $benchmarkSource = Join-Path $corePath "tests/fixtures/benchmarks/$name.kess"
+    $exampleSource = Join-Path $repoRoot "examples/$name.kess"
+    $source = if (Test-Path -LiteralPath $benchmarkSource) { $benchmarkSource } else { $exampleSource }
     if ($name.StartsWith('external_')) {
         $source = Join-Path $resultPath "$name.kess"
         Copy-Item -LiteralPath (Join-Path $repoRoot "examples/$name.kess") -Destination $source -Force
@@ -43,6 +49,7 @@ foreach ($name in $Fixtures) {
             Copy-Item -LiteralPath (Join-Path $repoRoot "examples/models/$modelFile") -Destination (Join-Path $resultPath "models/$modelFile") -Force
         }
     }
+    if (-not (Test-Path -LiteralPath $source)) { throw "Unknown EDA fixture: $name" }
     $kicadSchematic = Join-Path $resultPath "$name.kicad_sch"
     $kicadNetlist = Join-Path $resultPath "$name.kicad.xml"
     $kicadErc = Join-Path $resultPath "$name.erc.rpt"

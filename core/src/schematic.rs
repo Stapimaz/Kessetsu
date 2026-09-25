@@ -3678,10 +3678,27 @@ pub(crate) fn route_schematic(
         } else {
             None
         };
+        let aligned_hub_is_obstructed = aligned_pin_hub.is_some_and(|aligned| {
+            net.pins.iter().any(|pin| {
+                let pin_point = anchors[pin].0;
+                pin_point != aligned
+                    && points_on_path(&[pin_point, aligned]).iter().any(|point| {
+                        *point != pin_point && *point != aligned && blocked.contains(point)
+                    })
+            })
+        });
         let candidate = if driver_escapes.len() == 1 {
             driver_escapes[0]
         } else if let Some(aligned) = aligned_pin_hub {
-            aligned
+            if aligned_hub_is_obstructed {
+                net.pins
+                    .iter()
+                    .find(|pin| anchors[*pin].0 == aligned)
+                    .map(|pin| anchors[pin].1)
+                    .unwrap_or(aligned)
+            } else {
+                aligned
+            }
         } else {
             Point::new(xs[xs.len() / 2], ys[ys.len() / 2])
         };

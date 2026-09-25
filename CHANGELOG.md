@@ -4,6 +4,17 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### Schematic navigation and quality
+
+- The Web schematic inspector can find and center components or named nets, follow logical pins,
+  highlight a complete net, show model provenance and navigate structured reusable-block groups.
+- Multiway aligned nets move an obstructed branch hub to a clear pin escape, avoiding duplicate
+  wire segments and stacked junction dots without changing canonical connectivity.
+- KiCad handoff schematics use roomier native spacing, hide retained pin metadata by default and
+  place named-net labels on short outward stubs so editable exports open without text collisions.
+- The visual and real KiCad/LTspice corpus now includes loaded filters, transistor drivers and
+  independently parameterized reusable filter/amplifier instances.
+
 ### Physical part identity
 
 - `part` statements attach optional manufacturer, MPN, footprint, complete logical-pin mapping and

@@ -60,6 +60,22 @@ const CORPUS: &[(&str, &str)] = &[
         "dense_bias_network",
         include_str!("fixtures/schematic/dense_bias_network.kess"),
     ),
+    (
+        "loaded_filter",
+        include_str!("../../examples/loaded_filter.kess"),
+    ),
+    (
+        "transistor_driver",
+        include_str!("../../examples/transistor_driver.kess"),
+    ),
+    (
+        "reusable_filters",
+        include_str!("../../examples/reusable_filters.kess"),
+    ),
+    (
+        "reusable_amplifiers",
+        include_str!("../../examples/reusable_amplifiers.kess"),
+    ),
 ];
 
 fn schematic(source: &str) -> kessetsu_core::schematic::Schematic {
@@ -75,6 +91,26 @@ fn schematic(source: &str) -> kessetsu_core::schematic::Schematic {
 fn svg_hash(source: &str) -> String {
     let svg = schematic_svg::render_svg(&schematic(source));
     format!("{:x}", Sha256::digest(svg.as_bytes()))
+}
+
+#[test]
+fn loaded_filter_uses_one_clear_multiway_junction() {
+    let loaded = schematic(include_str!("../../examples/loaded_filter.kess"));
+    let output = loaded.nets.iter().find(|net| net.name == "OUT").unwrap();
+    let junctions = loaded
+        .junctions
+        .iter()
+        .filter(|junction| junction.net == output.id)
+        .collect::<Vec<_>>();
+    assert_eq!(junctions.len(), 1);
+    assert!(
+        loaded
+            .components
+            .iter()
+            .flat_map(|component| &component.pins)
+            .all(|pin| pin.point != junctions[0].point),
+        "a branch hub must use the clear pin escape instead of stacking a second junction on a component pin"
+    );
 }
 
 #[test]

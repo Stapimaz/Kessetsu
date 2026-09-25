@@ -42,7 +42,9 @@ Manufacturer/MPN fields are user-provided identity, not verified stock, price or
 
 ## EDA verification
 
-`scripts/verify-eda-exports.ps1 -RequireApplications` generates the RC-filter, gain-stage, and power-amplifier fixtures through Core/CLI. It then:
+`scripts/verify-eda-exports.ps1 -RequireApplications` generates RC filter, gain stage, power
+amplifier, external comparator/memristor, loaded filter, transistor-driver and independently
+parameterized reusable-block fixtures through Core/CLI. It then:
 
 - parses each file with KiCad 10, generates a KiCad XML netlist, runs ERC, and compares the exact component set, pin identities, net connectivity, displayed values and model metadata against canonical Schematic IR;
 - opens each `.asc` through LTspice 24.1.9's real `-netlist` path and compares component sets, ordered pin connectivity, values/models/stimuli and the active analysis against canonical Schematic IR and SPICE, including a complete `.end` record. Inactive analyses remain in the schematic as comments. Generated net names may differ; merged or split nets fail the comparison.

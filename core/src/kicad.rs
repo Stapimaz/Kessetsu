@@ -3,7 +3,11 @@ use crate::ir::{CircuitIR, PhysicalPartAssignment};
 use crate::schematic::{Point, Schematic, SchematicComponent, TextAnchor, TextRole};
 use sha2::{Digest, Sha256};
 
-const GRID_MM: f64 = 2.54;
+// Keep canonical layout steps roomy in native EDA tools.  A 100 mil mapping
+// made compact circuits electrically correct but crowded their properties and
+// pin names; 200 mil preserves the same geometry while matching the visual
+// density engineers expect from an editable KiCad schematic.
+const GRID_MM: f64 = 5.08;
 const PAGE_MARGIN_MM: f64 = 25.4;
 
 fn uuid(seed: &str) -> String {
@@ -90,7 +94,7 @@ fn library_symbol(component: &SchematicComponent, part: Option<&PhysicalPartAssi
         .take_while(|character| character.is_ascii_alphabetic() || *character == '#')
         .collect::<String>();
     let mut out = format!(
-        "    (symbol {}\n      (pin_names (offset 0))\n      (exclude_from_sim no)\n      (in_bom yes)\n      (on_board yes)\n",
+        "    (symbol {}\n      (pin_numbers hide)\n      (pin_names (offset 0) hide)\n      (exclude_from_sim no)\n      (in_bom yes)\n      (on_board yes)\n",
         quoted(&name)
     );
     out.push_str(&property("Reference", &prefix, "0", "-2.54", false));
@@ -370,7 +374,7 @@ pub fn generate_kicad_sch_with_parts(
         }
     }
     for label in &schematic.labels {
-        let attached = schematic
+        let (component, attached) = schematic
             .components
             .iter()
             .find(|component| component.id == label.attached_to.component)
@@ -379,6 +383,7 @@ pub fn generate_kicad_sch_with_parts(
                     .pins
                     .iter()
                     .find(|pin| pin.name == label.attached_to.pin)
+                    .map(|pin| (component, pin))
             })
             .ok_or_else(|| ExportError {
                 code: "KES-X018".to_string(),
@@ -388,9 +393,57 @@ pub fn generate_kicad_sch_with_parts(
                 ),
                 diagnostics: Vec::new(),
             })?;
-        let (x, y) = point(schematic, attached.point);
+
+        // KiCad renders a label away from its anchor according to its
+        // justification.  Anchoring every label directly on a pin therefore
+        // allowed power/ground names to overlap portable symbol bodies.  Add
+        // a short outward stub and place the label at its free end instead.
+        let sides = [
+            (
+                (attached.point.x - component.bounds.min.x).abs(),
+                Point {
+                    x: attached.point.x - 1,
+                    y: attached.point.y,
+                },
+                "right bottom",
+            ),
+            (
+                (attached.point.x - component.bounds.max.x).abs(),
+                Point {
+                    x: attached.point.x + 1,
+                    y: attached.point.y,
+                },
+                "left bottom",
+            ),
+            (
+                (attached.point.y - component.bounds.min.y).abs(),
+                Point {
+                    x: attached.point.x,
+                    y: attached.point.y - 1,
+                },
+                "bottom",
+            ),
+            (
+                (attached.point.y - component.bounds.max.y).abs(),
+                Point {
+                    x: attached.point.x,
+                    y: attached.point.y + 1,
+                },
+                "top",
+            ),
+        ];
+        let (_, label_point, justify) = sides
+            .into_iter()
+            .min_by_key(|(distance, _, _)| *distance)
+            .expect("component sides are fixed");
+        let (pin_x, pin_y) = point(schematic, attached.point);
+        let (x, y) = point(schematic, label_point);
         out.push_str(&format!(
-            "  (label {} (at {x} {y} 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid {}))\n",
+            "  (wire (pts (xy {pin_x} {pin_y}) (xy {x} {y})) (stroke (width 0) (type default)) (uuid {}))\n",
+            quoted(&uuid(&format!("kicad:label-stub:{}", label.id)))
+        ));
+        out.push_str(&format!(
+            "  (label {} (at {x} {y} 0) (effects (font (size 1.27 1.27)) (justify {justify})) (uuid {}))\n",
             quoted(&label.text),
             quoted(&uuid(&format!("kicad:label:{}", label.id)))
         ));

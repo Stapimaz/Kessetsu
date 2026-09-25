@@ -17,6 +17,10 @@ const corpus = [
   ['bjt-common-emitter', '../../../core/tests/fixtures/schematic/bjt_common_emitter.kess', 'Q1'],
   ['summing-amplifier', '../../../core/tests/fixtures/schematic/summing_amplifier.kess', 'U1'],
   ['dense-bias-network', '../../../core/tests/fixtures/schematic/dense_bias_network.kess', 'C_BIAS'],
+  ['loaded-filter', '../../../examples/loaded_filter.kess', 'RL'],
+  ['transistor-driver', '../../../examples/transistor_driver.kess', 'Q1'],
+  ['reusable-filters', '../../../examples/reusable_filters.kess', 'FAST_R1'],
+  ['reusable-amplifiers', '../../../examples/reusable_amplifiers.kess', 'SECOND_U1'],
 ] as const;
 
 test('renders the canonical schematic corpus with verified quality', async ({ page }) => {
@@ -64,6 +68,7 @@ test('renders the canonical schematic corpus with verified quality', async ({ pa
       }
       await page.keyboard.press('Escape');
       await expect(schematic).not.toHaveAttribute('data-selected-component', component);
+      await surface.hover({ position: { x: 4, y: 4 } });
       await expect(componentSymbol).not.toHaveClass(/is-component-active/);
       await componentSymbol.click();
       await expect(schematic).toHaveAttribute('data-selected-component', component);
