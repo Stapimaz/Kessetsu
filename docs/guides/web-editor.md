@@ -15,6 +15,12 @@ or local-model examples. **File → New circuit** starts a document; **Open .kes
 a local source file. Rename the document through **File → Rename…** or the Share dialog.
 Example selection replaces the active source; save work before switching.
 
+Development source also provides **File → Import SPICE netlist…** for `.cir`, `.sp`, `.spice`
+and `.net` files in the [declared import subset](spice-import.md). A successful conversion opens
+ordinary editable `.kess` as an unsaved document. Unsupported content reports original line
+numbers and leaves the current circuit in place. You can also drop a `.kess` or supported SPICE
+file onto the workspace; the same validation and unsaved-work confirmation apply.
+
 The Source panel is a text editor with language completion and diagnostics. Changes
 automatically compile, run ERC and update the schematic after a short delay. The header
 status reports checking, success or errors. Fix source diagnostics before exporting or running.

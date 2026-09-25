@@ -1,5 +1,6 @@
 import { CheckCircle2, ChevronRight, CircleAlert, LoaderCircle, Share2 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import type { DragEvent } from 'react';
 import productVersionSource from '../../../VERSION?raw';
 import {
   downloadTextFile,
@@ -33,7 +34,7 @@ const ResearchDataDialog = lazy(async () => {
 
 export function WorkspaceApp() {
   const {
-    state, setCode, loadExample, newDocument, openDocument, markSaved, saveBrowserDocument, renameDocument,
+    state, setCode, loadExample, newDocument, openDocument, importSpiceDocument, markSaved, saveBrowserDocument, renameDocument,
     run, cancel, createExport, share,
     modelRequirements, boundModelResources, bindModelFile, clearModelFiles,
     modelResources,
@@ -51,6 +52,7 @@ export function WorkspaceApp() {
   const [documentNotice, setDocumentNotice] = useState('');
   const menusRef = useRef<HTMLElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const spiceInputRef = useRef<HTMLInputElement>(null);
   const fileHandleRef = useRef<KessetsuFileHandle | null>(null);
   const noticeTimeoutRef = useRef<number | null>(null);
   const nativeFileSaving = nativeFileSavingSupported();
@@ -164,6 +166,41 @@ export function WorkspaceApp() {
       });
   };
 
+  const importSpiceFile = useCallback(async (file: File) => {
+    setDocumentError('');
+    fileHandleRef.current = null;
+    try {
+      const report = await importSpiceDocument(file);
+      showDocumentNotice(`Imported ${report.summary.components} components from ${file.name}`);
+    } catch (cause: unknown) {
+      setDocumentError(`SPICE import stopped: ${cause instanceof Error ? cause.message : String(cause)}`);
+    }
+  }, [importSpiceDocument, showDocumentNotice]);
+
+  const chooseSpiceDocument = () => {
+    if (state.isDirty && !globalThis.confirm('Discard the current unsaved changes and import a SPICE netlist?')) return;
+    setOpenMenu(null);
+    spiceInputRef.current?.click();
+  };
+
+  const dropDocument = (event: DragEvent<HTMLElement>) => {
+    const file = event.dataTransfer.files[0];
+    if (!file) return;
+    event.preventDefault();
+    if (state.isDirty && !globalThis.confirm('Discard the current unsaved changes and open the dropped circuit?')) return;
+    if (/\.kess$/i.test(file.name)) {
+      fileHandleRef.current = null;
+      setDocumentError('');
+      void openDocument(file).catch((cause: unknown) => {
+        setDocumentError(`Could not open circuit: ${cause instanceof Error ? cause.message : String(cause)}`);
+      });
+    } else if (/\.(?:cir|sp|spice|net)$/i.test(file.name)) {
+      void importSpiceFile(file);
+    } else {
+      setDocumentError('Drop a .kess circuit or a .cir, .sp, .spice or .net SPICE netlist.');
+    }
+  };
+
   const restorePreviousCircuit = async () => {
     if (state.isDirty && !globalThis.confirm('Replace the current unsaved circuit with the previous browser circuit? Download it first if you need both.')) return;
     try {
@@ -236,7 +273,9 @@ export function WorkspaceApp() {
   }, [saveDocument]);
 
   return (
-    <main className="app-shell">
+    <main className="app-shell" onDragOver={(event) => {
+      if (event.dataTransfer.types.includes('Files')) event.preventDefault();
+    }} onDrop={dropDocument}>
       <header className="app-menubar">
         <a className="wordmark" href="./" aria-label="Kessetsu home"><BrandWordmark /></a>
         <nav className="application-menus" aria-label="Application menu" ref={menusRef}>
@@ -245,6 +284,7 @@ export function WorkspaceApp() {
             {openMenu === 'file' && <div className="menu-popover file-menu" role="menu" aria-label="File menu">
               <button role="menuitem" onClick={startNewDocument}><span>New circuit</span></button>
               <button role="menuitem" onClick={chooseDocument}><span>Open .kess…</span></button>
+              <button role="menuitem" onClick={chooseSpiceDocument}><span>Import SPICE netlist...</span></button>
               <button role="menuitem" aria-label={nativeFileSaving ? 'Save' : 'Save in browser'} onClick={() => void saveDocument()}>
                 <span>{nativeFileSaving ? 'Save' : 'Save in browser'}</span><kbd>Ctrl+S</kbd>
               </button>
@@ -352,6 +392,18 @@ export function WorkspaceApp() {
           void openDocument(file).catch((cause: unknown) => {
             setDocumentError(`Could not open circuit: ${cause instanceof Error ? cause.message : String(cause)}`);
           });
+        }}
+      />
+      <input
+        ref={spiceInputRef}
+        className="sr-only"
+        type="file"
+        accept=".cir,.sp,.spice,.net,text/plain"
+        aria-label="Import SPICE netlist"
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = '';
+          if (file) void importSpiceFile(file);
         }}
       />
       {state.draftRestored && <div className="draft-notice" role="status">Unsaved browser draft restored. Use File to save it here or download a portable .kess copy.</div>}

@@ -28,6 +28,26 @@ export interface CompileReport {
   ir?: { model_manifest: ModelManifest } | null;
 }
 
+export interface SpiceImportDiagnostic {
+  code: string;
+  severity: 'error' | 'warning' | 'info';
+  message: string;
+  line?: number;
+  column?: number;
+}
+
+export interface SpiceImportReport {
+  schema_version: string;
+  dialect: string;
+  source_sha256: string;
+  source_bytes: number;
+  diagnostics: SpiceImportDiagnostic[];
+  names: Array<{ kind: 'component' | 'net'; original: string; kessetsu: string }>;
+  summary: { components: number; nets: number; analyses: number };
+  kess_source?: string;
+  compile_schema_version?: string;
+}
+
 export interface ModelManifest {
   schema_version: string;
   models: ModelInfo[];

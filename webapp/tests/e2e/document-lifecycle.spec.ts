@@ -75,6 +75,40 @@ test('uses clear browser-local Save and explicit download when native file handl
   await expect(page.locator('svg g.component[data-component="R1"]')).toBeVisible();
 });
 
+test('imports the supported SPICE subset as an unsaved editable circuit', async ({ page }) => {
+  await page.goto('/#editor');
+  await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
+
+  await openFileMenu(page);
+  const chooserPromise = page.waitForEvent('filechooser');
+  await page.getByRole('menuitem', { name: 'Import SPICE netlist...' }).click();
+  const chooser = await chooserPromise;
+  await chooser.setFiles({
+    name: 'Imported Filter.cir',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('V1 in 0 AC 1\nR1 in out 1k\nC1 out 0 159.154943n\n.ac dec 40 10 100k\n.end\n'),
+  });
+
+  await expect(page.locator('.document-title')).toHaveText('Imported Filter');
+  await expect(page.locator('.document-title')).toHaveAttribute('aria-label', /unsaved changes/);
+  await expect(page.getByTestId('compile-success')).toBeVisible();
+  await expect(page.locator('.view-lines')).toContainText('Original source: sha256:');
+  await expect(page.locator('svg g.component[data-component="R1"]')).toBeVisible();
+
+  page.once('dialog', (dialog) => void dialog.accept());
+  await openFileMenu(page);
+  const invalidChooserPromise = page.waitForEvent('filechooser');
+  await page.getByRole('menuitem', { name: 'Import SPICE netlist...' }).click();
+  const invalidChooser = await invalidChooserPromise;
+  await invalidChooser.setFiles({
+    name: 'unsafe.cir',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('.include ../outside.lib\n.end\n'),
+  });
+  await expect(page.locator('.global-error')).toContainText('KES-N003 line 1');
+  await expect(page.locator('.document-title')).toHaveText('Imported Filter');
+});
+
 test('Save retains a native file handle while Save As selects a new destination', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium', 'Native File System Access save is a Chromium capability.');
   await page.addInitScript(() => {

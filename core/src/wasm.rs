@@ -345,6 +345,18 @@ pub fn compile_schema_version() -> String {
     COMPILE_SCHEMA_VERSION.to_string()
 }
 
+/// Converts only the declared SPICE subset and returns editable source after
+/// canonical recompilation. Browser file selection and persistence stay in JS.
+#[wasm_bindgen]
+pub fn import_spice_netlist(input: &str) -> Result<JsValue, JsValue> {
+    to_json_compatible(&crate::spice_import::import_spice(input), "SPICE import report")
+}
+
+#[wasm_bindgen]
+pub fn spice_import_schema_version() -> String {
+    crate::spice_import::SPICE_IMPORT_SCHEMA_VERSION.to_string()
+}
+
 /// Generates the same versioned artifact contract used by the native CLI.
 /// Binary payloads are serialized as byte arrays and should be downloaded as
 /// `Uint8Array` by the browser adapter.

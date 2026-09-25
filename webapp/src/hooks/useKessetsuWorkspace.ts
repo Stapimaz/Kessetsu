@@ -5,8 +5,10 @@ import init, {
   evaluate_browser_simulation_with_resources,
   export_kessetsu_with_resources,
   export_schema_version,
+  import_spice_netlist,
   prepare_browser_simulation_with_resources,
   local_model_requirements,
+  spice_import_schema_version,
   supported_export_capabilities,
 } from 'kessetsu-core';
 import rcFilter from '../../../core/tests/fixtures/benchmarks/rc_filter.kess?raw';
@@ -18,10 +20,11 @@ import externalComparator from '../../../examples/external_comparator.kess?raw';
 import externalMemristor from '../../../examples/external_memristor.kess?raw';
 import loadedFilter from '../../../examples/loaded_filter.kess?raw';
 import transistorDriver from '../../../examples/transistor_driver.kess?raw';
-import type { CompileReport, ExportArtifact, ExportFormat, WorkspaceState } from '../domain';
+import type { CompileReport, ExportArtifact, ExportFormat, SpiceImportReport, WorkspaceState } from '../domain';
 import {
   decodeWorkspaceDraft,
   documentNameFromFile,
+  documentNameFromSpiceFile,
   MAX_DOCUMENT_SOURCE_BYTES,
   normalizeDocumentName,
   writeWorkspaceDraft,
@@ -325,6 +328,50 @@ export function useKessetsuWorkspace() {
     }));
   }, [leaveSharedUrl]);
 
+  const importSpiceDocument = useCallback(async (file: File): Promise<SpiceImportReport> => {
+    if (!state.wasmLoaded) throw new Error('Kessetsu Core is still loading');
+    if (file.size > MAX_DOCUMENT_SOURCE_BYTES) throw new Error('SPICE source exceeds the 1 MiB browser import limit');
+    const input = await file.text();
+    if (new TextEncoder().encode(input).byteLength > MAX_DOCUMENT_SOURCE_BYTES) {
+      throw new Error('SPICE source exceeds the 1 MiB browser import limit');
+    }
+    const report = import_spice_netlist(input) as SpiceImportReport;
+    if (report.schema_version !== spice_import_schema_version()) {
+      throw new Error(`Unsupported SPICE import report: ${report.schema_version}`);
+    }
+    const errors = report.diagnostics.filter((diagnostic) => diagnostic.severity === 'error');
+    if (errors.length > 0 || !report.kess_source) {
+      const details = errors.slice(0, 4).map((diagnostic) =>
+        `${diagnostic.code}${diagnostic.line ? ` line ${diagnostic.line}` : ''}: ${diagnostic.message}`
+      ).join(' ');
+      throw new Error(details || 'The netlist could not be represented as a complete Kessetsu circuit');
+    }
+    revisionRef.current += 1;
+    setModelResources({});
+    leaveSharedUrl();
+    runnerRef.current?.cancel();
+    setState((current) => ({
+      ...current,
+      code: report.kess_source!,
+      circuitName: documentNameFromSpiceFile(file.name),
+      isDirty: true,
+      draftRestored: false,
+      compileState: 'checking',
+      compileSucceeded: false,
+      diagnostics: [],
+      schematic: null,
+      schematicSvg: '',
+      spiceNetlist: '',
+      kicadSch: '',
+      modelManifest: null,
+      simulationState: 'idle',
+      simulationMessage: 'Imported from SPICE. Run the simulation to inspect results.',
+      evaluation: null,
+      exportMessage: '',
+    }));
+    return report;
+  }, [leaveSharedUrl, state.wasmLoaded]);
+
   const markSaved = useCallback(() => {
     setState((current) => ({ ...current, isDirty: false, draftRestored: false }));
   }, []);
@@ -448,6 +495,7 @@ export function useKessetsuWorkspace() {
     loadExample,
     newDocument,
     openDocument,
+    importSpiceDocument,
     markSaved,
     saveBrowserDocument,
     renameDocument,

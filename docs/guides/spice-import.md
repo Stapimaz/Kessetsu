@@ -13,6 +13,10 @@ If `--output` is omitted for a file input, the CLI uses the same basename with `
 Existing files require `--force`. Standard input is supported with
 `kess import - --output circuit.kess`; it never chooses an implicit file destination.
 
+In development Web Hub builds, choose **File → Import SPICE netlist…** or drop a supported
+netlist onto the editor. Conversion runs locally through the same Core contract. A complete
+import opens as an unsaved editable circuit; a rejected import leaves the current document intact.
+
 ## What the first subset accepts
 
 | SPICE form | Kessetsu result |

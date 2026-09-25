@@ -123,6 +123,11 @@ export function documentNameFromFile(fileName: string): string {
   return normalizeDocumentName(withoutExtension || 'Untitled circuit');
 }
 
+export function documentNameFromSpiceFile(fileName: string): string {
+  const withoutExtension = fileName.replace(/\.(?:cir|sp|spice|net)$/i, '');
+  return normalizeDocumentName(withoutExtension || 'Imported circuit');
+}
+
 export function sanitizeFileStem(name: string): string {
   const normalized = name
     .normalize('NFKD')

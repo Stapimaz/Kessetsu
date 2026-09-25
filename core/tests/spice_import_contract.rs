@@ -2,6 +2,9 @@ mod common;
 
 use common::TestWorkspace;
 use kessetsu_core::compiler::{CompileOptions, compile_source};
+use kessetsu_core::simulation::{
+    CancellationToken, Dataset, NgspiceRunner, SimulationRequest, SimulationRunner,
+};
 use kessetsu_core::spice_import::{ImportSeverity, SPICE_IMPORT_SCHEMA_VERSION, import_spice};
 use serde_json::Value;
 use std::fs;
@@ -124,4 +127,65 @@ fn cli_writes_verified_source_and_refuses_an_accidental_overwrite() {
     let repeated = workspace.run_cli(&["import", &input, "--output", &output_arg]);
     assert_eq!(repeated.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&repeated.stderr).contains("KES-I003"));
+}
+
+#[test]
+fn imported_rc_response_matches_the_original_supported_netlist_in_ngspice() {
+    let input = "VINPUT in 0 AC 1\nR1 in out 1k\nC1 out 0 159.154943n\n.ac dec 40 10 100k\n.end\n";
+    let imported = import_spice(input);
+    assert!(!imported.has_errors(), "{:?}", imported.diagnostics);
+    let compiled = compile_source(
+        imported.kess_source.as_deref().expect("verified source"),
+        CompileOptions::default(),
+    );
+    assert!(!compiled.has_errors(), "{:?}", compiled.diagnostics);
+    let analyses = compiled.ir.as_ref().expect("typed IR").analyses.clone();
+    let reference = "Imported RC reference
+VINPUT in 0 AC 1
+R1 in out 1k
+C1 out 0 159.154943n
+.control
+set wr_singlescale
+set wr_vecnames
+set numdgt=17
+ac dec 40 10 100k
+wrdata kessetsu-analysis-000-ac.data all
+quit
+.endc
+.end
+";
+    let runner = NgspiceRunner::discover();
+    let reference = runner
+        .run(
+            &SimulationRequest::new(reference, analyses.clone()),
+            &CancellationToken::new(),
+        )
+        .expect("Ngspice reference should launch");
+    let generated = runner
+        .run(
+            &SimulationRequest::new(compiled.spice_netlist.expect("canonical netlist"), analyses),
+            &CancellationToken::new(),
+        )
+        .expect("Ngspice imported circuit should launch");
+    assert!(reference.succeeded(), "{:?}", reference.errors);
+    assert!(generated.succeeded(), "{:?}", generated.errors);
+    let Dataset::Ac(reference) = &reference.datasets[0].data else {
+        panic!("reference AC dataset missing")
+    };
+    let Dataset::Ac(generated) = &generated.datasets[0].data else {
+        panic!("generated AC dataset missing")
+    };
+    assert_eq!(reference.frequency_hz, generated.frequency_hz);
+    let reference = &reference.signals["out"];
+    let generated = &generated.signals["out"];
+    for ((expected_real, expected_imaginary), (actual_real, actual_imaginary)) in reference
+        .real
+        .iter()
+        .zip(&reference.imaginary)
+        .zip(generated.real.iter().zip(&generated.imaginary))
+    {
+        let scale = expected_real.abs().max(expected_imaginary.abs()).max(1.0);
+        assert!((actual_real - expected_real).abs() <= scale * 1e-12);
+        assert!((actual_imaginary - expected_imaginary).abs() <= scale * 1e-12);
+    }
 }
