@@ -113,13 +113,24 @@ export function evaluateCorners(circuit) {
   };
 }
 
-function inspectWorkflow(candidatePath, arm) {
+function parseUtf8Json(path) {
+  return JSON.parse(readFileSync(path, 'utf8').replace(/^\uFEFF/, ''));
+}
+
+function hasNonEmptyFile(directory, names) {
+  return names.some((name) => {
+    const path = join(directory, name);
+    return existsSync(path) && statSync(path).size > 0;
+  });
+}
+
+export function inspectWorkflow(candidatePath, arm) {
   const directory = dirname(candidatePath);
   const resultPath = join(directory, 'study-results.json');
   let study = { present: false, valid: false, case_count: 0, error: null };
   if (existsSync(resultPath)) {
     try {
-      const parsed = JSON.parse(readFileSync(resultPath, 'utf8'));
+      const parsed = parseUtf8Json(resultPath);
       const cases = Array.isArray(parsed.cases) ? parsed.cases : [];
       const statusesPass = cases.length === 27 && cases.every((item) => String(item.status).toLowerCase() === 'pass' || String(item.status).toLowerCase() === 'passed');
       const nativeSummary = arm !== 'kessetsu' || (parsed.schema_version === 'kessetsu.experiment-results.v1'
@@ -128,9 +139,18 @@ function inspectWorkflow(candidatePath, arm) {
         schema_version: parsed.schema_version ?? null, sha256: digest(readFileSync(resultPath)) };
     } catch (error) { study = { present: true, valid: false, case_count: 0, error: error.message }; }
   }
-  const artifacts = ['summary.csv', 'REPORT.md', 'schematic.svg', 'schematic.png',
-    'candidate.kicad_sch', 'candidate.asc', 'bom.csv', 'handoff.json'];
-  const files = Object.fromEntries(artifacts.map((name) => [name, existsSync(join(directory, name)) && statSync(join(directory, name)).size > 0]));
+  const artifacts = {
+    'summary.csv': ['summary.csv'],
+    'REPORT.md': ['REPORT.md'],
+    'schematic.svg': ['schematic.svg', 'candidate.svg'],
+    'schematic.png': ['schematic.png', 'candidate.png'],
+    'candidate.kicad_sch': ['candidate.kicad_sch'],
+    'candidate.asc': ['candidate.asc'],
+    'bom.csv': ['bom.csv', 'candidate.bom.csv'],
+    'handoff.json': ['handoff.json', 'candidate.handoff.json'],
+  };
+  const files = Object.fromEntries(Object.entries(artifacts)
+    .map(([kind, names]) => [kind, hasNonEmptyFile(directory, names)]));
   const revisions = existsSync(join(directory, 'revisions'))
     ? readdirSync(join(directory, 'revisions'), { withFileTypes: true }).filter((entry) => entry.isFile()).length : 0;
   const report = files['REPORT.md'] ? readFileSync(join(directory, 'REPORT.md'), 'utf8') : '';
@@ -139,7 +159,7 @@ function inspectWorkflow(candidatePath, arm) {
 
 function main() {
   const [arm, path] = process.argv.slice(2);
-  const record = { schema_version: 'kessetsu.agent-workflow-m1-evaluation.v1', task: 'M1', arm };
+  const record = { schema_version: 'kessetsu.agent-workflow-m1-evaluation.v1', evaluator_revision: 2, task: 'M1', arm };
   try {
     if (!['kessetsu', 'direct'].includes(arm) || !path) throw new Error('Expected <kessetsu|direct> <candidate-file>');
     record.spec_sha256 = digest(readFileSync(join(root, SPEC)));
