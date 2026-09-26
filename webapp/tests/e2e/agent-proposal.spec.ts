@@ -18,11 +18,11 @@ test('keeps agent proposals separate until verified, accepted and explicitly rev
   const originalSource = await page.locator('.view-lines').innerText();
 
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Review agent proposal…', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Review an agent proposal', exact: true });
-  await dialog.getByPlaceholder(/Keep OUT/).fill('Restore the intended 1 kHz cutoff so every existing assertion passes.');
+  await page.getByRole('menuitem', { name: 'Work with an AI agent…', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Work with an AI agent', exact: true });
+  await dialog.getByPlaceholder(/Design for 2 W RMS/).fill('Restore the intended 1 kHz cutoff so every existing assertion passes.');
   const taskDownload = page.waitForEvent('download');
-  await dialog.getByRole('button', { name: 'Download JSON', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Download task file', exact: true }).click();
   const taskFile = await taskDownload;
   const task = JSON.parse(readFileSync((await taskFile.path())!, 'utf8')) as {
     circuit: { source: string; source_sha256: string };
@@ -38,23 +38,23 @@ test('keeps agent proposals separate until verified, accepted and explicitly rev
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify(proposal)),
   });
-  await expect(dialog.getByText('Core compile + connectivity')).toBeVisible();
+  await expect(dialog.getByText('Core compile and connectivity')).toBeVisible();
   await expect(dialog.getByText('3 changed lines')).toBeVisible();
 
-  await dialog.getByRole('button', { name: 'Close agent proposal' }).click();
+  await dialog.getByRole('button', { name: 'Close AI agent workflow' }).click();
   await expect(dialog).toBeHidden();
   await expect(page.locator('.view-lines')).toHaveText(originalSource, { useInnerText: true });
 
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Review agent proposal…', exact: true }).click();
-  await dialog.getByRole('button', { name: 'Run proposal', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Work with an AI agent…', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Test proposed circuit', exact: true }).click();
   await expect(dialog.getByTestId('agent-verification')).toBeVisible({ timeout: 90_000 });
   await expect(dialog.getByTestId('agent-verification')).toContainText('5/5 assertions passed');
-  await dialog.getByRole('button', { name: 'Accept proposal', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Apply to editor', exact: true }).click();
   await expect(dialog).toBeHidden();
   await expect(page.locator('.view-lines')).toContainText('reviewed agent proposal');
 
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Undo accepted proposal', exact: true }).click();
+  await page.getByRole('menuitem', { name: /Undo AI agent change/ }).click();
   await expect(page.locator('.view-lines')).toHaveText(originalSource, { useInnerText: true });
 });

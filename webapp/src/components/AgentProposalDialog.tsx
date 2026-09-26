@@ -82,6 +82,10 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
   const compileWarnings = compileReport?.diagnostics.filter((item) => item.severity === 'warning') ?? [];
   const connectivityVerified = Boolean(compileReport?.schematic?.connectivity.verified && compileReport.schematic_svg);
   const assertionSummary = verification?.assertions.summary;
+  const verificationPassed = verificationState === 'complete'
+    && Boolean(assertionSummary)
+    && assertionSummary!.failed === 0
+    && assertionSummary!.errors === 0;
 
   const buildTask = async () => {
     setError('');
@@ -99,7 +103,7 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
     if (!serialized) return;
     try {
       await navigator.clipboard.writeText(serialized);
-      setStatus('Agent task copied. You choose where to send it.');
+      setStatus('Task copied. Paste it into the AI agent you want to use.');
     } catch { setError('Clipboard access was blocked. Download the task JSON instead.'); }
   };
 
@@ -107,7 +111,7 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
     const serialized = taskText || await buildTask();
     if (!serialized) return;
     downloadTextFile(serialized, `${sanitizeFileStem(name)}.kessagent.json`);
-    setStatus('Agent task downloaded.');
+    setStatus('Task downloaded. Give the JSON file to the AI agent you want to use.');
   };
 
   const reviewProposal = async (text = proposalText) => {
@@ -123,7 +127,7 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
         setError(errors.slice(0, 4).map((item) => `${item.code}${item.line ? ` line ${item.line}` : ''}: ${item.message}`).join(' ') || 'Schematic connectivity was not verified.');
         setStatus('Proposal loaded, but Core rejected it. The editor source is unchanged.');
       } else {
-        setStatus('Proposal compiled and connectivity was verified. Run its simulation before accepting.');
+        setStatus('The returned circuit is valid and still separate from your editor. Test it before applying.');
       }
     } catch (cause) { setError(message(cause)); }
   };
@@ -169,34 +173,53 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
 
   return <dialog ref={dialog} className="app-dialog agent-proposal-dialog" aria-labelledby="agent-proposal-title"
     onCancel={(event) => { event.preventDefault(); close(); }} onClose={onClose}>
-    <header><div><h2 id="agent-proposal-title">Review an agent proposal</h2><p>Create a portable task, then verify a returned change before it can touch your circuit.</p></div><button aria-label="Close agent proposal" onClick={close}><X size={18} /></button></header>
+    <header><div><h2 id="agent-proposal-title">Work with an AI agent</h2><p>Send the current circuit to an AI, then let Kessetsu test its returned design before you apply it.</p></div><button aria-label="Close AI agent workflow" onClick={close}><X size={18} /></button></header>
+
+    <div className="agent-privacy-note">
+      <strong>You stay in control.</strong>
+      <span>Kessetsu never contacts an AI service or changes your circuit automatically. You choose the agent and move the task between apps.</span>
+    </div>
 
     <section className="agent-step">
-      <div className="agent-step-heading"><span>1</span><div><h3>Describe the outcome</h3><p>These requirements stay human-owned and are never changed by the proposal.</p></div></div>
-      <textarea rows={4} value={requirements} maxLength={12_000} placeholder="Example: Keep OUT between 2.75 V and 3.60 V across the stated supply and tolerance conditions…" onChange={(event) => { setRequirements(event.target.value); setTaskText(''); }} />
-      <div className="agent-actions"><button onClick={() => void copyTask()}><Clipboard size={14} /> Copy agent task</button><button onClick={() => void downloadTask()}><Download size={14} /> Download JSON</button></div>
-      {taskText && <details><summary>Inspect task JSON</summary><pre>{taskText}</pre></details>}
+      <div className="agent-step-heading"><span>1</span><div><h3>Tell the agent what you need</h3><p>Write the electrical target and limits. Kessetsu includes your current circuit automatically.</p></div></div>
+      <textarea rows={4} value={requirements} maxLength={12_000} placeholder="Example: Design for 2 W RMS into 8 ohm, gain near 20, and less than 2 W transistor dissipation. Include simulations and assertions for every target." onChange={(event) => { setRequirements(event.target.value); setTaskText(''); }} />
+      <div className="agent-actions"><button className="agent-primary" onClick={() => void copyTask()}><Clipboard size={14} /> Copy task for AI</button><button onClick={() => void downloadTask()}><Download size={14} /> Download task file</button></div>
+      {taskText && <div className="agent-next-step"><CheckCircle2 size={16} /><div><strong>Task ready</strong><span>Paste it into ChatGPT, Gemini, Claude, Codex, or another agent. Ask it to return only the requested JSON object.</span></div></div>}
+      {taskText && <details><summary>Inspect the task JSON</summary><pre>{taskText}</pre></details>}
     </section>
 
     <section className="agent-step">
-      <div className="agent-step-heading"><span>2</span><div><h3>Load the returned proposal</h3><p>Only the versioned proposal contract is accepted; stale source hashes are rejected.</p></div></div>
-      <textarea rows={5} value={proposalText} placeholder={`Paste ${'kessetsu.agent-proposal.v1'} JSON here…`} onChange={(event) => setProposalText(event.target.value)} />
+      <div className="agent-step-heading"><span>2</span><div><h3>Bring back the agent's reply</h3><p>Paste the complete JSON response, or open the JSON file the agent created.</p></div></div>
+      <textarea rows={5} value={proposalText} placeholder={`Paste the returned ${'kessetsu.agent-proposal.v1'} JSON here…`} onChange={(event) => setProposalText(event.target.value)} />
       <input ref={fileInput} type="file" className="sr-only" accept=".json,application/json" aria-label="Open agent proposal JSON" onChange={(event) => {
         const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (!file) return;
         if (file.size > MAX_AGENT_PROPOSAL_BYTES) { setError('Proposal file is too large'); return; }
         void file.text().then((text) => { setProposalText(text); return reviewProposal(text); }).catch((cause) => setError(message(cause)));
       }} />
-      <div className="agent-actions"><button onClick={() => fileInput.current?.click()}><FileUp size={14} /> Open JSON…</button><button className="agent-primary" disabled={!proposalText.trim()} onClick={() => void reviewProposal()}>Review proposal</button></div>
+      <div className="agent-actions"><button onClick={() => fileInput.current?.click()}><FileUp size={14} /> Open reply file…</button><button className="agent-primary" disabled={!proposalText.trim()} onClick={() => void reviewProposal()}>Check returned circuit</button></div>
     </section>
 
     {proposal && <section className="agent-review" aria-label="Agent proposal review">
-      <div className="agent-review-summary"><div><strong>{changedLines} changed lines</strong><span>{proposal.summary}</span></div><div className={connectivityVerified && compileErrors.length === 0 ? 'agent-check-pass' : 'agent-check-fail'}>{connectivityVerified && compileErrors.length === 0 ? <CheckCircle2 size={15} /> : <X size={15} />} Core compile + connectivity</div></div>
+      <div className="agent-step-heading"><span>3</span><div><h3>Review and test the returned circuit</h3><p>The candidate remains separate from the editor until you explicitly apply it.</p></div></div>
+      <div className="agent-check-grid">
+        <div className="agent-check-card agent-check-pass"><CheckCircle2 size={16} /><div><strong>Correct circuit revision</strong><span>The reply matches the source you sent.</span></div></div>
+        <div className={connectivityVerified && compileErrors.length === 0 ? 'agent-check-card agent-check-pass' : 'agent-check-card agent-check-fail'}>{connectivityVerified && compileErrors.length === 0 ? <CheckCircle2 size={16} /> : <X size={16} />}<div><strong>Core compile and connectivity</strong><span>{connectivityVerified && compileErrors.length === 0 ? 'Kessetsu accepted the source and verified its connections.' : 'Kessetsu rejected the returned circuit.'}</span></div></div>
+        <div className={`agent-check-card ${verificationState === 'complete' ? (verificationPassed ? 'agent-check-pass' : 'agent-check-warning') : 'agent-check-pending'}`}>
+          {verificationState === 'complete' ? (verificationPassed ? <CheckCircle2 size={16} /> : <X size={16} />) : <Play size={16} />}
+          <div><strong>Local simulation</strong><span>{verificationState === 'complete'
+            ? assertionSummary!.total === 0
+              ? 'Simulation completed, but the proposal included no assertions.'
+              : `${assertionSummary!.passed}/${assertionSummary!.total} assertions passed.`
+            : 'Not run yet. Test the candidate before applying it.'}</span></div>
+        </div>
+      </div>
       {compileWarnings.length > 0 && <p className="agent-warning">{compileWarnings.length} compile warning{compileWarnings.length === 1 ? '' : 's'}: {compileWarnings.slice(0, 2).map((item) => item.message).join(' ')}</p>}
-      <div className="agent-diff" role="region" aria-label="Proposed source diff" tabIndex={0}>{diff.map((line, index) => <div className={`agent-diff-${line.kind}`} key={`${index}-${line.kind}`}><span>{line.oldLine ?? ''}</span><span>{line.newLine ?? ''}</span><b>{line.kind === 'add' ? '+' : line.kind === 'remove' ? '−' : ' '}</b><code>{line.text || ' '}</code></div>)}</div>
-      {verification && <div className="agent-verification" data-testid="agent-verification"><CheckCircle2 size={16} /><div><strong>Real local simulation completed</strong><span>{verification.simulation.datasets.length} analyses · {assertionSummary?.passed}/{assertionSummary?.total} assertions passed · {assertionSummary?.failed} failed · {assertionSummary?.errors} errors</span></div></div>}
+      <details className="agent-review-detail"><summary><span>Agent's explanation <em>unverified</em></span><small>Read</small></summary><p>{proposal.summary}</p></details>
+      <details className="agent-review-detail"><summary><span>Source changes</span><small>{changedLines} changed lines</small></summary><div className="agent-diff" role="region" aria-label="Proposed source diff" tabIndex={0}>{diff.map((line, index) => <div className={`agent-diff-${line.kind}`} key={`${index}-${line.kind}`}><span>{line.oldLine ?? ''}</span><span>{line.newLine ?? ''}</span><b>{line.kind === 'add' ? '+' : line.kind === 'remove' ? '−' : ' '}</b><code>{line.text || ' '}</code></div>)}</div></details>
+      {verification && <div className={`agent-verification ${verificationPassed ? '' : 'agent-verification-warning'}`} data-testid="agent-verification">{verificationPassed ? <CheckCircle2 size={16} /> : <X size={16} />}<div><strong>{verificationPassed ? 'Kessetsu verification passed' : 'Simulation completed with unchecked or failed requirements'}</strong><span>{verification.simulation.datasets.length} analyses · {assertionSummary?.passed}/{assertionSummary?.total} assertions passed · {assertionSummary?.failed} failed · {assertionSummary?.errors} errors</span></div></div>}
     </section>}
 
     {error && <p className="agent-error" role="alert">{error}</p>}
-    <footer className="agent-footer"><p role="status">{status}</p><div>{verificationState === 'running' ? <button onClick={cancelVerification}><Square size={14} /> Stop</button> : <button disabled={!proposal || !connectivityVerified || compileErrors.length > 0} onClick={() => void runVerification()}><Play size={14} /> {verificationState === 'complete' ? 'Run again' : 'Run proposal'}</button>}<button className="agent-accept" disabled={!proposal || verificationState !== 'complete'} onClick={() => { onAccept(proposal!.proposed_source); close(); }}>Accept proposal</button></div></footer>
+    <footer className="agent-footer"><p role="status">{status}</p><div>{verificationState === 'running' ? <button onClick={cancelVerification}><Square size={14} /> Stop test</button> : <button disabled={!proposal || !connectivityVerified || compileErrors.length > 0} onClick={() => void runVerification()}><Play size={14} /> {verificationState === 'complete' ? 'Test again' : 'Test proposed circuit'}</button>}<button className="agent-accept" disabled={!proposal || verificationState !== 'complete'} onClick={() => { onAccept(proposal!.proposed_source); close(); }}>Apply to editor</button></div></footer>
   </dialog>;
 }

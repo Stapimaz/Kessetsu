@@ -1,6 +1,6 @@
 # Web Editor Guide
 
-Use **Analyze → Parameter study…** for multi-condition runs, tolerances, comparison and
+Use **Analyze → Test parameter variations…** for multi-condition runs, tolerances, comparison and
 reports; see [parameter studies](parameter-studies.md).
 
 Open the [Web Hub](https://kessetsu.com/#editor). No account or installation is required.
@@ -57,17 +57,18 @@ See [simulation and assertions](../reference/simulation-and-assertions.md) and
 
 ## Review a proposal from an external agent
 
-Development source provides **Analyze → Review agent proposal…** as a provider-neutral handoff.
-Describe the outcome you own, then copy or download the versioned agent-task JSON. You decide which
+Open **Analyze → Work with an AI agent…** for a provider-neutral handoff. Describe the outcome you
+own, then copy or download the versioned agent-task JSON. Paste it into ChatGPT, Gemini, Claude,
+Codex or another agent of your choice. You decide which
 external agent receives it; Kessetsu does not upload the circuit, contact a model provider or store
 an API key. The task binds the circuit name, exact source and source SHA-256 to the requirements.
 
 Load the returned `kessetsu.agent-proposal.v1` JSON in the same dialog. Kessetsu rejects proposals
 for another source revision and keeps an accepted proposal's explanation separate from engineering
 evidence. The proposed source is shown as a line diff and compiled through the same local Core while
-the editor document remains unchanged. Run the proposal to obtain real local simulation and
-assertion results. **Accept proposal** becomes available only after that run completes; closing the
-dialog or stopping the run changes nothing. After acceptance, **Analyze → Undo accepted proposal**
+the editor document remains unchanged. **Test proposed circuit** obtains real local simulation and
+assertion results. **Apply to editor** becomes available only after that run completes; closing the
+dialog or stopping the run changes nothing. After acceptance, **Analyze → Undo AI agent change**
 restores the exact prior source as long as it has not since been edited.
 
 The proposal summary is untrusted text. Compilation verifies supported syntax and schematic

@@ -4,6 +4,17 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### Web editor usability
+
+- The Analyze menu now describes each workflow in task-oriented language for first-time users.
+- The external-agent workflow is a guided three-step handoff with explicit privacy guidance,
+  compact verification cards and separate collapsed sections for untrusted agent explanation and
+  source diff. Actions now say what they do: test the proposed circuit, then apply it to the editor.
+- Local Core and simulation evidence is visually separated from the agent's own claims; completed
+  runs with failed assertions or no assertions use a warning state instead of a success treatment.
+- Generated agent tasks now tell agents to remove unrelated placeholder circuitry, encode supported
+  measurable requirements as assertions and avoid claiming an unperformed Kessetsu run.
+
 ## [1.3.0] — 2026-09-26
 
 Kessetsu 1.3.0 expands the verified circuit workflow beyond single-run design: repeatable

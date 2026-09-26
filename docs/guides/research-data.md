@@ -37,7 +37,7 @@ overwriting any input CSV, mapping, dataset or reference.
 
 ## Web workflow
 
-In a development Web build, open **Analyze > Research data**. The three explicit steps are:
+In the Web editor, open **Analyze → Compare research data…**. The three explicit steps are:
 
 1. Choose the observed CSV, review its dialect/preview, map axis and signal columns, units,
    calibration, missing-value behavior and origin, then import it.

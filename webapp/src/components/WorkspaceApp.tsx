@@ -362,12 +362,12 @@ export function WorkspaceApp() {
           </div>
           <div className="application-menu">
             <button aria-haspopup="menu" aria-expanded={openMenu === 'analyze'} onClick={() => toggleMenu('analyze')}>Analyze</button>
-            {openMenu === 'analyze' && <div className="menu-popover" role="menu" aria-label="Analyze menu">
-              <button role="menuitem" disabled={!state.wasmLoaded} onClick={() => { setAgentProposalOpen(true); setOpenMenu(null); }}><span>Review agent proposal…</span></button>
-              {acceptedProposal && state.code === acceptedProposal.after && <button role="menuitem" onClick={undoAgentProposal}><span>Undo accepted proposal</span></button>}
+            {openMenu === 'analyze' && <div className="menu-popover analyze-menu" role="menu" aria-label="Analyze menu">
+              <button role="menuitem" aria-label="Work with an AI agent…" disabled={!state.wasmLoaded} onClick={() => { setAgentProposalOpen(true); setOpenMenu(null); }}><strong>Work with an AI agent…</strong><small>Send a task, inspect the reply, and test it locally</small></button>
+              {acceptedProposal && state.code === acceptedProposal.after && <button role="menuitem" onClick={undoAgentProposal}><strong>Undo AI agent change</strong><small>Restore the exact circuit from before the last accepted reply</small></button>}
               <div className="menu-separator" role="separator" />
-              <button role="menuitem" disabled={!state.wasmLoaded || state.simulationState === 'running'} onClick={() => { setStudyOpen(true); setOpenMenu(null); }}><span>Parameter study…</span></button>
-              <button role="menuitem" disabled={!state.wasmLoaded} onClick={() => { setResearchDataMounted(true); setResearchDataOpen(true); setOpenMenu(null); }}><span>Research data…</span></button>
+              <button role="menuitem" aria-label="Test parameter variations…" disabled={!state.wasmLoaded || state.simulationState === 'running'} onClick={() => { setStudyOpen(true); setOpenMenu(null); }}><strong>Test parameter variations…</strong><small>Sweep values, tolerances, loads, and temperatures</small></button>
+              <button role="menuitem" aria-label="Compare research data…" disabled={!state.wasmLoaded} onClick={() => { setResearchDataMounted(true); setResearchDataOpen(true); setOpenMenu(null); }}><strong>Compare research data…</strong><small>Compare CSV measurements, references, and simulation</small></button>
             </div>}
           </div>
           <div className="application-menu">

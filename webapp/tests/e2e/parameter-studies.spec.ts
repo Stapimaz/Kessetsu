@@ -10,7 +10,7 @@ async function openStudy(page: Page) {
   await page.goto('/#editor');
   await expect(page.getByTestId('compile-success')).toBeVisible();
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Parameter study…', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Test parameter variations…', exact: true }).click();
   return page.getByRole('dialog', { name: 'Parameter study', exact: true });
 }
 async function downloadReport(page: Page): Promise<StudyResults> {
@@ -71,7 +71,7 @@ test('loaded-filter configuration, all outcomes, native parity, reports and sour
   await dialog.getByRole('button', { name: 'Close parameter study' }).click();
   await expect(page.locator('.view-lines')).toHaveText(sourceBefore, { useInnerText: true });
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Parameter study…', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Test parameter variations…', exact: true }).click();
   await expect(dialog.getByTestId('study-summary')).toContainText('6 total');
   page.once('dialog', event => event.accept());
   await dialog.getByRole('button', { name: 'Apply parameters', exact: true }).nth(5).click();
@@ -93,7 +93,7 @@ test('cancel/reopen/resume preserves completed evidence and rejects changed cons
   expect(partial.cases.some(c => c.status === 'pending' || c.status === 'cancelled')).toBe(true);
   await dialog.getByRole('button', { name: 'Close parameter study' }).click();
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Parameter study…', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Test parameter variations…', exact: true }).click();
   await dialog.getByRole('button', { name: 'Resume', exact: true }).click();
   await expect(dialog.getByRole('status')).toContainText('Study complete', { timeout: 90_000 });
   const completed = await downloadReport(page);

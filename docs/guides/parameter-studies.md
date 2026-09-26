@@ -7,7 +7,7 @@ your open source or relax its requirements.
 ## First study in Web
 
 1. Choose **File → Examples → Loaded Filter**.
-2. Open **Analyze → Parameter study…**. It takes a source snapshot.
+2. Open **Analyze → Test parameter variations…**. It takes a source snapshot.
 3. Select `resistance` and enter `820Ohm, 1kOhm, 1.2kOhm` as an explicit list.
 4. Add `load`, with `2kOhm, 10kOhm`. These lists produce six combinations.
 5. Run. Three cases pass and three fail: heavy loading reduces gain.

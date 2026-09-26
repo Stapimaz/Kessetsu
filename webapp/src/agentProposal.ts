@@ -74,7 +74,10 @@ export async function createAgentTask(
     instructions: [
       'Return one JSON object matching expected_response; do not wrap it in Markdown.',
       'Keep the human requirements unchanged and put the complete proposed .kess source in proposed_source.',
+      'Treat existing components as editable context, not mandatory content; remove unrelated placeholder circuitry and explain any removal.',
+      'Encode every supported measurable requirement as an assertion and include the analyses needed to evaluate it.',
       'Use Kessetsu checks, simulations, studies, and exports when available; never invent a PASS result.',
+      'Do not claim that Kessetsu was run unless you actually ran it; the returned proposal will be tested independently before acceptance.',
       'State model and physical-validation limits in summary. The user will review, simulate, and accept or reject the proposal.',
     ],
   };
