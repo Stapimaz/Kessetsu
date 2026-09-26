@@ -8,10 +8,10 @@ param(
     [ValidateRange(1, 3)]
     [int]$Attempt,
 
-    [ValidateSet('U1', 'U2', 'U3', 'U4', 'U5', 'U6')]
+    [ValidateSet('U1', 'U2', 'U3', 'U4', 'U5', 'U6', 'M1')]
     [string]$Task = 'U1',
 
-    [ValidateSet('original', 'u6-external-v1')]
+    [ValidateSet('original', 'u6-external-v1', 'agent-workflow-v2')]
     [string]$Protocol = 'original',
 
     [string]$Model = 'gpt-5.6-sol',
@@ -36,14 +36,23 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 if ($Protocol -eq 'u6-external-v1' -and ($Task -ne 'U6' -or $Arm -ne 'kessetsu')) {
     throw 'u6-external-v1 is a Kessetsu-only U6 follow-up; use -Task U6 -Arm kessetsu.'
 }
-$protocolPath = if ($Protocol -eq 'u6-external-v1') {
-    Join-Path $repoRoot 'scripts/evals/specs/unseen-design-u6-followup-v1.md'
-} else { Join-Path $repoRoot 'scripts/evals/specs/unseen-design-v1.md' }
-$harnessPath = if ($Protocol -eq 'u6-external-v1') { $protocolPath } else {
+if ($Protocol -eq 'agent-workflow-v2' -and $Task -ne 'M1') {
+    throw 'agent-workflow-v2 currently defines only task M1.'
+}
+if ($Task -eq 'M1' -and $Protocol -ne 'agent-workflow-v2') {
+    throw 'Task M1 requires -Protocol agent-workflow-v2.'
+}
+$protocolPath = switch ($Protocol) {
+    'u6-external-v1' { Join-Path $repoRoot 'scripts/evals/specs/unseen-design-u6-followup-v1.md' }
+    'agent-workflow-v2' { Join-Path $repoRoot 'scripts/evals/specs/agent-workflow-v2.md' }
+    default { Join-Path $repoRoot 'scripts/evals/specs/unseen-design-v1.md' }
+}
+$harnessPath = if ($Protocol -in @('u6-external-v1', 'agent-workflow-v2')) { $protocolPath } else {
     Join-Path $repoRoot 'scripts/evals/specs/agent-comparison-harness-v1.md'
 }
 $evidenceTask = if ($Protocol -eq 'u6-external-v1') { 'U6-followup-v1' } else { $Task }
-$evidenceRoot = Join-Path $repoRoot ".artifacts/agent-comparison-v1/$evidenceTask/$Arm/attempt-$Attempt"
+$evidenceVersion = if ($Protocol -eq 'agent-workflow-v2') { 'agent-comparison-v2' } else { 'agent-comparison-v1' }
+$evidenceRoot = Join-Path $repoRoot ".artifacts/$evidenceVersion/$evidenceTask/$Arm/attempt-$Attempt"
 
 if (Test-Path -LiteralPath $evidenceRoot) {
     throw "Evidence directory already exists and will not be overwritten: $evidenceRoot"
@@ -76,6 +85,7 @@ $evaluator = switch ($Task) {
     'U6' { if ($Protocol -eq 'u6-external-v1') {
         Join-Path $repoRoot 'scripts/evals/manufacturer-opamp-followup.mjs'
     } else { Join-Path $repoRoot 'scripts/evals/manufacturer-opamp.mjs' } }
+    'M1' { Join-Path $repoRoot 'scripts/evals/robust-divider.mjs' }
 }
 $expectedU6ModelHash = 'fc5b020e63346e511bd808bf41c856b0150b000bcf8a41fe00eeececb1f422a5'
 if ($Task -eq 'U6' -and -not $modelPath) {
@@ -118,13 +128,16 @@ function Read-HarnessSection([string]$Heading, [string]$NextHeading) {
     return $text.Substring($start, $end - $start).Trim()
 }
 
-$commonHeading = if ($Protocol -eq 'u6-external-v1') { 'Common prompt' } elseif ($Task -eq 'U1') { 'Common U1 prompt' } else { "Common $Task prompt" }
-$commonEnd = if ($Protocol -eq 'u6-external-v1') { 'Kessetsu tool reference' } elseif ($Task -eq 'U1') { 'Kessetsu arm tool reference' } else { "$Task Kessetsu arm tool reference" }
+$commonHeading = if ($Protocol -in @('u6-external-v1', 'agent-workflow-v2')) { 'Common prompt' } elseif ($Task -eq 'U1') { 'Common U1 prompt' } else { "Common $Task prompt" }
+$commonEnd = if ($Protocol -in @('u6-external-v1', 'agent-workflow-v2')) { 'Kessetsu tool reference' } elseif ($Task -eq 'U1') { 'Kessetsu arm tool reference' } else { "$Task Kessetsu arm tool reference" }
 $commonPrompt = Read-HarnessSection $commonHeading $commonEnd
 $commonPrompt = $commonPrompt.Trim().TrimStart('>').Trim()
 if ($Protocol -eq 'u6-external-v1') {
     $armHeading = 'Kessetsu tool reference'
     $nextHeading = 'Evidence retained per attempt'
+} elseif ($Protocol -eq 'agent-workflow-v2') {
+    $armHeading = if ($Arm -eq 'kessetsu') { 'Kessetsu tool reference' } else { 'Direct tool reference' }
+    $nextHeading = if ($Arm -eq 'kessetsu') { 'Direct tool reference' } else { 'Scoring and evidence' }
 } elseif ($Task -eq 'U1') {
     $armHeading = if ($Arm -eq 'kessetsu') { 'Kessetsu arm tool reference' } else { 'Direct arm tool reference' }
     $nextHeading = if ($Arm -eq 'kessetsu') { 'Direct arm tool reference' } else { 'Common U2 prompt' }

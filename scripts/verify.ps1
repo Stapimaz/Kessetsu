@@ -85,6 +85,7 @@ Invoke-NativeStep 'Independent U3 evaluator contracts' { node --test (Join-Path 
 Invoke-NativeStep 'Independent U4 evaluator contracts' { node --test (Join-Path $repoRoot 'scripts/evals/load-driver.test.mjs') }
 Invoke-NativeStep 'Independent U5 evaluator contracts' { node --test (Join-Path $repoRoot 'scripts/evals/power-amplifier.test.mjs') }
 Invoke-NativeStep 'Independent U6 evaluator contracts' { node --test (Join-Path $repoRoot 'scripts/evals/manufacturer-opamp.test.mjs') }
+Invoke-NativeStep 'Independent M1 multi-condition evaluator contracts' { node --test (Join-Path $repoRoot 'scripts/evals/robust-divider.test.mjs') }
 Invoke-NativeStep 'Evaluator verification-scope contracts' { node --test (Join-Path $repoRoot 'scripts/evals/verification-scope.test.mjs') }
 
 $architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
