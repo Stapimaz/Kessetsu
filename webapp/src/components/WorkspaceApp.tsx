@@ -15,6 +15,7 @@ import {
 } from '../document';
 import { useKessetsuWorkspace, examples, type ExampleId } from '../hooks/useKessetsuWorkspace';
 import { ArtifactBar } from './ArtifactBar';
+import { AgentProposalDialog } from './AgentProposalDialog';
 import { BrandWordmark } from './BrandWordmark';
 import { CircuitDetailsDialog } from './CircuitDetailsDialog';
 import { EditorPanel } from './EditorPanel';
@@ -48,6 +49,8 @@ export function WorkspaceApp() {
   const [studyOpen, setStudyOpen] = useState(false);
   const [researchDataOpen, setResearchDataOpen] = useState(false);
   const [researchDataMounted, setResearchDataMounted] = useState(false);
+  const [agentProposalOpen, setAgentProposalOpen] = useState(false);
+  const [acceptedProposal, setAcceptedProposal] = useState<{ before: string; after: string } | null>(null);
   const [documentError, setDocumentError] = useState('');
   const [documentNotice, setDocumentNotice] = useState('');
   const menusRef = useRef<HTMLElement>(null);
@@ -261,6 +264,21 @@ export function WorkspaceApp() {
     return share(name);
   }, [documentName, share]);
 
+  const acceptAgentProposal = useCallback((nextSource: string) => {
+    fileHandleRef.current = null;
+    setAcceptedProposal({ before: state.code, after: nextSource });
+    setCode(nextSource);
+    showDocumentNotice('Agent proposal accepted. Undo is available from Analyze.');
+  }, [setCode, showDocumentNotice, state.code]);
+
+  const undoAgentProposal = useCallback(() => {
+    if (!acceptedProposal || state.code !== acceptedProposal.after) return;
+    setCode(acceptedProposal.before);
+    setAcceptedProposal(null);
+    setOpenMenu(null);
+    showDocumentNotice('Accepted proposal reverted.');
+  }, [acceptedProposal, setCode, showDocumentNotice, state.code]);
+
   useEffect(() => {
     const saveShortcut = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
@@ -345,6 +363,9 @@ export function WorkspaceApp() {
           <div className="application-menu">
             <button aria-haspopup="menu" aria-expanded={openMenu === 'analyze'} onClick={() => toggleMenu('analyze')}>Analyze</button>
             {openMenu === 'analyze' && <div className="menu-popover" role="menu" aria-label="Analyze menu">
+              <button role="menuitem" disabled={!state.wasmLoaded} onClick={() => { setAgentProposalOpen(true); setOpenMenu(null); }}><span>Review agent proposal…</span></button>
+              {acceptedProposal && state.code === acceptedProposal.after && <button role="menuitem" onClick={undoAgentProposal}><span>Undo accepted proposal</span></button>}
+              <div className="menu-separator" role="separator" />
               <button role="menuitem" disabled={!state.wasmLoaded || state.simulationState === 'running'} onClick={() => { setStudyOpen(true); setOpenMenu(null); }}><span>Parameter study…</span></button>
               <button role="menuitem" disabled={!state.wasmLoaded} onClick={() => { setResearchDataMounted(true); setResearchDataOpen(true); setOpenMenu(null); }}><span>Research data…</span></button>
             </div>}
@@ -435,6 +456,9 @@ export function WorkspaceApp() {
       />
       {state.wasmLoaded && <StudyDialog open={studyOpen} source={state.code} name={documentName} resources={modelResources}
         onClose={() => setStudyOpen(false)} onApplySource={setCode} />}
+      {state.wasmLoaded && <AgentProposalDialog open={agentProposalOpen} source={state.code} name={documentName}
+        productVersion={productVersion} resources={modelResources} onAccept={acceptAgentProposal}
+        onClose={() => setAgentProposalOpen(false)} />}
       {state.wasmLoaded && researchDataMounted && <Suspense fallback={null}><ResearchDataDialog open={researchDataOpen} evaluation={state.evaluation} circuitName={documentName} onClose={() => setResearchDataOpen(false)} /></Suspense>}
       <WorkspaceLayout
         resetRequest={resetRequest}

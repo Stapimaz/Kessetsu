@@ -56,6 +56,26 @@ Editing the source makes previous results stale: rerun before drawing conclusion
 See [simulation and assertions](../reference/simulation-and-assertions.md) and
 [measurements](../reference/measurements.md) for exact meanings and analysis requirements.
 
+## Review a proposal from an external agent
+
+Development source provides **Analyze → Review agent proposal…** as a provider-neutral handoff.
+Describe the outcome you own, then copy or download the versioned agent-task JSON. You decide which
+external agent receives it; Kessetsu does not upload the circuit, contact a model provider or store
+an API key. The task binds the circuit name, exact source and source SHA-256 to the requirements.
+
+Load the returned `kessetsu.agent-proposal.v1` JSON in the same dialog. Kessetsu rejects proposals
+for another source revision and keeps an accepted proposal's explanation separate from engineering
+evidence. The proposed source is shown as a line diff and compiled through the same local Core while
+the editor document remains unchanged. Run the proposal to obtain real local simulation and
+assertion results. **Accept proposal** becomes available only after that run completes; closing the
+dialog or stopping the run changes nothing. After acceptance, **Analyze → Undo accepted proposal**
+restores the exact prior source as long as it has not since been edited.
+
+The proposal summary is untrusted text. Compilation verifies supported syntax and schematic
+connectivity; simulation verifies only the modeled analyses and assertions in the proposed source.
+Neither step proves hardware, hidden requirements or an agent's broader claims. Local model files
+remain local and must already be bound for a proposal that depends on them.
+
 ## Save and recover
 
 Saving depends on browser capabilities, not merely its brand:

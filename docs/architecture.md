@@ -142,6 +142,23 @@ into an acceptance range. New shares identify the active compile schema.
 
 ## 2. Language Syntax and Rules
 
+### Agent-proposal boundary (development source)
+
+The Web adapter owns a provider-neutral review workflow around two frontend contracts:
+`kessetsu.agent-task.v1` carries human-owned requirements, the exact current source and its SHA-256;
+`kessetsu.agent-proposal.v1` carries only the matching base hash, complete proposed source and a
+bounded untrusted summary. These envelopes are transport records, not Circuit IR and not Core
+verification results. They never bypass parsing, elaboration, Circuit IR or normal backends.
+
+Import keeps the candidate separate from editor state. The browser validates schema/size/base
+identity, renders a bounded line diff, compiles with the same in-memory model bindings and runs the
+candidate through a separate cancellable browser simulator. Acceptance is an explicit frontend
+state transition only after a completed run; it retains one exact prior-source snapshot for undo.
+Reject, close, stale-base failure, compile failure, simulation failure and cancellation do not
+mutate the document. Proposal text cannot create PASS status. This static-site transport performs
+no network request and stores no provider credential. Future hosted/BYOK/local-agent transports
+must produce the same proposal contract and may not weaken review, Core verification or acceptance.
+
 ### Research-data boundary (development source)
 
 `research_data.rs` owns pure versioned CSV preview/import, explicit quantity/calibration

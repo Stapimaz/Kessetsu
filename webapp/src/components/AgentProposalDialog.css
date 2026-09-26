@@ -1,0 +1,44 @@
+.agent-proposal-dialog { width: min(980px, calc(100vw - 24px)); }
+.agent-step { padding: 14px 0; border-top: 1px solid var(--border); }
+.agent-step-heading { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+.agent-step-heading > span { width: 22px; height: 22px; display: grid; flex: 0 0 auto; place-items: center; border: 1px solid #315267; border-radius: 50%; color: var(--accent); font-size: 10px; font-weight: 700; }
+.agent-step h3 { margin: 1px 0 3px; font-size: 13px; }
+.agent-step p { margin: 0; color: var(--muted); font-size: 11px; }
+.agent-step textarea { width: 100%; resize: vertical; padding: 10px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: #0b1019; font: 11px/1.5 ui-monospace, monospace; }
+.agent-step textarea:focus { border-color: var(--accent); outline: 1px solid var(--accent); }
+.agent-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
+.agent-actions button, .agent-footer button { min-height: 32px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 11px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--panel-raised); cursor: pointer; font-size: 11px; }
+.agent-actions button:disabled, .agent-footer button:disabled { cursor: not-allowed; opacity: .42; }
+.agent-actions .agent-primary, .agent-footer .agent-accept { border-color: #228f80; color: #d5fff8; background: #17665b; }
+.agent-step details { margin-top: 9px; color: var(--muted); font-size: 10px; }
+.agent-step pre { max-height: 180px; overflow: auto; padding: 9px; border: 1px solid var(--border); border-radius: 5px; color: #a9b8cc; background: #090e16; white-space: pre-wrap; }
+.agent-review { padding-top: 14px; border-top: 1px solid var(--border); }
+.agent-review-summary { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
+.agent-review-summary > div:first-child { min-width: 0; display: grid; gap: 4px; }
+.agent-review-summary span { color: var(--muted); font-size: 11px; line-height: 1.5; }
+.agent-check-pass, .agent-check-fail { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; padding: 5px 8px; border-radius: 5px; font-size: 10px; }
+.agent-check-pass { color: #83f0c4; background: #123c31; }
+.agent-check-fail { color: #ff9c9c; background: #421d25; }
+.agent-warning, .agent-error { padding: 8px 10px; border-radius: 5px; font-size: 11px; }
+.agent-warning { color: #eacb82; background: #382f19; }
+.agent-error { color: #ffb1b1; background: #3b1b23; }
+.agent-diff { max-height: min(360px, 38vh); overflow: auto; border: 1px solid var(--border); border-radius: 6px; background: #090e16; font: 11px/1.55 ui-monospace, monospace; }
+.agent-diff > div { min-width: max-content; display: grid; grid-template-columns: 40px 40px 18px minmax(500px, 1fr); }
+.agent-diff > div > span { padding-right: 7px; color: #56657a; text-align: right; user-select: none; }
+.agent-diff > div > b { color: #74849a; text-align: center; user-select: none; }
+.agent-diff > div > code { padding-right: 12px; color: #b8c4d6; white-space: pre; }
+.agent-diff-add { background: #123127; }
+.agent-diff-add > b, .agent-diff-add > code { color: #8fe6bd !important; }
+.agent-diff-remove { background: #371d25; }
+.agent-diff-remove > b, .agent-diff-remove > code { color: #f4a0ad !important; }
+.agent-verification { display: flex; align-items: flex-start; gap: 8px; margin-top: 10px; padding: 9px 10px; border: 1px solid #235c4d; border-radius: 6px; color: #83f0c4; background: #102b25; }
+.agent-verification div { display: grid; gap: 3px; }
+.agent-verification span { color: #9bc5b8; font-size: 10px; }
+.agent-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+.agent-footer p { min-width: 0; margin: 0; color: var(--muted); font-size: 10px; }
+.agent-footer > div { display: flex; flex: 0 0 auto; gap: 7px; }
+@media (max-width: 700px) {
+  .agent-review-summary, .agent-footer { align-items: stretch; flex-direction: column; }
+  .agent-footer > div { justify-content: flex-end; }
+  .agent-diff > div { grid-template-columns: 32px 32px 16px minmax(360px, 1fr); }
+}

@@ -4,6 +4,20 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### Provider-neutral agent proposal review
+
+- **Analyze → Review agent proposal…** creates a versioned, source-hash-bound task envelope for
+  any external agent; Kessetsu does not upload source or require a provider account.
+- Returned `kessetsu.agent-proposal.v1` JSON remains separate from the document while the user
+  reviews its summary and line diff. Unknown schemas, stale base revisions, oversized payloads and
+  invalid source fail without changing the open circuit.
+- A proposal must compile with verified schematic connectivity and complete a real local browser
+  simulation before it can be accepted. Acceptance is explicit, marks the source unsaved and offers
+  one-step **Undo accepted proposal**; closing or cancelling leaves the document untouched.
+- This handoff is a provider-independent review boundary, not a hosted model, autonomous design
+  guarantee or claim that an agent's explanation is verified. Core simulation/assertion results
+  remain separate from proposal text.
+
 ### Agent capability discovery
 
 - `kess capabilities --format json` returns the deterministic
