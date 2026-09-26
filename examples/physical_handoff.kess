@@ -1,0 +1,21 @@
+// Physical handoff fixture. Part identifiers are illustrative; verify procurement data.
+net GND
+net IN
+net OUT
+
+source VIN ac(1V)
+resistor R1 1k
+capacitor C1 100nF
+resistor RL 10k
+
+part R1 manufacturer="Example" mpn="R0603-1K" footprint="Resistor_SMD:R_0603_1608Metric" pin_map="p1:2,p2:1" average_dissipation_limit="0.1W" average_dissipation_conditions="Illustrative 70 C ambient limit; apply actual part derating" rating_source="User-supplied example record"
+part C1 manufacturer="Example" mpn="C0603-100N" footprint="Capacitor_SMD:C_0603_1608Metric" pin_map="p1:1,p2:2"
+part RL manufacturer="Example" mpn="R0603-10K" footprint="Resistor_SMD:R_0603_1608Metric" pin_map="p1:1,p2:2"
+
+connect VIN.minus, C1.p2, RL.p2 to GND
+connect VIN.plus, R1.p1 to IN
+connect R1.p2, C1.p1, RL.p1 to OUT
+
+simulate ac dec 40 10Hz 100kHz
+assert cutoff(V(OUT),V(IN)) > 1.4kHz
+assert cutoff(V(OUT),V(IN)) < 1.8kHz

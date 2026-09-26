@@ -18,7 +18,7 @@ function Get-EdaDeviceRecords {
 }
 
 function Assert-EdaNetlists {
-    param($Schematic, [xml]$KiCad, [string]$LtspiceText, [string]$SpiceText, [string]$LtspiceSchematicText)
+    param($Schematic, $Handoff, [xml]$KiCad, [string]$LtspiceText, [string]$SpiceText, [string]$LtspiceSchematicText)
     $canonical = Get-EdaDeviceRecords $SpiceText
     $ltDevices = Get-EdaDeviceRecords $LtspiceText
     $expectedRefs = @($Schematic.components.reference)
@@ -42,6 +42,13 @@ function Assert-EdaNetlists {
     foreach ($component in $Schematic.components) {
         $ref = $component.reference
         $kiComponent = @($KiCad.export.components.comp | Where-Object ref -eq $ref)[0]
+        $physicalPart = @($Handoff.physical_parts.assignments | Where-Object component -CEQ $component.id)
+        if ($physicalPart.Count -gt 1) { throw "Duplicate handoff part assignment: $($component.id)" }
+        if ($physicalPart.Count -eq 1 -and $physicalPart[0].footprint -and $physicalPart[0].pin_map.PSObject.Properties.Count -gt 0) {
+            if ([string]$kiComponent.footprint -cne [string]$physicalPart[0].footprint) {
+                throw "KiCad footprint changed: $ref"
+            }
+        }
         $expectedValue = if ($null -ne $component.value) { $component.value } else { $component.model }
         if ([string]$kiComponent.value -cne [string]$expectedValue) { throw "KiCad value/model changed: $ref" }
         if ($component.model) {
@@ -91,6 +98,10 @@ function Assert-EdaNetlists {
         for ($index = 0; $index -lt $pins.Count; $index++) {
             $pin = $pins[$index]
             $number = [string]($index + 1)
+            if ($physicalPart.Count -eq 1) {
+                $mapped = @($physicalPart[0].pin_map.PSObject.Properties | Where-Object Name -CEQ $pin.name)
+                if ($mapped.Count -eq 1) { $number = [string]$mapped[0].Value }
+            }
             $libraryPin = @($kiLibrary.pins.pin | Where-Object num -eq $number)
             if ($libraryPin.Count -ne 1 -or $libraryPin[0].name -cne $pin.name) {
                 throw "KiCad pin identity changed: $ref.$($pin.name)"

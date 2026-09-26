@@ -13,7 +13,7 @@ If `--output` is omitted for a file input, the CLI uses the same basename with `
 Existing files require `--force`. Standard input is supported with
 `kess import - --output circuit.kess`; it never chooses an implicit file destination.
 
-In development Web Hub builds, choose **File → Import SPICE netlist…** or drop a supported
+In development Web Hub builds, choose **File > Import SPICE netlist...** or drop a supported
 netlist onto the editor. Conversion runs locally through the same Core contract. A complete
 import opens as an unsaved editable circuit; a rejected import leaves the current document intact.
 
@@ -73,6 +73,26 @@ and analysis meaning can be represented and verified without a raw-SPICE bypass.
 Generate a netlist in the user's own Python environment, save it, then import that file with the
 same command. Kessetsu does not execute Python and does not claim to preserve Python loops,
 functions or intent that are absent from the generated netlist.
+
+For example, this PySpice 1.5 circuit emits only constructs in the supported import subset:
+
+```python
+from PySpice.Spice.Netlist import Circuit
+from PySpice.Unit import u_V, u_kOhm
+
+circuit = Circuit("Voltage divider")
+circuit.V("IN", "IN", circuit.gnd, 10 @ u_V)
+circuit.R(1, "IN", "OUT", 1 @ u_kOhm)
+circuit.R(2, "OUT", circuit.gnd, 1 @ u_kOhm)
+circuit.raw_spice += ".op\n"
+
+with open("divider.cir", "w", encoding="utf-8") as output:
+    output.write(str(circuit))
+```
+
+Then run `kess import divider.cir --output divider.kess`. Compatibility is determined by the
+generated SPICE text, not by the Python library version: unsupported devices or directives still
+fail closed with a source-line diagnostic.
 
 The successful `.kess` file is the normal save, share, edit, simulation and export artifact. Keep
 the original netlist beside it when provenance matters; its exact SHA-256 identity appears in the

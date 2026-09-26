@@ -45,10 +45,10 @@ citations as hidden editable properties; BOM and handoff outputs keep the same p
 ## EDA verification
 
 `scripts/verify-eda-exports.ps1 -RequireApplications` generates RC filter, gain stage, power
-amplifier, external comparator/memristor, loaded filter, transistor-driver and independently
-parameterized reusable-block fixtures through Core/CLI. It then:
+amplifier, external comparator/memristor, loaded filter, transistor-driver, physical-handoff and
+independently parameterized reusable-block fixtures through Core/CLI. It then:
 
-- parses each file with KiCad 10, generates a KiCad XML netlist, runs ERC, and compares the exact component set, pin identities, net connectivity, displayed values and model metadata against canonical Schematic IR;
+- parses each file with KiCad 10, generates a KiCad XML netlist, runs ERC, and compares the exact component set, logical/physical pin identities, mapped footprints, net connectivity, displayed values and model metadata against canonical Schematic IR plus the handoff manifest;
 - opens each `.asc` through LTspice 24.1.9's real `-netlist` path and compares component sets, ordered pin connectivity, values/models/stimuli and the active analysis against canonical Schematic IR and SPICE, including a complete `.end` record. Inactive analyses remain in the schematic as comments. Generated net names may differ; merged or split nets fail the comparison.
 
 LTspice supports one active analysis at a time. The exporter activates the first declared

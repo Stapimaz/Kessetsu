@@ -3,7 +3,8 @@ param(
     [string[]]$Fixtures = @(
         'rc_filter', 'gain_stage', 'power_amplifier',
         'external_comparator', 'external_memristor',
-        'loaded_filter', 'transistor_driver', 'reusable_filters', 'reusable_amplifiers'
+        'loaded_filter', 'transistor_driver', 'reusable_filters', 'reusable_amplifiers',
+        'physical_handoff'
     )
 )
 
@@ -56,6 +57,7 @@ foreach ($name in $Fixtures) {
     $ltspiceSchematic = Join-Path $resultPath "$name.asc"
     $ltspiceNetlist = Join-Path $resultPath "$name.net"
     $schematicJson = Join-Path $resultPath "$name.schematic.json"
+    $handoffJson = Join-Path $resultPath "$name.handoff.json"
     $canonicalSpice = Join-Path $resultPath "$name.spice"
 
     & $kess export $source --target kicad --output $kicadSchematic --force
@@ -88,10 +90,13 @@ foreach ($name in $Fixtures) {
 
     & $kess export $source --target schematic-json --output $schematicJson --force
     if ($LASTEXITCODE -ne 0) { throw "$name canonical schematic export failed." }
+    & $kess export $source --target handoff-json --output $handoffJson --force
+    if ($LASTEXITCODE -ne 0) { throw "$name handoff export failed." }
     & $kess export $source --target spice --output $canonicalSpice --force
     if ($LASTEXITCODE -ne 0) { throw "$name canonical SPICE export failed." }
     $schematic = Get-Content -LiteralPath $schematicJson -Raw -Encoding UTF8 | ConvertFrom-Json
+    $handoff = Get-Content -LiteralPath $handoffJson -Raw -Encoding UTF8 | ConvertFrom-Json
     [xml]$kicadXml = Get-Content -LiteralPath $kicadNetlist -Raw -Encoding UTF8
-    Assert-EdaNetlists $schematic $kicadXml (Get-Content -LiteralPath $ltspiceNetlist -Raw -Encoding UTF8) (Get-Content -LiteralPath $canonicalSpice -Raw -Encoding UTF8) (Get-Content -LiteralPath $ltspiceSchematic -Raw -Encoding UTF8)
+    Assert-EdaNetlists $schematic $handoff $kicadXml (Get-Content -LiteralPath $ltspiceNetlist -Raw -Encoding UTF8) (Get-Content -LiteralPath $canonicalSpice -Raw -Encoding UTF8) (Get-Content -LiteralPath $ltspiceSchematic -Raw -Encoding UTF8)
     Write-Host "EDA smoke passed: $name"
 }
