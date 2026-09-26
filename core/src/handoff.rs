@@ -1,11 +1,14 @@
 use crate::component::component_definition;
-use crate::ir::{CircuitIR, ComponentKind, PhysicalPartAssignment, PhysicalPartManifest};
+use crate::ir::{
+    CircuitIR, ComponentKind, PartRatingKind, PhysicalPartAssignment, PhysicalPartManifest,
+};
 use crate::schematic::Schematic;
+use crate::sim_result::format_quantity;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
-pub const HANDOFF_SCHEMA_VERSION: &str = "kessetsu.handoff.v1";
+pub const HANDOFF_SCHEMA_VERSION: &str = "kessetsu.handoff.v2";
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct BomKey {
@@ -17,6 +20,9 @@ struct BomKey {
     pin_map: String,
     selection_status: String,
     eda_status: String,
+    provided_ratings: String,
+    rating_conditions: String,
+    rating_sources: String,
     note: String,
 }
 
@@ -41,6 +47,7 @@ pub struct HandoffCounts {
     pub assigned_parts: usize,
     pub eda_ready_footprints: usize,
     pub external_model_dependencies: usize,
+    pub provided_part_ratings: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -85,6 +92,46 @@ fn pin_map_text(part: Option<&PhysicalPartAssignment>) -> String {
             .join(";")
     })
     .unwrap_or_default()
+}
+
+fn rating_name(kind: PartRatingKind) -> &'static str {
+    match kind {
+        PartRatingKind::PeakVoltage => "peak_voltage",
+        PartRatingKind::PeakCurrent => "peak_current",
+        PartRatingKind::AverageDissipation => "average_dissipation",
+    }
+}
+
+fn rating_fields(part: Option<&PhysicalPartAssignment>) -> (String, String, String) {
+    let Some(part) = part else {
+        return (String::new(), String::new(), String::new());
+    };
+    let ratings = part
+        .ratings
+        .iter()
+        .map(|rating| {
+            format!(
+                "{}<={}",
+                rating_name(rating.kind),
+                format_quantity(rating.limit.value, rating.limit.unit)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(";");
+    let conditions = part
+        .ratings
+        .iter()
+        .map(|rating| format!("{}:{}", rating_name(rating.kind), rating.conditions))
+        .collect::<Vec<_>>()
+        .join(";");
+    let mut sources = part
+        .ratings
+        .iter()
+        .filter_map(|rating| rating.source.clone())
+        .collect::<Vec<_>>();
+    sources.sort();
+    sources.dedup();
+    (ratings, conditions, sources.join(";"))
 }
 
 fn csv_field(value: &str) -> String {
@@ -133,6 +180,7 @@ pub fn generate_bom_csv(circuit: &CircuitIR, schematic: &Schematic) -> Vec<u8> {
         } else {
             "pin_map_missing"
         };
+        let (provided_ratings, rating_conditions, rating_sources) = rating_fields(part);
         groups
             .entry(BomKey {
                 kind: component_definition(&component.kind).display_name.into(),
@@ -143,6 +191,9 @@ pub fn generate_bom_csv(circuit: &CircuitIR, schematic: &Schematic) -> Vec<u8> {
                 pin_map: pin_map_text(part),
                 selection_status: selection_status.into(),
                 eda_status: eda_status.into(),
+                provided_ratings,
+                rating_conditions,
+                rating_sources,
                 note: part.and_then(|part| part.note.clone()).unwrap_or_default(),
             })
             .or_default()
@@ -150,7 +201,7 @@ pub fn generate_bom_csv(circuit: &CircuitIR, schematic: &Schematic) -> Vec<u8> {
     }
 
     let mut output = String::from(
-        "item,quantity,references,component_kind,electrical,manufacturer,mpn,footprint,pin_map,selection_status,eda_status,note\r\n",
+        "item,quantity,references,component_kind,electrical,manufacturer,mpn,footprint,pin_map,selection_status,eda_status,provided_ratings,rating_conditions,rating_sources,note\r\n",
     );
     for (index, (key, mut references)) in groups.into_iter().enumerate() {
         references.sort();
@@ -166,6 +217,9 @@ pub fn generate_bom_csv(circuit: &CircuitIR, schematic: &Schematic) -> Vec<u8> {
             key.pin_map,
             key.selection_status,
             key.eda_status,
+            key.provided_ratings,
+            key.rating_conditions,
+            key.rating_sources,
             key.note,
         ];
         output.push_str(
@@ -254,6 +308,15 @@ pub fn generate_handoff_manifest(
                 .into(),
         );
     }
+    let provided_part_ratings = circuit
+        .physical_parts
+        .assignments
+        .iter()
+        .map(|part| part.ratings.len())
+        .sum();
+    if provided_part_ratings > 0 {
+        warnings.push(crate::stress::PART_STRESS_DISCLAIMER.into());
+    }
     let manifest = HandoffManifest {
         schema_version: HANDOFF_SCHEMA_VERSION.into(),
         generator: "kessetsu-handoff".into(),
@@ -272,6 +335,7 @@ pub fn generate_handoff_manifest(
                 .filter(|footprint| footprint.eda_ready)
                 .count(),
             external_model_dependencies: model_dependencies.len(),
+            provided_part_ratings,
         },
         physical_parts: circuit.physical_parts.clone(),
         footprints,

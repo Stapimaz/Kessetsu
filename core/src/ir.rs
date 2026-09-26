@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
-pub const PHYSICAL_PART_SCHEMA_VERSION: &str = "kessetsu.physical-parts.v1";
+pub const PHYSICAL_PART_SCHEMA_VERSION: &str = "kessetsu.physical-parts.v2";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CircuitIR {
@@ -22,7 +22,7 @@ pub struct CircuitIR {
     pub parameter_manifest: crate::expression::ParameterManifest,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PhysicalPartAssignment {
     pub component: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -35,9 +35,28 @@ pub struct PhysicalPartAssignment {
     pub pin_map: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ratings: Vec<ProvidedPartRating>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PartRatingKind {
+    PeakVoltage,
+    PeakCurrent,
+    AverageDissipation,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProvidedPartRating {
+    pub kind: PartRatingKind,
+    pub limit: Quantity,
+    pub conditions: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PhysicalPartManifest {
     pub schema_version: String,
     pub assignments: Vec<PhysicalPartAssignment>,
@@ -1608,12 +1627,23 @@ fn compile_physical_parts(
             let key = field.name.to_ascii_lowercase();
             if !matches!(
                 key.as_str(),
-                "manufacturer" | "mpn" | "footprint" | "pin_map" | "note"
+                "manufacturer"
+                    | "mpn"
+                    | "footprint"
+                    | "pin_map"
+                    | "note"
+                    | "peak_voltage_limit"
+                    | "peak_voltage_conditions"
+                    | "peak_current_limit"
+                    | "peak_current_conditions"
+                    | "average_dissipation_limit"
+                    | "average_dissipation_conditions"
+                    | "rating_source"
             ) {
                 return Err(semantic_error(
                     "KES-C024",
                     format!(
-                        "unknown physical-part field '{}'; use manufacturer, mpn, footprint, pin_map or note",
+                        "unknown physical-part field '{}'; use identity/footprint fields or an explicit provided rating",
                         field.name
                     ),
                     Some(&declaration.component),
@@ -1630,7 +1660,13 @@ fn compile_physical_parts(
             }
         }
         for (name, value) in &fields {
-            let max = if name == "note" { 1024 } else { 256 };
+            let max = if matches!(name.as_str(), "note" | "rating_source") {
+                1024
+            } else if name.ends_with("_conditions") {
+                512
+            } else {
+                256
+            };
             if value.trim().is_empty() || value.len() > max || value.chars().any(char::is_control) {
                 return Err(semantic_error(
                     "KES-C024",
@@ -1657,6 +1693,80 @@ fn compile_physical_parts(
         } else {
             BTreeMap::new()
         };
+        let rating_source = fields.get("rating_source").cloned();
+        let mut ratings = Vec::new();
+        for (kind, limit_field, conditions_field, unit) in [
+            (
+                PartRatingKind::PeakVoltage,
+                "peak_voltage_limit",
+                "peak_voltage_conditions",
+                SIUnit::Volt,
+            ),
+            (
+                PartRatingKind::PeakCurrent,
+                "peak_current_limit",
+                "peak_current_conditions",
+                SIUnit::Ampere,
+            ),
+            (
+                PartRatingKind::AverageDissipation,
+                "average_dissipation_limit",
+                "average_dissipation_conditions",
+                SIUnit::Watt,
+            ),
+        ] {
+            match (fields.get(limit_field), fields.get(conditions_field)) {
+                (Some(limit), Some(conditions)) => {
+                    let limit = parse_quantity(limit, unit).map_err(|message| {
+                        semantic_error(
+                            "KES-C024",
+                            format!("invalid {limit_field}: {message}"),
+                            Some(&declaration.component),
+                            Some(limit_field),
+                        )
+                    })?;
+                    if !limit.value.is_finite() || limit.value <= 0.0 {
+                        return Err(semantic_error(
+                            "KES-C024",
+                            format!("{limit_field} must be finite and greater than zero"),
+                            Some(&declaration.component),
+                            Some(limit_field),
+                        ));
+                    }
+                    ratings.push(ProvidedPartRating {
+                        kind,
+                        limit,
+                        conditions: conditions.clone(),
+                        source: rating_source.clone(),
+                    });
+                }
+                (Some(_), None) => {
+                    return Err(semantic_error(
+                        "KES-C024",
+                        format!("{limit_field} requires {conditions_field}"),
+                        Some(&declaration.component),
+                        Some(conditions_field),
+                    ));
+                }
+                (None, Some(_)) => {
+                    return Err(semantic_error(
+                        "KES-C024",
+                        format!("{conditions_field} requires {limit_field}"),
+                        Some(&declaration.component),
+                        Some(limit_field),
+                    ));
+                }
+                (None, None) => {}
+            }
+        }
+        if rating_source.is_some() && ratings.is_empty() {
+            return Err(semantic_error(
+                "KES-C024",
+                "rating_source requires at least one provided rating limit",
+                Some(&declaration.component),
+                Some("rating_source"),
+            ));
+        }
         assignments.push(PhysicalPartAssignment {
             component: declaration.component.clone(),
             manufacturer: fields.get("manufacturer").cloned(),
@@ -1664,6 +1774,7 @@ fn compile_physical_parts(
             footprint,
             pin_map,
             note: fields.get("note").cloned(),
+            ratings,
         });
     }
     assignments.sort_by(|left, right| left.component.cmp(&right.component));

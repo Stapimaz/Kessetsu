@@ -49,16 +49,23 @@ fn visual_and_eda_payloads_have_real_format_signatures() {
 
 #[test]
 fn bom_handoff_and_kicad_share_explicit_physical_part_data() {
-    let source = "net GND\nnet IN\nnet OUT\nsource VIN 1V\nresistor R1 10k\nresistor R2 10k\ncapacitor C1 100nF\npart R1 manufacturer=\"Yageo\" mpn=\"RC0603FR-0710KL\" footprint=\"Resistor_SMD:R_0603_1608Metric\" pin_map=\"p1:2,p2:1\"\npart R2 manufacturer=\"Yageo\" mpn=\"RC0603FR-0710KL\" footprint=\"Resistor_SMD:R_0603_1608Metric\" pin_map=\"p1:2,p2:1\"\npart C1 footprint=\"Capacitor_SMD:C_0603_1608Metric\"\nconnect VIN.minus,C1.p2 to GND\nconnect VIN.plus,R1.p1 to IN\nconnect R1.p2,R2.p1 to OUT\nconnect R2.p2,C1.p1 to GND\n";
+    let source = "net GND\nnet IN\nnet OUT\nsource VIN 1V\nresistor R1 10k\nresistor R2 10k\ncapacitor C1 100nF\npart R1 manufacturer=\"Yageo\" mpn=\"RC0603FR-0710KL\" footprint=\"Resistor_SMD:R_0603_1608Metric\" pin_map=\"p1:2,p2:1\" average_dissipation_limit=\"0.1W\" average_dissipation_conditions=\"70 C ambient; no forced airflow\" rating_source=\"User-supplied manufacturer record\"\npart R2 manufacturer=\"Yageo\" mpn=\"RC0603FR-0710KL\" footprint=\"Resistor_SMD:R_0603_1608Metric\" pin_map=\"p1:2,p2:1\"\npart C1 footprint=\"Capacitor_SMD:C_0603_1608Metric\"\nconnect VIN.minus,C1.p2 to GND\nconnect VIN.plus,R1.p1 to IN\nconnect R1.p2,R2.p1 to OUT\nconnect R2.p2,C1.p1 to GND\n";
     let report = compile_source(source, CompileOptions::all_outputs());
     assert!(!report.has_errors(), "{:?}", report.diagnostics);
 
     let bom = export_report(&report, ExportFormat::BomCsv, ExportOptions::default()).unwrap();
     let bom = String::from_utf8(bom.bytes).unwrap();
-    assert!(bom.contains("\"2\",\"R1;R2\""), "{bom}");
+    assert!(bom.contains("\"1\",\"R1\""), "{bom}");
+    assert!(bom.contains("\"1\",\"R2\""), "{bom}");
+    assert!(
+        !bom.contains("R1;R2"),
+        "parts with different supplied rating evidence must remain separate BOM rows"
+    );
     assert!(bom.contains("\"selected\",\"ready\""), "{bom}");
     assert!(bom.contains("\"C1\""), "{bom}");
     assert!(bom.contains("\"incomplete\",\"pin_map_missing\""), "{bom}");
+    assert!(bom.contains("average_dissipation<=100.000000mW"), "{bom}");
+    assert!(bom.contains("70 C ambient; no forced airflow"), "{bom}");
     assert!(
         !bom.contains("VIN"),
         "abstract sources must not become BOM lines"
@@ -67,10 +74,11 @@ fn bom_handoff_and_kicad_share_explicit_physical_part_data() {
     let handoff =
         export_report(&report, ExportFormat::HandoffJson, ExportOptions::default()).unwrap();
     let handoff: serde_json::Value = serde_json::from_slice(&handoff.bytes).unwrap();
-    assert_eq!(handoff["schema_version"], "kessetsu.handoff.v1");
+    assert_eq!(handoff["schema_version"], "kessetsu.handoff.v2");
     assert_eq!(handoff["counts"]["electrical_components"], 3);
     assert_eq!(handoff["counts"]["assigned_parts"], 3);
     assert_eq!(handoff["counts"]["eda_ready_footprints"], 2);
+    assert_eq!(handoff["counts"]["provided_part_ratings"], 1);
     assert_eq!(handoff["footprints"][0]["component"], "C1");
     assert_eq!(handoff["footprints"][0]["eda_ready"], false);
 
@@ -84,6 +92,7 @@ fn bom_handoff_and_kicad_share_explicit_physical_part_data() {
     assert!(kicad.contains("\"Footprint\" \"Resistor_SMD:R_0603_1608Metric\""));
     assert!(!kicad.contains("\"Footprint\" \"Capacitor_SMD:C_0603_1608Metric\""));
     assert!(kicad.contains("\"Kessetsu_Pin_Map\" \"p1:2;p2:1\""));
+    assert!(kicad.contains("\"Kessetsu_Ratings\" \"average_dissipation<=100.000000mW\""));
     assert!(kicad.contains("(name \"p1\"") && kicad.contains("(number \"2\""));
 }
 

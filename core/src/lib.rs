@@ -34,6 +34,7 @@ pub mod sim_result;
 pub mod simulation;
 pub mod simulation_parser;
 pub mod spice_import;
+pub mod stress;
 pub mod tools;
 pub mod wasm;
 

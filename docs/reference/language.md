@@ -240,20 +240,37 @@ An electrical component may carry a separate physical-part assignment:
 
 ```kessetsu
 resistor R1 10k
-part R1 manufacturer="Yageo" mpn="RC0603FR-0710KL" footprint="Resistor_SMD:R_0603_1608Metric" pin_map="p1:1,p2:2" note="Verify stock and rating before build"
+part R1 manufacturer="Yageo" mpn="RC0603FR-0710KL" footprint="Resistor_SMD:R_0603_1608Metric" pin_map="p1:1,p2:2" average_dissipation_limit="0.1W" average_dissipation_conditions="70 C ambient; apply manufacturer derating" rating_source="User-supplied manufacturer record" note="Verify stock before build"
 ```
 
-`manufacturer`, `mpn`, `footprint`, `pin_map` and `note` are the complete field allowlist;
-omit unknown information instead of using a guessed placeholder. A pin map is optional, but when
-present it requires a footprint and must map every logical catalog pin exactly once to a unique
-physical pad. The assignment is stored in the versioned physical-part manifest and never changes
-component value, model, connectivity or generated simulation netlist.
+Identity/handoff fields are `manufacturer`, `mpn`, `footprint`, `pin_map` and `note`; omit unknown
+information instead of using a guessed placeholder. A pin map is optional, but when present it
+requires a footprint and must map every logical catalog pin exactly once to a unique physical pad.
+
+Optional provided-rating pairs are:
+
+- `peak_voltage_limit` (V) with `peak_voltage_conditions`;
+- `peak_current_limit` (A) with `peak_current_conditions`;
+- `average_dissipation_limit` (W) with `average_dissipation_conditions`.
+
+Every limit must be a finite positive typed quantity and its matching conditions are mandatory.
+`rating_source` is an optional user-supplied citation shared by the ratings on that assignment; a
+rating without it is explicitly user-entered, not silently verified. `simulate` and `test` compare
+available model stress against these values in the separate `kessetsu.part-stress.v1` report.
+Peak voltage uses the component's canonical terminal pair, peak current uses its supported device
+current, and average dissipation uses positive transient power. Unsupported models or missing
+analysis data are reported as unavailable. Exceeding a provided rating is prominent but advisory:
+it does not replace explicit design/evaluator assertions or change their exit status.
+
+The assignment is stored in the versioned physical-part manifest and never changes component
+value, model, connectivity or generated simulation netlist.
 
 Place `part` beside a component inside a module to assign each flattened instance independently.
 A module interface itself is virtual and cannot receive a physical part. Manufacturer identity is
-not a device model, footprint choice is not pin mapping, and none of these fields constitutes a
-datasheet-rating or availability claim. Independent voltage/current sources are simulation stimuli
-and are not BOM parts; represent a real sourced device through an appropriate typed component.
+not a device model, footprint choice is not pin mapping, and a supplied limit is not proof of full
+datasheet compliance, safe operating area, thermal safety or availability. Independent
+voltage/current sources are simulation stimuli and are not BOM parts; represent a real sourced
+device through an appropriate typed component.
 
 ## Typed models and packages
 

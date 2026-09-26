@@ -57,7 +57,12 @@ assert peak(P(Q1)) < 5W
 assert dissipation(Q1) < 2W
 ```
 
-These are simulated operating limits supplied by the design requirement. They are not automatically inferred datasheet ratings; datasheet knowledge belongs to the later Component Knowledge Base.
+These are simulated operating limits supplied by the design requirement. They are not automatically
+inferred datasheet ratings. A physical `part` assignment may separately record condition-qualified,
+user-provided peak-voltage, peak-current and average-dissipation limits. Kessetsu compares them in
+an advisory part-stress report while keeping requirement PASS/FAIL and process exit status
+independent. A comparison below a supplied number is not a safe-operating-area, thermal or complete
+datasheet-compliance result.
 
 ## Reductions
 

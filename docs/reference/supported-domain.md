@@ -48,6 +48,7 @@ arbitrary vendor, memristor or research-device support.
 | Reduction | `value`, `min`, `max`, absolute `peak`, `average`, `rms` | No real reduction over complex AC data |
 | Derived | gain, gain_at, bandwidth/cutoff, lower_cutoff, upper_cutoff, frequency, phase, output power, efficiency, THD, clipping, dissipation | Only under documented analysis and signal conditions |
 | Assertion | `<`, `>`, `==`, `<=`, `>=`; PASS/FAIL/ERROR/SKIPPED | Missing data is never treated as `0` or PASS |
+| Provided part limits | Condition-qualified peak voltage/current and average dissipation | User-supplied advisory comparison; no SOA, thermal or datasheet-compliance inference |
 
 ## Example circuits
 
@@ -61,5 +62,7 @@ arbitrary vendor, memristor or research-device support.
 Kessetsu is a schematic-level SPICE engineering tool. It does not provide PCB layout/DRC,
 EM-field solving, RF S-parameter workflows, digital HDL, thermal/aging/reliability analysis,
 PCB parasitic extraction, EMC/ESD analysis, manufacturing-tolerance Monte Carlo or a
-datasheet-limit database. Simulation does not replace laboratory measurement or engineering
-review. These are current capability boundaries, not a restriction to educational circuits.
+datasheet-limit database. It can retain and compare explicitly supplied ratings, conditions and
+citations, but does not verify those records or infer unprovided derating/SOA curves. Simulation
+does not replace laboratory measurement or engineering review. These are current capability
+boundaries, not a restriction to educational circuits.

@@ -8,6 +8,7 @@ use crate::graph::NetlistGraph;
 use crate::ir::Analysis;
 use crate::sim_result::{AssertionReport, evaluate_assertions};
 use crate::simulation::{SIMULATION_SCHEMA_VERSION, SimulationResult};
+use crate::stress::{PartStressReport, evaluate_part_stress};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use wasm_bindgen::prelude::*;
@@ -487,6 +488,7 @@ pub fn prepare_browser_simulation_with_resources(
 pub struct BrowserEvaluation {
     pub simulation: SimulationResult,
     pub assertions: AssertionReport,
+    pub part_stress: PartStressReport,
 }
 
 #[wasm_bindgen]
@@ -577,10 +579,12 @@ pub fn evaluate_browser_simulation_with_resources(
         )));
     }
     let assertions = evaluate_assertions(&circuit, &simulation);
+    let part_stress = evaluate_part_stress(&circuit, &simulation);
     to_json_compatible(
         &BrowserEvaluation {
             simulation,
             assertions,
+            part_stress,
         },
         "browser result",
     )

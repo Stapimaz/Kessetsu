@@ -38,7 +38,7 @@ Kessetsu Source (.kess)
 
 ### Single Compile Contract
 
-The canonical Core entry points are `compile_source(source, options) -> CompileReport` and its resource-aware form `compile_source_with_resources(source, options, resources) -> CompileReport`. Neither writes files, launches processes, or prints logs; frontends bind resource bytes and own those side effects. Current development reports are versioned as `kessetsu.compile.v6` (published 1.2.0 uses v5) and, depending on options, can carry the flattened AST, typed IR, deterministic graph summary, SPICE, canonical `kessetsu.schematic.v3`, SVG, temporary legacy layout, and KiCad output. External resource bytes never appear in the report.
+The canonical Core entry points are `compile_source(source, options) -> CompileReport` and its resource-aware form `compile_source_with_resources(source, options, resources) -> CompileReport`. Neither writes files, launches processes, or prints logs; frontends bind resource bytes and own those side effects. Current development reports are versioned as `kessetsu.compile.v9` (published 1.2.0 uses v5) and, depending on options, can carry the flattened AST, typed IR, deterministic graph summary, SPICE, canonical `kessetsu.schematic.v3`, SVG, temporary legacy layout, and KiCad output. External resource bytes never appear in the report.
 
 Parse, flattening, semantic, and ERC failures are normalized into the shared `Diagnostic` model. If any error-severity diagnostic exists, no backend output is produced. Warnings and informational diagnostics may accompany successful output. The CLI and WASM layers must remain adapters around this entry point and must not construct parallel compilation pipelines.
 
@@ -307,17 +307,21 @@ External subcircuits use the typed `external_subcircuit` contract in the [model 
 
 ### Physical-part boundary
 
-`part` statements attach optional manufacturer, MPN, footprint, complete logical-pin-to-pad map
-and user note to a declared electrical component. Elaboration qualifies assignments inside modules;
-semantic conversion validates them against the shared component catalog and stores them separately
-in `kessetsu.physical-parts.v1`. Unknown fields, duplicate assignments, missing targets, partial or
-ambiguous pin maps and assignments to virtual module ports fail closed as `KES-C024`.
+`part` statements attach optional manufacturer, MPN, footprint, complete logical-pin-to-pad map,
+user note and condition-qualified provided peak-voltage/peak-current/average-dissipation limits to
+a declared electrical component. Elaboration qualifies assignments inside modules; semantic
+conversion validates identities, typed positive limits, mandatory per-limit conditions and catalog
+pins, then stores them separately in `kessetsu.physical-parts.v2`. Unknown fields, duplicate
+assignments, missing targets, malformed limits, partial or ambiguous pin maps and assignments to
+virtual module ports fail closed as `KES-C024`.
 
 The electrical component kind, value, simulation model and graph connectivity are unchanged. SPICE
 generation does not consume physical-part metadata. Missing fields remain absent, and a footprint
-without a pin map does not imply one. This separation is the prerequisite for BOM and EDA handoff;
-it is not a sourcing, stock, rating or manufacturability claim. The additive IR field advances the
-compile report contract to `kessetsu.compile.v8`.
+without a pin map does not imply one. After simulation, `stress.rs` evaluates available model stress
+against supplied limits in `kessetsu.part-stress.v1`; this advisory report remains separate from
+design/evaluator assertions and cannot establish datasheet compliance, SOA, thermal safety or
+manufacturability. The additive IR field advances the compile report contract to
+`kessetsu.compile.v9`.
 
 Attempts to hide `.control`, `.include`, shell syntax, or line breaks inside quoted parameters cannot cross typed numeric and metadata validation. When an error exists, the SPICE backend does not run. Regression tests protect this injection boundary.
 

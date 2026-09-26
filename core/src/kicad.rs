@@ -1,5 +1,5 @@
 use crate::exporter::ExportError;
-use crate::ir::{CircuitIR, PhysicalPartAssignment};
+use crate::ir::{CircuitIR, PartRatingKind, PhysicalPartAssignment};
 use crate::schematic::{Point, Schematic, SchematicComponent, TextAnchor, TextRole};
 use sha2::{Digest, Sha256};
 
@@ -215,6 +215,55 @@ fn instance(
         }
         if let Some(note) = &part.note {
             out.push_str(&property("Kessetsu_Part_Note", note, &x, &y, true));
+        }
+        if !part.ratings.is_empty() {
+            let rating_name = |kind| match kind {
+                PartRatingKind::PeakVoltage => "peak_voltage",
+                PartRatingKind::PeakCurrent => "peak_current",
+                PartRatingKind::AverageDissipation => "average_dissipation",
+            };
+            let ratings = part
+                .ratings
+                .iter()
+                .map(|rating| {
+                    format!(
+                        "{}<={}",
+                        rating_name(rating.kind),
+                        crate::sim_result::format_quantity(rating.limit.value, rating.limit.unit)
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("; ");
+            let conditions = part
+                .ratings
+                .iter()
+                .map(|rating| format!("{}: {}", rating_name(rating.kind), rating.conditions))
+                .collect::<Vec<_>>()
+                .join("; ");
+            let mut sources = part
+                .ratings
+                .iter()
+                .filter_map(|rating| rating.source.clone())
+                .collect::<Vec<_>>();
+            sources.sort();
+            sources.dedup();
+            out.push_str(&property("Kessetsu_Ratings", &ratings, &x, &y, true));
+            out.push_str(&property(
+                "Kessetsu_Rating_Conditions",
+                &conditions,
+                &x,
+                &y,
+                true,
+            ));
+            if !sources.is_empty() {
+                out.push_str(&property(
+                    "Kessetsu_Rating_Sources",
+                    &sources.join("; "),
+                    &x,
+                    &y,
+                    true,
+                ));
+            }
         }
     }
     if let Some(model) = &component.model {

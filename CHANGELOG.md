@@ -18,16 +18,22 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 ### Physical part identity
 
 - `part` statements attach optional manufacturer, MPN, footprint, complete logical-pin mapping and
-  user notes to an electrical component without changing its value, model or connectivity.
+  user notes plus condition-qualified provided voltage/current/dissipation limits to an electrical
+  component without changing its value, model or connectivity.
 - Core validates assignments against catalog pins, preserves module-instance identity and exposes
-  `kessetsu.physical-parts.v1` separately in Circuit IR. Unknown or incomplete mappings fail closed.
+  `kessetsu.physical-parts.v2` separately in Circuit IR. Unknown/incomplete mappings and malformed
+  or condition-free limits fail closed.
 - Physical metadata and reusable-block navigation advance compile reports to
-  `kessetsu.compile.v8`; simulation netlists remain byte-identical when only metadata changes.
+  `kessetsu.compile.v9`; simulation netlists remain byte-identical when only metadata changes.
+- Native and Web simulation expose `kessetsu.part-stress.v1`: model stress versus user-provided
+  limits, including conditions/citation and explicit unavailable states. This advisory comparison
+  is separate from requirements, exit status, datasheet compliance and safe-operating-area claims.
 - Deterministic BOM CSV groups matching selections and keeps unresolved/incomplete rows visible;
-  `kessetsu.handoff.v1` records IR identity, footprint readiness and exact model dependencies.
+  `kessetsu.handoff.v2` also records provided ratings while retaining IR identity, footprint
+  readiness and exact model dependencies.
 - KiCad uses the declared footprint and physical pad numbers only with a complete pin map. A bare
   footprint remains visible in BOM/handoff evidence but is not silently attached to the schematic.
-- The shared export contract advances to `kessetsu.export.v2`; CLI and Web expose BOM CSV and
+- The shared export contract advances to `kessetsu.export.v3`; CLI and Web expose BOM CSV and
   handoff JSON through the existing Export flow.
 - Physical components retain structured reusable-block ancestry independently of their canonical
   flattened electrical identifiers. Existing source-only share links from compatible Core revisions

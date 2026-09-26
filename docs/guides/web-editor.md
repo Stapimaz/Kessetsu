@@ -49,6 +49,9 @@ and cancellation are shown there. Errors are not replaced with invented results.
 Select an analysis and signal to inspect operating-point values or waveform/Bode/DC plots.
 Hover over a plot for numeric values. Assertions show PASS, FAIL, ERROR or SKIPPED with their
 measured value and limit. Simulation without assertions is valid but does not prove requirements.
+When the source records physical-part ratings, a separate **Provided part limits** table shows
+model stress, utilization, recorded conditions and citation. Its Within/Exceeds/Unavailable state
+is advisory and never presented as a requirement PASS or hardware-safety approval.
 Editing the source makes previous results stale: rerun before drawing conclusions.
 See [simulation and assertions](../reference/simulation-and-assertions.md) and
 [measurements](../reference/measurements.md) for exact meanings and analysis requirements.

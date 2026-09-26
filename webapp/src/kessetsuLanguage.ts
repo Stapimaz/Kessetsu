@@ -16,6 +16,7 @@ export const topLevelCompletions: readonly KessetsuCompletion[] = [
   { label: 'transistor', detail: 'Declare a BJT; an optional polarity hint must match its model.', insertText: 'transistor ${1:Q1} ${2:npn} ${3:2N3904}' },
   { label: 'mosfet', detail: 'Declare a MOSFET; polarity is determined by its model.', insertText: 'mosfet ${1:M1} ${2:IRF540}' },
   { label: 'opamp', detail: 'Declare a five-pin typed op-amp.', insertText: 'opamp ${1:U1} ${2:KESSETSU_OPAMP_V1}' },
+  { label: 'part', detail: 'Attach physical identity, handoff data and optional condition-qualified provided limits without changing the simulation model.', insertText: 'part ${1:R1} manufacturer="${2:manufacturer}" mpn="${3:part number}" ${4:average_dissipation_limit="0.1W" average_dissipation_conditions="Ambient and derating conditions"}' },
   { label: 'connect', detail: 'Connect one or more canonical pins to a pin or named net.', insertText: 'connect ${1:VIN.plus} to ${2:IN}' },
   { label: 'simulate', detail: 'Add an OP, transient, AC, or DC analysis.', insertText: 'simulate ${1|op,tran,ac,dc|}' },
   { label: 'assert', detail: 'Add a design-owned engineering check; threshold and supported numeric metric arguments accept {expression}. Independent .kessreq limits stay literal.', insertText: 'assert ${1:peak}(${2:V(OUT)}) ${3:<} ${4:5V}' },

@@ -163,6 +163,7 @@ export async function decodeShareFragment(fragment: string, expectedCompileSchem
     'kessetsu.compile.v6': ['kessetsu.compile.v4', 'kessetsu.compile.v5'],
     'kessetsu.compile.v7': ['kessetsu.compile.v4', 'kessetsu.compile.v5', 'kessetsu.compile.v6'],
     'kessetsu.compile.v8': ['kessetsu.compile.v4', 'kessetsu.compile.v5', 'kessetsu.compile.v6', 'kessetsu.compile.v7'],
+    'kessetsu.compile.v9': ['kessetsu.compile.v4', 'kessetsu.compile.v5', 'kessetsu.compile.v6', 'kessetsu.compile.v7', 'kessetsu.compile.v8'],
   } as Record<string, string[]>)[expectedCompileSchema]?.includes(value.compile_schema_version) ?? false;
   if (value.compile_schema_version !== expectedCompileSchema && !compatibleLegacy) {
     throw new Error('Shared circuit requires an unsupported Core schema');

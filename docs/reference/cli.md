@@ -278,11 +278,11 @@ published only after all files are written. See
 
 ## JSON Contract
 
-JSON stdout is exactly one JSON object for every invocation. Progress and simulator logs are never written to stdout. The default agent envelope is `kessetsu.cli.v1`. Current development compile reports use `kessetsu.compile.v6`, canonical schematics use `kessetsu.schematic.v3`, model manifests/locks use `kessetsu.models.v3`/`kessetsu.lock.v3`, simulation results use `kessetsu.simulation.v1`, engineering measurements use `kessetsu.measurement.v3`, assertion reports use `kessetsu.assertion.v1`, external requirement sets use `kessetsu.requirements.v1`, finite fitting uses `kessetsu.fit.v1` plus `kessetsu.fit-result.v1`, and portable folders use `kessetsu.research-package.v1`. Published 1.2.0 uses compile v5/schematic v2/model v2/lock v2/measurement v2; 1.1.0 uses compile v4/measurement v1. Active subcontracts appear in `domain_versions`. Resolved parameter/field provenance (`kessetsu.parameters.v1`) is opt-in through `--include ir`, not additional default JSON bulk.
+JSON stdout is exactly one JSON object for every invocation. Progress and simulator logs are never written to stdout. The default agent envelope is `kessetsu.cli.v1`. Current development compile reports use `kessetsu.compile.v9`, canonical schematics use `kessetsu.schematic.v3`, model manifests/locks use `kessetsu.models.v3`/`kessetsu.lock.v3`, simulation results use `kessetsu.simulation.v1`, engineering measurements use `kessetsu.measurement.v3`, assertion reports use `kessetsu.assertion.v1`, provided part-stress reports use `kessetsu.part-stress.v1`, external requirement sets use `kessetsu.requirements.v1`, finite fitting uses `kessetsu.fit.v1` plus `kessetsu.fit-result.v1`, and portable folders use `kessetsu.research-package.v1`. Published 1.2.0 uses compile v5/schematic v2/model v2/lock v2/measurement v2; 1.1.0 uses compile v4/measurement v1. Active subcontracts appear in `domain_versions`. Resolved parameter/field provenance (`kessetsu.parameters.v1`) is opt-in through `--include ir`, not additional default JSON bulk.
 
 See the [engineering-measurement contract](measurements.md) for assertion primitives, derived-metric formulas, analysis requirements, and sign conventions.
 
-Default output is intentionally compact. In addition to command/schema metadata, it contains only `status`, diagnostics, summary, measurements, assertions, and artifact references. Canonical AST/IR/graph/SPICE, analysis datasets, the complete typed simulation, model manifest/lock content, and raw logs appear under `debug` only when selected through the corresponding `--include` option.
+Default output is intentionally compact. In addition to command/schema metadata, it contains only `status`, diagnostics, summary, measurements, assertions, an optional `part_stress` report when ratings exist, and artifact references. Canonical AST/IR/graph/SPICE, analysis datasets, the complete typed simulation, model manifest/lock content, and raw logs appear under `debug` only when selected through the corresponding `--include` option.
 
 Successful `check` summary:
 
@@ -292,7 +292,7 @@ Successful `check` summary:
   "command": "check",
   "status": "success",
   "domain_versions": {
-    "compile": "kessetsu.compile.v6",
+    "compile": "kessetsu.compile.v9",
     "simulation": null,
     "measurement": null,
     "assertion": null,

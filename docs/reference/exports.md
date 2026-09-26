@@ -10,7 +10,7 @@ Two-terminal LTspice exports use its rectangular native outline with explicit `P
 not resistor semantics. Known symbol mappings are unchanged. See the
 [model catalog](model-catalog.md) for characterized setups and simulator-compatibility losses.
 
-Kessetsu's export layer belongs to neither Web nor CLI. Every output is produced through the `kessetsu.export.v2` contract from typed Circuit IR and, where drawing geometry is required, connectivity-verified `kessetsu.schematic.v3`. CLI and Web call only this shared Core API.
+Kessetsu's export layer belongs to neither Web nor CLI. Every output is produced through the `kessetsu.export.v3` contract from typed Circuit IR and, where drawing geometry is required, connectivity-verified `kessetsu.schematic.v3`. CLI and Web call only this shared Core API.
 
 Every artifact reports the exporter name/version, MIME type and extension, byte length, SHA-256, `connectivity_verified`, capability fields, warnings, and known semantic losses. Unsupported topology or symbol geometry is never approximated silently; a `KES-Xxxx` diagnostic stops the export.
 
@@ -25,8 +25,8 @@ Every artifact reports the exporter name/version, MIME type and extension, byte 
 | SPICE | Simulation and automation | Yes | Yes | No | Canonical Ngspice netlist with analyses; physical selection cannot change simulation |
 | KiCad `.kicad_sch` | Continued editing | Yes | Metadata | Yes | Complete pin maps drive real pad numbers/footprint properties; an unmapped footprint is deliberately not attached |
 | LTspice `.asc` | Editing and LTspice simulation | Yes | Yes | No | Real LTspice 24.1.9 `-netlist` smoke; assertions remain in the `.kess` source |
-| BOM CSV | Sourcing/editable spreadsheet | No | No | Yes | Groups equal selections, excludes abstract sources, and retains `unassigned`/`incomplete`/EDA status rows |
-| Handoff JSON | Dependency and readiness manifest | No | Yes | Yes | `kessetsu.handoff.v1`; IR identity, part assignments, footprint/pin readiness, exact external model dependencies and unresolved components |
+| BOM CSV | Sourcing/editable spreadsheet | No | No | Yes | Groups equal selections, excludes abstract sources, retains unresolved/EDA status and condition-qualified provided ratings |
+| Handoff JSON | Dependency and readiness manifest | No | Yes | Yes | `kessetsu.handoff.v2`; IR identity, part assignments/ratings, footprint/pin readiness, exact external model dependencies and unresolved components |
 
 The PDF policy is deliberately single-page because splitting an electronic schematic makes connectivity harder to follow. For a very large circuit, Core must first produce readable Schematic IR; the exporter does not invent arbitrary page breaks. The exporter uses a canonical content-sized media box rather than an A4/Letter frame, avoiding unused space and deriving orientation naturally from the content.
 
@@ -38,7 +38,9 @@ Physical metadata follows a stricter EDA rule. BOM and handoff outputs record a 
 even when its logical-to-physical mapping is missing, marking that condition explicitly. KiCad
 attaches the footprint and replaces embedded-symbol pin numbers only when the map is complete.
 This prevents a convenient default numbering order from silently becoming a board-level claim.
-Manufacturer/MPN fields are user-provided identity, not verified stock, price or rating data.
+Manufacturer/MPN and rating fields are user-provided records, not independently verified stock,
+price, datasheet or safe-operating-area data. KiCad retains provided ratings, conditions and
+citations as hidden editable properties; BOM and handoff outputs keep the same provenance.
 
 ## EDA verification
 

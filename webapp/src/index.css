@@ -273,6 +273,14 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .assertion-pass { color: var(--success); }
 .assertion-fail, .assertion-error { color: var(--error); }
 .assertion-skipped { color: var(--warning); }
+.part-stress-heading { padding: 10px 12px; background: var(--panel-raised); border-bottom: 1px solid var(--border); }
+.part-stress-heading > div { display: flex; gap: 9px; align-items: baseline; }
+.part-stress-heading span, .part-stress-heading small { color: var(--muted); }
+.part-stress-heading small { display: block; margin-top: 4px; line-height: 1.45; }
+.part-stress-within_provided_limit { color: var(--success); }
+.part-stress-exceeds_provided_limit { color: var(--error); }
+.part-stress-unavailable { color: var(--warning); }
+.part-stress-table td:last-child { min-width: 220px; white-space: normal; font-family: inherit; }
 
 .artifact-bar { display: flex; align-items: center; gap: 4px; }
 .artifact-bar button { padding: 4px 8px; font-size: 11px; }

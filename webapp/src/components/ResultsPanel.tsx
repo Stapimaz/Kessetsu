@@ -37,6 +37,16 @@ function measuredQuantity(value: number, unit: string) {
   return engineering(value, units[canonical] ?? unit);
 }
 
+function partStressStatus(status: string) {
+  if (status === 'within_provided_limit') return 'Within';
+  if (status === 'exceeds_provided_limit') return 'Exceeds';
+  return 'Unavailable';
+}
+
+function partRatingLabel(rating: string) {
+  return rating.split('_').map((word) => word[0].toUpperCase() + word.slice(1)).join(' ');
+}
+
 function axisUnit(name: string) {
   if (name.includes('time')) return 's';
   if (name.includes('frequency')) return 'Hz';
@@ -244,6 +254,27 @@ export function ResultsPanel({ state, message, evaluation, compileSucceeded, onR
               </td>
               <td>{assertion.actual == null ? '—' : measuredQuantity(assertion.actual, assertion.unit)}</td>
               <td>{assertion.comparator} {measuredQuantity(assertion.threshold, assertion.unit)}</td>
+            </tr>)}</tbody>
+          </table>
+        </div>}
+        {!!evaluation?.part_stress.results.length && <div className="requirements-wrap part-stress-wrap">
+          <div className="part-stress-heading">
+            <div><strong>Provided part limits</strong><span>Simulated model stress, kept separate from design requirements.</span></div>
+            <small>{evaluation.part_stress.disclaimer}</small>
+          </div>
+          <table className="requirements-table part-stress-table" aria-label="Provided part limit comparison">
+            <thead><tr><th>State</th><th>Part / measurement</th><th>Simulated</th><th>Provided limit</th><th>Recorded conditions</th></tr></thead>
+            <tbody>{evaluation.part_stress.results.map((result) => <tr key={`${result.component}-${result.rating}`}>
+              <td><span className={`part-stress-${result.status}`}>{partStressStatus(result.status)}</span></td>
+              <td><span className="requirement-name">{result.component} · {partRatingLabel(result.rating)}</span>
+                <small>{result.metric}({result.signal}){result.analysis ? ` · ${result.analysis}` : ''}</small>
+              </td>
+              <td>{result.actual == null ? '—' : measuredQuantity(result.actual, result.limit.unit)}
+                {result.utilization_percent != null && <small>{result.utilization_percent.toPrecision(4)}% of limit</small>}
+                {result.message && <small>{result.message}</small>}
+              </td>
+              <td>{measuredQuantity(result.limit.value, result.limit.unit)}</td>
+              <td>{result.conditions}{result.source && <small>Source: {result.source}</small>}</td>
             </tr>)}</tbody>
           </table>
         </div>}

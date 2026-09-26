@@ -15,7 +15,7 @@ The project is not limited to a particular educational scenario or circuit class
 - Rust parser, module flattening, and typed Circuit IR
 - Unit-checked named parameters, reusable circuit modules and CLI numeric overrides
 - Hash-verified local op-amp/comparator/two-terminal models, with explicit browser file selection
-- Versioned compile reports (`kessetsu.compile.v6`) and the `kessetsu.schematic.v3` schematic contract
+- Versioned compile reports (`kessetsu.compile.v9`) and the `kessetsu.schematic.v3` schematic contract
 - Deterministic net naming and `KES-P/C/E/I/S/F` diagnostic namespaces
 - SPICE generation, simulator discovery/provenance, and a Windows Ngspice sidecar runtime
 - Typed OP/transient/AC/DC simulation results and PASS/FAIL/ERROR/SKIPPED assertion evaluation

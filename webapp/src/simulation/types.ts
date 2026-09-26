@@ -91,9 +91,38 @@ export interface AssertionReport {
   summary: { total: number; passed: number; failed: number; errors: number; skipped: number };
 }
 
+export interface PartStressResult {
+  component: string;
+  rating: 'peak_voltage' | 'peak_current' | 'average_dissipation';
+  metric: string;
+  signal: string;
+  status: 'within_provided_limit' | 'exceeds_provided_limit' | 'unavailable';
+  actual?: number;
+  limit: Quantity;
+  utilization_percent?: number;
+  dataset_index?: number;
+  analysis?: string;
+  conditions: string;
+  source?: string;
+  message?: string;
+}
+
+export interface PartStressReport {
+  schema_version: 'kessetsu.part-stress.v1';
+  disclaimer: string;
+  results: PartStressResult[];
+  summary: {
+    total: number;
+    within_provided_limit: number;
+    exceeds_provided_limit: number;
+    unavailable: number;
+  };
+}
+
 export interface BrowserEvaluation {
   simulation: SimulationResult;
   assertions: AssertionReport;
+  part_stress: PartStressReport;
 }
 
 export type WorkerRequest = {

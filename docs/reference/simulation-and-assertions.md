@@ -41,6 +41,12 @@ Get-Content circuit.kess | kess test - --format json
 
 Exit `3` denotes simulator/runtime failure; exit `4` denotes assertion `FAIL`, `ERROR` or `SKIPPED`. `kess test` also returns exit `4` and `KES-T000` without launching the simulator when no assertions are defined; use `kess simulate` when verification is not intended. JSON stdout remains one parseable object. Use `--include datasets,raw-log` only for debugging large/raw data.
 
+If a physical `part` assignment includes provided ratings, simulation/test JSON also includes
+`part_stress` (`kessetsu.part-stress.v1`) and its summary. Exceeding such a value does not change
+the command exit code: these records may be user-entered, conditions may be incomplete, and the
+electrical model may omit thermal/SOA behavior. Express required acceptance behavior with an
+`assert` or evaluator-owned `.kessreq`; use part stress to keep selection evidence visible.
+
 ## Reproducibility boundary
 
 Kessetsu fixes source, Core schema, generated netlist, model/package hashes, simulator identity and evaluation formulas. Floating-point samples may differ slightly across simulator builds and platforms, so parity gates compare engineering decisions with declared tolerances instead of treating recorded decimals as universal golden bytes.

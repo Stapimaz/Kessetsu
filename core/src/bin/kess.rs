@@ -27,6 +27,10 @@ use kessetsu_core::simulation::{
 use kessetsu_core::spice_import::{
     ImportDiagnostic, ImportSeverity, SPICE_IMPORT_SCHEMA_VERSION, SpiceImportReport, import_spice,
 };
+use kessetsu_core::stress::{
+    PART_STRESS_SCHEMA_VERSION, PartStressReport, PartStressStatus, PartStressSummary,
+    evaluate_part_stress,
+};
 use kessetsu_core::tools::{
     PreferredValues, TOOL_SCHEMA_VERSION, ToolRequest, ToolResult, calculate_tool,
 };
@@ -454,6 +458,8 @@ struct JsonOutput {
     summary: JsonSummary,
     measurements: BTreeMap<String, f64>,
     assertions: Option<AssertionReport>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    part_stress: Option<PartStressReport>,
     requirements: Option<JsonRequirements>,
     artifacts: Vec<JsonArtifact>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -474,6 +480,8 @@ struct DomainVersions {
     simulation: Option<&'static str>,
     measurement: Option<&'static str>,
     assertion: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    part_stress: Option<&'static str>,
     requirements: Option<&'static str>,
     export: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -522,6 +530,8 @@ struct JsonSummary {
     analyses: usize,
     measurements: usize,
     assertions: Option<AssertionSummary>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    part_stress: Option<PartStressSummary>,
 }
 
 #[derive(Clone, Serialize)]
@@ -2756,6 +2766,14 @@ fn run_simulate(
         return 3;
     }
 
+    if *format == Format::Human {
+        let circuit = report
+            .ir
+            .as_ref()
+            .expect("successful compile report must preserve typed IR");
+        print_part_stress_report(&evaluate_part_stress(circuit, &simulation));
+    }
+
     if *format == Format::Json {
         emit(
             format,
@@ -2791,6 +2809,44 @@ fn print_simulation_result(simulation: &SimulationResult, include_raw_log: bool)
     if include_raw_log {
         print_simulator_logs(simulation);
     }
+}
+
+fn print_part_stress_report(report: &PartStressReport) {
+    if report.results.is_empty() {
+        return;
+    }
+    println!("[INFO] Provided part-limit comparison (advisory):");
+    for result in &report.results {
+        let status = match result.status {
+            PartStressStatus::WithinProvidedLimit => "WITHIN",
+            PartStressStatus::ExceedsProvidedLimit => "EXCEEDS",
+            PartStressStatus::Unavailable => "UNAVAILABLE",
+        };
+        let actual = result
+            .actual
+            .map(|actual| format_quantity(actual, result.limit.unit))
+            .unwrap_or_else(|| "not available".into());
+        let utilization = result
+            .utilization_percent
+            .map(|value| format!("; {value:.1}% of limit"))
+            .unwrap_or_default();
+        println!(
+            "[PART {status}] {} {} = {} / {}{}",
+            result.component,
+            result.metric,
+            actual,
+            format_quantity(result.limit.value, result.limit.unit),
+            utilization
+        );
+        println!("       Conditions: {}", result.conditions);
+        if let Some(source) = &result.source {
+            println!("       Source: {source}");
+        }
+        if let Some(message) = &result.message {
+            println!("       {message}");
+        }
+    }
+    println!("       {}", report.disclaimer);
 }
 
 fn print_simulator_logs(simulation: &SimulationResult) {
@@ -2955,6 +3011,7 @@ fn run_assertions(
         for result in &assertion_report.assertions {
             print_assertion_result(result);
         }
+        print_part_stress_report(&evaluate_part_stress(circuit, &simulation));
     }
 
     let status = if all_passed { "success" } else { "test_failed" };
@@ -3123,6 +3180,13 @@ fn build_json_output(
         .map(|simulation| simulation.measurements.clone())
         .unwrap_or_default();
     let assertion_summary = assertions.as_ref().map(|report| report.summary);
+    let part_stress = report
+        .ir
+        .as_ref()
+        .zip(simulation)
+        .map(|(circuit, simulation)| evaluate_part_stress(circuit, simulation))
+        .filter(|stress| stress.summary.total > 0);
+    let part_stress_summary = part_stress.as_ref().map(|report| report.summary);
     let summary = JsonSummary {
         errors,
         warnings,
@@ -3130,6 +3194,7 @@ fn build_json_output(
         analyses: simulation.map_or(0, |simulation| simulation.analyses.len()),
         measurements: measurements.len(),
         assertions: assertion_summary,
+        part_stress: part_stress_summary,
     };
 
     let model_lock_file = spice_file.as_ref().and_then(|path| {
@@ -3167,6 +3232,7 @@ fn build_json_output(
             simulation: simulation.map(|_| SIMULATION_SCHEMA_VERSION),
             measurement: simulation.map(|_| MEASUREMENT_SCHEMA_VERSION),
             assertion: assertions.as_ref().map(|_| ASSERTION_SCHEMA_VERSION),
+            part_stress: part_stress.as_ref().map(|_| PART_STRESS_SCHEMA_VERSION),
             requirements: requirements.as_ref().map(|_| REQUIREMENTS_SCHEMA_VERSION),
             export: None,
             tool: None,
@@ -3178,6 +3244,7 @@ fn build_json_output(
         summary,
         measurements,
         assertions,
+        part_stress,
         requirements,
         artifacts,
         calculation: None,

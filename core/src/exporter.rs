@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::str::FromStr;
 
-pub const EXPORT_SCHEMA_VERSION: &str = "kessetsu.export.v2";
+pub const EXPORT_SCHEMA_VERSION: &str = "kessetsu.export.v3";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
