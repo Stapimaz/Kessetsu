@@ -4,6 +4,17 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### Agent capability discovery
+
+- `kess capabilities --format json` returns the deterministic
+  `kessetsu.capabilities.v1` installed-build manifest inside the normal CLI envelope, including
+  command I/O behavior, live contract versions, calculator/language entry points, engineering metrics,
+  export capabilities, workload limits, documentation links and a safe agent workflow.
+- Discovery is side-effect free and does not require a circuit or Ngspice. Export and measurement
+  entries use their Core-owned catalogs rather than a separate frontend list.
+- Unsupported-metric diagnostics now use the same complete catalog and include the dynamic
+  `rise_time`, `fall_time`, `settling_time`, `overshoot` and `energy` metrics.
+
 ### Schematic navigation and quality
 
 - The Web schematic inspector can find and center components or named nets, follow logical pins,

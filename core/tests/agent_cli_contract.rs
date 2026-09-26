@@ -1,6 +1,7 @@
 mod common;
 
 use common::TestWorkspace;
+use kessetsu_core::capabilities::CAPABILITIES_SCHEMA_VERSION;
 use kessetsu_core::compiler::COMPILE_SCHEMA_VERSION;
 use serde_json::Value;
 
@@ -18,6 +19,46 @@ fn json(output: &std::process::Output) -> Value {
         "stderr must stay empty in JSON mode"
     );
     serde_json::from_slice(&output.stdout).expect("CLI stdout should contain one JSON object")
+}
+
+#[test]
+fn capabilities_are_versioned_deterministic_and_side_effect_free() {
+    let workspace = TestWorkspace::new("capabilities");
+    let first = workspace.run_cli(&["capabilities", "--format", "json"]);
+    let second = workspace.run_cli(&["capabilities", "--format", "json"]);
+
+    assert_eq!(first.status.code(), Some(0));
+    assert_eq!(second.status.code(), Some(0));
+    assert_eq!(first.stdout, second.stdout);
+    let report = json(&first);
+    assert_eq!(report["schema_version"], CLI_SCHEMA_VERSION);
+    assert_eq!(report["command"], "capabilities");
+    assert_eq!(report["status"], "success");
+    assert_eq!(
+        report["domain_versions"]["capabilities"],
+        CAPABILITIES_SCHEMA_VERSION
+    );
+    assert_eq!(
+        report["capabilities"]["schema_version"],
+        CAPABILITIES_SCHEMA_VERSION
+    );
+    assert!(
+        report["capabilities"]["language"]["measurement_metrics"]
+            .as_array()
+            .is_some_and(|metrics| metrics.iter().any(|metric| metric == "gain_at"))
+    );
+    assert!(
+        report["capabilities"]["exports"]
+            .as_array()
+            .is_some_and(|exports| exports.iter().any(|export| export["format"] == "kicad"))
+    );
+    assert_eq!(
+        std::fs::read_dir(workspace.path())
+            .expect("workspace should be readable")
+            .count(),
+        0,
+        "capability discovery must not create files"
+    );
 }
 
 #[test]

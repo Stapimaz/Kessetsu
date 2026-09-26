@@ -3,6 +3,7 @@ extern crate pest;
 extern crate pest_derive;
 
 pub mod ast;
+pub mod capabilities;
 pub mod compile_inputs;
 pub mod compiler;
 pub mod component;

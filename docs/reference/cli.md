@@ -9,6 +9,9 @@ Published 1.2.0 does not include these commands yet.
 Development source also provides `kess import` for the declared SPICE subset. See the
 [SPICE import guide](../guides/spice-import.md); published 1.2.0 does not include it.
 
+Development source also provides versioned capability discovery through
+`kess capabilities`; published 1.2.0 does not include this command.
+
 The Kessetsu CLI sends `.kess` source through the shared Rust compilation pipeline and provides ERC, SPICE generation, Ngspice execution, and assertion evaluation commands. Human output is intended for people; versioned JSON output is intended for automation and AI agents.
 
 Kessetsu 1.2.0 uses compile contract v5 and supports typed parameters, reusable blocks
@@ -30,6 +33,25 @@ kess check examples/rc_low_pass.kess --format json
 ```
 
 `--schema-version` and `--include` are also global options. `--include` accepts a comma-separated list or repeated uses. An unknown schema version is rejected with `KES-F002` and exit code `2` before the source is read or any output is created.
+
+## Capability discovery
+
+```bash
+kess capabilities
+kess capabilities --format json
+```
+
+The human form is a short installed-build summary. JSON returns the deterministic
+`kessetsu.capabilities.v1` manifest inside the ordinary `kessetsu.cli.v1` envelope. It lists
+the exact product version, domain-contract versions, top-level command behavior, calculator IDs,
+supported structural/component keywords, analyses, measurement names, waveform families, export capabilities,
+workload limits, documentation links and a safe agent workflow. Export entries come from the
+same Core catalog used by `export`; measurement names come from the evaluator's supported
+metric catalog, so discovery is not a second hand-maintained feature list.
+
+Capability discovery reads no circuit, launches no simulator and writes no files. It describes
+entry points rather than replacing the language and measurement references; detailed argument,
+unit, interpolation and model semantics remain in the linked documentation.
 
 ## Root parameter inputs
 
@@ -407,11 +429,12 @@ Human and JSON formats use the same code path and exit semantics.
 
 No separate daemon or dedicated Agent API is required. An agent can implement the following loop by reading JSON fields only:
 
-1. Run `check - --format json` to obtain syntax, semantic, and ERC diagnostics.
-2. Run `compile - --format json --include spice` when inspection of the canonical netlist is needed.
-3. Run `simulate - --format json` to read typed measurements and the analysis summary.
-4. Run `test - --requirements frozen.kessreq --format json` when the supervising process, rather than the design source, owns acceptance criteria. Optionally pin `--requirements-sha256`; record `requirements.sha256` from the response.
-5. Read `assertions[].status`, `actual`, `threshold`, and summary fields to determine the remaining target difference.
-6. Revise only the design source and repeat the same stdin call.
+1. Run `capabilities --format json` once to inspect the installed build instead of assuming features from a website or prompt.
+2. Run `check - --format json` to obtain syntax, semantic, and ERC diagnostics.
+3. Run `compile - --format json --include spice` when inspection of the canonical netlist is needed.
+4. Run `simulate - --format json` to read typed measurements and the analysis summary.
+5. Run `test - --requirements frozen.kessreq --format json` when the supervising process, rather than the design source, owns acceptance criteria. Optionally pin `--requirements-sha256`; record `requirements.sha256` from the response.
+6. Read `assertions[].status`, `actual`, `threshold`, and summary fields to determine the remaining target difference.
+7. Revise only the design source and repeat the same stdin call.
 
 The repository contract suite verifies this flow with a cross-platform fixture: it reads the measured 200 mA result from a failing 10 Ω candidate, revises the resistor to 100 Ω, and passes the assertion at 20 mA. The test never parses human terminal text.

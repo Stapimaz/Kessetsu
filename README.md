@@ -20,6 +20,7 @@ The project is not limited to a particular educational scenario or circuit class
 - SPICE generation, simulator discovery/provenance, and a Windows Ngspice sidecar runtime
 - Typed OP/transient/AC/DC simulation results and PASS/FAIL/ERROR/SKIPPED assertion evaluation
 - Compact `kessetsu.cli.v1` JSON, stdin-based agent loops, and opt-in debug fields through `--include`
+- Versioned `kess capabilities --format json` discovery for commands, contracts, measurements, exports and bounded workloads
 - Evaluator-owned, exact-hash `.kessreq` files for agent loops that must not rewrite their own acceptance criteria
 - Typed user/package model and subcircuit resolution, provenance manifests, and `kessetsu.lock`
 - Human/JSON CLI modes with safe output, overwrite, and exit-code contracts

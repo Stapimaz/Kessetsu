@@ -44,6 +44,12 @@ Parse, flattening, semantic, and ERC failures are normalized into the shared `Di
 
 The CLI renders the canonical report inside the `kessetsu.cli.v1` agent envelope without changing Core semantics. Default JSON contains only compact status, diagnostic, summary, measurement, assertion, and artifact fields. AST, IR, graph, SPICE, datasets, and raw simulator logs are serialized only through explicit `--include` options. Compile, simulation, measurement, and assertion contract versions are declared in `domain_versions`. An unknown CLI schema request is rejected with `KES-F002` before compilation or file output begins. JSON stdout remains exactly one object. File output is a frontend responsibility: an existing destination is not overwritten without `--force`, and generated output may never overwrite the source `.kess` file.
 
+`capabilities.rs` owns the side-effect-free `kessetsu.capabilities.v1` discovery manifest used
+by `kess capabilities`. It assembles live schema constants, the shared export catalog and the
+measurement evaluator's supported-name catalog, plus explicit command/output policies and bounded
+workload limits. It is an introspection contract, not a second compiler or an executable plugin
+surface: it reads no source, launches no simulator and does not bypass Circuit IR.
+
 When the CLI source path is `-`, source is read from stdin. Stdin-based `compile`, `simulate`, and `test` commands do not write a SPICE file unless an explicit `--output` is supplied. The netlist remains in memory for simulation, and JSON callers can request its text through `--include spice`. This removes the need for temporary source files and makes side-effect-free stdin requests byte-stable for the same input and options. Existing safe-overwrite behavior for file-based commands remains unchanged.
 
 Simulator discovery checks packaged executable locations and system fallbacks. Automation and packaging environments may specify an executable through `KESSETSU_NGSPICE`. This override does not change the compilation pipeline, and launch/process failures remain CLI exit code `3`.

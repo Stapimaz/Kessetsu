@@ -1,4 +1,7 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
+use kessetsu_core::capabilities::{
+    CAPABILITIES_SCHEMA_VERSION, CapabilityManifest, capability_manifest,
+};
 use kessetsu_core::compile_inputs::{CompileInputs, ParameterInput};
 use kessetsu_core::compiler::{
     COMPILE_SCHEMA_VERSION, CompileOptions, CompileReport, Diagnostic, DiagnosticSeverity,
@@ -74,6 +77,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Describe this installed build for agents and automation
+    Capabilities,
     /// Convert a supported SPICE netlist into editable, canonically verified .kess source
     Import(ImportCommand),
     /// Import research CSV and compare unit-mapped local data
@@ -471,12 +476,16 @@ struct JsonOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
     fit: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    capabilities: Option<CapabilityManifest>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     debug: Option<BTreeMap<String, Value>>,
 }
 
 #[derive(Serialize)]
 struct DomainVersions {
     compile: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    capabilities: Option<&'static str>,
     simulation: Option<&'static str>,
     measurement: Option<&'static str>,
     assertion: Option<&'static str>,
@@ -1376,6 +1385,27 @@ fn run(cli: Cli) -> i32 {
         return 2;
     }
 
+    if matches!(cli.command, Commands::Capabilities) {
+        if !cli.parameters.is_empty() {
+            emit(
+                &cli.format,
+                command,
+                &includes,
+                "error",
+                CompileReport::failure(diagnostic(
+                    "KES-F002",
+                    DiagnosticStage::Cli,
+                    "--param applies to circuit commands, not capability discovery",
+                )),
+                None,
+                None,
+                None,
+            );
+            return 2;
+        }
+        return run_capabilities(&cli.format, &includes);
+    }
+
     if let Commands::Import(import) = &cli.command {
         if !cli.parameters.is_empty() {
             let mut report = import_spice("");
@@ -1829,8 +1859,62 @@ fn run(cli: Cli) -> i32 {
     )
 }
 
+fn run_capabilities(format: &Format, includes: &BTreeSet<Include>) -> i32 {
+    let manifest = capability_manifest(CLI_SCHEMA_VERSION);
+    if *format == Format::Json {
+        let report = kessetsu_core::compiler::compile_source("", CompileOptions::default());
+        let mut output = build_json_output(
+            "capabilities",
+            includes,
+            "success",
+            &report,
+            None,
+            None,
+            None,
+            None,
+        );
+        output.domain_versions.capabilities = Some(CAPABILITIES_SCHEMA_VERSION);
+        output.capabilities = Some(manifest);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&output)
+                .expect("static capability manifest must serialize")
+        );
+    } else {
+        println!(
+            "Kessetsu {} — machine-readable capability discovery",
+            manifest.product.version
+        );
+        println!("Schema: {}", manifest.schema_version);
+        println!(
+            "Commands: {}",
+            manifest
+                .commands
+                .iter()
+                .filter(|command| command.name != "capabilities")
+                .map(|command| command.name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        println!("Analyses: {}", manifest.language.analyses.join(", "));
+        println!(
+            "Exports: {}",
+            manifest
+                .exports
+                .iter()
+                .map(|export| export.format.id())
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        println!("Docs: {}", manifest.product.documentation);
+        println!("Agent JSON: kess capabilities --format json");
+    }
+    0
+}
+
 fn command_name(command: &Commands) -> &'static str {
     match command {
+        Commands::Capabilities => "capabilities",
         Commands::Import(_) => "import",
         Commands::Data(_) => "data",
         Commands::Fit(_) => "fit",
@@ -2230,6 +2314,9 @@ fn load_external_model_resources(
 
 fn command_path(command: &Commands) -> &Path {
     match command {
+        Commands::Capabilities => {
+            unreachable!("capability discovery returns before reading circuit source")
+        }
         Commands::Import(_)
         | Commands::Data(_)
         | Commands::Fit(_)
@@ -2250,6 +2337,7 @@ fn output_command(command: &Commands) -> Option<&OutputCommand> {
         Commands::Compile(command) | Commands::Simulate(command) => Some(command),
         Commands::Test(command) => Some(&command.output),
         Commands::Data(_)
+        | Commands::Capabilities
         | Commands::Import(_)
         | Commands::Fit(_)
         | Commands::Study(_)
@@ -3229,6 +3317,7 @@ fn build_json_output(
         status: status.to_string(),
         domain_versions: DomainVersions {
             compile: COMPILE_SCHEMA_VERSION,
+            capabilities: None,
             simulation: simulation.map(|_| SIMULATION_SCHEMA_VERSION),
             measurement: simulation.map(|_| MEASUREMENT_SCHEMA_VERSION),
             assertion: assertions.as_ref().map(|_| ASSERTION_SCHEMA_VERSION),
@@ -3251,6 +3340,7 @@ fn build_json_output(
         study: None,
         data: None,
         fit: None,
+        capabilities: None,
         debug: build_debug(includes, report, simulation),
     }
 }

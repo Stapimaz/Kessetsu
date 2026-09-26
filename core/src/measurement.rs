@@ -6,6 +6,32 @@ use crate::ir::{
 use crate::simulation::{ComplexSeries, Dataset, RealSeriesDataset, SimulationResult};
 
 pub const MEASUREMENT_SCHEMA_VERSION: &str = "kessetsu.measurement.v3";
+pub const SUPPORTED_METRICS: &[&str] = &[
+    "value",
+    "min",
+    "max",
+    "peak",
+    "average",
+    "rms",
+    "gain",
+    "gain_at",
+    "lower_cutoff",
+    "upper_cutoff",
+    "bandwidth",
+    "cutoff",
+    "frequency",
+    "phase",
+    "output_power",
+    "efficiency",
+    "thd",
+    "clipping",
+    "dissipation",
+    "rise_time",
+    "fall_time",
+    "settling_time",
+    "overshoot",
+    "energy",
+];
 
 pub fn evaluate_assertion_metric(
     assertion: &Assertion,
@@ -36,8 +62,9 @@ pub fn evaluate_assertion_metric(
             evaluate_dynamic(&metric, &arguments, circuit, simulation)
         }
         _ => Err(format!(
-            "unsupported assertion metric '{}'; supported engineering metrics are value, min, max, peak, average, rms, gain, gain_at, lower_cutoff, upper_cutoff, bandwidth, cutoff, frequency, phase, output_power, efficiency, thd, clipping and dissipation",
-            assertion.metric
+            "unsupported assertion metric '{}'; supported engineering metrics are {}",
+            assertion.metric,
+            SUPPORTED_METRICS.join(", ")
         )),
     }
 }
