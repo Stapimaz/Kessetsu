@@ -35,7 +35,7 @@ test('resizes, minimizes, maximizes and persists panels without losing circuit s
   await expect(page.getByRole('table', { name: 'Engineering requirements' })).toBeVisible();
   await expect(page.locator('.assertion-pass')).toHaveCount(5);
 
-  await page.getByLabel('Canonical schematic').locator('.workspace-header').dblclick();
+  await page.getByLabel('Canonical schematic').locator('.header-title').dblclick();
   await expect(page.locator('.resizable-workspace')).toHaveAttribute('data-maximized-panel', 'schematic');
   await expect(page.getByLabel('Canonical schematic')).toBeVisible();
   await expect(page.getByLabel('Kessetsu source editor')).toBeHidden();

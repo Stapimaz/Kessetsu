@@ -1,7 +1,7 @@
 # Finite Parameter Fitting
 
-Available in development source, not published 1.2.0 packages. Kessetsu can evaluate a
-completed finite parameter study against explicit calibration and holdout-validation data.
+Kessetsu 1.3.0 can evaluate a completed finite parameter study against explicit calibration
+and holdout-validation data.
 It selects only among candidates that were actually simulated; it does not run a continuous
 optimizer or claim a global optimum.
 
@@ -201,4 +201,3 @@ instance values, circuit inputs and simulator identity then remain attached to t
   it does not authorize automatic range expansion.
 - Curve agreement does not prove a physical mechanism, parameter uniqueness, hardware safety or
   validity outside the explicit observations. Use independent measurements and engineering review.
-

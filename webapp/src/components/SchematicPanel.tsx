@@ -175,7 +175,7 @@ export function SchematicPanel({ schematic, circuitIr, svg, panelControls }: Pro
         selection?.type === 'net' && node.getAttribute('data-net') === String(selection.id),
       );
     }
-  }, [activeComponent, irComponents, nets, selection, svg]);
+  }, [activeComponent, irComponents, nets, selection, svg, view]);
 
   useEffect(() => {
     const clearSelection = (event: KeyboardEvent) => {

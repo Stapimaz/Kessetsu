@@ -1,6 +1,6 @@
 # Export Contract and Format Matrix
 
-Kessetsu 1.2.0 supports external comparator/two-terminal instances through the same
+Kessetsu 1.3.0 supports external comparator/two-terminal instances through the same
 nine formats. Export metadata/warnings identify
 required local file/hash/entry dependencies; no external model body is embedded. Native
 SPICE/LTspice file destinations must remain beside their `.kess` source so relative

@@ -1,21 +1,19 @@
 # Kessetsu CLI Reference
 
-Development source also provides `kess study create/plan/run/export/package` and
+Kessetsu provides `kess study create/plan/run/export/package` and
 `kess fit evaluate`; see the [study guide](../guides/parameter-studies.md) for
 specifications, checkpoints, exit codes and reports, and the
 [fitting guide](../guides/model-fitting.md) for calibration/validation semantics.
-Published 1.2.0 does not include these commands yet.
 
-Development source also provides `kess import` for the declared SPICE subset. See the
-[SPICE import guide](../guides/spice-import.md); published 1.2.0 does not include it.
-
-Development source also provides versioned capability discovery through
-`kess capabilities`; published 1.2.0 does not include this command.
+Use `kess import` for the declared SPICE subset; see the
+[SPICE import guide](../guides/spice-import.md). Versioned installed-build discovery is
+available through `kess capabilities`.
 
 The Kessetsu CLI sends `.kess` source through the shared Rust compilation pipeline and provides ERC, SPICE generation, Ngspice execution, and assertion evaluation commands. Human output is intended for people; versioned JSON output is intended for automation and AI agents.
 
-Kessetsu 1.2.0 uses compile contract v5 and supports typed parameters, reusable blocks
-and local external devices. Earlier CLI versions require an update for these additions.
+Kessetsu 1.3.0 uses compile contract v9 and supports typed parameters, reusable blocks,
+local external devices, physical-part metadata and schematic navigation identities.
+Earlier CLI versions require an update for these additions.
 
 ## Usage
 
@@ -300,7 +298,7 @@ published only after all files are written. See
 
 ## JSON Contract
 
-JSON stdout is exactly one JSON object for every invocation. Progress and simulator logs are never written to stdout. The default agent envelope is `kessetsu.cli.v1`. Current development compile reports use `kessetsu.compile.v9`, canonical schematics use `kessetsu.schematic.v3`, model manifests/locks use `kessetsu.models.v3`/`kessetsu.lock.v3`, simulation results use `kessetsu.simulation.v1`, engineering measurements use `kessetsu.measurement.v3`, assertion reports use `kessetsu.assertion.v1`, provided part-stress reports use `kessetsu.part-stress.v1`, external requirement sets use `kessetsu.requirements.v1`, finite fitting uses `kessetsu.fit.v1` plus `kessetsu.fit-result.v1`, and portable folders use `kessetsu.research-package.v1`. Published 1.2.0 uses compile v5/schematic v2/model v2/lock v2/measurement v2; 1.1.0 uses compile v4/measurement v1. Active subcontracts appear in `domain_versions`. Resolved parameter/field provenance (`kessetsu.parameters.v1`) is opt-in through `--include ir`, not additional default JSON bulk.
+JSON stdout is exactly one JSON object for every invocation. Progress and simulator logs are never written to stdout. The default agent envelope is `kessetsu.cli.v1`. Kessetsu 1.3.0 compile reports use `kessetsu.compile.v9`, canonical schematics use `kessetsu.schematic.v3`, model manifests/locks use `kessetsu.models.v3`/`kessetsu.lock.v3`, simulation results use `kessetsu.simulation.v1`, engineering measurements use `kessetsu.measurement.v3`, assertion reports use `kessetsu.assertion.v1`, provided part-stress reports use `kessetsu.part-stress.v1`, external requirement sets use `kessetsu.requirements.v1`, finite fitting uses `kessetsu.fit.v1` plus `kessetsu.fit-result.v1`, and portable folders use `kessetsu.research-package.v1`. Version 1.2.0 used compile v5/schematic v2/model v2/lock v2/measurement v2; 1.1.0 used compile v4/measurement v1. Active subcontracts appear in `domain_versions`. Resolved parameter/field provenance (`kessetsu.parameters.v1`) is opt-in through `--include ir`, not additional default JSON bulk.
 
 See the [engineering-measurement contract](measurements.md) for assertion primitives, derived-metric formulas, analysis requirements, and sign conventions.
 

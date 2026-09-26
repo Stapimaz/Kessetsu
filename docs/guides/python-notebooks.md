@@ -1,7 +1,6 @@
 # Python and Jupyter
 
-Available in development source, not published 1.2.0 packages. The optional Python package
-provides typed, local access to Kessetsu simulations, parameter studies, research-data
+The optional Python package provides typed, local access to Kessetsu simulations, parameter studies, research-data
 evidence and finite parameter fitting. It calls the installed `kess` CLI; it is not another
 simulator, circuit language or fitting engine.
 

@@ -52,4 +52,4 @@ __all__ = [
     "load_study_results",
 ]
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"

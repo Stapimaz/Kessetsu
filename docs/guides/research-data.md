@@ -1,8 +1,7 @@
 # Research Data Import and Comparison
 
-Available in development Core, CLI and Web source, not published 1.2.0 binaries or the live
-website. This guide covers working CSV import and scalar-data comparison, including a current
-Web simulation as reference. Development source also provides a thin local Python/Jupyter
+This guide covers working CSV import and scalar-data comparison, including a current
+Web simulation as reference. Kessetsu also provides a thin local Python/Jupyter
 adapter over these same contracts and a separate, evidence-preserving
 [finite fitting workflow](model-fitting.md) over completed parameter studies.
 

@@ -1,8 +1,7 @@
 # Web Editor Guide
 
-Development source adds **Analyze → Parameter study…** for multi-condition runs,
-tolerances, comparison and reports; see [parameter studies](parameter-studies.md).
-Published 1.2.0 does not include this menu yet.
+Use **Analyze → Parameter study…** for multi-condition runs, tolerances, comparison and
+reports; see [parameter studies](parameter-studies.md).
 
 Open the [Web Hub](https://kessetsu.com/#editor). No account or installation is required.
 Compilation and simulation run locally in your browser; circuit source and model files
@@ -15,7 +14,7 @@ or local-model examples. **File → New circuit** starts a document; **Open .kes
 a local source file. Rename the document through **File → Rename…** or the Share dialog.
 Example selection replaces the active source; save work before switching.
 
-Development source also provides **File → Import SPICE netlist…** for `.cir`, `.sp`, `.spice`
+**File → Import SPICE netlist…** accepts `.cir`, `.sp`, `.spice`
 and `.net` files in the [declared import subset](spice-import.md). A successful conversion opens
 ordinary editable `.kess` as an unsaved document. Unsupported content reports original line
 numbers and leaves the current circuit in place. You can also drop a `.kess` or supported SPICE

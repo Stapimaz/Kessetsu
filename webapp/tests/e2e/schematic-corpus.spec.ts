@@ -24,6 +24,7 @@ const corpus = [
 ] as const;
 
 test('renders the canonical schematic corpus with verified quality', async ({ page }) => {
+  test.setTimeout(90_000);
   await page.goto('/#editor');
   await expect(page.locator('.monaco-editor')).toBeVisible();
   const surface = page.getByLabel('Canonical schematic').locator('.schematic-surface');

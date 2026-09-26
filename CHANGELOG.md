@@ -4,6 +4,14 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-09-26
+
+Kessetsu 1.3.0 expands the verified circuit workflow beyond single-run design: repeatable
+multi-condition studies, local research-data comparison and fitting, supported SPICE import,
+physical-part handoff, larger-schematic navigation, installed agent discovery and provider-neutral
+proposal review. These workflows remain model- and scope-bounded; they do not claim hardware or
+manufacturing validation.
+
 ### Provider-neutral agent proposal review
 
 - **Analyze → Review agent proposal…** creates a versioned, source-hash-bound task envelope for
@@ -154,6 +162,18 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 - Explicit-window rise/fall/settling time, directional overshoot and signed integrated energy;
   measurement contract advances to `kessetsu.measurement.v3`. Legacy metrics retain semantics.
 - Explicit budgets and detailed [study guide](docs/guides/parameter-studies.md).
+
+### Compatibility and upgrade
+
+- Existing literal circuits remain valid. Kessetsu 1.3.0 advances compile reports to
+  `kessetsu.compile.v9`, canonical schematics to `kessetsu.schematic.v3`, model manifests/locks
+  to v3, engineering measurements to v3 and exports to `kessetsu.export.v3`; the stable
+  `kessetsu.cli.v1`, simulation and assertion envelopes are unchanged.
+- Compatible v4/v5 source-share links are recompiled through the current Core. Unknown future
+  schemas still fail closed. Local external-model bodies and provider credentials are never
+  embedded in share links or agent-task envelopes.
+- Install with the normal guided command to upgrade. Release archives retain complete source,
+  documentation, examples, Python adapter, notices, exact version metadata and per-artifact hashes.
 
 ## [1.2.0] — 2026-09-18
 

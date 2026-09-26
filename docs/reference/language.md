@@ -1,6 +1,6 @@
 # Kessetsu Language Reference
 
-This document describes Kessetsu 1.2.0. Kessetsu is line-oriented,
+This document describes Kessetsu 1.3.0. Kessetsu is line-oriented,
 case-sensitive except for documented device polarities, and uses `//` comments. Backends
 never consume syntax directly: source is parsed, flattened and validated into typed Circuit IR first.
 
@@ -42,7 +42,7 @@ resistor RF {(target_gain - 1) * resistance}
 ```
 
 Parameters are optional, declared at the top level or inside modules, and explicitly typed: `Ohm`, `F`, `H`, `V`, `A`, `Hz`,
-`s`, `W`, `ratio`, `percent` or `deg` (`J` for energy in development source). Forward references are allowed; duplicate/unknown
+`s`, `W`, `J`, `ratio`, `percent` or `deg`. Forward references are allowed; duplicate/unknown
 names and dependency cycles produce errors. `pi` is read-only. Expressions support finite
 SI literals, names, parentheses, unary signs and `+ - * /`, with ordinary precedence.
 
@@ -101,7 +101,7 @@ dependencies. Ambiguous flattened paths are rejected rather than silently rename
 Declared interface pins are checked by ERC. Module-local named nets are scoped too.
 
 Put analyses and assertions at the root: parameterized module-local analysis/assertion
-contexts are not supported yet and fail explicitly. Kessetsu 1.2.0 accepts root CLI inputs
+contexts are not supported yet and fail explicitly. Kessetsu accepts root CLI inputs
 such as `--param supply=15V`; see the [CLI contract](cli.md#root-parameter-inputs)
 for effective-source export and reproducibility. No model-name expressions,
 automatic topology generation or extra editor panel is introduced.

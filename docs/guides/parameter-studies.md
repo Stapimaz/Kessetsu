@@ -1,8 +1,5 @@
 # Parameter Studies
 
-Available in development source; not yet included in published 1.2.0 binaries or the website.
-Build from source until the next release.
-
 A study repeats circuit simulation over declared component values, supplies, loads,
 temperatures or tolerances, keeping every outcome together. It does not silently change
 your open source or relax its requirements.

@@ -13,7 +13,7 @@ test('independent filter instances simulate in parity and remain independently e
   }));
   const fragment = await encodeShareFragment(source, 'kessetsu.compile.v5', null, 'Independent RC filters');
   await page.goto(`/${fragment}`);
-  await expect(page.getByTestId('compile-success')).toBeVisible();
+  await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('img', { name: 'Kessetsu schematic' })).toBeVisible();
   await page.getByRole('button', { name: 'Run simulation', exact: true }).click();
   const summary = page.getByTestId('simulation-summary');

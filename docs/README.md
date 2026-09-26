@@ -10,13 +10,13 @@ Use the free [Web Hub](https://kessetsu.com/#editor) without an account or insta
 - [Web editor](guides/web-editor.md): examples, files, panels, simulation, exports and sharing.
 - [Why Kessetsu?](guides/why-kessetsu.md): how the combined workflow complements SPICE and EDA tools.
 - [Cookbook](guides/cookbook.md): calculations, reusable blocks, agent loops and device models.
-- [Parameter studies](guides/parameter-studies.md): multi-condition experiments and reports (development source).
-- [Research data](guides/research-data.md): local CSV mapping, evidence and scalar comparisons (development source).
-- [Finite parameter fitting](guides/model-fitting.md): calibration-only selection with separate holdout validation (development source).
-- [Memristor pulse protocol](guides/memristor-protocol.md): a reproducible threshold-model study with convergence and held-out stimulus checks (development source).
-- [Portable research packages](guides/portable-research-packages.md): bundle exact study evidence, permitted dependencies and rerun instructions (development source).
-- [Python and Jupyter](guides/python-notebooks.md): inspect simulations, studies and research evidence in Python (development source).
-- [SPICE netlist import](guides/spice-import.md): convert the supported subset into editable, canonically verified `.kess` (development source).
+- [Parameter studies](guides/parameter-studies.md): multi-condition experiments and reports.
+- [Research data](guides/research-data.md): local CSV mapping, evidence and scalar comparisons.
+- [Finite parameter fitting](guides/model-fitting.md): calibration-only selection with separate holdout validation.
+- [Memristor pulse protocol](guides/memristor-protocol.md): a reproducible threshold-model study with convergence and held-out stimulus checks.
+- [Portable research packages](guides/portable-research-packages.md): bundle exact study evidence, permitted dependencies and rerun instructions.
+- [Python and Jupyter](guides/python-notebooks.md): inspect simulations, studies and research evidence in Python.
+- [SPICE netlist import](guides/spice-import.md): convert the supported subset into editable, canonically verified `.kess`.
 
 ## Language and command reference
 

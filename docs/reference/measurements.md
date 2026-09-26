@@ -1,12 +1,11 @@
 # Engineering Measurement Contract
 
-Kessetsu engineering measurements are evaluated from typed `kessetsu.simulation.v1` datasets. Kessetsu 1.2.0 uses `kessetsu.measurement.v2`, including frequency-specific gain and lower/upper cutoff metrics. Assertions never infer a passing value from missing data: an unavailable signal, incompatible analysis or invalid argument becomes an assertion `ERROR`.
+Kessetsu engineering measurements are evaluated from typed `kessetsu.simulation.v1` datasets. Kessetsu 1.3.0 uses `kessetsu.measurement.v3`, retaining frequency-specific gain and lower/upper cutoff metrics while adding the explicit-window dynamic metrics below. Assertions never infer a passing value from missing data: an unavailable signal, incompatible analysis or invalid argument becomes an assertion `ERROR`.
 
 ## Primitives and sign convention
-Development source advances to `kessetsu.measurement.v3` for the dynamic metrics below.
-Published 1.2.0 remains v2; all legacy semantics are unchanged.
+Legacy v2 metric semantics are unchanged.
 
-## Explicit-window dynamic metrics (v3, development)
+## Explicit-window dynamic metrics (v3)
 
 All five metrics require finite increasing transient data covering `[start, stop]`, with
 `0 <= start < stop`. Boundaries and crossings are linearly interpolated, with no extrapolation

@@ -1,6 +1,6 @@
 # Components and Simulation Limits
 
-This reference describes Kessetsu 1.2.0's component families, analyses and modeling assumptions.
+This reference describes Kessetsu 1.3.0's component families, analyses and modeling assumptions.
 Unsupported constructs produce diagnostics rather than silently approximate results.
 
 ## Component and source scope
@@ -19,7 +19,7 @@ Unsupported constructs produce diagnostics rather than silently approximate resu
 
 ## Model scope
 
-Kessetsu 1.2.0 additionally supports catalog-backed external comparator/two-terminal
+Kessetsu supports catalog-backed external comparator/two-terminal
 interfaces and explicit local Web bindings for a bounded self-contained Ngspice text
 profile. The [model catalog](model-catalog.md) defines the characterized comparator,
 threshold-memristor and native-only manufacturer op-amp cases. This does not imply

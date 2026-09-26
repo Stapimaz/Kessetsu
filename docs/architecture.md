@@ -38,7 +38,7 @@ Kessetsu Source (.kess)
 
 ### Single Compile Contract
 
-The canonical Core entry points are `compile_source(source, options) -> CompileReport` and its resource-aware form `compile_source_with_resources(source, options, resources) -> CompileReport`. Neither writes files, launches processes, or prints logs; frontends bind resource bytes and own those side effects. Current development reports are versioned as `kessetsu.compile.v9` (published 1.2.0 uses v5) and, depending on options, can carry the flattened AST, typed IR, deterministic graph summary, SPICE, canonical `kessetsu.schematic.v3`, SVG, temporary legacy layout, and KiCad output. External resource bytes never appear in the report.
+The canonical Core entry points are `compile_source(source, options) -> CompileReport` and its resource-aware form `compile_source_with_resources(source, options, resources) -> CompileReport`. Neither writes files, launches processes, or prints logs; frontends bind resource bytes and own those side effects. Kessetsu 1.3.0 reports are versioned as `kessetsu.compile.v9` and, depending on options, can carry the flattened AST, typed IR, deterministic graph summary, SPICE, canonical `kessetsu.schematic.v3`, SVG, temporary legacy layout, and KiCad output. External resource bytes never appear in the report.
 
 Parse, flattening, semantic, and ERC failures are normalized into the shared `Diagnostic` model. If any error-severity diagnostic exists, no backend output is produced. Warnings and informational diagnostics may accompany successful output. The CLI and WASM layers must remain adapters around this entry point and must not construct parallel compilation pipelines.
 
@@ -64,7 +64,7 @@ never invent assertion PASS results or generate SPICE/drawing artifacts independ
 The CLI and WASM adapters share this contract. Frontends own file writes, downloads and
 workspace recovery. Preferred E12/E24 values describe nominal selection, not tolerance analysis.
 
-### SPICE import boundary (development source)
+### SPICE import boundary
 
 `spice_import.rs` owns a pure, bounded `kessetsu.spice-import.v1` conversion contract.
 It parses only a declared Ngspice-compatible subset into typed import records, emits editable
@@ -142,7 +142,7 @@ into an acceptance range. New shares identify the active compile schema.
 
 ## 2. Language Syntax and Rules
 
-### Agent-proposal boundary (development source)
+### Agent-proposal boundary
 
 The Web adapter owns a provider-neutral review workflow around two frontend contracts:
 `kessetsu.agent-task.v1` carries human-owned requirements, the exact current source and its SHA-256;
@@ -159,7 +159,7 @@ mutate the document. Proposal text cannot create PASS status. This static-site t
 no network request and stores no provider credential. Future hosted/BYOK/local-agent transports
 must produce the same proposal contract and may not weaken review, Core verification or acceptance.
 
-### Research-data boundary (development source)
+### Research-data boundary
 
 `research_data.rs` owns pure versioned CSV preview/import, explicit quantity/calibration
 mapping, retained raw evidence and scalar comparison. Research data is not fabricated
@@ -175,7 +175,7 @@ A successful typed transient, AC or DC simulation can also be projected through 
 same validated dataset shape. The projection records simulation hash, solver, analysis and
 vector mapping; AC is explicitly linear magnitude rather than a silent complex/phase coercion.
 
-### Python/notebook boundary (development source)
+### Python/notebook boundary
 
 The optional Python package is a local adapter over the versioned CLI and artifact contracts.
 It launches `kess` with an argument vector rather than a shell, checks exact schema names and
@@ -185,7 +185,7 @@ interpolate data or calculate residuals. Simulation projection and comparison co
 Core-owned CLI commands. Notebook code runs in the user's Python environment; no Python runtime
 is embedded in Web Core and no circuit/model data is uploaded by the adapter.
 
-### Finite fitting boundary (development source)
+### Finite fitting boundary
 
 `fitting.rs` consumes checksum-validated completed experiment results and validated
 `ResearchData`; it never launches a simulator or parses source independently. Fit parameters
@@ -200,7 +200,7 @@ identifiability or extrapolation is inferred. CLI and Python are adapters over t
 the Web editor does not carry a placeholder fitting UI or include the unused fitting module in
 its current WASM bundle.
 
-### Local experiment boundary (development source)
+### Local experiment boundary
 
 `experiment.rs` owns pure `kessetsu.experiment.v1` validation, deterministic case generation,
 identity, shared measurements/constraints and finite feasible candidate selection. Cases
@@ -211,8 +211,8 @@ binding, checkpoints and downloads. Explicit temperature config applies to IR-ge
 decks; conflicting local control/temperature overrides fail closed. Seeded draws belong
 to Core, not frontend RNGs. Full evidence is independent of plot decimation. Resume binds
 plans/provenance/requirements and runtime fingerprints; checksums detect accidental
-corruption, not independent attestation. Dynamic metrics use v3 in development source;
-published 1.2.0 remains v2. See the [study guide](guides/parameter-studies.md).
+corruption, not independent attestation. Dynamic metrics use v3 in Kessetsu 1.3.0.
+See the [study guide](guides/parameter-studies.md).
 
 ### Supported Components
 

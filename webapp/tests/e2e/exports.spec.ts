@@ -8,7 +8,9 @@ test('downloads every advertised artifact from the shared Core contract', async 
   await expect(page.getByTestId('compile-success')).toBeVisible();
   await page.getByRole('button', { name: 'Export', exact: true }).click();
   await page.screenshot({ path: 'test-results/exports-ui.png', fullPage: true });
-  const expected = ['svg', 'png', 'pdf', 'schematic_json', 'spice', 'kicad', 'ltspice'];
+  const expected = [
+    'svg', 'png', 'pdf', 'schematic_json', 'spice', 'kicad', 'ltspice', 'bom_csv', 'handoff_json',
+  ];
   const binary = resolve('../core/target/release', process.platform === 'win32' ? 'kess.exe' : 'kess');
   const fixture = resolve('../core/tests/fixtures/benchmarks/rc_filter.kess');
   await expect(page.locator('[data-export-format]')).toHaveCount(expected.length);
@@ -61,5 +63,5 @@ test('downloads every advertised artifact from the shared Core contract', async 
     await expect(page.locator('.export-status')).not.toContainText('undefined');
   }
 
-  await expect(page.locator('.export-status')).toContainText('engineering assertions remain');
+  await expect(page.locator('.export-status')).toContainText('connectivity verified');
 });

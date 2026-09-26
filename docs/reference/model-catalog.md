@@ -1,7 +1,7 @@
 # External model catalog
 
-Local external-model workflows require Kessetsu 1.2.0; typed instance parameters are part of
-the current unreleased source. This is a small characterized catalog, not a universal model
+Local external-model workflows require Kessetsu 1.2.0; typed instance parameters require
+Kessetsu 1.3.0. This is a small characterized catalog, not a universal model
 marketplace. Model identity, simulation evidence and physical-device accuracy are distinct.
 
 ## Supported interfaces

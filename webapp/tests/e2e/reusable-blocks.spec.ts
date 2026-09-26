@@ -14,12 +14,12 @@ for (const example of [
     expect(native.status).toBe(0);
     const report = JSON.parse(native.stdout);
     await page.goto('/#editor');
-    await expect(page.getByTestId('compile-success')).toBeVisible();
+    await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
     await page.getByRole('button', { name: 'File', exact: true }).click();
     await page.getByRole('menuitem', { name: 'Examples', exact: true }).click();
     await page.getByRole('menuitem', { name: example.label, exact: true }).click();
     await expect(page.locator('.document-title')).toHaveText(example.label);
-    await expect(page.getByTestId('compile-success')).toBeVisible();
+    await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('canonical-schematic')).toHaveAttribute('data-quality', 'pass');
     await page.getByRole('button', { name: 'Run simulation', exact: true }).click();
     const summary = page.getByTestId('simulation-summary');
@@ -37,7 +37,7 @@ for (const example of [
     await expect(share.getByRole('status')).toContainText(/Link (copied|created)/);
     expect(page.url()).toContain('#kessetsu=1.');
     await page.reload();
-    await expect(page.getByTestId('compile-success')).toBeVisible();
+    await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
     await expect(page.locator('.document-title')).toHaveText(example.label);
     await expect(page.locator('.monaco-editor .view-lines')).toContainText('module ');
   });

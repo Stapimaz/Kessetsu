@@ -29,8 +29,8 @@ The project is not limited to a particular educational scenario or circuit class
 - SVG, PNG, PDF, Schematic JSON, SPICE, KiCad, LTspice, BOM CSV, and handoff-manifest exports
 - Versioned, compressed, package-aware share URLs
 - Shared loaded-divider and RC-filter tools with typed inputs, standard component selection and editable circuit generation (CLI 1.1.0+)
-- Development source: reproducible parameter studies, local research-data comparison,
-  finite calibration/holdout fitting and a thin Python/Jupyter adapter over the same Core contracts
+- Reproducible parameter studies, local research-data comparison, finite calibration/holdout
+  fitting and a thin Python/Jupyter adapter over the same Core contracts
 
 Read the [documentation](https://kessetsu.com/docs/) and [changelog](https://kessetsu.com/changelog/) on the website. The [architecture](docs/architecture.md), [component and simulation reference](docs/reference/supported-domain.md), and [measurement reference](docs/reference/measurements.md) define technical behavior and assumptions.
 
@@ -45,12 +45,16 @@ The current repository build can:
 - Run live compilation, ERC, and canonical schematic-connectivity verification through WASM
 - Run real OP/transient/AC/DC simulations inside a Web Worker
 - Inspect interactive waveform, Bode, and DC plots plus assertion results
-- Explore the canonical schematic with zoom and fit controls
-- Download seven visual, machine, and EDA formats with capability/loss information
+- Explore the canonical schematic with zoom, fit, component/net search and reusable-block navigation
+- Download nine visual, machine, EDA and physical-handoff formats with capability/loss information
 - Share source and exact package versions in a compressed URL
 - Start from a [loaded divider](https://kessetsu.com/tools/voltage-divider/) or [RC filter](https://kessetsu.com/tools/rc-lowpass/) calculation and continue in the editor
+- Create a provider-neutral task for an external agent, inspect its hash-bound source diff,
+  run the proposal locally, and explicitly accept or undo it
 
-Use your own AI agent through the CLI's stdin and versioned JSON contract. The Web Hub is a direct editing and simulation workspace, not a built-in AI chat; both use the same Core.
+Use your own AI agent through the CLI's stdin and versioned JSON contract. The Web Hub does not
+embed a model or upload source: its proposal-review workflow lets any external agent hand back a
+change that remains separate until the user reviews its diff and runs it through the same Core.
 
 ![Kessetsu Web Hub RC workspace](docs/assets/web-hub-workspace.png)
 
@@ -200,7 +204,7 @@ npm.cmd run build
 - Backends consume typed Circuit IR only.
 - Generated output does not replace physical validation or engineering review.
 - Embedded-runtime provenance and licensing notes live in the [Ngspice runtime README](core/tools/ngspice/README.md).
-- Kessetsu targets schematic-level analog/mixed-signal work; it does not provide PCB layout/DRC, RF/EM, thermal/reliability or laboratory validation. Development-source tolerance/Monte Carlo studies describe the selected models and declared distributions, not production yield.
+- Kessetsu targets schematic-level analog/mixed-signal work; it does not provide PCB layout/DRC, RF/EM, thermal/reliability or laboratory validation. Tolerance/Monte Carlo studies describe the selected models and declared distributions, not production yield.
 - [SECURITY.md](SECURITY.md) defines vulnerability reporting. The browser runs locally without telemetry; released versions and download checksums remain immutable.
 
 ## License
