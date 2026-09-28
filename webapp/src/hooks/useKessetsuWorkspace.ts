@@ -296,7 +296,7 @@ export function useKessetsuWorkspace() {
       kicadSch: '',
       modelManifest: null,
       simulationState: 'idle',
-      simulationMessage: 'Add a simulation command, then run it.',
+      simulationMessage: 'This starter circuit includes an operating-point analysis. Press Run to simulate it.',
       evaluation: null,
       exportMessage: '',
     }));

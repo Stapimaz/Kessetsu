@@ -205,6 +205,7 @@ export function ResultsPanel({ state, message, evaluation, compileSucceeded, onR
   const selected = datasets[datasetIndex] ?? datasets[0];
   useEffect(() => setDatasetIndex(0), [evaluation]);
   const summary = evaluation?.assertions.summary;
+  const showFirstRunGuide = state === 'idle' && (message.startsWith('Run the simulation') || message.startsWith('This starter circuit'));
   const statusText = useMemo(() => {
     if (summary && summary.total > 0) return `${summary.passed}/${summary.total} requirements passed · ${evaluation?.simulation.simulator.version}`;
     if (state === 'succeeded') return `Simulation complete · ${evaluation?.simulation.simulator.version}`;
@@ -242,7 +243,14 @@ export function ResultsPanel({ state, message, evaluation, compileSucceeded, onR
             </div>
             {selected && <DatasetView dataset={selected.data} assertions={evaluation?.assertions.assertions ?? []} />}
           </>
-        ) : <div className={`result-empty result-${state}`}><Activity size={28} /><p>{message}</p></div>}
+        ) : <div className={`result-empty result-${state}`}><Activity size={28} />
+          {showFirstRunGuide && <strong>Ready for your first run</strong>}
+          <p>{message}</p>
+          {showFirstRunGuide && <div className="result-start-guide" aria-label="First simulation steps">
+            <span><b>1</b> Edit a value in Source</span><span><b>2</b> Press Run above</span><span><b>3</b> Inspect plots and assertions</span>
+            <a href={`${import.meta.env.BASE_URL}docs/guides/tutorial/`} target="_blank" rel="noreferrer">Open the first-circuit tutorial</a>
+          </div>}
+        </div>}
         {!!evaluation?.assertions.assertions.length && <div className="requirements-wrap">
           <table className="requirements-table" aria-label="Engineering requirements">
             <thead><tr><th>Status</th><th>Requirement</th><th>Measured</th><th>Limit</th></tr></thead>

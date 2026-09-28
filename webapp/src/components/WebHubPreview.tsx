@@ -24,13 +24,13 @@ export function WebHubPreview() {
           <section className="preview-results" aria-label="Simulation result preview">
             <strong><Activity size={13} /> Simulation</strong>
             <div>
-              <span><Check size={12} /> 5 / 5 requirements passed</span>
+              <span><Check size={12} /> 5 / 5 assertions passed</span>
               <code>cutoff = 1.000 kHz</code>
             </div>
           </section>
         </div>
       </div>
-      <figcaption>One source. One Core. The same verified result in Web and CLI.</figcaption>
+      <figcaption>One source and one Core produce the same typed checks and engineering outputs in Web and CLI.</figcaption>
     </figure>
   );
 }

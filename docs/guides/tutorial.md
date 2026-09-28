@@ -21,7 +21,22 @@ assert cutoff(V(OUT),V(IN)) > 990Hz
 assert cutoff(V(OUT),V(IN)) < 1010Hz
 ```
 
-First, validate syntax, semantics, ERC and schematic connectivity without simulation:
+## Run it in Web Hub
+
+Open the [Web Hub](https://kessetsu.com/#editor). The RC low-pass example is already selected;
+you can also replace its Source text with the circuit above. Wait for **Source valid**, then press
+**Run** in the Simulation panel. Select the AC analysis and a voltage signal to inspect its Bode
+plot. The assertion table should show five passing checks for the built-in example, including the
+cutoff limits. A green source check alone is not a simulation result.
+
+Change `R1` from `1k` to `2k` and run again. The schematic updates automatically, while the new
+simulation shows which cutoff assertions no longer pass. Restore `1k`, run once more, then use
+**Export** to download SVG, KiCad, LTspice, SPICE or another available artifact from the same source.
+
+## Run it with the CLI
+
+Save the source as `rc.kess`. First validate syntax, semantics, ERC and schematic connectivity
+without simulation:
 
 ```powershell
 kess check rc.kess

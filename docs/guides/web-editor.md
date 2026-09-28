@@ -1,8 +1,5 @@
 # Web Editor Guide
 
-Use **Analyze → Test parameter variations…** for multi-condition runs, tolerances, comparison and
-reports; see [parameter studies](parameter-studies.md).
-
 Open the [Web Hub](https://kessetsu.com/#editor). No account or installation is required.
 Compilation and simulation run locally in your browser; circuit source and model files
 are not uploaded. See the [tutorial](tutorial.md) for a complete first circuit.
@@ -55,6 +52,14 @@ Editing the source makes previous results stale: rerun before drawing conclusion
 See [simulation and assertions](../reference/simulation-and-assertions.md) and
 [measurements](../reference/measurements.md) for exact meanings and analysis requirements.
 
+## Go beyond one simulation
+
+Use **Analyze → Test parameter variations…** for bounded sweeps, tolerances, loads,
+temperatures, comparison and reports; follow the [parameter studies guide](parameter-studies.md).
+Use **Analyze → Compare research data…** to map local CSV measurements or references and compare
+them with another dataset or a completed simulation; follow the [research-data guide](research-data.md).
+These workflows are optional. A first circuit only needs Source, Schematic and Simulation.
+
 ## Review a proposal from an external agent
 
 Open **Analyze → Work with an AI agent…** for a provider-neutral handoff. Describe the outcome you
@@ -68,12 +73,17 @@ for another source revision and keeps an accepted proposal's explanation separat
 evidence. The proposed source is shown as a line diff and compiled through the same local Core while
 the editor document remains unchanged. **Test proposed circuit** obtains real local simulation and
 assertion results. **Apply to editor** becomes available only after that run completes; closing the
-dialog or stopping the run changes nothing. After acceptance, **Analyze → Undo AI agent change**
-restores the exact prior source as long as it has not since been edited.
+dialog or stopping the run changes nothing. If assertions fail, error, are skipped or do not exist,
+the completed simulation is not presented as verified; applying it requires a second explicit
+confirmation. Editing the reply, changing the requested outcome or changing the open circuit
+invalidates the prior review and simulation evidence. After acceptance,
+**Analyze → Undo AI agent change** restores the exact prior source as long as it has not since been edited.
 
 The proposal summary is untrusted text. Compilation verifies supported syntax and schematic
 connectivity; simulation verifies only the modeled analyses and assertions in the proposed source.
-Neither step proves hardware, hidden requirements or an agent's broader claims. Local model files
+The dialog keeps the human request visible and highlights high-impact assertion, analysis, source,
+component and connection edits, but it cannot infer that agent-authored assertions cover every
+sentence. Neither step proves hardware, hidden requirements or an agent's broader claims. Local model files
 remain local and must already be bound for a proposal that depends on them.
 
 ## Save and recover

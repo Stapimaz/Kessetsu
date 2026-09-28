@@ -16,6 +16,11 @@ test('supports edit, inline diagnostic navigation, fix, simulation, assertion an
   await expect(page.getByTestId('compile-success')).toBeVisible();
   await expect(page.getByTestId('compile-status')).toHaveText('Source valid');
   await expect(page.getByLabel('Circuit simulation')).toContainText('Run the simulation to inspect plots and requirements.');
+  await expect(page.getByLabel('First simulation steps')).toBeVisible();
+  await page.getByRole('button', { name: 'File', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'New circuit', exact: true }).click();
+  await expect(page.getByTestId('compile-success')).toBeVisible();
+  await expect(page.getByLabel('Circuit simulation')).toContainText('This starter circuit includes an operating-point analysis. Press Run to simulate it.');
   await replaceSource(page, 'resistor R1 nope\n');
   await expect(page.getByTestId('compile-status')).toHaveText('1 error');
   const diagnostic = page.getByRole('button', { name: /KES-C001/ });

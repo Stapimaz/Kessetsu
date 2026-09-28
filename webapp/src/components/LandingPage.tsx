@@ -13,7 +13,7 @@ import '../landing.css';
 import { BrandWordmark } from './BrandWordmark';
 import { WebHubPreview } from './WebHubPreview';
 
-const exports = ['SVG', 'PNG', 'PDF', 'Schematic JSON', 'SPICE', 'KiCad', 'LTspice'];
+const exports = ['SVG', 'PNG', 'PDF', 'Schematic JSON', 'SPICE', 'KiCad', 'LTspice', 'BOM CSV', 'Handoff JSON'];
 const productVersion = productVersionSource.trim();
 
 export function LandingPage() {
@@ -45,8 +45,8 @@ export function LandingPage() {
           <p className="eyebrow">Executable circuit engineering</p>
           <h1 id="hero-title">Circuit engineering you can execute.</h1>
           <p className="hero-lead">
-            Design circuits in the browser or give an AI agent measurable requirements. Kessetsu compiles,
-            simulates, verifies, and exports every iteration through the same engineering core.
+            Write or import circuit source in the browser, or give your own AI agent measurable requirements.
+            Kessetsu compiles, simulates, checks encoded assertions, and exports every iteration through the same engineering core.
           </p>
           <div className="hero-actions">
             <a className="button button-primary" href="#editor">
@@ -77,7 +77,7 @@ export function LandingPage() {
 <span className="muted">agent revision</span>  load 16 Ω → 8 Ω{`\n`}
 <span className="muted">iteration 02</span>  <span className="pass">PASS</span>  output_power = 1.995 W</pre>
           <div className="console-result">
-            <span><Check size={15} /> 12 / 12 requirements passed</span>
+            <span><Check size={15} /> 12 / 12 encoded assertions passed</span>
             <small>kessetsu.cli.v1</small>
           </div>
         </div>

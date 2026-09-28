@@ -23,6 +23,14 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
   removed assertions or changed sources for closer review.
 - Automatic source validation is labeled **Source valid** so it is not confused with a completed
   simulation or satisfied engineering assertions.
+- The Simulation panel now gives a compact edit → run → inspect first-use path and links directly
+  to the tutorial. A new circuit correctly says its included operating-point analysis is ready to
+  run instead of incorrectly asking the user to add a simulation command.
+- Landing and product-preview copy now describes source-based browser editing and encoded
+  assertions precisely, and the landing export list includes BOM CSV and handoff JSON.
+- Public documentation now keeps the short first-circuit path separate from advanced analysis,
+  leads the tutorial with a complete Web Hub walkthrough, and documents proposal invalidation and
+  unchecked-apply behavior.
 - Generated agent tasks now tell agents to remove unrelated placeholder circuitry, encode supported
   measurable requirements as assertions and avoid claiming an unperformed Kessetsu run.
 
