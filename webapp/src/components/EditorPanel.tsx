@@ -67,7 +67,7 @@ export function EditorPanel({ code, diagnostics, compileSucceeded, onCodeChange,
       </div>
       <div className="inline-diagnostics" aria-label="Diagnostics" aria-live="polite">
         {compileSucceeded && diagnostics.length === 0 ? (
-          <span className="diagnostic-ok" data-testid="compile-success">ERC + schematic connectivity verified</span>
+          <span className="diagnostic-ok" data-testid="compile-success">Source valid · ERC and schematic connectivity passed</span>
         ) : diagnostics.length > 0 ? diagnostics.map((diagnostic, index) => (
           <button
             key={`${diagnostic.code}-${index}`}

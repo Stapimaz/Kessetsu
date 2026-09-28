@@ -14,7 +14,7 @@ test('supports edit, inline diagnostic navigation, fix, simulation, assertion an
   page.on('pageerror', (error) => console.log(`[workspace:error] ${error.stack ?? error.message}`));
   await page.goto('/#editor');
   await expect(page.getByTestId('compile-success')).toBeVisible();
-  await expect(page.getByTestId('compile-status')).toHaveText('Checked');
+  await expect(page.getByTestId('compile-status')).toHaveText('Source valid');
   await expect(page.getByLabel('Circuit simulation')).toContainText('Run the simulation to inspect plots and requirements.');
   await replaceSource(page, 'resistor R1 nope\n');
   await expect(page.getByTestId('compile-status')).toHaveText('1 error');

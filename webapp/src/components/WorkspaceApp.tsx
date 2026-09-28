@@ -71,7 +71,7 @@ export function WorkspaceApp() {
     : state.compileState === 'checking'
       ? 'Auto-checking…'
       : state.compileState === 'valid'
-        ? 'Checked'
+        ? 'Source valid'
         : errorCount > 0
           ? `${errorCount} ${errorCount === 1 ? 'error' : 'errors'}`
           : 'Needs attention';
@@ -387,7 +387,7 @@ export function WorkspaceApp() {
           aria-label={`${documentName}${state.isDirty ? ', unsaved changes' : ''}`}
         >{documentName}</div>
         <div className="global-actions">
-          <span className={`compile-status compile-${state.compileState}`} role="status" aria-label={`Automatic circuit check: ${compileStatus}`} data-testid="compile-status" title={compileStatus}>
+          <span className={`compile-status compile-${state.compileState}`} role="status" aria-label={`Automatic source check: ${compileStatus}`} data-testid="compile-status" title={compileStatus}>
             <CompileStatusIcon size={14} /><span>{compileStatus}</span>
           </span>
           <ArtifactBar enabled={state.compileSucceeded}

@@ -18,7 +18,7 @@ test('calculates the loaded divider, downloads source and restores the prior wor
   await page.getByRole('button', { name: 'Download .kess' }).click();
   expect((await download).suggestedFilename()).toBe('voltage-divider.kess');
   await page.getByRole('button', { name: 'Open in editor' }).click();
-  await expect(page.getByTestId('compile-status')).toContainText('Checked');
+  await expect(page.getByTestId('compile-status')).toContainText('Source valid');
   await expect(page.locator('.document-title')).toContainText('Loaded voltage divider');
   await page.getByRole('button', { name: 'Run simulation', exact: true }).click();
   await expect(page.getByTestId('simulation-summary')).toHaveAttribute('data-state', 'succeeded', { timeout: 20_000 });
@@ -33,7 +33,7 @@ test('calculates the loaded divider, downloads source and restores the prior wor
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('menuitem', { name: 'Restore previous circuit' }).click();
   await expect(page.locator('.document-title')).toContainText('My prior circuit');
-  await expect(page.getByTestId('compile-status')).toContainText('Checked');
+  await expect(page.getByTestId('compile-status')).toContainText('Source valid');
 });
 
 test('RC rounding changes achieved cutoff, rejects wrong units and stays usable on mobile', async ({ page, browser, baseURL }) => {
@@ -62,7 +62,7 @@ test('RC rounding changes achieved cutoff, rejects wrong units and stays usable 
     await expect(staticPage.getByText('C = 1 / (2π × R × cutoff frequency)', { exact: true })).toBeVisible();
   } finally { await noJs.close(); }
   await page.getByRole('button', { name: 'Open in editor' }).click();
-  await expect(page.getByTestId('compile-status')).toContainText('Checked');
+  await expect(page.getByTestId('compile-status')).toContainText('Source valid');
   await page.getByRole('button', { name: 'Run simulation', exact: true }).click();
   await expect(page.getByTestId('simulation-summary')).toHaveAttribute('data-state', 'succeeded', { timeout: 20_000 });
   await expect(page.getByLabel('Signal', { exact: true })).toHaveValue('out');

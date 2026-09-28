@@ -1,4 +1,4 @@
-import { CheckCircle2, Clipboard, Download, FileUp, Play, Square, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clipboard, Download, FileUp, LoaderCircle, Play, Square, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   compile_kessetsu_with_resources,
@@ -8,9 +8,11 @@ import {
 } from 'kessetsu-core';
 import {
   createAgentTask,
+  assertionOutcome,
   lineDiff,
   MAX_AGENT_PROPOSAL_BYTES,
   parseAgentProposal,
+  summarizeProposalChanges,
   type AgentProposalEnvelope,
 } from '../agentProposal';
 import { downloadTextFile, sanitizeFileStem } from '../document';
@@ -43,6 +45,8 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
   const fileInput = useRef<HTMLInputElement>(null);
   const runner = useRef<BrowserSimulationRunner | null>(null);
   const sourceSnapshot = useRef(source);
+  const operationId = useRef(0);
+  const taskOperationId = useRef(0);
   if (!runner.current) runner.current = new BrowserSimulationRunner();
   const [requirements, setRequirements] = useState('');
   const [taskText, setTaskText] = useState('');
@@ -51,25 +55,30 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
   const [compileReport, setCompileReport] = useState<CompileReport | null>(null);
   const [verification, setVerification] = useState<BrowserEvaluation | null>(null);
   const [verificationState, setVerificationState] = useState<VerificationState>('idle');
+  const [confirmApply, setConfirmApply] = useState(false);
   const [status, setStatus] = useState('Nothing leaves this browser automatically.');
   const [error, setError] = useState('');
 
-  const resetProposal = () => {
+  const resetProposal = (nextStatus = 'Nothing leaves this browser automatically.') => {
+    const nextOperation = ++operationId.current;
     runner.current?.cancel();
     setProposal(null);
     setCompileReport(null);
     setVerification(null);
     setVerificationState('idle');
+    setConfirmApply(false);
     setError('');
-    setStatus('Nothing leaves this browser automatically.');
+    setStatus(nextStatus);
+    return nextOperation;
   };
 
   useEffect(() => {
     if (open && sourceSnapshot.current !== source) {
       sourceSnapshot.current = source;
+      taskOperationId.current++;
       setTaskText('');
       setProposalText('');
-      resetProposal();
+      resetProposal('The circuit changed. Create a new task and check a reply for this revision.');
     }
     if (open && !dialog.current?.open) dialog.current?.showModal();
     if (!open && dialog.current?.open) dialog.current.close();
@@ -77,25 +86,42 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
   useEffect(() => () => runner.current?.dispose(), []);
 
   const diff = useMemo(() => proposal ? lineDiff(source, proposal.proposed_source) : [], [proposal, source]);
+  const changeSummary = useMemo(() => summarizeProposalChanges(diff), [diff]);
   const changedLines = diff.filter((line) => line.kind !== 'same').length;
   const compileErrors = compileReport?.diagnostics.filter((item) => item.severity === 'error') ?? [];
   const compileWarnings = compileReport?.diagnostics.filter((item) => item.severity === 'warning') ?? [];
   const connectivityVerified = Boolean(compileReport?.schematic?.connectivity.verified && compileReport.schematic_svg);
   const assertionSummary = verification?.assertions.summary;
-  const verificationPassed = verificationState === 'complete'
-    && Boolean(assertionSummary)
-    && assertionSummary!.failed === 0
-    && assertionSummary!.errors === 0;
+  const checkedAssertions = assertionOutcome(assertionSummary);
+  const verificationPassed = verificationState === 'complete' && checkedAssertions === 'passed';
+  const simulationCard = verificationState === 'running'
+    ? { tone: 'agent-check-pending', text: 'Running the candidate locally…', icon: 'loading' as const }
+    : verificationState === 'failed'
+      ? { tone: 'agent-check-fail', text: 'Simulation failed. Read the error and test again.', icon: 'error' as const }
+      : verificationState === 'cancelled'
+        ? { tone: 'agent-check-warning', text: 'Simulation was cancelled. Test again before applying.', icon: 'warning' as const }
+        : verificationState === 'complete' && checkedAssertions === 'passed'
+          ? { tone: 'agent-check-pass', text: `${assertionSummary!.passed}/${assertionSummary!.total} encoded assertions passed.`, icon: 'pass' as const }
+          : verificationState === 'complete' && checkedAssertions === 'unchecked'
+            ? { tone: 'agent-check-warning', text: 'Simulation completed, but no assertions checked the requested outcome.', icon: 'warning' as const }
+            : verificationState === 'complete'
+              ? { tone: 'agent-check-warning', text: `${assertionSummary!.passed}/${assertionSummary!.total} encoded assertions passed; failures, errors, or skipped checks remain.`, icon: 'warning' as const }
+              : { tone: 'agent-check-pending', text: 'Not run yet. Test the candidate before applying it.', icon: 'idle' as const };
 
   const buildTask = async () => {
     setError('');
+    const requestId = ++taskOperationId.current;
     try {
       const task = await createAgentTask(source, name, requirements, productVersion, compile_schema_version());
+      if (requestId !== taskOperationId.current) return null;
       const serialized = JSON.stringify(task, null, 2);
       setTaskText(serialized);
       setStatus('Agent task created from this exact source revision.');
       return serialized;
-    } catch (cause) { setError(message(cause)); return null; }
+    } catch (cause) {
+      if (requestId === taskOperationId.current) setError(message(cause));
+      return null;
+    }
   };
 
   const copyTask = async () => {
@@ -115,10 +141,12 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
   };
 
   const reviewProposal = async (text = proposalText) => {
-    resetProposal();
+    const requestId = resetProposal('Checking the returned circuit…');
     try {
       const parsed = await parseAgentProposal(text, source);
+      if (requestId !== operationId.current) return;
       const report = compileCandidate(parsed.proposed_source, resources);
+      if (requestId !== operationId.current) return;
       setProposal(parsed);
       setCompileReport(report);
       const errors = report.diagnostics.filter((item) => item.severity === 'error');
@@ -129,27 +157,45 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
       } else {
         setStatus('The returned circuit is valid and still separate from your editor. Test it before applying.');
       }
-    } catch (cause) { setError(message(cause)); }
+    } catch (cause) {
+      if (requestId === operationId.current) {
+        setError(message(cause));
+        setStatus('The reply could not be checked. The editor source is unchanged.');
+      }
+    }
   };
 
   const runVerification = async () => {
     if (!proposal || !connectivityVerified || compileErrors.length) return;
+    const candidate = proposal;
+    const requestId = ++operationId.current;
     setError('');
     setVerification(null);
     setVerificationState('running');
+    setConfirmApply(false);
     setStatus('Preparing proposal simulation…');
     try {
-      const plan = prepare_browser_simulation_with_resources(proposal.proposed_source, resources) as BrowserSimulationPlan;
+      const plan = prepare_browser_simulation_with_resources(candidate.proposed_source, resources) as BrowserSimulationPlan;
       if (plan.analyses.length === 0) throw new Error('The proposal has no simulation command. Ask the agent to include a verifiable analysis.');
       const simulation = await runner.current!.run(plan, {
         timeoutMs: 90_000,
-        onProgress: (progress) => setStatus(progress.message),
+        onProgress: (progress) => {
+          if (requestId === operationId.current) setStatus(progress.message);
+        },
       });
-      const evaluation = evaluate_browser_simulation_with_resources(proposal.proposed_source, simulation, resources) as BrowserEvaluation;
+      if (requestId !== operationId.current) return;
+      const evaluation = evaluate_browser_simulation_with_resources(candidate.proposed_source, simulation, resources) as BrowserEvaluation;
+      if (requestId !== operationId.current) return;
       setVerification(evaluation);
       setVerificationState('complete');
-      setStatus(`${evaluation.simulation.datasets.length} analyses completed · ${evaluation.assertions.summary.passed}/${evaluation.assertions.summary.total} assertions passed.`);
+      const outcome = assertionOutcome(evaluation.assertions.summary);
+      setStatus(outcome === 'passed'
+        ? `${evaluation.simulation.datasets.length} analyses completed · all ${evaluation.assertions.summary.total} encoded assertions passed.`
+        : outcome === 'unchecked'
+          ? `${evaluation.simulation.datasets.length} analyses completed · no assertions were checked.`
+          : `${evaluation.simulation.datasets.length} analyses completed · some encoded assertions were not satisfied.`);
     } catch (cause) {
+      if (requestId !== operationId.current) return;
       if (cause instanceof SimulationCancelledError) {
         setVerificationState('cancelled');
         setStatus('Proposal simulation cancelled. The editor source is unchanged.');
@@ -162,8 +208,12 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
   };
 
   const cancelVerification = () => {
+    operationId.current++;
     runner.current?.cancel();
     setVerificationState('cancelled');
+    setVerification(null);
+    setConfirmApply(false);
+    setStatus('Proposal simulation cancelled. The editor source is unchanged.');
   };
 
   const close = () => {
@@ -182,7 +232,13 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
 
     <section className="agent-step">
       <div className="agent-step-heading"><span>1</span><div><h3>Tell the agent what you need</h3><p>Write the electrical target and limits. Kessetsu includes your current circuit automatically.</p></div></div>
-      <textarea rows={4} value={requirements} maxLength={12_000} placeholder="Example: Design for 2 W RMS into 8 ohm, gain near 20, and less than 2 W transistor dissipation. Include simulations and assertions for every target." onChange={(event) => { setRequirements(event.target.value); setTaskText(''); }} />
+      <textarea rows={4} value={requirements} maxLength={12_000} placeholder="Example: Design for 2 W RMS into 8 ohm, gain near 20, and less than 2 W transistor dissipation. Include simulations and assertions for every target." onChange={(event) => {
+        taskOperationId.current++;
+        setRequirements(event.target.value);
+        setTaskText('');
+        setProposalText('');
+        resetProposal(proposal || proposalText ? 'Requirements changed. Create a new task and bring back a new reply.' : undefined);
+      }} />
       <div className="agent-actions"><button className="agent-primary" onClick={() => void copyTask()}><Clipboard size={14} /> Copy task for AI</button><button onClick={() => void downloadTask()}><Download size={14} /> Download task file</button></div>
       {taskText && <div className="agent-next-step"><CheckCircle2 size={16} /><div><strong>Task ready</strong><span>Paste it into ChatGPT, Gemini, Claude, Codex, or another agent. Ask it to return only the requested JSON object.</span></div></div>}
       {taskText && <details><summary>Inspect the task JSON</summary><pre>{taskText}</pre></details>}
@@ -190,11 +246,23 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
 
     <section className="agent-step">
       <div className="agent-step-heading"><span>2</span><div><h3>Bring back the agent's reply</h3><p>Paste the complete JSON response, or open the JSON file the agent created.</p></div></div>
-      <textarea rows={5} value={proposalText} placeholder={`Paste the returned ${'kessetsu.agent-proposal.v1'} JSON here…`} onChange={(event) => setProposalText(event.target.value)} />
+      <textarea rows={5} value={proposalText} placeholder={`Paste the returned ${'kessetsu.agent-proposal.v1'} JSON here…`} onChange={(event) => {
+        const text = event.target.value;
+        setProposalText(text);
+        resetProposal(text.trim() ? 'Reply changed. Check this version before testing or applying it.' : undefined);
+      }} />
       <input ref={fileInput} type="file" className="sr-only" accept=".json,application/json" aria-label="Open agent proposal JSON" onChange={(event) => {
         const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (!file) return;
+        const fileRequestId = resetProposal('Reading the reply file…');
+        setProposalText('');
         if (file.size > MAX_AGENT_PROPOSAL_BYTES) { setError('Proposal file is too large'); return; }
-        void file.text().then((text) => { setProposalText(text); return reviewProposal(text); }).catch((cause) => setError(message(cause)));
+        void file.text().then((text) => {
+          if (fileRequestId !== operationId.current) return;
+          setProposalText(text);
+          return reviewProposal(text);
+        }).catch((cause) => {
+          if (fileRequestId === operationId.current) setError(message(cause));
+        });
       }} />
       <div className="agent-actions"><button onClick={() => fileInput.current?.click()}><FileUp size={14} /> Open reply file…</button><button className="agent-primary" disabled={!proposalText.trim()} onClick={() => void reviewProposal()}>Check returned circuit</button></div>
     </section>
@@ -204,22 +272,46 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
       <div className="agent-check-grid">
         <div className="agent-check-card agent-check-pass"><CheckCircle2 size={16} /><div><strong>Correct circuit revision</strong><span>The reply matches the source you sent.</span></div></div>
         <div className={connectivityVerified && compileErrors.length === 0 ? 'agent-check-card agent-check-pass' : 'agent-check-card agent-check-fail'}>{connectivityVerified && compileErrors.length === 0 ? <CheckCircle2 size={16} /> : <X size={16} />}<div><strong>Core compile and connectivity</strong><span>{connectivityVerified && compileErrors.length === 0 ? 'Kessetsu accepted the source and verified its connections.' : 'Kessetsu rejected the returned circuit.'}</span></div></div>
-        <div className={`agent-check-card ${verificationState === 'complete' ? (verificationPassed ? 'agent-check-pass' : 'agent-check-warning') : 'agent-check-pending'}`}>
-          {verificationState === 'complete' ? (verificationPassed ? <CheckCircle2 size={16} /> : <X size={16} />) : <Play size={16} />}
-          <div><strong>Local simulation</strong><span>{verificationState === 'complete'
-            ? assertionSummary!.total === 0
-              ? 'Simulation completed, but the proposal included no assertions.'
-              : `${assertionSummary!.passed}/${assertionSummary!.total} assertions passed.`
-            : 'Not run yet. Test the candidate before applying it.'}</span></div>
+        <div className={`agent-check-card ${simulationCard.tone}`}>
+          {simulationCard.icon === 'pass' ? <CheckCircle2 size={16} />
+            : simulationCard.icon === 'loading' ? <LoaderCircle className="agent-spin" size={16} />
+              : simulationCard.icon === 'idle' ? <Play size={16} />
+                : simulationCard.icon === 'error' ? <X size={16} /> : <AlertTriangle size={16} />}
+          <div><strong>Local simulation and assertions</strong><span>{simulationCard.text}</span></div>
         </div>
       </div>
       {compileWarnings.length > 0 && <p className="agent-warning">{compileWarnings.length} compile warning{compileWarnings.length === 1 ? '' : 's'}: {compileWarnings.slice(0, 2).map((item) => item.message).join(' ')}</p>}
+      <div className="agent-human-requirements">
+        <strong>Your requested outcome</strong>
+        <p>{requirements.trim() || 'No human requirements were recorded in this dialog. Review the source changes and encoded assertions carefully.'}</p>
+        <span>Kessetsu can evaluate encoded assertions; it cannot infer that they cover every sentence above.</span>
+      </div>
       <details className="agent-review-detail"><summary><span>Agent's explanation <em>unverified</em></span><small>Read</small></summary><p>{proposal.summary}</p></details>
-      <details className="agent-review-detail"><summary><span>Source changes</span><small>{changedLines} changed lines</small></summary><div className="agent-diff" role="region" aria-label="Proposed source diff" tabIndex={0}>{diff.map((line, index) => <div className={`agent-diff-${line.kind}`} key={`${index}-${line.kind}`}><span>{line.oldLine ?? ''}</span><span>{line.newLine ?? ''}</span><b>{line.kind === 'add' ? '+' : line.kind === 'remove' ? '−' : ' '}</b><code>{line.text || ' '}</code></div>)}</div></details>
-      {verification && <div className={`agent-verification ${verificationPassed ? '' : 'agent-verification-warning'}`} data-testid="agent-verification">{verificationPassed ? <CheckCircle2 size={16} /> : <X size={16} />}<div><strong>{verificationPassed ? 'Kessetsu verification passed' : 'Simulation completed with unchecked or failed requirements'}</strong><span>{verification.simulation.datasets.length} analyses · {assertionSummary?.passed}/{assertionSummary?.total} assertions passed · {assertionSummary?.failed} failed · {assertionSummary?.errors} errors</span></div></div>}
+      <details className="agent-review-detail"><summary><span>Source changes</span><small>{changedLines} changed lines</small></summary>
+        <div className="agent-change-summary" aria-label="High-impact source changes">
+          <span>Assertions <b>+{changeSummary.assertions.added} / −{changeSummary.assertions.removed}</b></span>
+          <span>Analyses <b>+{changeSummary.analyses.added} / −{changeSummary.analyses.removed}</b></span>
+          <span>Sources <b>+{changeSummary.sources.added} / −{changeSummary.sources.removed}</b></span>
+          <span>Components <b>+{changeSummary.components.added} / −{changeSummary.components.removed}</b></span>
+          <span>Connections <b>+{changeSummary.connections.added} / −{changeSummary.connections.removed}</b></span>
+        </div>
+        {(changeSummary.assertions.removed > 0 || changeSummary.sources.added + changeSummary.sources.removed > 0) && <p className="agent-impact-warning"><AlertTriangle size={14} /> Review removed assertions and source or supply changes before applying.</p>}
+        <div className="agent-diff" role="region" aria-label="Proposed source diff" tabIndex={0}>{diff.map((line, index) => <div className={`agent-diff-${line.kind}`} key={`${index}-${line.kind}`}><span>{line.oldLine ?? ''}</span><span>{line.newLine ?? ''}</span><b>{line.kind === 'add' ? '+' : line.kind === 'remove' ? '−' : ' '}</b><code>{line.text || ' '}</code></div>)}</div>
+      </details>
+      {verification && <div className={`agent-verification ${verificationPassed ? '' : 'agent-verification-warning'}`} data-testid="agent-verification">{verificationPassed ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}<div><strong>{verificationPassed ? 'Simulation completed and all encoded assertions passed' : checkedAssertions === 'unchecked' ? 'Simulation completed without requirement checks' : 'Simulation completed with unresolved assertion results'}</strong><span>{verification.simulation.datasets.length} analyses · {assertionSummary?.passed}/{assertionSummary?.total} passed · {assertionSummary?.failed} failed · {assertionSummary?.errors} errors · {assertionSummary?.skipped} skipped. Only encoded assertions were checked.</span></div></div>}
+      {confirmApply && !verificationPassed && <div className="agent-apply-confirm" role="alert">
+        <AlertTriangle size={17} />
+        <div><strong>Apply an unverified outcome?</strong><span>The simulation ran, but the requested outcome was not fully checked or satisfied. Review the diff before changing the editor.</span></div>
+        <button onClick={() => setConfirmApply(false)}>Cancel</button>
+        <button className="agent-confirm-apply" onClick={() => { onAccept(proposal.proposed_source); close(); }}>Apply unchecked changes</button>
+      </div>}
     </section>}
 
     {error && <p className="agent-error" role="alert">{error}</p>}
-    <footer className="agent-footer"><p role="status">{status}</p><div>{verificationState === 'running' ? <button onClick={cancelVerification}><Square size={14} /> Stop test</button> : <button disabled={!proposal || !connectivityVerified || compileErrors.length > 0} onClick={() => void runVerification()}><Play size={14} /> {verificationState === 'complete' ? 'Test again' : 'Test proposed circuit'}</button>}<button className="agent-accept" disabled={!proposal || verificationState !== 'complete'} onClick={() => { onAccept(proposal!.proposed_source); close(); }}>Apply to editor</button></div></footer>
+    <footer className="agent-footer"><p role="status">{status}</p><div>{verificationState === 'running' ? <button onClick={cancelVerification}><Square size={14} /> Stop test</button> : <button disabled={!proposal || !connectivityVerified || compileErrors.length > 0} onClick={() => void runVerification()}><Play size={14} /> {verificationState === 'complete' || verificationState === 'failed' || verificationState === 'cancelled' ? 'Test again' : 'Test proposed circuit'}</button>}<button className="agent-accept" disabled={!proposal || verificationState !== 'complete'} onClick={() => {
+      if (!proposal) return;
+      if (verificationPassed) { onAccept(proposal.proposed_source); close(); }
+      else setConfirmApply(true);
+    }}>{verificationPassed ? 'Apply tested proposal' : verificationState === 'complete' ? 'Apply anyway…' : 'Apply to editor'}</button></div></footer>
   </dialog>;
 }

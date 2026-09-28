@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { AGENT_PROPOSAL_SCHEMA, createAgentTask, lineDiff, parseAgentProposal } from './agentProposal';
+import {
+  AGENT_PROPOSAL_SCHEMA,
+  assertionOutcome,
+  createAgentTask,
+  lineDiff,
+  parseAgentProposal,
+  summarizeProposalChanges,
+} from './agentProposal';
 
 const source = 'net GND\nsource V1 5V\n';
 
@@ -29,5 +36,22 @@ describe('agent proposal contracts', () => {
       { kind: 'remove', text: 'b', oldLine: 2, newLine: null },
       { kind: 'same', text: 'c', oldLine: 3, newLine: 3 },
     ]);
+  });
+
+  it('does not treat missing or skipped assertions as verified', () => {
+    expect(assertionOutcome({ total: 0, passed: 0, failed: 0, errors: 0, skipped: 0 })).toBe('unchecked');
+    expect(assertionOutcome({ total: 2, passed: 2, failed: 0, errors: 0, skipped: 0 })).toBe('passed');
+    expect(assertionOutcome({ total: 2, passed: 1, failed: 0, errors: 0, skipped: 1 })).toBe('not_passed');
+  });
+
+  it('summarizes high-impact proposal changes separately', () => {
+    const summary = summarizeProposalChanges(lineDiff(
+      'source V1 5V\nresistor R1 1k\nsimulate op\nassert max(V(out)) < 5V',
+      'source V1 12V\nresistor R1 2k\nresistor R2 1k\nsimulate tran 1us 1ms\nassert max(V(out)) < 3.3V',
+    ));
+    expect(summary.sources).toEqual({ added: 1, removed: 1 });
+    expect(summary.components).toEqual({ added: 2, removed: 1 });
+    expect(summary.analyses).toEqual({ added: 1, removed: 1 });
+    expect(summary.assertions).toEqual({ added: 1, removed: 1 });
   });
 });

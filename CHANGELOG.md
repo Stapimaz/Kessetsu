@@ -11,7 +11,18 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
   compact verification cards and separate collapsed sections for untrusted agent explanation and
   source diff. Actions now say what they do: test the proposed circuit, then apply it to the editor.
 - Local Core and simulation evidence is visually separated from the agent's own claims; completed
-  runs with failed assertions or no assertions use a warning state instead of a success treatment.
+  runs with failed, errored, skipped or no assertions use a warning state instead of a success
+  treatment. Applying one of those completed-but-unverified candidates requires a separate,
+  explicit confirmation.
+- Agent replies, requirements and simulation evidence are bound to the exact candidate shown in
+  the review. Editing or replacing a reply, changing the requested outcome, or changing the open
+  circuit invalidates prior compile/simulation evidence so stale results cannot authorize another
+  source revision.
+- Proposal review keeps the human request visible, calls out the limits of agent-authored
+  assertions, summarizes assertion, analysis, source, component and connection edits, and flags
+  removed assertions or changed sources for closer review.
+- Automatic source validation is labeled **Source valid** so it is not confused with a completed
+  simulation or satisfied engineering assertions.
 - Generated agent tasks now tell agents to remove unrelated placeholder circuitry, encode supported
   measurable requirements as assertions and avoid claiming an unperformed Kessetsu run.
 

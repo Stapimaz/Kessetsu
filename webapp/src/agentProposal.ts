@@ -35,6 +35,54 @@ export interface DiffLine {
   newLine: number | null;
 }
 
+export interface AssertionSummaryLike {
+  total: number;
+  passed: number;
+  failed: number;
+  errors: number;
+  skipped: number;
+}
+
+export type AssertionOutcome = 'passed' | 'unchecked' | 'not_passed';
+
+export interface ProposalChangeSummary {
+  assertions: { added: number; removed: number };
+  analyses: { added: number; removed: number };
+  sources: { added: number; removed: number };
+  components: { added: number; removed: number };
+  connections: { added: number; removed: number };
+}
+
+export function assertionOutcome(summary: AssertionSummaryLike | null | undefined): AssertionOutcome {
+  if (!summary || summary.total === 0) return 'unchecked';
+  if (summary.failed > 0 || summary.errors > 0 || summary.skipped > 0 || summary.passed !== summary.total) {
+    return 'not_passed';
+  }
+  return 'passed';
+}
+
+export function summarizeProposalChanges(diff: DiffLine[]): ProposalChangeSummary {
+  const summary: ProposalChangeSummary = {
+    assertions: { added: 0, removed: 0 },
+    analyses: { added: 0, removed: 0 },
+    sources: { added: 0, removed: 0 },
+    components: { added: 0, removed: 0 },
+    connections: { added: 0, removed: 0 },
+  };
+  const components = /^(resistor|capacitor|inductor|diode|transistor|mosfet|opamp|device)\b/i;
+  for (const line of diff) {
+    if (line.kind === 'same') continue;
+    const count = line.kind === 'add' ? 'added' : 'removed';
+    const text = line.text.trim();
+    if (/^assert\b/i.test(text)) summary.assertions[count]++;
+    else if (/^simulate\b/i.test(text)) summary.analyses[count]++;
+    else if (/^(source|current_source)\b/i.test(text)) summary.sources[count]++;
+    else if (components.test(text)) summary.components[count]++;
+    else if (/^(connect|net)\b/i.test(text)) summary.connections[count]++;
+  }
+  return summary;
+}
+
 function utf8Length(value: string) {
   return new TextEncoder().encode(value).byteLength;
 }

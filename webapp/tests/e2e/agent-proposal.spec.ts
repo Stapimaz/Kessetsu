@@ -41,6 +41,15 @@ test('keeps agent proposals separate until verified, accepted and explicitly rev
   await expect(dialog.getByText('Core compile and connectivity')).toBeVisible();
   await expect(dialog.getByText('3 changed lines')).toBeVisible();
 
+  const replyText = dialog.locator('textarea').nth(1);
+  const serializedProposal = await replyText.inputValue();
+  await replyText.fill(`${serializedProposal}\n`);
+  await expect(dialog.getByText('Core compile and connectivity')).toBeHidden();
+  await expect(dialog.getByRole('button', { name: 'Apply to editor', exact: true })).toBeDisabled();
+  await replyText.fill(serializedProposal);
+  await dialog.getByRole('button', { name: 'Check returned circuit', exact: true }).click();
+  await expect(dialog.getByText('Core compile and connectivity')).toBeVisible();
+
   await dialog.getByRole('button', { name: 'Close AI agent workflow' }).click();
   await expect(dialog).toBeHidden();
   await expect(page.locator('.view-lines')).toHaveText(originalSource, { useInnerText: true });
@@ -49,12 +58,47 @@ test('keeps agent proposals separate until verified, accepted and explicitly rev
   await page.getByRole('menuitem', { name: 'Work with an AI agent…', exact: true }).click();
   await dialog.getByRole('button', { name: 'Test proposed circuit', exact: true }).click();
   await expect(dialog.getByTestId('agent-verification')).toBeVisible({ timeout: 90_000 });
-  await expect(dialog.getByTestId('agent-verification')).toContainText('5/5 assertions passed');
-  await dialog.getByRole('button', { name: 'Apply to editor', exact: true }).click();
+  await expect(dialog.getByTestId('agent-verification')).toContainText('5/5 passed');
+  await dialog.getByRole('button', { name: 'Apply tested proposal', exact: true }).click();
   await expect(dialog).toBeHidden();
   await expect(page.locator('.view-lines')).toContainText('reviewed agent proposal');
 
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await page.getByRole('menuitem', { name: /Undo AI agent change/ }).click();
   await expect(page.locator('.view-lines')).toHaveText(originalSource, { useInnerText: true });
+});
+
+test('does not present a simulation without assertions as verified', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto('/#editor');
+  await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Work with an AI agent…', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Work with an AI agent', exact: true });
+  await dialog.getByPlaceholder(/Design for 2 W RMS/).fill('Return a simulated candidate and preserve every stated requirement.');
+  const taskDownload = page.waitForEvent('download');
+  await dialog.getByRole('button', { name: 'Download task file', exact: true }).click();
+  const taskFile = await taskDownload;
+  const task = JSON.parse(readFileSync((await taskFile.path())!, 'utf8')) as {
+    circuit: { source: string; source_sha256: string };
+  };
+  const proposal = {
+    schema_version: 'kessetsu.agent-proposal.v1',
+    base_source_sha256: task.circuit.source_sha256,
+    proposed_source: task.circuit.source.split('\n').filter((line) => !line.trimStart().startsWith('assert ')).join('\n'),
+    summary: 'Removed every assertion while retaining the simulation.',
+  };
+  await dialog.getByLabel('Open agent proposal JSON').setInputFiles({
+    name: 'unchecked-proposal.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(proposal)),
+  });
+  await dialog.getByRole('button', { name: 'Test proposed circuit', exact: true }).click();
+  const verification = dialog.getByTestId('agent-verification');
+  await expect(verification).toBeVisible({ timeout: 90_000 });
+  await expect(verification).toContainText('without requirement checks');
+  await expect(verification).toContainText('0/0 passed');
+  await dialog.getByRole('button', { name: 'Apply anyway…', exact: true }).click();
+  await expect(dialog.getByText('Apply an unverified outcome?')).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Apply unchecked changes', exact: true })).toBeVisible();
 });
