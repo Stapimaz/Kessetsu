@@ -6,6 +6,15 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ### Web editor usability
 
+- SPICE import failures show the file, original-line diagnostics, a complete expandable report
+  and direct retry/guide actions. Rejected imports preserve the circuit and save destination;
+  a changed document during the file chooser is not replaced by a late selection.
+- Plot cursors select actual samples by physical axis rather than array index, including
+  nonuniform transient timesteps, logarithmic AC and descending DC sweeps. Zoom follows
+  the pointer in physical coordinates. DC axes show source-specific V/A units; AC magnitude
+  states its 1 V/1 A reference and is not labeled as transfer gain. Default traces favor
+  external voltages. Reduced assertion limits are kept in the measurement table, not
+  drawn as misleading instantaneous waveform thresholds.
 - Sharing explains source snapshots and privacy, supports manual copying when clipboard access
   is blocked, and abandons pending link creation on close. Late creation/copy results cannot
   change a reopened sharing session; repeated Enter presses do not start parallel requests.

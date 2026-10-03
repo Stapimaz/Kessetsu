@@ -48,6 +48,18 @@ and cancellation are shown there. Errors are not replaced with invented results.
 Select an analysis and signal to inspect operating-point values or waveform/Bode/DC plots.
 Hover over a plot for numeric values. Assertions show PASS, FAIL, ERROR or SKIPPED with their
 measured value and limit. Simulation without assertions is valid but does not prove requirements.
+The cursor snaps to the nearest recorded sample in the displayed physical axis, including
+nonuniform simulator timesteps and logarithmic frequency spacing; it does not invent an
+interpolated sample. Scroll to zoom around the pointer and use **Reset zoom** to restore the view.
+DC sweeps identify the swept source and use V or A from the analysis. Descending sweeps still
+plot smaller axis values on the left. The default trace favors `OUT`/`output`, then an asserted
+named voltage or another external voltage before internal-model vectors; all signals remain selectable.
+
+AC magnitude is absolute signal magnitude: **dBV** is relative to 1 V, and current magnitude
+is labeled **dB re 1 A**. This is not output/input gain. Phase is the selected signal's angle,
+not a transfer-function phase. Use the `gain`/`gain_at` and `phase` measurements for supported
+output/input comparisons. Requirement measurements stay in their table: aggregate RMS,
+average, peak and analysis-specific checks are not drawn as instantaneous waveform limits.
 When the source records physical-part ratings, a separate **Provided part limits** table shows
 model stress, utilization, recorded conditions and citation. Its Within/Exceeds/Unavailable state
 is advisory and never presented as a requirement PASS or hardware-safety approval.

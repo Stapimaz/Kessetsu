@@ -2,6 +2,21 @@ import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import type { SimulationResult } from '../../src/simulation/types';
+
+async function moveOverPlot(page: Page, plot: ReturnType<Page['locator']>, fraction: number) {
+  const point = await plot.evaluate((element, fraction) => {
+    const svg = element as SVGSVGElement;
+    const matrix = svg.getScreenCTM();
+    if (!matrix) throw new Error('result plot has no screen transform');
+    const point = svg.createSVGPoint();
+    point.x = 42 + 536 * fraction;
+    point.y = 96;
+    const screen = point.matrixTransform(matrix);
+    return { x: screen.x, y: screen.y };
+  }, fraction);
+  await page.mouse.move(point.x, point.y);
+}
 
 async function replaceSource(page: Page, source: string) {
   await expect(page.locator('.monaco-editor')).toBeVisible();
@@ -50,6 +65,17 @@ test('runs the canonical RC filter in a worker and evaluates Core assertions', a
 
 test('normalizes OP, transient, AC and DC sweep results and restarts after cancellation', async ({ page }) => {
   test.setTimeout(120_000);
+  await page.addInitScript(() => {
+    const NativeWorker = Worker;
+    window.Worker = class extends NativeWorker {
+      constructor(url: string | URL, options?: WorkerOptions) {
+        super(url, options);
+        this.addEventListener('message', (event) => {
+          if (event.data.type === 'result') (window as unknown as { recordedSimulation: SimulationResult }).recordedSimulation = event.data.result;
+        });
+      }
+    };
+  });
   const source = readFileSync(
     new URL('../../../core/tests/fixtures/benchmarks/browser_analysis_matrix.kess', import.meta.url),
     'utf8',
@@ -75,28 +101,65 @@ test('normalizes OP, transient, AC and DC sweep results and restarts after cance
   await expect(summary.locator('.op-grid')).toBeVisible();
   await summary.getByRole('tab', { name: 'transient' }).click();
   await expect(summary.locator('.result-plot')).toHaveCount(1);
-  await expect(summary.locator('.threshold-line')).toHaveCount(1);
+  await expect(summary.locator('.threshold-line')).toHaveCount(0);
+  await expect(summary).toContainText('not drawn as instantaneous waveform limits');
   const transientPlot = summary.locator('.result-plot');
-  const plotPoints = await transientPlot.evaluate((element) => {
-    const svg = element as SVGSVGElement;
-    const matrix = svg.getScreenCTM();
-    if (!matrix) throw new Error('result plot has no screen transform');
-    const screenPoint = (x: number) => {
-      const point = svg.createSVGPoint();
-      point.x = x;
-      point.y = 96;
-      const screen = point.matrixTransform(matrix);
-      return { x: screen.x, y: screen.y };
-    };
-    return { left: screenPoint(44), right: screenPoint(576) };
-  });
-  await page.mouse.move(plotPoints.left.x, plotPoints.left.y);
-  await expect(summary.locator('.cursor-readout')).toBeVisible();
-  expect(Math.abs(Number(await summary.locator('.cursor-line').getAttribute('x1')) - 44)).toBeLessThan(0.5);
-  await page.mouse.move(plotPoints.right.x, plotPoints.right.y);
-  expect(Math.abs(Number(await summary.locator('.cursor-line').getAttribute('x1')) - 576)).toBeLessThan(0.5);
+  const recorded = await page.evaluate(() => (window as unknown as { recordedSimulation: SimulationResult }).recordedSimulation);
+  const transient = recorded.datasets.find((item) => item.data.kind === 'transient')!.data;
+  if (transient.kind !== 'transient') throw new Error('missing real transient data');
+  // Independent oracle from real solver samples, not the frontend's lookup helper.
+  const axis = transient.axis.values;
+  const fraction = 0.37;
+  const target = Math.min(...axis) + fraction * (Math.max(...axis) - Math.min(...axis));
+  const nearest = axis.reduce((best, value, index) => Math.abs(value - target) < Math.abs(axis[best] - target) ? index : best, 0);
+  expect(axis[Math.round(fraction * (axis.length - 1))]).not.toBe(axis[nearest]);
+  await moveOverPlot(page, transientPlot, fraction);
+  await expect(summary.locator('.cursor-readout')).toHaveAttribute('data-axis-value', String(axis[nearest]));
+  await expect(summary.locator('.cursor-readout')).toHaveAttribute('data-signal-value', String(transient.signals.out[nearest]));
+  expect(Number(await summary.locator('.cursor-line').getAttribute('x1'))).toBeCloseTo(Number(await summary.locator('.cursor-dot').getAttribute('cx')), 8);
+  await moveOverPlot(page, transientPlot, 0);
+  await expect(summary.locator('.cursor-readout')).toHaveAttribute('data-axis-value', String(Math.min(...axis)));
+  await moveOverPlot(page, transientPlot, 1);
+  await expect(summary.locator('.cursor-readout')).toHaveAttribute('data-axis-value', String(Math.max(...axis)));
+  await moveOverPlot(page, transientPlot, 0.75);
+  await page.mouse.wheel(0, -100);
+  await expect(summary.getByRole('button', { name: 'Reset zoom' })).toBeVisible();
+  await expect(transientPlot.locator('.axis-label').first()).toContainText('µs');
+  await summary.getByRole('button', { name: 'Reset zoom' }).click();
   await summary.getByRole('tab', { name: 'ac' }).click();
   await expect(summary.locator('.result-plot')).toHaveCount(2);
+  await expect(summary).toContainText('not output/input gain');
+  await expect(summary.locator('.result-plot').first().locator('.axis-label').last()).toContainText('dBV');
+  const ac = recorded.datasets.find((item) => item.data.kind === 'ac')!.data;
+  if (ac.kind !== 'ac') throw new Error('missing real AC data');
+  const frequencies = ac.frequency_hz;
+  const logTarget = Math.log10(frequencies[0]) + 0.4 * Math.log10(frequencies.at(-1)! / frequencies[0]);
+  const acNearest = frequencies.reduce((best, value, index) => Math.abs(Math.log10(value) - logTarget) < Math.abs(Math.log10(frequencies[best]) - logTarget) ? index : best, 0);
+  await moveOverPlot(page, summary.locator('.result-plot').first(), 0.4);
+  await expect(summary.locator('.cursor-readout')).toHaveAttribute('data-axis-value', String(frequencies[acNearest]));
   await summary.getByRole('tab', { name: 'dc sweep' }).click();
   await expect(summary.locator('.result-plot')).toHaveCount(1);
+  await expect(summary).toContainText('Sweep of VIN (V)');
+  if (process.env.KESSETSU_E2E_SCREENSHOTS) await page.screenshot({ path: 'test-results/dc-plot-units.png' });
+});
+
+test('labels a descending current-source sweep in amperes and selects its physical endpoints', async ({ page }) => {
+  await page.goto('/#editor');
+  await expect(page.getByTestId('compile-success')).toBeVisible();
+  await replaceSource(page, 'net GND\nnet OUT\ncurrent_source I1 1mA\nresistor R1 1k\nconnect I1.plus, R1.p1 to OUT\nconnect I1.minus, R1.p2 to GND\nsimulate dc I1 2mA -2mA -1mA\n');
+  await page.getByRole('button', { name: 'Run simulation' }).click();
+  const summary = page.getByTestId('simulation-summary');
+  await expect(summary).toHaveAttribute('data-state', 'succeeded');
+  await expect(summary).toContainText('Sweep of I1 (A)');
+  const plot = summary.locator('.result-plot');
+  await expect(plot.locator('.axis-label').first()).toHaveText('-2.000 mA');
+  await expect(plot.locator('.axis-label').nth(1)).toHaveText('2.000 mA');
+  await moveOverPlot(page, plot, 0);
+  await expect(summary.locator('.cursor-readout')).toHaveAttribute('data-axis-value', '-0.002');
+  await moveOverPlot(page, plot, 1);
+  await expect(summary.locator('.cursor-readout')).toHaveAttribute('data-axis-value', '0.002');
+  if (process.env.KESSETSU_E2E_SCREENSHOTS) {
+    await summary.getByRole('button', { name: 'Maximize simulation panel' }).click();
+    await page.screenshot({ path: 'test-results/current-sweep-plot.png' });
+  }
 });

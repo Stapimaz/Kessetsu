@@ -1,7 +1,8 @@
 import { Activity, RotateCcw, Square, Zap } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SimulationState, SourceFeedback } from '../domain';
-import type { AssertionResult, BrowserEvaluation, Dataset } from '../simulation/types';
+import type { Analysis, AssertionResult, BrowserEvaluation, Dataset } from '../simulation/types';
+import { nearestSampleIndex, preferredSignal, signalLabel, signalUnit, sweepAxis, zoomAroundPointer } from '../simulation/plot';
 import { PanelHeader, type PanelWindowControls } from './PanelHeader';
 
 interface Props {
@@ -20,6 +21,7 @@ interface Props {
 
 function engineering(value: number, unit = ''): string {
   if (!Number.isFinite(value)) return '—';
+  if (unit.startsWith('dB') || unit === '°') return `${Number(value.toPrecision(4))} ${unit}`;
   if (value === 0) return `0 ${unit}`.trim();
   const absolute = Math.abs(value);
   const scales = [
@@ -27,10 +29,6 @@ function engineering(value: number, unit = ''): string {
   ] as const;
   const [factor, prefix] = scales.find(([factor]) => absolute >= factor) ?? scales.at(-1)!;
   return `${(value / factor).toPrecision(4)} ${prefix}${unit}`.trim();
-}
-
-function signalLabel(name: string) {
-  return name.includes('#branch') ? `${name.replace('#branch', '')} current` : `V(${name})`;
 }
 
 function measuredQuantity(value: number, unit: string) {
@@ -51,19 +49,12 @@ function partRatingLabel(rating: string) {
   return rating.split('_').map((word) => word[0].toUpperCase() + word.slice(1)).join(' ');
 }
 
-function axisUnit(name: string) {
-  if (name.includes('time')) return 's';
-  if (name.includes('frequency')) return 'Hz';
-  if (name.includes('sweep')) return '';
-  return '';
-}
-
 interface PlotProps {
   axis: number[];
   values: number[];
   axisName: string;
+  axisUnit: string;
   valueUnit: string;
-  thresholds?: number[];
   logX?: boolean;
 }
 
@@ -81,27 +72,50 @@ function pointerPositionInPlot(svg: SVGSVGElement, clientX: number, clientY: num
   return Math.max(0, Math.min(1, (local.x - PLOT_LEFT) / PLOT_WIDTH));
 }
 
-function LinePlot({ axis, values, axisName, valueUnit, thresholds = [], logX = false }: PlotProps) {
+function LinePlot({ axis, values, axisName, axisUnit, valueUnit, logX = false }: PlotProps) {
+  const svgRef = useRef<SVGSVGElement>(null);
   const [zoom, setZoom] = useState<[number, number]>([0, 1]);
   const [cursor, setCursor] = useState<number | null>(null);
-  const start = Math.floor(zoom[0] * Math.max(0, axis.length - 1));
-  const stop = Math.max(start + 1, Math.ceil(zoom[1] * axis.length));
-  const visibleAxis = axis.slice(start, stop);
-  const visibleValues = values.slice(start, stop);
-  const xValues = logX ? visibleAxis.map((value) => Math.log10(Math.max(value, Number.MIN_VALUE))) : visibleAxis;
-  const minX = Math.min(...xValues);
-  const maxX = Math.max(...xValues);
-  const allY = [...visibleValues, ...thresholds];
-  const minY = Math.min(...allY);
-  const maxY = Math.max(...allY);
-  const x = (value: number) => PLOT_LEFT + ((value - minX) / (maxX - minX || 1)) * PLOT_WIDTH;
-  const y = (value: number) => 174 - ((value - minY) / (maxY - minY || 1)) * 146;
-  const points = xValues.map((value, index) => `${x(value)},${y(visibleValues[index])}`).join(' ');
-  const cursorIndex = cursor === null ? null : Math.min(axis.length - 1, Math.max(0, Math.round(start + cursor * (stop - start - 1))));
+  useEffect(() => { setZoom([0, 1]); setCursor(null); }, [axis, values]);
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const wheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const fraction = pointerPositionInPlot(svg, event.clientX, event.clientY) ?? 0.5;
+      setZoom((current) => zoomAroundPointer(current, fraction, event.deltaY > 0));
+    };
+    svg.addEventListener('wheel', wheel, { passive: false });
+    return () => svg.removeEventListener('wheel', wheel);
+  }, []);
+  const coordinates = useMemo(() => logX ? axis.map((value) => Math.log10(value)) : axis, [axis, logX]);
+  const first = coordinates[0] ?? 0;
+  const last = coordinates.at(-1) ?? 1;
+  const domainMin = Math.min(first, last);
+  const domainMax = Math.max(first, last);
+  const minX = domainMin + zoom[0] * (domainMax - domainMin);
+  const maxX = domainMin + zoom[1] * (domainMax - domainMin);
+  const visible = useMemo(() => coordinates.flatMap((coordinate, index) =>
+    coordinate >= minX && coordinate <= maxX ? [index] : []), [coordinates, minX, maxX]);
+  const xValues = useMemo(() => visible.map((index) => coordinates[index]), [coordinates, visible]);
+  const [minY, maxY] = useMemo(() => {
+    let low = Infinity;
+    let high = -Infinity;
+    for (const index of visible) { low = Math.min(low, values[index]); high = Math.max(high, values[index]); }
+    return visible.length ? [low, high] : [0, 0];
+  }, [values, visible]);
+  const x = useCallback((value: number) => PLOT_LEFT + ((value - minX) / (maxX - minX || 1)) * PLOT_WIDTH, [minX, maxX]);
+  const y = useCallback((value: number) => 174 - ((value - minY) / (maxY - minY || 1)) * 146, [minY, maxY]);
+  const points = useMemo(() => xValues.map((value, index) => `${x(value)},${y(values[visible[index]])}`).join(' '), [xValues, values, visible, x, y]);
+  const localIndex = cursor === null ? null : nearestSampleIndex(xValues, minX + cursor * (maxX - minX));
+  const cursorIndex = localIndex === null ? null : visible[localIndex];
+  const cursorX = cursorIndex === null ? null : x(coordinates[cursorIndex]);
+  const physicalX = (value: number) => logX ? 10 ** value : value;
 
   return (
     <div className="plot-wrap">
       <svg
+        ref={svgRef}
         className="result-plot"
         viewBox="0 0 620 205"
         role="img"
@@ -114,30 +128,24 @@ function LinePlot({ axis, values, axisName, valueUnit, thresholds = [], logX = f
           ));
         }}
         onPointerLeave={() => setCursor(null)}
-        onWheel={(event) => {
-          event.preventDefault();
-          const center = (zoom[0] + zoom[1]) / 2;
-          const width = Math.max(0.05, Math.min(1, (zoom[1] - zoom[0]) * (event.deltaY > 0 ? 1.25 : 0.8)));
-          setZoom([Math.max(0, center - width / 2), Math.min(1, center + width / 2)]);
-        }}
       >
         <rect x={PLOT_LEFT} y="18" width={PLOT_WIDTH} height="156" className="plot-bg" />
         {[0, 0.25, 0.5, 0.75, 1].map((ratio) => <line key={ratio} x1={PLOT_LEFT} x2={PLOT_RIGHT} y1={28 + ratio * 146} y2={28 + ratio * 146} className="grid-line" />)}
-        {thresholds.map((threshold) => <line key={threshold} x1={PLOT_LEFT} x2={PLOT_RIGHT} y1={y(threshold)} y2={y(threshold)} className="threshold-line" />)}
         <polyline points={points} className="signal-line" />
+        {!visible.length && <text x="310" y="96" textAnchor="middle" className="axis-label">No recorded samples in this zoom range</text>}
         {cursorIndex !== null && (
           <>
-            <line x1={PLOT_LEFT + (cursor ?? 0) * PLOT_WIDTH} x2={PLOT_LEFT + (cursor ?? 0) * PLOT_WIDTH} y1="18" y2="174" className="cursor-line" />
-            <circle cx={x(logX ? Math.log10(Math.max(axis[cursorIndex], Number.MIN_VALUE)) : axis[cursorIndex])} cy={y(values[cursorIndex])} r="4" className="cursor-dot" />
+            <line x1={cursorX!} x2={cursorX!} y1="18" y2="174" className="cursor-line" />
+            <circle cx={cursorX!} cy={y(values[cursorIndex])} r="4" className="cursor-dot" />
           </>
         )}
-        <text x={PLOT_LEFT} y="195" className="axis-label">{engineering(visibleAxis[0], axisUnit(axisName))}</text>
-        <text x={PLOT_RIGHT} y="195" textAnchor="end" className="axis-label">{engineering(visibleAxis.at(-1) ?? 0, axisUnit(axisName))}</text>
+        <text x={PLOT_LEFT} y="195" className="axis-label">{engineering(physicalX(minX), axisUnit)}</text>
+        <text x={PLOT_RIGHT} y="195" textAnchor="end" className="axis-label">{engineering(physicalX(maxX), axisUnit)}</text>
         <text x="48" y="14" className="axis-label">{engineering(maxY, valueUnit)}</text>
       </svg>
       {cursorIndex !== null && (
-        <output className="cursor-readout">
-          {engineering(axis[cursorIndex], axisUnit(axisName))} · {engineering(values[cursorIndex], valueUnit)}
+        <output className="cursor-readout" data-axis-value={axis[cursorIndex]} data-signal-value={values[cursorIndex]}>
+          {engineering(axis[cursorIndex], axisUnit)} · {engineering(values[cursorIndex], valueUnit)}
         </output>
       )}
       {zoom[1] - zoom[0] < 0.999 && <button className="plot-reset" onClick={() => setZoom([0, 1])}><RotateCcw size={12} /> Reset zoom</button>}
@@ -145,34 +153,33 @@ function LinePlot({ axis, values, axisName, valueUnit, thresholds = [], logX = f
   );
 }
 
-function signalThresholds(assertions: AssertionResult[], signal: string) {
-  const canonical = signal.replace('#branch', '').toLowerCase();
-  return assertions
-    .filter((assertion) => ['value', 'min', 'max', 'peak', 'average', 'avg', 'rms'].includes(assertion.metric))
-    .filter((assertion) => assertion.signal.toLowerCase() === `v(${canonical})` || assertion.signal.toLowerCase() === `i(${canonical})`)
-    .map((assertion) => assertion.threshold);
-}
-
-function DatasetView({ dataset, assertions }: { dataset: Dataset; assertions: AssertionResult[] }) {
+function DatasetView({ dataset, analysis, assertions }: { dataset: Dataset; analysis: Analysis; assertions: AssertionResult[] }) {
   const signalNames = dataset.kind === 'operating_point' ? Object.keys(dataset.values) : Object.keys(dataset.signals);
-  const preferredSignal = signalNames.find((name) => name === 'out') ?? signalNames[0] ?? '';
-  const [signal, setSignal] = useState(preferredSignal);
+  const preferred = preferredSignal(signalNames, assertions);
+  const [signal, setSignal] = useState(preferred);
   useEffect(() => {
-    const names = dataset.kind === 'operating_point' ? Object.keys(dataset.values) : Object.keys(dataset.signals);
-    setSignal(names.find((name) => name === 'out') ?? names[0] ?? '');
-  }, [dataset]);
+    setSignal(preferred);
+  }, [dataset, preferred]);
+  const selectedSignal = signalNames.includes(signal) ? signal : preferred;
+  const ac = useMemo(() => {
+    if (dataset.kind !== 'ac') return null;
+    const series = dataset.signals[selectedSignal];
+    if (!series) return null;
+    return {
+      magnitude: series.real.map((real, index) => 20 * Math.log10(Math.max(Math.hypot(real, series.imaginary[index]), Number.MIN_VALUE))),
+      phase: series.real.map((real, index) => Math.atan2(series.imaginary[index], real) * 180 / Math.PI),
+    };
+  }, [dataset, selectedSignal]);
 
   if (dataset.kind === 'operating_point') {
     return <div className="op-grid">{Object.entries(dataset.values).map(([name, value]) => (
-      <div key={name}><span>{signalLabel(name)}</span><strong>{engineering(value, name.includes('#branch') ? 'A' : 'V')}</strong></div>
+      <div key={name}><span>{signalLabel(name)}</span><strong>{engineering(value, signalUnit(name))}</strong></div>
     ))}</div>;
   }
 
   if (signalNames.length === 0) {
     return <div className="result-empty">No plottable signals in this analysis.</div>;
   }
-  const selectedSignal = signalNames.includes(signal) ? signal : signalNames[0];
-
   const signalControl = (
     <label className="signal-picker">Signal
       <select aria-label="Signal" value={selectedSignal} onChange={(event) => setSignal(event.target.value)}>
@@ -182,24 +189,24 @@ function DatasetView({ dataset, assertions }: { dataset: Dataset; assertions: As
   );
 
   if (dataset.kind === 'ac') {
-    const series = dataset.signals[selectedSignal];
-    if (!series) return null;
-    const magnitude = series.real.map((real, index) => 20 * Math.log10(Math.max(Math.hypot(real, series.imaginary[index]), Number.MIN_VALUE)));
-    const phase = series.real.map((real, index) => Math.atan2(series.imaginary[index], real) * 180 / Math.PI);
-    return <>{signalControl}<div className="bode-grid">
-      <div><span className="plot-title">Magnitude</span><LinePlot axis={dataset.frequency_hz} values={magnitude} axisName="frequency" valueUnit="dB" logX /></div>
-      <div><span className="plot-title">Phase</span><LinePlot axis={dataset.frequency_hz} values={phase} axisName="frequency" valueUnit="deg" logX /></div>
+    if (!ac) return null;
+    const reference = signalUnit(selectedSignal) === 'A' ? '1 A' : '1 V';
+    const magnitudeUnit = signalUnit(selectedSignal) === 'A' ? 'dB re 1 A' : 'dBV';
+    return <>{signalControl}<p className="plot-explanation">Magnitude is 20 log₁₀(|{signalLabel(selectedSignal)}| / {reference}), not output/input gain. Phase is the angle of this signal.</p><div className="bode-grid">
+      <div><span className="plot-title">Magnitude (re {reference})</span><LinePlot axis={dataset.frequency_hz} values={ac.magnitude} axisName="Frequency" axisUnit="Hz" valueUnit={magnitudeUnit} logX /></div>
+      <div><span className="plot-title">Phase</span><LinePlot axis={dataset.frequency_hz} values={ac.phase} axisName="Frequency" axisUnit="Hz" valueUnit="°" logX /></div>
     </div></>;
   }
 
   const values = dataset.signals[selectedSignal];
   if (!values) return null;
-  return <>{signalControl}<LinePlot
+  const horizontal = sweepAxis(analysis);
+  return <>{signalControl}<span className="plot-title">{horizontal.label} ({horizontal.unit})</span><LinePlot
     axis={dataset.axis.values}
     values={values}
-    axisName={dataset.axis.name}
-    valueUnit={selectedSignal.includes('#branch') ? 'A' : 'V'}
-    thresholds={signalThresholds(assertions, selectedSignal)}
+    axisName={horizontal.label}
+    axisUnit={horizontal.unit}
+    valueUnit={signalUnit(selectedSignal)}
   /></>;
 }
 
@@ -254,7 +261,7 @@ export function ResultsPanel({ state, hasSimulationAttempt, message, evaluation,
                 >{dataset.data.kind.replace('_', ' ')}</button>
               ))}
             </div>
-            {selected && <DatasetView dataset={selected.data} assertions={evaluation?.assertions.assertions ?? []} />}
+            {selected && <DatasetView key={selected.index} dataset={selected.data} analysis={selected.analysis} assertions={evaluation?.assertions.assertions ?? []} />}
           </>
         ) : <div className={`result-empty result-${state}`}>
           <Activity size={28} className={state === 'running' ? 'simulation-running-icon' : undefined} />
@@ -279,6 +286,7 @@ export function ResultsPanel({ state, hasSimulationAttempt, message, evaluation,
         </div>}
         {state === 'succeeded' && summary?.total === 0 && <p className="simulation-help">Simulation completed without requirement checks. Add <code>assert</code> statements in Source to test measurable limits. <a href={`${import.meta.env.BASE_URL}docs/reference/simulation-and-assertions/`} target="_blank" rel="noreferrer">Learn about assertions</a></p>}
         {!!evaluation?.assertions.assertions.length && <div className="requirements-wrap">
+          <p className="plot-explanation">Requirement measurements and limits are listed below, not drawn as instantaneous waveform limits.</p>
           <table className="requirements-table" aria-label="Engineering requirements">
             <thead><tr><th>Status</th><th>Requirement</th><th>Measured</th><th>Limit</th></tr></thead>
             <tbody>{evaluation.assertions.assertions.map((assertion) => <tr key={assertion.code}>

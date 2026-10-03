@@ -27,6 +27,12 @@ Existing files require `--force`. Standard input is supported with
 In Web Hub, choose **File → Import SPICE netlist…** or drop a supported
 netlist onto the editor. Conversion runs locally through the same Core contract. A complete
 import opens as an unsaved editable circuit; a rejected import leaves the current document intact.
+The rejection panel names the file, shows the first diagnostic and keeps the complete Core
+diagnostic list under **All import diagnostics**. Line numbers refer to the original SPICE
+file, not your open `.kess`. Correct the original file, then use **Choose another netlist…**;
+the panel also links to this guide and the RC example above. It does not delete unsupported
+lines, substitute models or detach the existing save destination. A changed circuit while the
+file picker/read is pending requires a fresh import rather than replacing your new edits.
 For the example above, wait for **Source valid**, then press **Run** in Simulation and select
 `V(out)` for the low-pass response. Import preserves the AC analysis but does not invent
 engineering requirements: add `assert` statements in the generated `.kess` if you want

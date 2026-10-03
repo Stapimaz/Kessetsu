@@ -21,6 +21,7 @@ import externalMemristor from '../../../examples/external_memristor.kess?raw';
 import loadedFilter from '../../../examples/loaded_filter.kess?raw';
 import transistorDriver from '../../../examples/transistor_driver.kess?raw';
 import type { CompileReport, ExportArtifact, ExportFormat, SpiceImportReport, WorkspaceState } from '../domain';
+import { SpiceImportError } from '../spiceImport';
 import {
   decodeWorkspaceDraft,
   documentNameFromFile,
@@ -389,10 +390,7 @@ export function useKessetsuWorkspace() {
     }
     const errors = report.diagnostics.filter((diagnostic) => diagnostic.severity === 'error');
     if (errors.length > 0 || !report.kess_source) {
-      const details = errors.slice(0, 4).map((diagnostic) =>
-        `${diagnostic.code}${diagnostic.line ? ` line ${diagnostic.line}` : ''}: ${diagnostic.message}`
-      ).join(' ');
-      throw new Error(details || 'The netlist could not be represented as a complete Kessetsu circuit');
+      throw new SpiceImportError(report.diagnostics);
     }
     beginDocument();
     revisionRef.current += 1;

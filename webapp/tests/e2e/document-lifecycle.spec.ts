@@ -103,10 +103,25 @@ test('imports the supported SPICE subset as an unsaved editable circuit', async 
   await invalidChooser.setFiles({
     name: 'unsafe.cir',
     mimeType: 'text/plain',
-    buffer: Buffer.from('.include ../outside.lib\n.end\n'),
+    buffer: Buffer.from('.include ../outside.lib\n.foo 1\n.bar 2\n.baz 3\n.qux 4\n.quux 5\n.end\n'),
   });
   await expect(page.locator('.global-error')).toContainText('KES-N003 line 1');
   await expect(page.locator('.document-title')).toHaveText('Imported Filter');
+  const failure = page.locator('.import-failure');
+  await expect(failure).toContainText('did not change your open circuit or save destination');
+  await failure.getByText(/All import diagnostics/).click();
+  expect(await failure.locator('li').count()).toBeGreaterThan(4);
+  await expect(failure.getByRole('link', { name: 'Supported formats and RC example' })).toHaveAttribute('href', '/docs/guides/spice-import/');
+  if (process.env.KESSETSU_E2E_SCREENSHOTS) await failure.screenshot({ path: `test-results/import-recovery-${page.context().browser()?.browserType().name()}.png` });
+  page.once('dialog', (dialog) => void dialog.accept());
+  const retryChooserPromise = page.waitForEvent('filechooser');
+  await failure.getByRole('button', { name: 'Choose another netlist…' }).click();
+  const retryChooser = await retryChooserPromise;
+  await retryChooser.setFiles({ name: 'Corrected Filter.cir', mimeType: 'text/plain',
+    buffer: Buffer.from('VIN IN 0 AC 1\nR1 IN OUT 1k\nC1 OUT 0 159.154943n\n.ac dec 40 10 100k\n.end\n') });
+  await expect(page.locator('.document-title')).toHaveText('Corrected Filter');
+  await expect(page.getByTestId('compile-success')).toBeVisible();
+  await expect(failure).toHaveCount(0);
 });
 
 test('Save retains a native file handle while Save As selects a new destination', async ({ page, browserName }) => {

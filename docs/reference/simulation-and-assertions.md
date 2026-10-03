@@ -12,7 +12,19 @@ Kessetsu compiles each source to canonical SPICE and runs the same typed analysi
 | `simulate ac dec|lin|oct <points> <start> <stop>` | complex frequency series | gain, phase and low-pass cutoff |
 | `simulate dc <source> <start> <stop> <step>` | swept real series | transfer curve |
 
-Each argument must be positive and dimensionally valid; DC sweep supports independent voltage/current sources. Multiple analysis kinds may coexist in one source. Operating-point, transient, and AC analyses are unique, while DC sweeps are unique per source; ambiguous repetitions fail semantic validation with `KES-C009`. The browser runs valid analyses independently in a cancellable Worker and Core combines them into `kessetsu.simulation.v1`.
+Arguments must be dimensionally valid. Transient step/stop and AC point counts/frequencies
+must be positive, with AC start below stop. DC sweep supports independent voltage/current
+sources and signed endpoints; its nonzero step must move from start toward stop, including
+descending sweeps. Multiple analysis kinds may coexist in one source. Operating-point,
+transient, and AC analyses are unique, while DC sweeps are unique per source; ambiguous
+repetitions fail semantic validation with `KES-C009`. The browser runs valid analyses
+independently in a cancellable Worker and Core combines them into `kessetsu.simulation.v1`.
+
+The Web plots recorded samples against physical axes, with explicit V/A sweep units. AC
+plots show absolute signal magnitude relative to 1 V or 1 A, not a transfer ratio, and the
+selected signal's phase. Output/input metrics use the Core measurement definitions below.
+Assertion measurements/limits are displayed separately; a reduced measurement is not a
+point-by-point waveform limit. See the [Web guide](../guides/web-editor.md) for cursor and zoom behavior.
 
 ## Assertions
 

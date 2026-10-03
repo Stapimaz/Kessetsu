@@ -2,6 +2,7 @@ import { CheckCircle2, ChevronRight, CircleAlert, LoaderCircle, Share2 } from 'l
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 import type { SourceFeedback } from '../domain';
+import { SpiceImportError, importDiagnosticLabel } from '../spiceImport';
 import productVersionSource from '../../../VERSION?raw';
 import {
   downloadTextFile,
@@ -56,6 +57,7 @@ export function WorkspaceApp() {
   const [agentProposalOpen, setAgentProposalOpen] = useState(false);
   const [acceptedProposal, setAcceptedProposal] = useState<{ before: string; after: string } | null>(null);
   const [documentError, setDocumentError] = useState('');
+  const [importFailure, setImportFailure] = useState<{ filename: string; error: Error } | null>(null);
   const [documentNotice, setDocumentNotice] = useState('');
   const [documentSaving, setDocumentSaving] = useState(false);
   const menusRef = useRef<HTMLElement>(null);
@@ -64,6 +66,7 @@ export function WorkspaceApp() {
   const fileHandleRef = useRef<KessetsuFileHandle | null>(null);
   const fileAssociationRef = useRef(0);
   const fileInputRevisionRef = useRef<DocumentRevision | null>(null);
+  const spiceInputRevisionRef = useRef<DocumentRevision | null>(null);
   const savePendingRef = useRef(false);
   const detachFileHandle = useCallback(() => {
     fileHandleRef.current = null;
@@ -117,6 +120,8 @@ export function WorkspaceApp() {
   useEffect(() => {
     if (state.isDirty) setDocumentNotice('');
   }, [state.isDirty]);
+
+  useEffect(() => setImportFailure(null), [state.code]);
 
   const showDocumentNotice = useCallback((message: string) => {
     if (noticeTimeoutRef.current !== null) globalThis.clearTimeout(noticeTimeoutRef.current);
@@ -199,18 +204,20 @@ export function WorkspaceApp() {
 
   const importSpiceFile = useCallback(async (file: File) => {
     setDocumentError('');
+    setImportFailure(null);
     try {
       const report = await importSpiceDocument(file);
       detachFileHandle();
       showDocumentNotice(`Imported ${report.summary.components} components from ${file.name}`);
     } catch (cause: unknown) {
-      setDocumentError(`SPICE import stopped: ${cause instanceof Error ? cause.message : String(cause)}`);
+      setImportFailure({ filename: file.name, error: cause instanceof Error ? cause : new Error(String(cause)) });
     }
   }, [detachFileHandle, importSpiceDocument, showDocumentNotice]);
 
   const chooseSpiceDocument = () => {
     if (state.isDirty && !globalThis.confirm('Discard the current unsaved changes and import a SPICE netlist?')) return;
     setOpenMenu(null);
+    spiceInputRevisionRef.current = captureDocumentRevision();
     spiceInputRef.current?.click();
   };
 
@@ -481,6 +488,12 @@ export function WorkspaceApp() {
         onChange={(event) => {
           const file = event.currentTarget.files?.[0];
           event.currentTarget.value = '';
+          const snapshot = spiceInputRevisionRef.current;
+          spiceInputRevisionRef.current = null;
+          if (file && snapshot && !isCurrentDocumentRevision(snapshot)) {
+            setImportFailure({ filename: file.name, error: new Error('The circuit changed while choosing the netlist. Choose it again when you are ready to replace this work.') });
+            return;
+          }
           if (file) void importSpiceFile(file);
         }}
       />
@@ -490,6 +503,22 @@ export function WorkspaceApp() {
         <button className="secondary-button" disabled={documentSaving} onClick={() => void saveDocument(true)}>Save a .kess copy</button>
       </div>}
       {documentError && <div className="global-error" role="alert">{documentError}</div>}
+      {importFailure && <div className="global-error import-failure" role="alert">
+        <strong>SPICE import stopped: {importFailure.filename}</strong>
+        <p>The import did not change your open circuit or save destination.</p>
+        <p>{importFailure.error.message}</p>
+        {importFailure.error instanceof SpiceImportError && <details>
+          <summary>All import diagnostics ({importFailure.error.diagnostics.length})</summary>
+          <ol>{importFailure.error.diagnostics.map((diagnostic, index) =>
+            <li key={index}>{importDiagnosticLabel(diagnostic)}</li>)}</ol>
+        </details>}
+        <p>Edit the reported lines in the original netlist, then choose the corrected file. Unsupported constructs are not silently removed.</p>
+        <div className="import-recovery-actions">
+          <button onClick={chooseSpiceDocument}>Choose another netlist…</button>
+          <a href={`${import.meta.env.BASE_URL}docs/guides/spice-import/`} target="_blank" rel="noreferrer">Supported formats and RC example</a>
+          <button onClick={() => setImportFailure(null)}>Dismiss</button>
+        </div>
+      </div>}
       {documentNotice && <div className="workspace-toast" role="status">{documentNotice}</div>}
       {state.wasmError && <div className="global-error" role="alert">Core failed to initialize: {state.wasmError}</div>}
       <CircuitDetailsDialog
