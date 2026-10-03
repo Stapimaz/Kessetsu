@@ -38,9 +38,18 @@ Copy-Item -LiteralPath (Join-Path $repoRoot "LICENSE") -Destination (Join-Path $
 Copy-Item -LiteralPath (Join-Path $repoRoot "NOTICE") -Destination (Join-Path $stage "NOTICE")
 Copy-Item -LiteralPath (Join-Path $repoRoot "COMMERCIAL_LICENSE.md") -Destination (Join-Path $stage "COMMERCIAL_LICENSE.md")
 Copy-Item -LiteralPath (Join-Path $repoRoot "docs/reference/supported-domain.md") -Destination (Join-Path $stage "SUPPORTED_DOMAIN.md")
-# This extra root-level copy is relocated; keep its catalog link usable offline.
+# This extra root-level copy is relocated; rebase every relative guide link for offline use.
 $standaloneDomain = Get-Content -LiteralPath (Join-Path $stage 'SUPPORTED_DOMAIN.md') -Raw -Encoding UTF8
-[System.IO.File]::WriteAllText((Join-Path $stage 'SUPPORTED_DOMAIN.md'), $standaloneDomain.Replace('](model-catalog.md)', '](docs/reference/model-catalog.md)'), [System.Text.UTF8Encoding]::new($false))
+$domainReferenceRoot = Join-Path $repoRoot 'docs/reference'
+$standaloneDomain = [regex]::Replace($standaloneDomain, '(?<=\]\()(?<path>(?![a-zA-Z][a-zA-Z0-9+.-]*:|//|#)[^)\s#]+)(?<anchor>#[^)\s]*)?(?=\))', {
+    param($link)
+    $resolvedLink = [System.IO.Path]::GetFullPath((Join-Path $domainReferenceRoot $link.Groups['path'].Value))
+    if (-not $resolvedLink.StartsWith($repoFull + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Relocated domain guide link escapes the repository.'
+    }
+    return $resolvedLink.Substring($repoFull.Length + 1).Replace('\', '/') + $link.Groups['anchor'].Value
+})
+[System.IO.File]::WriteAllText((Join-Path $stage 'SUPPORTED_DOMAIN.md'), $standaloneDomain, [System.Text.UTF8Encoding]::new($false))
 & (Join-Path $PSScriptRoot "audit-public-docs.ps1") -RepositoryRoot $repoRoot | Out-Null
 $publicDocuments = Get-Content -LiteralPath (Join-Path $repoRoot "docs/public-documents.json") -Raw | ConvertFrom-Json
 foreach ($document in $publicDocuments.files) {

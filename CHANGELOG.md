@@ -16,6 +16,7 @@ remain unchanged from 1.3.0.
 
 - Update the editor's DOMPurify override to 3.4.16, addressing
   [GHSA-p98j-92pf-mc4p](https://github.com/advisories/GHSA-p98j-92pf-mc4p).
+- Keep guide links usable in the CLI archive's relocated supported-domain document.
 
 ### Web editor usability
 
