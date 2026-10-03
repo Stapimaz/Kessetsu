@@ -88,7 +88,7 @@ test('compares observed CSV directly with the current typed simulation projectio
   await dialog.getByLabel('Quantity').nth(0).selectOption('Hertz');
   await dialog.getByRole('button', { name: 'Import mapped dataset' }).click();
 
-  await expect(dialog.getByText('Use the current simulation')).toBeVisible();
+  await expect(dialog.getByRole('heading', { name: 'Use the current simulation', exact: true })).toBeVisible();
   await expect(dialog.getByLabel('Analysis')).toHaveValue('0');
   const vector = dialog.getByLabel('Simulation vector');
   const options = await vector.locator('option').allTextContents();

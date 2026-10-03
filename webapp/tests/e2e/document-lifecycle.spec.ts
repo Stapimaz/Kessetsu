@@ -5,6 +5,8 @@ async function openFileMenu(page: import('@playwright/test').Page) {
 }
 
 test('uses clear browser-local Save and explicit download when native file handles are unavailable', async ({ page }) => {
+  // Includes two cold editor loads and file round trips; individual waits stay bounded.
+  test.setTimeout(60_000);
   await page.addInitScript(() => {
     Object.defineProperty(window, 'showOpenFilePicker', { configurable: true, value: undefined });
     Object.defineProperty(window, 'showSaveFilePicker', { configurable: true, value: undefined });
@@ -76,6 +78,8 @@ test('uses clear browser-local Save and explicit download when native file handl
 });
 
 test('imports the supported SPICE subset as an unsaved editable circuit', async ({ page }) => {
+  // Cold Firefox initialization can consume most of the default budget on a busy host.
+  test.setTimeout(60_000);
   await page.goto('/#editor');
   await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
 
