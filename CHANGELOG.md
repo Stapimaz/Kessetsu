@@ -12,6 +12,11 @@ Maintenance update for the browser workflow, first-use guidance and installation
 Language syntax, electrical and schematic semantics, and machine-contract versions
 remain unchanged from 1.3.0.
 
+### Dependency maintenance
+
+- Update the editor's DOMPurify override to 3.4.16, addressing
+  [GHSA-p98j-92pf-mc4p](https://github.com/advisories/GHSA-p98j-92pf-mc4p).
+
 ### Web editor usability
 
 - Parameter studies include a one-action, complete six-case loaded-filter example that
