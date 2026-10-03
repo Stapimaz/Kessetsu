@@ -32,7 +32,8 @@ Use the free [Web Hub](https://kessetsu.com/#editor) without an account or insta
 
 - [Device models](reference/model-catalog.md): local files, compatibility, provenance and examples.
 - [Components and simulation limits](reference/supported-domain.md): what is modeled and what is not.
-- [Export formats](reference/exports.md): SVG, PNG, PDF, JSON, SPICE, KiCad and LTspice.
+- [Export formats](reference/exports.md): SVG, PNG, PDF, Schematic JSON, SPICE, KiCad,
+  LTspice, BOM CSV and handoff JSON.
 - [Troubleshooting](guides/troubleshooting.md): diagnostics, browser storage and installation help.
 
 ## Updates and support

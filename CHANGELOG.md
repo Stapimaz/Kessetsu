@@ -18,6 +18,10 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
   the review. Editing or replacing a reply, changing the requested outcome, or changing the open
   circuit invalidates prior compile/simulation evidence so stale results cannot authorize another
   source revision.
+- Changing selected local model files also invalidates proposal review and test evidence,
+  including changes made while the dialog is closed. Closing abandons pending task, reply-file
+  and review work; late results cannot repopulate a reopened dialog. Completed review remains
+  available when the source and model bindings are unchanged.
 - Proposal review keeps the human request visible, calls out the limits of agent-authored
   assertions, summarizes assertion, analysis, source, component and connection edits, and flags
   removed assertions or changed sources for closer review.
@@ -31,6 +35,9 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 - Public documentation now keeps the short first-circuit path separate from advanced analysis,
   leads the tutorial with a complete Web Hub walkthrough, and documents proposal invalidation and
   unchecked-apply behavior.
+- The first tutorial now matches the built-in RC example's five checks and explains restored
+  drafts. Scope references distinguish single-run analyses from sampled/temperature studies,
+  and introductory documentation lists all nine engineering export formats.
 - Generated agent tasks now tell agents to remove unrelated placeholder circuitry, encode supported
   measurable requirements as assertions and avoid claiming an unperformed Kessetsu run.
 

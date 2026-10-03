@@ -75,8 +75,12 @@ the editor document remains unchanged. **Test proposed circuit** obtains real lo
 assertion results. **Apply to editor** becomes available only after that run completes; closing the
 dialog or stopping the run changes nothing. If assertions fail, error, are skipped or do not exist,
 the completed simulation is not presented as verified; applying it requires a second explicit
-confirmation. Editing the reply, changing the requested outcome or changing the open circuit
-invalidates the prior review and simulation evidence. After acceptance,
+confirmation. Editing the reply, changing the requested outcome, changing the open circuit or
+selecting/clearing local model files invalidates the prior review and simulation evidence.
+After a model-file change, the reply text is kept so you can check and test it again.
+Closing the dialog abandons pending file reads, review and simulation; late results cannot
+restore them. A completed review is kept across close/reopen when its inputs are unchanged.
+After acceptance,
 **Analyze → Undo AI agent change** restores the exact prior source as long as it has not since been edited.
 
 The proposal summary is untrusted text. Compilation verifies supported syntax and schematic

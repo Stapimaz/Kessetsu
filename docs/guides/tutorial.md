@@ -15,19 +15,22 @@ connect R1.p1 to IN
 connect R1.p2 to OUT
 connect C1.p1 to OUT
 connect C1.p2 to GND
-simulate ac dec 40 100Hz 100kHz
+simulate ac dec 40 10Hz 100kHz
 assert gain(V(OUT),V(IN)) > 0.99
 assert cutoff(V(OUT),V(IN)) > 990Hz
 assert cutoff(V(OUT),V(IN)) < 1010Hz
+assert phase(V(OUT),V(IN),1kHz) > -46deg
+assert phase(V(OUT),V(IN),1kHz) < -44deg
 ```
 
 ## Run it in Web Hub
 
-Open the [Web Hub](https://kessetsu.com/#editor). The RC low-pass example is already selected;
-you can also replace its Source text with the circuit above. Wait for **Source valid**, then press
+Open the [Web Hub](https://kessetsu.com/#editor). A previous browser draft may reopen automatically.
+Save any work you want to keep, then choose **File → Examples → RC Low-pass**, or replace the
+Source text with the circuit above. Both use the same five checks. Wait for **Source valid**, then press
 **Run** in the Simulation panel. Select the AC analysis and a voltage signal to inspect its Bode
-plot. The assertion table should show five passing checks for the built-in example, including the
-cutoff limits. A green source check alone is not a simulation result.
+plot. The assertion table should show five passing checks: one gain limit, two cutoff limits and
+two phase limits. A green source check alone is not a simulation result.
 
 Change `R1` from `1k` to `2k` and run again. The schematic updates automatically, while the new
 simulation shows which cutoff assertions no longer pass. Restore `1k`, run once more, then use

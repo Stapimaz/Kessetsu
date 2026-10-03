@@ -45,6 +45,10 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
   const fileInput = useRef<HTMLInputElement>(null);
   const runner = useRef<BrowserSimulationRunner | null>(null);
   const sourceSnapshot = useRef(source);
+  // Workspace model bindings are replaced, never mutated in place.
+  const resourceSnapshot = useRef(resources);
+  const latestInputs = useRef({ open, source, resources });
+  latestInputs.current = { open, source, resources };
   const operationId = useRef(0);
   const taskOperationId = useRef(0);
   if (!runner.current) runner.current = new BrowserSimulationRunner();
@@ -58,6 +62,8 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
   const [confirmApply, setConfirmApply] = useState(false);
   const [status, setStatus] = useState('Nothing leaves this browser automatically.');
   const [error, setError] = useState('');
+  const latestReview = useRef({ verificationState, proposal, proposalText });
+  latestReview.current = { verificationState, proposal, proposalText };
 
   const resetProposal = (nextStatus = 'Nothing leaves this browser automatically.') => {
     const nextOperation = ++operationId.current;
@@ -72,18 +78,53 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
     return nextOperation;
   };
 
+  const operationIsCurrent = (requestId: number) => requestId === operationId.current
+    && latestInputs.current.open && latestInputs.current.source === source
+    && latestInputs.current.resources === resources;
+  const taskIsCurrent = (requestId: number) => requestId === taskOperationId.current
+    && latestInputs.current.open && latestInputs.current.source === source
+    && latestInputs.current.resources === resources;
+
+  const invalidatePending = () => {
+    operationId.current++;
+    taskOperationId.current++;
+    runner.current?.cancel();
+    const { verificationState, proposal, proposalText } = latestReview.current;
+    if (verificationState === 'running') {
+      setVerificationState('cancelled');
+      setVerification(null);
+      setConfirmApply(false);
+      setStatus('Proposal simulation cancelled. Test again before applying.');
+    } else if (!proposal) {
+      setStatus(proposalText.trim() ? 'Check the returned circuit before testing or applying it.'
+        : 'Nothing leaves this browser automatically.');
+    }
+  };
+
   useEffect(() => {
-    if (open && sourceSnapshot.current !== source) {
+    const sourceChanged = sourceSnapshot.current !== source;
+    const resourcesChanged = resourceSnapshot.current !== resources;
+    if (sourceChanged || resourcesChanged) {
       sourceSnapshot.current = source;
+      resourceSnapshot.current = resources;
       taskOperationId.current++;
       setTaskText('');
-      setProposalText('');
-      resetProposal('The circuit changed. Create a new task and check a reply for this revision.');
+      if (sourceChanged) setProposalText('');
+      resetProposal(sourceChanged
+        ? 'The circuit changed. Create a new task and check a reply for this revision.'
+        : 'Local model files changed. Check the returned circuit and test it again before applying.');
     }
     if (open && !dialog.current?.open) dialog.current?.showModal();
-    if (!open && dialog.current?.open) dialog.current.close();
-  }, [open, source]);
-  useEffect(() => () => runner.current?.dispose(), []);
+    if (!open) {
+      invalidatePending();
+      if (dialog.current?.open) dialog.current.close();
+    }
+  }, [open, source, resources]);
+  useEffect(() => () => {
+    operationId.current++;
+    taskOperationId.current++;
+    runner.current?.dispose();
+  }, []);
 
   const diff = useMemo(() => proposal ? lineDiff(source, proposal.proposed_source) : [], [proposal, source]);
   const changeSummary = useMemo(() => summarizeProposalChanges(diff), [diff]);
@@ -93,7 +134,9 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
   const connectivityVerified = Boolean(compileReport?.schematic?.connectivity.verified && compileReport.schematic_svg);
   const assertionSummary = verification?.assertions.summary;
   const checkedAssertions = assertionOutcome(assertionSummary);
-  const verificationPassed = verificationState === 'complete' && checkedAssertions === 'passed';
+  const inputsMatch = sourceSnapshot.current === source && resourceSnapshot.current === resources;
+  const canApply = open && inputsMatch && Boolean(proposal) && verificationState === 'complete';
+  const verificationPassed = canApply && checkedAssertions === 'passed';
   const simulationCard = verificationState === 'running'
     ? { tone: 'agent-check-pending', text: 'Running the candidate locally…', icon: 'loading' as const }
     : verificationState === 'failed'
@@ -113,24 +156,27 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
     const requestId = ++taskOperationId.current;
     try {
       const task = await createAgentTask(source, name, requirements, productVersion, compile_schema_version());
-      if (requestId !== taskOperationId.current) return null;
+      if (!taskIsCurrent(requestId)) return null;
       const serialized = JSON.stringify(task, null, 2);
       setTaskText(serialized);
       setStatus('Agent task created from this exact source revision.');
       return serialized;
     } catch (cause) {
-      if (requestId === taskOperationId.current) setError(message(cause));
+      if (taskIsCurrent(requestId)) setError(message(cause));
       return null;
     }
   };
 
   const copyTask = async () => {
     const serialized = taskText || await buildTask();
-    if (!serialized) return;
+    const requestId = taskOperationId.current;
+    if (!serialized || !latestInputs.current.open) return;
     try {
       await navigator.clipboard.writeText(serialized);
-      setStatus('Task copied. Paste it into the AI agent you want to use.');
-    } catch { setError('Clipboard access was blocked. Download the task JSON instead.'); }
+      if (taskIsCurrent(requestId)) setStatus('Task copied. Paste it into the AI agent you want to use.');
+    } catch {
+      if (taskIsCurrent(requestId)) setError('Clipboard access was blocked. Download the task JSON instead.');
+    }
   };
 
   const downloadTask = async () => {
@@ -144,9 +190,9 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
     const requestId = resetProposal('Checking the returned circuit…');
     try {
       const parsed = await parseAgentProposal(text, source);
-      if (requestId !== operationId.current) return;
+      if (!operationIsCurrent(requestId)) return;
       const report = compileCandidate(parsed.proposed_source, resources);
-      if (requestId !== operationId.current) return;
+      if (!operationIsCurrent(requestId)) return;
       setProposal(parsed);
       setCompileReport(report);
       const errors = report.diagnostics.filter((item) => item.severity === 'error');
@@ -158,7 +204,7 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
         setStatus('The returned circuit is valid and still separate from your editor. Test it before applying.');
       }
     } catch (cause) {
-      if (requestId === operationId.current) {
+      if (operationIsCurrent(requestId)) {
         setError(message(cause));
         setStatus('The reply could not be checked. The editor source is unchanged.');
       }
@@ -166,7 +212,7 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
   };
 
   const runVerification = async () => {
-    if (!proposal || !connectivityVerified || compileErrors.length) return;
+    if (!open || !inputsMatch || !proposal || !connectivityVerified || compileErrors.length) return;
     const candidate = proposal;
     const requestId = ++operationId.current;
     setError('');
@@ -180,12 +226,12 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
       const simulation = await runner.current!.run(plan, {
         timeoutMs: 90_000,
         onProgress: (progress) => {
-          if (requestId === operationId.current) setStatus(progress.message);
+          if (operationIsCurrent(requestId)) setStatus(progress.message);
         },
       });
-      if (requestId !== operationId.current) return;
+      if (!operationIsCurrent(requestId)) return;
       const evaluation = evaluate_browser_simulation_with_resources(candidate.proposed_source, simulation, resources) as BrowserEvaluation;
-      if (requestId !== operationId.current) return;
+      if (!operationIsCurrent(requestId)) return;
       setVerification(evaluation);
       setVerificationState('complete');
       const outcome = assertionOutcome(evaluation.assertions.summary);
@@ -195,7 +241,7 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
           ? `${evaluation.simulation.datasets.length} analyses completed · no assertions were checked.`
           : `${evaluation.simulation.datasets.length} analyses completed · some encoded assertions were not satisfied.`);
     } catch (cause) {
-      if (requestId !== operationId.current) return;
+      if (!operationIsCurrent(requestId)) return;
       if (cause instanceof SimulationCancelledError) {
         setVerificationState('cancelled');
         setStatus('Proposal simulation cancelled. The editor source is unchanged.');
@@ -217,12 +263,12 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
   };
 
   const close = () => {
-    if (verificationState === 'running') cancelVerification();
+    invalidatePending();
     dialog.current?.close();
   };
 
   return <dialog ref={dialog} className="app-dialog agent-proposal-dialog" aria-labelledby="agent-proposal-title"
-    onCancel={(event) => { event.preventDefault(); close(); }} onClose={onClose}>
+    onCancel={(event) => { event.preventDefault(); close(); }} onClose={() => { invalidatePending(); onClose(); }}>
     <header><div><h2 id="agent-proposal-title">Work with an AI agent</h2><p>Send the current circuit to an AI, then let Kessetsu test its returned design before you apply it.</p></div><button aria-label="Close AI agent workflow" onClick={close}><X size={18} /></button></header>
 
     <div className="agent-privacy-note">
@@ -257,11 +303,11 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
         setProposalText('');
         if (file.size > MAX_AGENT_PROPOSAL_BYTES) { setError('Proposal file is too large'); return; }
         void file.text().then((text) => {
-          if (fileRequestId !== operationId.current) return;
+          if (!operationIsCurrent(fileRequestId)) return;
           setProposalText(text);
           return reviewProposal(text);
         }).catch((cause) => {
-          if (fileRequestId === operationId.current) setError(message(cause));
+          if (operationIsCurrent(fileRequestId)) setError(message(cause));
         });
       }} />
       <div className="agent-actions"><button onClick={() => fileInput.current?.click()}><FileUp size={14} /> Open reply file…</button><button className="agent-primary" disabled={!proposalText.trim()} onClick={() => void reviewProposal()}>Check returned circuit</button></div>
@@ -299,17 +345,17 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
         <div className="agent-diff" role="region" aria-label="Proposed source diff" tabIndex={0}>{diff.map((line, index) => <div className={`agent-diff-${line.kind}`} key={`${index}-${line.kind}`}><span>{line.oldLine ?? ''}</span><span>{line.newLine ?? ''}</span><b>{line.kind === 'add' ? '+' : line.kind === 'remove' ? '−' : ' '}</b><code>{line.text || ' '}</code></div>)}</div>
       </details>
       {verification && <div className={`agent-verification ${verificationPassed ? '' : 'agent-verification-warning'}`} data-testid="agent-verification">{verificationPassed ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}<div><strong>{verificationPassed ? 'Simulation completed and all encoded assertions passed' : checkedAssertions === 'unchecked' ? 'Simulation completed without requirement checks' : 'Simulation completed with unresolved assertion results'}</strong><span>{verification.simulation.datasets.length} analyses · {assertionSummary?.passed}/{assertionSummary?.total} passed · {assertionSummary?.failed} failed · {assertionSummary?.errors} errors · {assertionSummary?.skipped} skipped. Only encoded assertions were checked.</span></div></div>}
-      {confirmApply && !verificationPassed && <div className="agent-apply-confirm" role="alert">
+      {confirmApply && canApply && !verificationPassed && <div className="agent-apply-confirm" role="alert">
         <AlertTriangle size={17} />
         <div><strong>Apply an unverified outcome?</strong><span>The simulation ran, but the requested outcome was not fully checked or satisfied. Review the diff before changing the editor.</span></div>
         <button onClick={() => setConfirmApply(false)}>Cancel</button>
-        <button className="agent-confirm-apply" onClick={() => { onAccept(proposal.proposed_source); close(); }}>Apply unchecked changes</button>
+        <button className="agent-confirm-apply" onClick={() => { if (!canApply) return; onAccept(proposal.proposed_source); close(); }}>Apply unchecked changes</button>
       </div>}
     </section>}
 
     {error && <p className="agent-error" role="alert">{error}</p>}
-    <footer className="agent-footer"><p role="status">{status}</p><div>{verificationState === 'running' ? <button onClick={cancelVerification}><Square size={14} /> Stop test</button> : <button disabled={!proposal || !connectivityVerified || compileErrors.length > 0} onClick={() => void runVerification()}><Play size={14} /> {verificationState === 'complete' || verificationState === 'failed' || verificationState === 'cancelled' ? 'Test again' : 'Test proposed circuit'}</button>}<button className="agent-accept" disabled={!proposal || verificationState !== 'complete'} onClick={() => {
-      if (!proposal) return;
+    <footer className="agent-footer"><p role="status">{status}</p><div>{verificationState === 'running' ? <button onClick={cancelVerification}><Square size={14} /> Stop test</button> : <button disabled={!inputsMatch || !proposal || !connectivityVerified || compileErrors.length > 0} onClick={() => void runVerification()}><Play size={14} /> {verificationState === 'complete' || verificationState === 'failed' || verificationState === 'cancelled' ? 'Test again' : 'Test proposed circuit'}</button>}<button className="agent-accept" disabled={!canApply} onClick={() => {
+      if (!proposal || !canApply) return;
       if (verificationPassed) { onAccept(proposal.proposed_source); close(); }
       else setConfirmApply(true);
     }}>{verificationPassed ? 'Apply tested proposal' : verificationState === 'complete' ? 'Apply anyway…' : 'Apply to editor'}</button></div></footer>

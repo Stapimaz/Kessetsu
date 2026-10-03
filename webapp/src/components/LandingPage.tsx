@@ -45,8 +45,8 @@ export function LandingPage() {
           <p className="eyebrow">Executable circuit engineering</p>
           <h1 id="hero-title">Circuit engineering you can execute.</h1>
           <p className="hero-lead">
-            Write or import circuit source in the browser, or give your own AI agent measurable requirements.
-            Kessetsu compiles, simulates, checks encoded assertions, and exports every iteration through the same engineering core.
+            Simulate your circuit, check measurable limits, and get a readable schematic with editable engineering files.
+            Edit or import circuit source in your browser, or work with your own AI agent through the local CLI.
           </p>
           <div className="hero-actions">
             <a className="button button-primary" href="#editor">

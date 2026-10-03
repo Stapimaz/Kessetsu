@@ -9,7 +9,8 @@ It uses Ngspice for simulation, not a replacement physics engine.
 - A compact circuit language with units, named parameters and reusable modules.
 - Structural ERC and diagnostics before simulation.
 - Executable assertions with actual measurements and explicit failure reasons.
-- Automatic schematics and seven visual, numeric and editable engineering exports.
+- Automatic schematics and nine visual, structured and editable engineering export formats,
+  including BOM CSV and physical-part handoff JSON.
 - The same circuit semantics in a no-install browser workspace and a local CLI.
 
 You can use Ngspice directly when its broader netlist language is what you need. Kessetsu
