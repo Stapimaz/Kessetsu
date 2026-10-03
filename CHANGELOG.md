@@ -4,6 +4,14 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+No changes queued.
+
+## [1.3.1]
+
+Maintenance update for the browser workflow, first-use guidance and installation.
+Language syntax, electrical and schematic semantics, and machine-contract versions
+remain unchanged from 1.3.0.
+
 ### Web editor usability
 
 - Parameter studies include a one-action, complete six-case loaded-filter example that
