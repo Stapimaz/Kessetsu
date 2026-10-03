@@ -61,6 +61,18 @@ Confirm that JavaScript, WebAssembly and module Workers are allowed and reload o
 A completed run with no assertions is not a verified requirement set. Add measurable
 `assert` statements, or use the [first circuit tutorial](tutorial.md) for a five-check example.
 
+## Browser draft recovery is unavailable
+
+Browser storage may be disabled, full or restricted. The circuit remains editable; choose
+**Save a .kess copy** in the warning to save/download a portable file. **Save in browser**
+cannot succeed while storage is blocked, and a failed save keeps the unsaved marker.
+Native file saving can still succeed independently. Restoring storage and saving again clears
+the recovery warning; clearing site data removes existing drafts, so keep a file copy first.
+
+If a file save reports that it saved an earlier version, edits were made while that write
+was pending. The current source remains unsaved: press Save again. Do not interpret an old
+file-write completion as a checkpoint for newer changes.
+
 ## KiCad/LTspice warning on open
 
 Read the export capability/loss message. KiCad files embed portable Kessetsu symbols and may report a symbol-library-table warning; LTspice uses its standard symbol library. Connectivity is release-smoke-tested, but Kessetsu assertions remain in the `.kess` source and are not editable-EDA assertions.

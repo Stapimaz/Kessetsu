@@ -13,12 +13,19 @@ export interface WorkspaceDraft {
   dirty: boolean;
 }
 
+/** Session-local identity; never serialized into source, shares or browser drafts. */
+export interface DocumentRevision {
+  document: number;
+  edit: number;
+}
+
 export interface KessetsuFileHandle {
   readonly name: string;
   getFile(): Promise<File>;
   createWritable(): Promise<{
     write(data: Blob): Promise<void>;
     close(): Promise<void>;
+    abort?(): Promise<void>;
   }>;
 }
 
@@ -93,8 +100,13 @@ export async function saveWithNativeFilePicker(
 
   try {
     const writable = await handle.createWritable();
-    await writable.write(new Blob([source], { type: 'text/plain;charset=utf-8' }));
-    await writable.close();
+    try {
+      await writable.write(new Blob([source], { type: 'text/plain;charset=utf-8' }));
+      await writable.close();
+    } catch (cause) {
+      try { await writable.abort?.(); } catch { /* Preserve the original save error. */ }
+      throw cause;
+    }
     return { status: 'saved', handle };
   } catch (cause: unknown) {
     if (isPickerCancellation(cause)) return { status: 'cancelled' };

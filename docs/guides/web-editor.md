@@ -112,10 +112,25 @@ Saving depends on browser capabilities, not merely its brand:
   document locally and clears the unsaved indicator. **Download .kess / Ctrl+Shift+S** makes
   a portable file copy; repeated downloads may receive numbered filenames.
 
-An unsaved browser draft is recovered when storage is available. It is not cloud backup:
+Save indicates progress and does not start another write while one is pending. If you edit
+the circuit during a file write, the earlier version may finish saving but the latest edits
+remain unsaved; press Save again. Switching circuits never attaches the previous circuit's
+pending file destination to the new one. Canceling or failing an open/import operation retains
+the existing circuit and its selected save destination.
+
+An unsaved browser draft is recovered when storage is available.
+The editor also tries to flush the latest source before a normal reload or page exit. If storage
+cannot preserve unsaved changes, it requests the browser's leave-page warning instead.
+Browsers do not guarantee this event on crashes or mobile app termination; keep a file copy.
+
+Browser-local work is not cloud backup:
 clearing site data, private browsing or another browser/device can make it unavailable.
 Keep a downloaded `.kess` copy for important work. Circuit tools preserve a previous circuit
 for **File → Restore previous circuit** where available.
+If automatic draft recovery cannot write to browser storage, the editor shows a warning with
+**Save a .kess copy**. Explicit browser Save failures do not clear the unsaved indicator.
+The warning is separate from native file saving: a successful file save is still valid even
+when browser recovery is unavailable.
 
 ## Select a local device model
 

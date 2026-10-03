@@ -353,6 +353,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .dialog-status { min-width: 0; display: inline-flex; align-items: center; gap: 5px; margin-right: auto; color: var(--muted); font-size: 11px; }
 .global-error { padding: 8px; color: #fecdd3; background: #7f1d1d; }
 .draft-notice { padding: 6px 12px; border-bottom: 1px solid #22483f; color: #b8ddd5; background: #10231f; text-align: center; font-size: 11px; }
+.storage-warning { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 8px; color: #fde68a; background: #292415; border-color: #50452a; }
+.document-save-progress { margin-left: 8px; color: var(--muted); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
 @media (max-width: 900px) {

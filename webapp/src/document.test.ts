@@ -91,4 +91,15 @@ describe('Web document contract', () => {
     await expect(saveWithNativeFilePicker('source', 'circuit.kess', null, true))
       .resolves.toEqual({ status: 'cancelled' });
   });
+
+  it('aborts a failed native write without hiding the original error', async () => {
+    const failure = new Error('Disk write failed');
+    const abort = vi.fn().mockRejectedValue(new Error('Cleanup also failed'));
+    const handle: KessetsuFileHandle = {
+      name: 'circuit.kess', getFile: async () => new File([], 'circuit.kess'),
+      createWritable: async () => ({ write: async () => { throw failure; }, close: vi.fn(), abort }),
+    };
+    await expect(saveWithNativeFilePicker('source', 'circuit.kess', handle, false)).rejects.toBe(failure);
+    expect(abort).toHaveBeenCalledOnce();
+  });
 });

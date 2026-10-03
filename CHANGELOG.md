@@ -6,6 +6,14 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ### Web editor usability
 
+- Native Save tracks the exact document revision: edits made during a pending write remain
+  unsaved, repeated Save shortcuts do not start concurrent writes, and an older circuit's
+  destination cannot attach to a new document. Failed writes attempt to abort their stream.
+- Browser draft-storage failures now show a portable-copy recovery action. Failed open/import
+  operations retain the existing save destination; late file reads and share-link creation
+  cannot replace or rename a newer source revision.
+- Normal reload/page exit flushes the latest browser draft without waiting for the debounce;
+  when unsaved work cannot be preserved, the editor requests the browser's leave-page warning.
 - The Analyze menu now describes each workflow in task-oriented language for first-time users.
 - The external-agent workflow is a guided three-step handoff with explicit privacy guidance,
   compact verification cards and separate collapsed sections for untrusted agent explanation and

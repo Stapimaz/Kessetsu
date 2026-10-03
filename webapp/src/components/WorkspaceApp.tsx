@@ -10,6 +10,7 @@ import {
   saveWithNativeFilePicker,
   sanitizeFileStem,
   type KessetsuFileHandle,
+  type DocumentRevision,
   decodeWorkspaceDraft,
   PREVIOUS_CIRCUIT_STORAGE_KEY,
   writeWorkspaceDraft,
@@ -38,6 +39,7 @@ export function WorkspaceApp() {
   const {
     state, setCode, loadExample, newDocument, openDocument, importSpiceDocument, markSaved, saveBrowserDocument, renameDocument,
     run, cancel, createExport, share,
+    captureDocumentRevision, isCurrentDocument, isCurrentDocumentRevision,
     modelRequirements, boundModelResources, bindModelFile, clearModelFiles,
     modelResources,
   } = useKessetsuWorkspace();
@@ -55,10 +57,18 @@ export function WorkspaceApp() {
   const [acceptedProposal, setAcceptedProposal] = useState<{ before: string; after: string } | null>(null);
   const [documentError, setDocumentError] = useState('');
   const [documentNotice, setDocumentNotice] = useState('');
+  const [documentSaving, setDocumentSaving] = useState(false);
   const menusRef = useRef<HTMLElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const spiceInputRef = useRef<HTMLInputElement>(null);
   const fileHandleRef = useRef<KessetsuFileHandle | null>(null);
+  const fileAssociationRef = useRef(0);
+  const fileInputRevisionRef = useRef<DocumentRevision | null>(null);
+  const savePendingRef = useRef(false);
+  const detachFileHandle = useCallback(() => {
+    fileHandleRef.current = null;
+    fileAssociationRef.current += 1;
+  }, []);
   const noticeTimeoutRef = useRef<number | null>(null);
   const nativeFileSaving = nativeFileSavingSupported();
   const [previousCircuitAvailable, setPreviousCircuitAvailable] = useState(() => {
@@ -153,14 +163,14 @@ export function WorkspaceApp() {
   };
   const selectExample = (id: ExampleId) => {
     if (state.isDirty && !globalThis.confirm('Replace the current unsaved circuit with this example?')) return;
-    fileHandleRef.current = null;
+    detachFileHandle();
     loadExample(id);
     setExamplesOpen(false);
     setOpenMenu(null);
   };
   const startNewDocument = () => {
     if (state.isDirty && !globalThis.confirm('Discard the current unsaved changes and create a new circuit?')) return;
-    fileHandleRef.current = null;
+    detachFileHandle();
     newDocument();
     setOpenMenu(null);
   };
@@ -168,14 +178,18 @@ export function WorkspaceApp() {
     if (state.isDirty && !globalThis.confirm('Discard the current unsaved changes and open another circuit?')) return;
     setOpenMenu(null);
     setDocumentError('');
+    const snapshot = captureDocumentRevision();
     void openWithNativeFilePicker()
       .then(async (result) => {
         if (result.status === 'unsupported') {
+          fileInputRevisionRef.current = snapshot;
           fileInputRef.current?.click();
           return;
         }
         if (result.status === 'cancelled') return;
+        if (!isCurrentDocumentRevision(snapshot)) throw new Error('The circuit changed while choosing a file. Open it again to replace the current work.');
         await openDocument(result.file);
+        detachFileHandle();
         fileHandleRef.current = result.handle;
       })
       .catch((cause: unknown) => {
@@ -185,14 +199,14 @@ export function WorkspaceApp() {
 
   const importSpiceFile = useCallback(async (file: File) => {
     setDocumentError('');
-    fileHandleRef.current = null;
     try {
       const report = await importSpiceDocument(file);
+      detachFileHandle();
       showDocumentNotice(`Imported ${report.summary.components} components from ${file.name}`);
     } catch (cause: unknown) {
       setDocumentError(`SPICE import stopped: ${cause instanceof Error ? cause.message : String(cause)}`);
     }
-  }, [importSpiceDocument, showDocumentNotice]);
+  }, [detachFileHandle, importSpiceDocument, showDocumentNotice]);
 
   const chooseSpiceDocument = () => {
     if (state.isDirty && !globalThis.confirm('Discard the current unsaved changes and import a SPICE netlist?')) return;
@@ -206,9 +220,8 @@ export function WorkspaceApp() {
     event.preventDefault();
     if (state.isDirty && !globalThis.confirm('Discard the current unsaved changes and open the dropped circuit?')) return;
     if (/\.kess$/i.test(file.name)) {
-      fileHandleRef.current = null;
       setDocumentError('');
-      void openDocument(file).catch((cause: unknown) => {
+      void openDocument(file).then(detachFileHandle).catch((cause: unknown) => {
         setDocumentError(`Could not open circuit: ${cause instanceof Error ? cause.message : String(cause)}`);
       });
     } else if (/\.(?:cir|sp|spice|net)$/i.test(file.name)) {
@@ -223,8 +236,8 @@ export function WorkspaceApp() {
     try {
       const draft = decodeWorkspaceDraft(localStorage.getItem(PREVIOUS_CIRCUIT_STORAGE_KEY));
       if (!draft) return;
-      fileHandleRef.current = null;
       await openDocument(new File([draft.source], `${draft.name ?? 'Previous circuit'}.kess`, { type: 'text/plain' }));
+      detachFileHandle();
       if (draft.dirty) setCode(draft.source);
       localStorage.removeItem(PREVIOUS_CIRCUIT_STORAGE_KEY);
       setPreviousCircuitAvailable(false);
@@ -232,14 +245,20 @@ export function WorkspaceApp() {
     } catch (error) { setDocumentError(error instanceof Error ? error.message : String(error)); }
   };
   const saveDocument = useCallback(async (forceSaveAs = false) => {
+    if (!state.wasmLoaded) return;
+    if (savePendingRef.current) return;
+    savePendingRef.current = true;
+    setDocumentSaving(true);
     setOpenMenu(null);
     setDocumentError('');
+    const snapshot = captureDocumentRevision();
+    const association = fileAssociationRef.current;
     const fileName = `${sanitizeFileStem(documentName)}.kess`;
     try {
       if (!nativeFileSaving) {
         if (forceSaveAs) {
           downloadTextFile(state.code, fileName);
-          markSaved();
+          markSaved(snapshot);
           showDocumentNotice(`Downloaded ${fileName}`);
         } else {
           saveBrowserDocument();
@@ -255,35 +274,46 @@ export function WorkspaceApp() {
       );
       if (result.status === 'cancelled') return;
       if (result.status === 'unsupported') {
+        if (!isCurrentDocumentRevision(snapshot)) throw new Error('The circuit changed before it could be saved. Save the current version again.');
         saveBrowserDocument();
-        fileHandleRef.current = null;
+        detachFileHandle();
         showDocumentNotice('Saved in this browser');
       } else {
-        fileHandleRef.current = result.handle;
-        markSaved();
-        showDocumentNotice(`Saved to ${result.handle.name}`);
+        if (isCurrentDocument(snapshot) && association === fileAssociationRef.current) {
+          fileHandleRef.current = result.handle;
+        }
+        markSaved(snapshot);
+        showDocumentNotice(isCurrentDocumentRevision(snapshot)
+          ? `Saved to ${result.handle.name}`
+          : isCurrentDocument(snapshot)
+            ? `Saved an earlier version to ${result.handle.name}. Your latest changes still need saving.`
+            : `Previous circuit saved to ${result.handle.name}. The current circuit was not saved.`);
       }
     } catch (cause: unknown) {
       setDocumentError(`Could not save circuit: ${cause instanceof Error ? cause.message : String(cause)}`);
+    } finally {
+      savePendingRef.current = false;
+      setDocumentSaving(false);
     }
-  }, [documentName, markSaved, nativeFileSaving, saveBrowserDocument, showDocumentNotice, state.code]);
+  }, [captureDocumentRevision, detachFileHandle, documentName, isCurrentDocument, isCurrentDocumentRevision, markSaved, nativeFileSaving, saveBrowserDocument, showDocumentNotice, state.code, state.wasmLoaded]);
 
   const renameCurrentDocument = useCallback((name: string) => {
-    fileHandleRef.current = null;
     renameDocument(name);
-  }, [renameDocument]);
+    detachFileHandle();
+  }, [detachFileHandle, renameDocument]);
 
   const shareCircuit = useCallback(async (name: string) => {
-    if (name.trim() !== documentName) fileHandleRef.current = null;
-    return share(name);
-  }, [documentName, share]);
+    const link = await share(name);
+    if (name.trim() !== documentName) detachFileHandle();
+    return link;
+  }, [detachFileHandle, documentName, share]);
 
   const acceptAgentProposal = useCallback((nextSource: string) => {
-    fileHandleRef.current = null;
+    detachFileHandle();
     setAcceptedProposal({ before: state.code, after: nextSource });
     setCode(nextSource);
     showDocumentNotice('Agent proposal accepted. Undo is available from Analyze.');
-  }, [setCode, showDocumentNotice, state.code]);
+  }, [detachFileHandle, setCode, showDocumentNotice, state.code]);
 
   const undoAgentProposal = useCallback(() => {
     if (!acceptedProposal || state.code !== acceptedProposal.after) return;
@@ -317,10 +347,10 @@ export function WorkspaceApp() {
               <button role="menuitem" onClick={startNewDocument}><span>New circuit</span></button>
               <button role="menuitem" onClick={chooseDocument}><span>Open .kess…</span></button>
               <button role="menuitem" onClick={chooseSpiceDocument}><span>Import SPICE netlist...</span></button>
-              <button role="menuitem" aria-label={nativeFileSaving ? 'Save' : 'Save in browser'} onClick={() => void saveDocument()}>
+              <button role="menuitem" disabled={documentSaving || !state.wasmLoaded} aria-label={nativeFileSaving ? 'Save' : 'Save in browser'} onClick={() => void saveDocument()}>
                 <span>{nativeFileSaving ? 'Save' : 'Save in browser'}</span><kbd>Ctrl+S</kbd>
               </button>
-              <button role="menuitem" aria-label={nativeFileSaving ? 'Save As' : 'Download .kess'} onClick={() => void saveDocument(true)}>
+              <button role="menuitem" disabled={documentSaving || !state.wasmLoaded} aria-label={nativeFileSaving ? 'Save As' : 'Download .kess'} onClick={() => void saveDocument(true)}>
                 <span>{nativeFileSaving ? 'Save As...' : 'Download .kess…'}</span><kbd>Ctrl+Shift+S</kbd>
               </button>
               <button role="menuitem" onClick={() => { setRenameOpen(true); setOpenMenu(null); }}><span>Rename…</span></button>
@@ -407,7 +437,7 @@ export function WorkspaceApp() {
           className={`document-title${state.isDirty ? ' document-dirty' : ''}`}
           title={`${documentName}${state.isDirty ? ' — unsaved changes' : ''}`}
           aria-label={`${documentName}${state.isDirty ? ', unsaved changes' : ''}`}
-        >{documentName}</div>
+        >{documentName}{documentSaving && <span className="document-save-progress" role="status">Saving…</span>}</div>
         <div className="global-actions">
           <span className={`compile-status compile-${state.compileState}`} role="status" aria-label={`Automatic source check: ${compileStatus}`} data-testid="compile-status" title={compileStatus}>
             <CompileStatusIcon size={14} /><span>{compileStatus}</span>
@@ -431,8 +461,13 @@ export function WorkspaceApp() {
           event.currentTarget.value = '';
           if (!file) return;
           setDocumentError('');
-          fileHandleRef.current = null;
-          void openDocument(file).catch((cause: unknown) => {
+          const snapshot = fileInputRevisionRef.current;
+          fileInputRevisionRef.current = null;
+          if (snapshot && !isCurrentDocumentRevision(snapshot)) {
+            setDocumentError('The circuit changed while choosing a file. Open it again to replace the current work.');
+            return;
+          }
+          void openDocument(file).then(detachFileHandle).catch((cause: unknown) => {
             setDocumentError(`Could not open circuit: ${cause instanceof Error ? cause.message : String(cause)}`);
           });
         }}
@@ -450,6 +485,10 @@ export function WorkspaceApp() {
         }}
       />
       {state.draftRestored && <div className="draft-notice" role="status">Unsaved browser draft restored. Use File to save it here or download a portable .kess copy.</div>}
+      {state.draftStorageError && <div className="draft-notice storage-warning" role="status">
+        <span>{state.draftStorageError}</span>
+        <button className="secondary-button" disabled={documentSaving} onClick={() => void saveDocument(true)}>Save a .kess copy</button>
+      </div>}
       {documentError && <div className="global-error" role="alert">{documentError}</div>}
       {documentNotice && <div className="workspace-toast" role="status">{documentNotice}</div>}
       {state.wasmError && <div className="global-error" role="alert">Core failed to initialize: {state.wasmError}</div>}

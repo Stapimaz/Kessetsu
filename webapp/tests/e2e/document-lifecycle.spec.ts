@@ -49,7 +49,7 @@ test('uses clear browser-local Save and explicit download when native file handl
   await page.keyboard.press('ControlOrMeta+End');
   await page.keyboard.insertText('\n// recovered edit');
   await expect(page.locator('.document-title')).toHaveAttribute('aria-label', /unsaved changes/);
-  await page.waitForFunction(() => localStorage.getItem('kessetsu.workspace.draft.v1')?.includes('recovered edit'));
+  // Reload without waiting for the debounced draft write: leaving must flush this edit.
   await page.reload();
   await expect(page.getByText('Unsaved browser draft restored.')).toBeVisible();
   await expect(page.locator('.view-lines')).toContainText('recovered edit');
@@ -169,4 +169,110 @@ test('Save retains a native file handle while Save As selects a new destination'
   expect(nativeState.writes[0]).toContain('// native save one');
   expect(nativeState.writes[1]).toContain('// native save two');
   expect(nativeState.writes[2]).toContain('// native save two');
+
+  await openFileMenu(page);
+  const invalidChooserPromise = page.waitForEvent('filechooser');
+  await page.getByRole('menuitem', { name: 'Import SPICE netlist...' }).click();
+  await (await invalidChooserPromise).setFiles({ name: 'unsafe.cir', mimeType: 'text/plain', buffer: Buffer.from('.include ../outside.lib\n.end\n') });
+  await expect(page.locator('.global-error')).toContainText('KES-N003');
+  await page.keyboard.press('ControlOrMeta+s');
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __kessetsuFsTest: { writes: string[] } }).__kessetsuFsTest.writes.length)).toBe(4);
+  expect(await page.evaluate(() => (window as unknown as { __kessetsuFsTest: { pickerCalls: number } }).__kessetsuFsTest.pickerCalls)).toBe(2);
+});
+
+test('keeps newer edits unsaved and does not attach a previous circuit file after a delayed save', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'Native file API boundary is Chromium-specific.');
+  await page.addInitScript(() => {
+    const control = { pickerCalls: 0, writes: [] as string[], hold: true, pending: false, release: () => {} };
+    Object.defineProperty(window, '__saveControl', { value: control });
+    Object.defineProperty(window, 'showSaveFilePicker', { configurable: true, value: async (options: { suggestedName: string }) => {
+      const id = ++control.pickerCalls;
+      return { name: options.suggestedName, getFile: async () => new File([], options.suggestedName), createWritable: async () => ({
+        write: async (blob: Blob) => { control.writes.push(`${id}:${await blob.text()}`); },
+        close: async () => {
+          if (!control.hold) return;
+          control.hold = false;
+          control.pending = true;
+          await new Promise<void>((resolve) => { control.release = () => { control.pending = false; resolve(); }; });
+        },
+      }) };
+    } });
+  });
+  await page.goto('/#editor');
+  await expect(page.getByTestId('compile-success')).toBeVisible();
+  const append = async (comment: string) => {
+    await page.locator('.monaco-editor').click();
+    await page.keyboard.press('ControlOrMeta+End');
+    await page.keyboard.insertText(`\n// ${comment}`);
+  };
+  const pending = () => page.evaluate(() => (window as unknown as { __saveControl: { pending: boolean } }).__saveControl.pending);
+  const release = () => page.evaluate(() => (window as unknown as { __saveControl: { release(): void } }).__saveControl.release());
+  await append('first snapshot');
+  await page.keyboard.press('ControlOrMeta+s');
+  await expect.poll(pending).toBe(true);
+  await append('newer edit');
+  await page.keyboard.press('ControlOrMeta+s');
+  expect(await page.evaluate(() => (window as unknown as { __saveControl: { pickerCalls: number } }).__saveControl.pickerCalls)).toBe(1);
+  await release();
+  await expect(page.getByText(/Saved an earlier version/)).toBeVisible();
+  await expect(page.locator('.document-title')).toHaveAttribute('aria-label', /unsaved changes/);
+  await page.keyboard.press('ControlOrMeta+s');
+  await expect(page.locator('.document-title')).not.toHaveAttribute('aria-label', /unsaved changes/);
+  const writes = await page.evaluate(() => (window as unknown as { __saveControl: { writes: string[] } }).__saveControl.writes);
+  expect(writes[0]).not.toContain('newer edit');
+  expect(writes[1]).toContain('newer edit');
+
+  await page.evaluate(() => { (window as unknown as { __saveControl: { hold: boolean } }).__saveControl.hold = true; });
+  await append('previous document');
+  await page.keyboard.press('ControlOrMeta+s');
+  await expect.poll(pending).toBe(true);
+  page.once('dialog', (dialog) => void dialog.accept());
+  await openFileMenu(page);
+  await page.getByRole('menuitem', { name: 'New circuit' }).click();
+  await expect(page.getByTestId('compile-success')).toBeVisible();
+  await append('current document');
+  await release();
+  await expect(page.getByText(/Previous circuit saved/)).toBeVisible();
+  await expect(page.locator('.document-title')).toHaveAttribute('aria-label', /unsaved changes/);
+  await page.keyboard.press('ControlOrMeta+s');
+  await expect(page.locator('.document-title')).not.toHaveAttribute('aria-label', /unsaved changes/);
+  const final = await page.evaluate(() => (window as unknown as { __saveControl: { pickerCalls: number; writes: string[] } }).__saveControl);
+  expect(final.pickerCalls).toBe(2);
+  expect(final.writes[3]).toContain('2:');
+  expect(final.writes[3]).toContain('current document');
+  expect(final.writes[3]).not.toContain('previous document');
+});
+
+test('shows browser draft failure, preserves unsaved work and offers a portable copy', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'showSaveFilePicker', { configurable: true, value: undefined });
+    const original = Storage.prototype.setItem;
+    Storage.prototype.setItem = function(key, value) {
+      if (key === 'kessetsu.workspace.draft.v1') throw new DOMException('Storage blocked', 'QuotaExceededError');
+      return original.call(this, key, value);
+    };
+    Object.defineProperty(window, '__restoreDraftStorage', { value: () => { Storage.prototype.setItem = original; } });
+  });
+  await page.goto('/#editor');
+  await expect(page.getByTestId('compile-success')).toBeVisible();
+  await expect(page.getByText('Browser draft recovery is unavailable.')).toBeVisible();
+  await page.locator('.monaco-editor').click();
+  await page.keyboard.press('ControlOrMeta+End');
+  await page.keyboard.insertText('\n// keep this work');
+  await page.keyboard.press('ControlOrMeta+s');
+  await expect(page.locator('.global-error')).toContainText('Could not save circuit');
+  await expect(page.locator('.document-title')).toHaveAttribute('aria-label', /unsaved changes/);
+  expect(await page.evaluate(() => !window.dispatchEvent(new Event('beforeunload', { cancelable: true })))).toBeTruthy();
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Save a .kess copy' }).click();
+  const download = await downloadPromise;
+  const chunks: Buffer[] = [];
+  for await (const chunk of (await download.createReadStream())) chunks.push(Buffer.from(chunk));
+  expect(Buffer.concat(chunks).toString('utf8')).toContain('keep this work');
+  await expect(page.locator('.document-title')).not.toHaveAttribute('aria-label', /unsaved changes/);
+  await expect(page.getByText('Browser draft recovery is unavailable.')).toBeVisible();
+  await page.evaluate(() => (window as unknown as { __restoreDraftStorage(): void }).__restoreDraftStorage());
+  await page.keyboard.press('ControlOrMeta+s');
+  await expect(page.getByText('Saved in this browser', { exact: true })).toBeVisible();
+  await expect(page.getByText('Browser draft recovery is unavailable.')).toHaveCount(0);
 });

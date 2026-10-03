@@ -30,6 +30,7 @@ import {
   writeWorkspaceDraft,
   WEB_DRAFT_STORAGE_KEY,
   takeToolCircuit,
+  type DocumentRevision,
 } from '../document';
 import { BrowserSimulationRunner, SimulationCancelledError } from '../simulation/browserRunner';
 import type { BrowserEvaluation, BrowserSimulationPlan } from '../simulation/types';
@@ -75,6 +76,7 @@ const initialState: WorkspaceState = {
   circuitName: examples.rc.label,
   isDirty: false,
   draftRestored: false,
+  draftStorageError: null,
   diagnostics: [],
   compileState: 'loading',
   compileSucceeded: false,
@@ -99,6 +101,15 @@ export function useKessetsuWorkspace() {
   const [modelResources, setModelResources] = useState<Record<string, number[]>>({});
   const [modelRequirements, setModelRequirements] = useState<LocalModelRequirement[]>([]);
   const revisionRef = useRef(0);
+  const documentRevisionRef = useRef<DocumentRevision>({ document: 0, edit: 0 });
+  const captureDocumentRevision = useCallback(() => ({ ...documentRevisionRef.current }), []);
+  const isCurrentDocument = useCallback((snapshot: DocumentRevision) =>
+    snapshot.document === documentRevisionRef.current.document, []);
+  const isCurrentDocumentRevision = useCallback((snapshot: DocumentRevision) =>
+    snapshot.document === documentRevisionRef.current.document && snapshot.edit === documentRevisionRef.current.edit, []);
+  const beginDocument = useCallback(() => {
+    documentRevisionRef.current = { document: documentRevisionRef.current.document + 1, edit: 0 };
+  }, []);
   const runnerRef = useRef<BrowserSimulationRunner | null>(null);
   const sharedEnvelopeRef = useRef<ShareEnvelope | null>(null);
 
@@ -166,11 +177,29 @@ export function useKessetsuWorkspace() {
     const timeout = globalThis.setTimeout(() => {
       try {
         writeWorkspaceDraft(globalThis.localStorage, state.circuitName, state.code, state.isDirty);
+        setState((current) => current.draftStorageError ? { ...current, draftStorageError: null } : current);
       } catch {
-        // Compilation and file downloads must not depend on storage availability.
+        const message = 'Browser draft recovery is unavailable. Save a .kess copy to keep this circuit.';
+        setState((current) => current.draftStorageError === message ? current : { ...current, draftStorageError: message });
       }
     }, 400);
     return () => globalThis.clearTimeout(timeout);
+  }, [state.circuitName, state.code, state.isDirty, state.wasmLoaded]);
+
+  useEffect(() => {
+    if (!state.wasmLoaded) return;
+    const preserveBeforeLeaving = (event: BeforeUnloadEvent) => {
+      try {
+        // Flush the latest edit even if the ordinary 400 ms recovery timer has not fired.
+        writeWorkspaceDraft(globalThis.localStorage, state.circuitName, state.code, state.isDirty);
+      } catch {
+        if (!state.isDirty) return;
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', preserveBeforeLeaving);
+    return () => window.removeEventListener('beforeunload', preserveBeforeLeaving);
   }, [state.circuitName, state.code, state.isDirty, state.wasmLoaded]);
 
   const compile = useCallback(() => {
@@ -225,6 +254,7 @@ export function useKessetsuWorkspace() {
   }, [compile]);
 
   const setCode = useCallback((code: string) => {
+    documentRevisionRef.current.edit += 1;
     revisionRef.current += 1;
     leaveSharedUrl();
     runnerRef.current?.cancel();
@@ -250,6 +280,7 @@ export function useKessetsuWorkspace() {
   }, [leaveSharedUrl]);
 
   const loadExample = useCallback((id: ExampleId) => {
+    beginDocument();
     revisionRef.current += 1;
     setModelResources({});
     leaveSharedUrl();
@@ -275,9 +306,10 @@ export function useKessetsuWorkspace() {
       evaluation: null,
       exportMessage: '',
     }));
-  }, [leaveSharedUrl]);
+  }, [beginDocument, leaveSharedUrl]);
 
   const newDocument = useCallback(() => {
+    beginDocument();
     revisionRef.current += 1;
     setModelResources({});
     leaveSharedUrl();
@@ -303,15 +335,18 @@ export function useKessetsuWorkspace() {
       evaluation: null,
       exportMessage: '',
     }));
-  }, [leaveSharedUrl]);
+  }, [beginDocument, leaveSharedUrl]);
 
   const openDocument = useCallback(async (file: File) => {
+    const snapshot = captureDocumentRevision();
     if (file.size > MAX_DOCUMENT_SOURCE_BYTES) throw new Error('Circuit source exceeds the 1 MiB browser file limit');
     const source = await file.text();
+    if (!isCurrentDocumentRevision(snapshot)) throw new Error('The circuit changed while opening the file. Open it again when you are ready to replace the current work.');
     if (new TextEncoder().encode(source).byteLength > MAX_DOCUMENT_SOURCE_BYTES) {
       throw new Error('Circuit source exceeds the 1 MiB browser file limit');
     }
     const name = documentNameFromFile(file.name);
+    beginDocument();
     revisionRef.current += 1;
     setModelResources({});
     leaveSharedUrl();
@@ -337,12 +372,14 @@ export function useKessetsuWorkspace() {
       evaluation: null,
       exportMessage: '',
     }));
-  }, [leaveSharedUrl]);
+  }, [beginDocument, captureDocumentRevision, isCurrentDocumentRevision, leaveSharedUrl]);
 
   const importSpiceDocument = useCallback(async (file: File): Promise<SpiceImportReport> => {
+    const snapshot = captureDocumentRevision();
     if (!state.wasmLoaded) throw new Error('Kessetsu Core is still loading');
     if (file.size > MAX_DOCUMENT_SOURCE_BYTES) throw new Error('SPICE source exceeds the 1 MiB browser import limit');
     const input = await file.text();
+    if (!isCurrentDocumentRevision(snapshot)) throw new Error('The circuit changed while reading the netlist. Import it again when you are ready to replace the current work.');
     if (new TextEncoder().encode(input).byteLength > MAX_DOCUMENT_SOURCE_BYTES) {
       throw new Error('SPICE source exceeds the 1 MiB browser import limit');
     }
@@ -357,6 +394,7 @@ export function useKessetsuWorkspace() {
       ).join(' ');
       throw new Error(details || 'The netlist could not be represented as a complete Kessetsu circuit');
     }
+    beginDocument();
     revisionRef.current += 1;
     setModelResources({});
     leaveSharedUrl();
@@ -383,24 +421,26 @@ export function useKessetsuWorkspace() {
       exportMessage: '',
     }));
     return report;
-  }, [leaveSharedUrl, state.wasmLoaded]);
+  }, [beginDocument, captureDocumentRevision, isCurrentDocumentRevision, leaveSharedUrl, state.wasmLoaded]);
 
-  const markSaved = useCallback(() => {
-    setState((current) => ({ ...current, isDirty: false, draftRestored: false }));
-  }, []);
+  const markSaved = useCallback((snapshot: DocumentRevision) => {
+    setState((current) => isCurrentDocumentRevision(snapshot) ? { ...current, isDirty: false, draftRestored: false } : current);
+  }, [isCurrentDocumentRevision]);
 
   const saveBrowserDocument = useCallback(() => {
     writeWorkspaceDraft(globalThis.localStorage, state.circuitName, state.code, false);
-    markSaved();
-  }, [markSaved, state.circuitName, state.code]);
+    markSaved(captureDocumentRevision());
+    setState((current) => current.draftStorageError ? { ...current, draftStorageError: null } : current);
+  }, [captureDocumentRevision, markSaved, state.circuitName, state.code]);
 
   const renameDocument = useCallback((name: string) => {
     const normalized = normalizeDocumentName(name);
+    documentRevisionRef.current.edit += 1;
     setState((current) => ({ ...current, circuitName: normalized, isDirty: true, draftRestored: false }));
   }, []);
 
   const run = useCallback(async () => {
-    if (!state.wasmLoaded || !state.compileSucceeded || !runnerRef.current) return;
+    if (!state.wasmLoaded || !state.compileSucceeded || !state.circuitIr?.analyses.length || !runnerRef.current) return;
     const revision = ++revisionRef.current;
     setState((current) => ({ ...current, evaluation: null, simulationState: 'running', hasSimulationAttempt: true, simulationMessage: 'Preparing simulation…' }));
     try {
@@ -428,7 +468,7 @@ export function useKessetsuWorkspace() {
         setState((current) => ({ ...current, simulationState: 'failed', simulationMessage: errorMessage(error) }));
       }
     }
-  }, [state.code, state.compileSucceeded, state.wasmLoaded, modelResources]);
+  }, [state.code, state.compileSucceeded, state.circuitIr, state.wasmLoaded, modelResources]);
 
   const cancel = useCallback(() => {
     revisionRef.current += 1;
@@ -482,12 +522,15 @@ export function useKessetsuWorkspace() {
   }, [invalidateBindings]);
 
   const share = useCallback(async (name: string): Promise<string> => {
+    const snapshot = captureDocumentRevision();
     if (!state.wasmLoaded || !state.compileSucceeded) throw new Error('Compile must succeed before sharing');
     const circuitName = name.trim();
     const fragment = await encodeShareFragment(state.code, compile_schema_version(), state.modelManifest, circuitName);
+    if (!isCurrentDocumentRevision(snapshot)) throw new Error('The circuit changed while creating the link. Create a new link for the current version.');
     const url = new URL(globalThis.location.href);
     url.hash = fragment.slice(1);
     globalThis.history.replaceState(null, '', url);
+    if (circuitName !== state.circuitName) documentRevisionRef.current.edit += 1;
     setState((current) => ({
       ...current,
       circuitName,
@@ -495,7 +538,7 @@ export function useKessetsuWorkspace() {
       draftRestored: false,
     }));
     return url.href;
-  }, [state.code, state.compileSucceeded, state.modelManifest, state.wasmLoaded]);
+  }, [captureDocumentRevision, isCurrentDocumentRevision, state.circuitName, state.code, state.compileSucceeded, state.modelManifest, state.wasmLoaded]);
 
   return {
     state,
@@ -510,6 +553,9 @@ export function useKessetsuWorkspace() {
     openDocument,
     importSpiceDocument,
     markSaved,
+    captureDocumentRevision,
+    isCurrentDocument,
+    isCurrentDocumentRevision,
     saveBrowserDocument,
     renameDocument,
     compile,

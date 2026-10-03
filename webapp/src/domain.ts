@@ -171,6 +171,7 @@ export interface WorkspaceState {
   circuitName: string | null;
   isDirty: boolean;
   draftRestored: boolean;
+  draftStorageError: string | null;
   diagnostics: CompileDiagnostic[];
   compileState: CompileState;
   compileSucceeded: boolean;
