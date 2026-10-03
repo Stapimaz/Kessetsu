@@ -11,6 +11,12 @@ or local-model examples. **File → New circuit** starts a document; **Open .kes
 a local source file. Rename the document through **File → Rename…** or the Share dialog.
 Example selection replaces the active source; save work before switching.
 
+Menus support keyboard navigation: focus a menu button and press Enter or ↓; use ↑/↓,
+Home/End within it, → to open Examples, and ← or Escape to return. Escape closes a menu
+and returns focus to its button. Closing an Analyze dialog returns focus to Analyze.
+Ctrl+Enter runs the editor simulation only outside dialogs; Ctrl+S does not save the
+background circuit while you are working in a dialog.
+
 **File → Import SPICE netlist…** accepts `.cir`, `.sp`, `.spice`
 and `.net` files in the [declared import subset](spice-import.md). A successful conversion opens
 ordinary editable `.kess` as an unsaved document. Unsupported content reports original line

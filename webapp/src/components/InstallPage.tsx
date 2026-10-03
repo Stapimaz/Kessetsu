@@ -1,11 +1,19 @@
 import { ArrowLeft, Check, Copy, ExternalLink, Terminal } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BrandWordmark } from './BrandWordmark';
 import '../landing.css';
 import '../install.css';
 
 type Platform = 'windows' | 'macos' | 'linux';
 const origin = 'https://kessetsu.com';
+const agentTask = `Use the installed Kessetsu CLI for this task. Do not install an AI service or send circuit/model files to a server.
+Read kess --version, kess --help, and kess capabilities --format json first.
+Use the language reference at https://kessetsu.com/docs/reference/language/ and the complete examples in https://kessetsu.com/docs/guides/cookbook/; do not invent unsupported syntax or models.
+Design a nominal loaded divider: 12 V input, 10 kOhm output load, 10 kOhm lower resistor. Require 2.97 V < V(OUT) < 3.03 V and absolute supply current < 1 mA.
+Save the requirements separately as divider.kessreq and do not relax them to make a candidate pass. Generate divider.kess with kess tool divider; inspect kess tool divider --help first.
+Run kess check divider.kess --format json, then kess test divider.kess --requirements divider.kessreq --format json. Read diagnostics, assertions and exit codes; revise the circuit and retest if needed.
+Export divider.png with kess render and divider.kicad_sch with kess export --target kicad. Ask before overwriting existing files.
+Return the editable source, requirement file, actual local measurements, exported artifacts and model assumptions. Never claim a test ran unless it actually ran. Simulation is not a hardware guarantee.`;
 const platforms: Record<Platform, { label: string; terminal: string; command: string }> = {
   windows: {
     label: 'Windows',
@@ -33,6 +41,8 @@ function initialPlatform(): Platform {
 
 function CopyCommand({ command, label }: { command: string; label: string }) {
   const [state, setState] = useState<'idle' | 'copied' | 'manual'>('idle');
+  const currentCommand = useRef(command);
+  currentCommand.current = command;
   useEffect(() => { setState('idle'); }, [command]);
   useEffect(() => {
     if (state !== 'copied') return;
@@ -44,8 +54,8 @@ function CopyCommand({ command, label }: { command: string; label: string }) {
       <div className="install-command">
         <code>{command}</code>
         <button type="button" aria-label={`Copy ${label}`} onClick={async () => {
-          try { await navigator.clipboard.writeText(command); setState('copied'); }
-          catch { setState('manual'); }
+          try { await navigator.clipboard.writeText(command); if (currentCommand.current === command) setState('copied'); }
+          catch { if (currentCommand.current === command) setState('manual'); }
         }}>{state === 'copied' ? <Check size={18} /> : <Copy size={18} />}</button>
       </div>
       <span className="install-copy-status" role="status">{state === 'copied' ? 'Copied' : state === 'manual' ? 'Select the command above and copy it manually.' : ''}</span>
@@ -103,25 +113,40 @@ export function InstallPage() {
             <p><a href={`${base}examples/rc_low_pass.kess`} download="my-circuit.kess">Download the RC low-pass example</a> as <code>my-circuit.kess</code>. Open a terminal in the folder where you saved it, then run:</p>
             <p className="install-note">{platform === 'windows' ? 'In File Explorer, open that folder, right-click an empty area, and choose Open in Terminal (on older Windows, hold Shift and choose Open PowerShell window here).' : 'In Terminal, type cd followed by a space, drag the saved file’s folder onto the terminal, and press Enter.'}</p>
             <CopyCommand command="kess check my-circuit.kess" label="first circuit command" />
-            <p>For simulation and the example’s electrical requirements:</p>
-            <CopyCommand command="kess test my-circuit.kess" label="simulation command" />
             {platform === 'windows' ? <p className="install-note">Ngspice, the simulator, is included in the Windows installation.</p> : (
               <div className="install-prerequisite">
                 <h3>Simulation needs Ngspice</h3>
                 <p>Compile, check, and export work immediately. Before <code>kess test</code>, install the simulator if you do not already have it:</p>
                 <CopyCommand command={platform === 'macos' ? 'brew install ngspice' : 'sudo apt-get update && sudo apt-get install ngspice'} label="simulator command" />
+                <p>Check that the simulator is available:</p><CopyCommand command="ngspice --version" label="simulator version command" />
                 <p className="install-note">{platform === 'macos' ? <>This command needs <a href="https://brew.sh/">Homebrew</a>. If it is not installed, follow its official installer first.</> : 'This command is for Ubuntu/Debian. On other Linux distributions, install ngspice with your package manager.'} The Kessetsu installer does not run privileged commands for you.</p>
               </div>
             )}
+            <p>Now simulate and check the example’s electrical requirements:</p>
+            <CopyCommand command="kess test my-circuit.kess" label="simulation command" />
+            <p className="install-note">This example has five assertions. Read each PASS/FAIL and the measured values. If simulation cannot start, use <a href={`${base}docs/guides/troubleshooting/`}>the troubleshooting guide</a>; a successful source check alone is not a simulation.</p>
           </li>
         </ol>
         <section className="install-followup" aria-labelledby="install-next">
           <h2 id="install-next"><Terminal size={20} /> Use it with your agent</h2>
-          <p>Tell your agent: “Use the installed <code>kess</code> CLI to design, simulate, test, and export my circuit. Start with <code>kess --help</code> and return structured results using <code>--format json</code>.” Your agent stays yours; Kessetsu does not require an AI subscription or API key.</p>
+          <p>Your agent needs access to your local terminal and the installed CLI. A chat-only model can propose source, but cannot run local checks for you. Kessetsu requires no AI subscription or API key.</p>
+          <details><summary>Copy a complete first task for your agent</summary><p>A small, reproducible design task with fixed requirements and editable outputs. Replace the brief with your own requirements once this works.</p><CopyCommand command={agentTask} label="complete agent task" /></details>
+          <p><a href={`${base}docs/guides/cookbook/#give-an-external-agent-a-complete-task`}>Walk through the same design and verification loop</a>. Local manufacturer models need exact file bindings; see <a href={`${base}docs/reference/model-catalog/`}>device models</a>.</p>
+          <details><summary>Next: try a transistor circuit</summary>
+            <p><a href={`${base}examples/transistor_driver.kess`} download="transistor-driver.kess">Download the complete emitter-follower example</a> as <code>transistor-driver.kess</code>. From its folder, with Ngspice installed, run:</p>
+            <CopyCommand command="kess test transistor-driver.kess --format json" label="transistor example command" />
+            <p>Inspect its gain, output peaks and transistor dissipation across AC and transient analyses. It uses the built-in generic <code>2N3904</code> model, so no extra library is needed. Passing its four assertions does not establish supplier-specific accuracy, component ratings or thermal safety. For exact local libraries, follow <a href={`${base}docs/reference/model-catalog/`}>the model-file walkthrough</a>.</p>
+          </details>
           <h2>Updates and alternatives</h2>
           <p>To update, run the same installation command again. A failed download or hash check will not replace your working CLI. Previous bundles are retained for recovery.</p>
           <p>The command executes a script from this website. If you prefer to inspect it first: <a href={`${base}${platform === 'windows' ? 'install.ps1' : 'install.sh'}`}>view the installer</a>. Checksums detect damaged downloads; they are not publisher signatures.</p>
           <p><a href="https://github.com/Stapimaz/Kessetsu/releases/latest">Download packages manually <ExternalLink size={12} /></a> · <a href={`${base}docs/guides/troubleshooting/`}>Troubleshooting</a></p>
+          <details><summary>Uninstall the default installation</summary>
+            <p>Keep your circuit and model files first. Close terminals and agents using Kessetsu. These steps apply only to the standard installer paths, not a custom install location.</p>
+            {platform === 'windows' ? <p>In File Explorer, enter <code>%LOCALAPPDATA%</code> and remove only the <code>Kessetsu</code> folder. In “Edit environment variables for your account”, remove only <code>%LOCALAPPDATA%\Kessetsu\bin</code> (or its expanded path) from your user Path. Open a new terminal.</p>
+              : <p>Remove only the <code>kess</code> symbolic link inside <code>~/.local/bin</code> and the <code>~/.local/share/kessetsu</code> folder. Do not delete the surrounding bin/share folders. Remove only the line ending <code># Kessetsu installer</code> from the shell startup files the installer modified (for example .bashrc or .zshrc), then open a new terminal. System Ngspice is separate and is not removed.</p>}
+            <p>Run <code>kess --version</code> in the new terminal; it should no longer resolve this installation. If it still runs, another installation is on your PATH.</p>
+          </details>
         </section>
       </section>
     </main>

@@ -72,26 +72,29 @@ test('resizes, minimizes, maximizes and persists panels without losing circuit s
   await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeFocused();
 });
 
+test.describe('touch navigation', () => {
+test.use({ hasTouch: true, isMobile: true });
 test('allows every panel to minimize and keeps menus and restore dock usable on mobile', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/#editor');
   await expect(page.getByTestId('compile-success')).toBeVisible();
   for (const panel of ['source', 'schematic', 'simulation']) {
-    await page.getByRole('button', { name: `Minimize ${panel} panel` }).click();
+    await page.getByRole('button', { name: `Minimize ${panel} panel` }).tap();
   }
   await expect(page.getByText('All panels are minimized.')).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Minimized panels' }).getByRole('button')).toHaveCount(3);
-  await page.getByRole('button', { name: 'Restore minimized source panel' }).click();
+  await page.getByRole('button', { name: 'Restore minimized source panel' }).tap();
   await expect(page.getByLabel('Kessetsu source editor')).toBeVisible();
 
-  await page.getByRole('button', { name: 'File', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Examples', exact: true }).click();
+  await page.getByRole('button', { name: 'File', exact: true }).tap();
+  await page.getByRole('menuitem', { name: 'Examples', exact: true }).tap();
   await expect(page.getByRole('menuitem', { name: 'Power Amplifier', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-  await page.getByRole('button', { name: 'Export', exact: true }).click();
+  await page.getByRole('button', { name: 'Export', exact: true }).tap();
   const bounds = (await page.getByRole('dialog').boundingBox())!;
   expect(bounds.x).toBeGreaterThanOrEqual(0);
   expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
   await page.screenshot({ path: 'test-results/workspace-revision-mobile.png' });
+});
 });

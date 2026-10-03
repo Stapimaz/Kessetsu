@@ -37,7 +37,13 @@ overwriting any input CSV, mapping, dataset or reference.
 
 ## Web workflow
 
-In the Web editor, open **Analyze → Compare research data…**. The three explicit steps are:
+In the Web editor, open **Analyze → Compare research data…**.
+
+The collapsed **What files do I need?** section links the complete synthetic CSV pair and
+explains the inputs. These files are data, not device-model libraries or study JSON. Use the
+mapping instructions in this guide; Kessetsu does not infer physical units from column names.
+
+Follow these three steps:
 
 1. Choose the observed CSV, review its dialect/preview, map axis and signal columns, units,
    calibration, missing-value behavior and origin, then import it.

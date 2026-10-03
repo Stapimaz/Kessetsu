@@ -76,3 +76,14 @@ file-write completion as a checkpoint for newer changes.
 ## KiCad/LTspice warning on open
 
 Read the export capability/loss message. KiCad files embed portable Kessetsu symbols and may report a symbol-library-table warning; LTspice uses its standard symbol library. Connectivity is release-smoke-tested, but Kessetsu assertions remain in the `.kess` source and are not editable-EDA assertions.
+
+## A page or research-data tool could not open
+
+A missing page module, interrupted download or application error shows a recovery message
+instead of leaving a blank screen. Check the connection and choose **Reload page**. If just
+the research-data tool failed, **Return to editor** dismisses the error without replacing
+your source: save/download your circuit before reloading if draft storage is unavailable.
+Reload does not clear stored browser drafts, but in-memory model files, CSV working sets and
+study results must be reselected or reimported. Download Results JSON before normal reloads
+when you want to preserve a study. If the error persists, report the page, browser version
+and any console diagnostic; do not clear site data as a first recovery step.

@@ -1,0 +1,9 @@
+.page-load-error { width: min(620px, calc(100% - 40px)); margin: 15vh auto; color: #dbe5ef; line-height: 1.65; }
+.page-load-error h1 { font-size: 26px; }
+.page-load-error p { color: #aab9cc; }
+.page-load-error div { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+.page-load-error a { color: #55e1cc; }
+.page-load-error button { padding: 9px 14px; border: 1px solid #24998c; border-radius: 5px; background: #17665b; color: #eff5fc; cursor: pointer; font: inherit; }
+.page-load-error :focus-visible { outline: 2px solid #55e1cc; outline-offset: 3px; }
+.feature-load-error, .feature-loading { position: fixed; z-index: 30; bottom: 20px; left: 50%; transform: translateX(-50%); margin: 0; padding: 20px; border: 1px solid #334155; border-radius: 8px; background: #111a25; box-sizing: border-box; box-shadow: 0 8px 32px #0008; }
+.feature-loading { color: #dbe5ef; }

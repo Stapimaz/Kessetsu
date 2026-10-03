@@ -2,6 +2,9 @@
 .install-back { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 40px; }
 .install-content h1 { margin: 0 0 20px; font-size: clamp(30px, 5vw, 46px); line-height: 1.15; letter-spacing: -.035em; }
 .install-content p { color: #aab8cd; line-height: 1.75; }
+.install-followup details { margin: 18px 0; }
+.install-followup summary { cursor: pointer; color: #dce6f4; }
+.install-followup .install-command code { white-space: pre-wrap; overflow-wrap: anywhere; }
 .install-content a:not(.install-back) { color: #55e1cc; text-underline-offset: 3px; }
 .install-content p code { color: #dce6f4; font-size: .9em; }
 .install-content .install-note { color: #91a1b8; font-size: 13px; }
@@ -23,6 +26,7 @@
 .install-followup h2:not(:first-child) { margin-top: 28px; }
 .install-page button:focus-visible, .install-page a:focus-visible { outline: 2px solid #55e1cc; outline-offset: 4px; }
 @media (max-width: 600px) {
+  .install-page .landing-nav { display: flex; gap: 12px; }
   .install-content { width: calc(100% - 32px); margin-top: 30px; }
   .install-steps > li { padding-left: 42px; }
   .install-platforms button { padding-inline: 15px; }

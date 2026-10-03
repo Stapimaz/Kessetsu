@@ -38,6 +38,7 @@ export function CircuitDetailsDialog({ open, spice, models, onClose, resources, 
         <button aria-label="Close circuit details" onClick={() => dialogRef.current?.close()}><X size={18} /></button>
       </header>
       <p className="dialog-help-link"><a href={`${import.meta.env.BASE_URL}docs/reference/model-catalog/`} target="_blank" rel="noreferrer">Model examples, local files and simulation limits</a></p>
+      <p>Model libraries describe device behavior for simulation; they are not measured CSV data or study settings. Import measurements through Analyze → Compare research data, and study/results JSON through Analyze → Test parameter variations.</p>
       {resources.length > 0 && <section className="model-details">
         <div className="dialog-section-heading"><h3>Local model files</h3>
           <button onClick={onClearFiles} disabled={boundResources.length === 0}>Clear files</button>
@@ -47,7 +48,7 @@ export function CircuitDetailsDialog({ open, spice, models, onClose, resources, 
         <p>Files for the provided examples: <a href={comparatorModelUrl} download="comparator.lib">comparator.lib</a> · <a href={memristorModelUrl} download="memristor.lib">memristor.lib</a> · <a href={memristorNoticeUrl} download="MEMRISTOR_NOTICE.md">memristor attribution and license</a>. Download, then choose the matching file below. Custom declarations need their own exact files.</p>
         <div className="model-list">{resources.map((item) => <article key={`${item.model}:${item.resource}`}>
           <strong>{item.model} · {item.resource}</strong>
-          <span>{item.simulator === 'ngspice_ps' ? 'Native-only compatibility' : 'Browser profile checked before simulation'} · {boundResources.includes(item.resource) ? 'File selected; see compilation status for validation' : 'File required'}</span>
+          <span>{item.simulator === 'ngspice_ps' ? 'Native-only: use the installed CLI with Ngspice; selecting a file will not enable browser simulation' : 'Browser profile checked before simulation'} · {boundResources.includes(item.resource) ? 'File selected; see compilation status for validation' : 'File required'}</span>
           <small>SHA-256: {item.sha256}</small>
           <label>Choose model file
             <input type="file" aria-label={`Model file for ${item.model}`} onChange={(event) => {

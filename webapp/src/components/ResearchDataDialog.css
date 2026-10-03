@@ -81,3 +81,6 @@
   .research-wide { grid-column: auto; }
   .research-result-header { flex-direction: column; }
 }
+.research-start { margin: 12px 22px; padding: 10px 0; border-top: 1px solid #263548; }
+.research-start summary { cursor: pointer; color: #dbe5ef; font-size: 12px; }
+.research-start a { color: #55e1cc; }

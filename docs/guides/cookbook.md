@@ -31,10 +31,20 @@ Copy this brief to an agent that can run your local terminal with CLI 1.1.0 or n
 
 > Use Kessetsu to design a nominal loaded divider. Vin is 12 V, RL is 10 kΩ and R2 is 10 kΩ.
 > Require 2.97 V < V(OUT) < 3.03 V and absolute supply current below 1 mA.
-> First inspect `kess --version`, `kess tool --help` and `kess tool divider --help`.
+> First inspect `kess --version`, `kess capabilities --format json`, `kess tool --help`
+> and `kess tool divider --help`. Read the [language reference](../reference/language.md)
+> and use only syntax/models supported by that installed version.
 > Generate editable source, save the requirements separately and run `kess test` with JSON.
 > Explain any failure, revise the candidate while preserving the requirements and retest.
 > Export a PNG and KiCad schematic, and return the source, measured results and assumptions.
+> Do not overwrite existing files without permission, and never claim a test ran unless it did.
+
+The agent needs terminal access; a chat-only model can write a candidate, but cannot execute
+your local CLI. On macOS/Linux, install Ngspice before `kess test` as described on the
+[installation page](https://kessetsu.com/install/). Windows installer bundles include it.
+The installation page also offers a complete copyable version of this task.
+Machine readers can start from [llms.txt](https://kessetsu.com/llms.txt), which points to
+these same public guides; it does not provide a separate agent service.
 
 For a reproducible failure → revision example, save this unchanged `divider.kessreq`:
 

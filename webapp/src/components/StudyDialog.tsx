@@ -11,6 +11,7 @@ import { newStudy, parameterAxis, reusable, suffix, type StudySpec, type StudyPl
 import { BrowserSimulationRunner, SimulationCancelledError } from '../simulation/browserRunner';
 import type { BrowserSimulationPlan } from '../simulation/types';
 import './StudyDialog.css';
+import loadedFilterStudy from '../../../examples/studies/loaded-filter.kessstudy.json?raw';
 
 interface Props { open: boolean; source: string; name: string; resources: Record<string, number[]>; onClose: () => void; onApplySource: (source: string) => void }
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
@@ -49,6 +50,7 @@ export function StudyDialog({ open, source, name, resources, onClose, onApplySou
     if (!open && dialog.current?.open) dialog.current?.close();
   }, [open, source, name, resources]);
   useEffect(() => () => { cancelled.current = true; runner.current?.dispose(); }, []);
+  useEffect(() => { if (open && dialog.current) dialog.current.scrollTop = 0; }, [open, tab]);
   useEffect(() => {
     if (!running) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
@@ -155,6 +157,16 @@ export function StudyDialog({ open, source, name, resources, onClose, onApplySou
   const signals = dataset && dataset.kind !== 'operating_point' ? Object.keys(dataset.signals).map(signalLabel) : [];
   const counts = results?.cases.reduce((acc, row) => { acc[row.status] = (acc[row.status] ?? 0) + 1; return acc; }, {} as Record<string, number>);
   const parameterOptions = parameters.map(p => <option key={p.name} value={p.name}>{p.name} ({suffix[p.declared_unit] || 'ratio'})</option>);
+  const tryExample = () => {
+    if (results && !globalThis.confirm('Replace this study and its retained results with the loaded-filter example? The editor circuit will not change.')) return;
+    try {
+      const planned = plan_study(JSON.parse(loadedFilterStudy), resources) as StudyPlan;
+      acceptSpec(planned.spec); setResults(null); setComparison(null); setSelected([]);
+      setAnalysis(0); setSignal('V(OUT)'); setPlot(''); setPlotError('');
+      setProgress('Example ready: six cases. Run the study to see both passing and failing designs.');
+      setTab('configure'); setError('');
+    } catch (cause) { setError(message(cause)); }
+  };
 
   return <dialog ref={dialog} className="app-dialog study-dialog" aria-labelledby="study-title" onClose={() => { if (active.current) cancel(); onClose(); }}>
     <header><div><h2 id="study-title">Parameter study</h2><p>Try conditions, keep every outcome and compare the results.</p></div><button aria-label="Close parameter study" onClick={() => dialog.current?.close()}><X size={18} /></button></header>
@@ -164,11 +176,16 @@ export function StudyDialog({ open, source, name, resources, onClose, onApplySou
     <input ref={compareInput} type="file" className="sr-only" accept=".json" aria-label="Compare study results file" onChange={event => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (file) void importFile(file, true); }} />
     {error && <p className="study-error" role="alert">{error}</p>}
     {tab === 'configure' ? <fieldset className="study-config" disabled={running}>
-      <div className="study-row"><label>Study name<input value={spec.name} onChange={event => update({ name: event.target.value })} /></label><button onClick={reset}><RotateCcw size={14} /> Use current circuit</button></div>
+      <details className="study-start"><summary>New to parameter studies?</summary>
+        <p className="study-note">Compare component values or tolerances without editing your open circuit. You need a valid circuit, named root parameters (for example <code>param resistance: Ohm = 1kOhm</code> used by <code>resistor R1 &#123;resistance&#125;</code>), an analysis, and any exact local model files.</p>
+        <ol className="study-note"><li>Choose the parameters and values to try, or load the complete example below.</li><li>Run the study. Inspect every case and its measurements, including failures.</li><li>Download Results JSON to keep or resume the evidence. Apply parameters only when you want to change the editor circuit.</li></ol>
+        <p className="study-note">Six ideal-passive AC cases with fixed assertions, including three expected failures. Loads a study snapshot only; your editor circuit is untouched.</p>
+      </details>
+      <div className="study-row"><label>Study name<input value={spec.name} onChange={event => update({ name: event.target.value })} /></label><button onClick={reset}><RotateCcw size={14} /> Use current circuit</button><button onClick={tryExample}>Try loaded-filter study</button></div>
       <p className="study-note">A source snapshot, not changes to the open circuit. Local models stay separate and are never uploaded.</p>
       {spec.source !== source && <p className="study-note">This study uses a different source snapshot from the editor. Choose “Use current circuit” to start from the current source.</p>}
       {parameterError && <p role="alert">{parameterError} Open the study source in the editor and choose its matching model files.</p>}
-      {parameters.length === 0 && !parameterError && <p>Add named root <code>param</code> declarations, or open a Loaded Filter / Transistor Driver example. With no axes, only the nominal design runs.</p>}
+      {parameters.length === 0 && !parameterError && <p className="study-note">This source has no named root parameters. With no axes, only the nominal design runs. Add <code>param</code> declarations in Source, then choose “Use current circuit”, or choose “Try loaded-filter study” above.</p>}
       <label>Study type<select value={mode} onChange={event => changeMode(event.target.value)}><option value="sweep">Parameter sweep</option><option value="corners">Nominal + tolerance corners</option><option value="monte_carlo">Nominal + Monte Carlo samples</option></select></label>
       {!spec.tolerances ? <section><h3>Sweep parameters</h3>{spec.axes.map((axis, index) => <div className="study-axis" key={index}>
         <label>Parameter<select aria-label={`Sweep parameter ${index + 1}`} value={axis.parameter} onChange={event => { const parameter = parameters.find(p => p.name === event.target.value); if (parameter) axisUpdate(index, parameterAxis(parameter)); }}>{parameterOptions}</select></label>

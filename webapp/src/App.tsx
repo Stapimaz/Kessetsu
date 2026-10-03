@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { LandingPage } from './components/LandingPage';
+import { PageLoadBoundary } from './components/PageLoadBoundary';
 
 const WorkspaceApp = lazy(async () => {
   const module = await import('./components/WorkspaceApp');
@@ -42,10 +43,12 @@ function App() {
   if (view === 'landing') return <LandingPage />;
 
   return (
+    <PageLoadBoundary key={view} page={view === 'workspace' ? 'the circuit editor' : view === 'install' ? 'the installation guide' : 'circuit tools'}>
     <Suspense fallback={<div className="workspace-loading" role="status">{view === 'workspace' ? 'Opening circuit editor…' : view === 'install' ? 'Opening installation guide…' : 'Opening circuit tools…'}</div>}>
       {view === 'install' ? <InstallPage /> : view === 'tools' ? <CircuitToolsIndex />
         : view === 'divider' ? <DividerPage /> : view === 'rc' ? <RcPage /> : <WorkspaceApp />}
     </Suspense>
+    </PageLoadBoundary>
   );
 }
 

@@ -1,5 +1,8 @@
 import { CheckCircle2, ChevronRight, CircleAlert, LoaderCircle, Share2 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { applicationMenuKeyDown } from '../applicationMenuKeyboard';
+import { keepModalTabFocus } from '../modalKeyboard';
+import { PageLoadBoundary } from './PageLoadBoundary';
 import type { DragEvent } from 'react';
 import type { SourceFeedback } from '../domain';
 import { SpiceImportError, importDiagnosticLabel } from '../spiceImport';
@@ -137,7 +140,7 @@ export function WorkspaceApp() {
       }
     };
     const closeWithEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !event.defaultPrevented) {
         setOpenMenu(null);
         setExamplesOpen(false);
       }
@@ -152,6 +155,7 @@ export function WorkspaceApp() {
 
   useEffect(() => {
     const runShortcut = (event: KeyboardEvent) => {
+      if (document.querySelector('dialog[open]')) return;
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter'
         && state.compileSucceeded && state.simulationState !== 'running') {
         event.preventDefault();
@@ -165,6 +169,10 @@ export function WorkspaceApp() {
   const toggleMenu = (menu: MenuId) => {
     setExamplesOpen(false);
     setOpenMenu((current) => current === menu ? null : menu);
+  };
+  const focusAnalyzeMenu = () => {
+    [...(menusRef.current?.querySelectorAll<HTMLButtonElement>(':scope > .application-menu > button') ?? [])]
+      .find(button => button.textContent === 'Analyze')?.focus();
   };
   const selectExample = (id: ExampleId) => {
     if (state.isDirty && !globalThis.confirm('Replace the current unsaved circuit with this example?')) return;
@@ -334,6 +342,7 @@ export function WorkspaceApp() {
     const saveShortcut = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
         event.preventDefault();
+        if (document.querySelector('dialog[open]')) return;
         void saveDocument(event.shiftKey);
       }
     };
@@ -342,12 +351,12 @@ export function WorkspaceApp() {
   }, [saveDocument]);
 
   return (
-    <main className="app-shell" onDragOver={(event) => {
+    <main className="app-shell" onKeyDownCapture={keepModalTabFocus} onDragOver={(event) => {
       if (event.dataTransfer.types.includes('Files')) event.preventDefault();
     }} onDrop={dropDocument}>
       <header className="app-menubar">
         <a className="wordmark" href="./" aria-label="Kessetsu home"><BrandWordmark /></a>
-        <nav className="application-menus" aria-label="Application menu" ref={menusRef}>
+        <nav className="application-menus" aria-label="Application menu" ref={menusRef} onKeyDown={applicationMenuKeyDown}>
           <div className="application-menu">
             <button aria-haspopup="menu" aria-expanded={openMenu === 'file'} onClick={() => toggleMenu('file')}>File</button>
             {openMenu === 'file' && <div className="menu-popover file-menu" role="menu" aria-label="File menu">
@@ -546,11 +555,11 @@ export function WorkspaceApp() {
         onRename={renameCurrentDocument}
       />
       {state.wasmLoaded && <StudyDialog open={studyOpen} source={state.code} name={documentName} resources={modelResources}
-        onClose={() => setStudyOpen(false)} onApplySource={setCode} />}
+        onClose={() => { setStudyOpen(false); focusAnalyzeMenu(); }} onApplySource={setCode} />}
       {state.wasmLoaded && <AgentProposalDialog open={agentProposalOpen} source={state.code} name={documentName}
         productVersion={productVersion} resources={modelResources} onAccept={acceptAgentProposal}
-        onClose={() => setAgentProposalOpen(false)} />}
-      {state.wasmLoaded && researchDataMounted && <Suspense fallback={null}><ResearchDataDialog open={researchDataOpen} evaluation={state.evaluation} circuitName={documentName} onClose={() => setResearchDataOpen(false)} /></Suspense>}
+        onClose={() => { setAgentProposalOpen(false); focusAnalyzeMenu(); }} />}
+      {state.wasmLoaded && researchDataMounted && <PageLoadBoundary page="research data" onDismiss={() => { setResearchDataOpen(false); setResearchDataMounted(false); focusAnalyzeMenu(); }}><Suspense fallback={<aside className="feature-loading" role="status">Opening research data…</aside>}><ResearchDataDialog open={researchDataOpen} evaluation={state.evaluation} circuitName={documentName} onClose={() => { setResearchDataOpen(false); focusAnalyzeMenu(); }} /></Suspense></PageLoadBoundary>}
       <WorkspaceLayout
         resetRequest={resetRequest}
         sourceRevealRequest={sourceRevealRequest}

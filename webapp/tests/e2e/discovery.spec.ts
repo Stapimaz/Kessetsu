@@ -16,6 +16,8 @@ test('reads the product, installation and public tutorial without JavaScript', a
     await expect(page.locator('article')).toContainText('assert cutoff(V(OUT),V(IN)) > 990Hz');
     await page.screenshot({ path: 'test-results/docs-desktop.png', fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.locator('.docs-mobile-topics')).not.toHaveAttribute('open');
+    await expect(page.getByRole('heading', { name: 'Tutorial: From Source to Verified Circuit' })).toBeInViewport();
     await page.screenshot({ path: 'test-results/docs-mobile.png', fullPage: true });
     await page.goto('/docs/reference/language/');
     await page.getByRole('link', { name: 'model cookbook', exact: true }).click();
@@ -25,7 +27,8 @@ test('reads the product, installation and public tutorial without JavaScript', a
     await expect(page).toHaveURL(/\/changelog\/$/);
     await expect(page.getByRole('heading', { name: 'Changelog', exact: true })).toBeVisible();
     await expect(page.locator('article')).toContainText('1.2.0');
-    await expect(page.getByRole('navigation', { name: 'Documentation topics' })).toBeVisible();
+    await page.getByText('Browse documentation topics', { exact: true }).click();
+    await expect(page.locator('.docs-mobile-topics').getByRole('navigation', { name: 'Documentation topics' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
     await page.screenshot({ path: 'test-results/changelog-mobile.png', fullPage: true });
   } finally { await context.close(); }

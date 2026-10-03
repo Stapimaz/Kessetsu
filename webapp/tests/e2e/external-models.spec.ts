@@ -71,12 +71,12 @@ test('native-only mode fails before loading the browser simulator', async ({ pag
   const source = readFileSync(resolve('../examples/external_comparator.kess'), 'utf8').replace('simulator=ngspice ', 'simulator=ngspice_ps ');
   const fragment = await encodeShareFragment(source, 'kessetsu.compile.v5', null, 'Native-only comparator');
   let engineRequests = 0;
-  page.on('request', (request) => { if (/ngspice\.wasm/.test(request.url())) engineRequests += 1; });
+  page.on('request', (request) => { if (/ngspice\.wasm|eecircuit-engine-|simulation\.worker-/.test(request.url())) engineRequests += 1; });
   await page.goto(`/${fragment}`);
   await page.getByRole('button', { name: 'View', exact: true }).click();
   await page.getByRole('menuitem', { name: /Circuit details/ }).click();
   const dialog = page.getByRole('dialog', { name: 'Circuit details' });
-  await expect(dialog).toContainText('Native-only compatibility');
+  await expect(dialog).toContainText('Native-only: use the installed CLI with Ngspice');
   await dialog.getByLabel('Model file for CMP').setInputFiles(resolve('../examples/models/comparator.lib'));
   await dialog.getByRole('button', { name: 'Close circuit details' }).click();
   await expect(page.getByTestId('compile-success')).toBeVisible();

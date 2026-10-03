@@ -322,6 +322,11 @@ export function ResearchDataDialog({ open, evaluation, circuitName, onClose }: P
   return <dialog ref={dialog} className="app-dialog research-dialog" aria-labelledby="research-data-title" onClose={onClose}>
     <header><div><h2 id="research-data-title">Research data</h2><p>Map and compare local CSV evidence. Files stay in this browser tab.</p></div><button aria-label="Close research data" onClick={() => dialog.current?.close()}><X size={17} /></button></header>
     <p className="dialog-help-link"><a href={`${import.meta.env.BASE_URL}docs/guides/research-data/`} target="_blank" rel="noreferrer">CSV inputs, mapping and comparison walkthrough</a></p>
+    <details className="research-start"><summary>What files do I need?</summary>
+      <p className="research-note">Use numeric CSV from a measurement instrument or another simulator. CSV is data, not a circuit or a SPICE model: importing it does not change Source. A comparison needs observed data and an independent reference CSV, or a completed transient/AC/DC simulation.</p>
+      <ol className="research-note"><li>Choose the observed CSV, check its preview, and map its axis and signal columns with their actual units. Import the dataset.</li><li>Import the reference in the same way, or use the current simulation. Pair matching physical signals.</li><li>Compare, inspect coverage and residuals, and download evidence JSON. A comparison is not a hardware pass/fail verdict.</li></ol>
+      <p className="research-note">Practice with <a href={`${import.meta.env.BASE_URL}examples/research/scope-style.csv`} download>synthetic observed CSV</a> and <a href={`${import.meta.env.BASE_URL}examples/research/rc-reference.csv`} download>analytical reference CSV</a>. These are illustrative, not laboratory measurements. The walkthrough gives the exact column, unit and comparison settings.</p>
+    </details>
     <nav className="research-steps" aria-label="Research data steps">
       <button aria-pressed={step === 'data'} onClick={() => setStep('data')}>1 · Observed {data.dataset && <CheckCircle2 size={13} />}</button>
       <button aria-pressed={step === 'reference'} onClick={() => setStep('reference')}>2 · Reference {reference.dataset && <CheckCircle2 size={13} />}</button>

@@ -14,8 +14,21 @@ test('guides installation, copies commands, and opens direct installation URLs',
   await page.getByRole('button', { name: 'macOS', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Simulation needs Ngspice' })).toBeVisible();
   await expect(page.getByText('brew install ngspice', { exact: true })).toBeVisible();
+  expect(await page.getByText('brew install ngspice', { exact: true }).evaluate(element => {
+    const testCommand = [...document.querySelectorAll('code')].find(code => code.textContent === 'kess test my-circuit.kess');
+    return !!testCommand && !!(element.compareDocumentPosition(testCommand) & Node.DOCUMENT_POSITION_FOLLOWING);
+  })).toBeTruthy();
+  await expect(page.getByText('ngspice --version', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Linux', exact: true }).click();
   await expect(page.getByText('sudo apt-get update && sudo apt-get install ngspice', { exact: true })).toBeVisible();
+  await page.getByText('Copy a complete first task for your agent', { exact: true }).click();
+  await page.getByRole('button', { name: 'Copy complete agent task' }).click();
+  const task = await page.evaluate(() => navigator.clipboard.readText());
+  expect(task).toContain('kess capabilities --format json');
+  expect(task).toContain('--requirements divider.kessreq');
+  expect(task).toContain('divider.kicad_sch');
+  await page.getByText('Uninstall the default installation', { exact: true }).click();
+  await expect(page.getByText('Do not delete the surrounding bin/share folders.', { exact: false })).toBeVisible();
   await page.screenshot({ path: 'test-results/install-desktop.png', fullPage: true });
   await page.reload();
   await expect(page.getByRole('heading', { name: 'A few steps. Your first circuit.' })).toBeVisible();
@@ -36,6 +49,7 @@ test('keeps mobile installation readable and offers manual copy on clipboard fai
   await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', { value: { writeText: () => Promise.reject(new Error('denied')) }, configurable: true }));
   await page.getByRole('button', { name: 'Copy installation command', exact: true }).click();
   await expect(page.getByText('Select the command above and copy it manually.')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Installation navigation' }).getByRole('link', { name: 'Docs', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
   await page.screenshot({ path: 'test-results/install-mobile.png', fullPage: true });
 });

@@ -1,7 +1,8 @@
 .docs-layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 38px; margin: 36px auto; width: min(1120px, calc(100% - 48px)); }
 .docs-article { min-width: 0; color: #b9c8da; line-height: 1.75; overflow-wrap: anywhere; }
 .docs-sidebar { color: #b9c8da; font-size: 13px; }
-.docs-sidebar details { position: sticky; top: 24px; }
+.docs-desktop-topics { position: sticky; top: 24px; }
+.docs-mobile-topics { display: none; }
 .docs-sidebar summary { font-weight: 600; color: #eef4fc; cursor: pointer; }
 .docs-sidebar h2 { margin: 24px 0 8px; color: #8fa3bd; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; }
 .docs-sidebar a { display: block; padding: 7px 10px; border-radius: 4px; color: #b9c8da; }
@@ -12,7 +13,7 @@
 .docs-skip { position: absolute; left: -9999px; }
 .docs-skip:focus { position: static; color: #50d8c9; }
 .docs-page :target { scroll-margin-top: 24px; }
-@media (max-width: 850px) { .docs-layout { grid-template-columns: 1fr; gap: 24px; } .docs-sidebar details { position: static; } .docs-sidebar nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 850px) { .docs-layout { grid-template-columns: 1fr; gap: 24px; } .docs-desktop-topics { display: none; } .docs-mobile-topics { display: block; } .docs-sidebar nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .docs-article h1, .docs-article h2, .docs-article h3 { color: #eef4fc; line-height: 1.25; letter-spacing: -.025em; }
 .docs-article h1 { font-size: clamp(30px, 5vw, 44px); margin-bottom: 28px; }
 .docs-article h2 { margin-top: 40px; font-size: 25px; }

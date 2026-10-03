@@ -6,6 +6,22 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ### Web editor usability
 
+- Parameter studies include a one-action, complete six-case loaded-filter example that
+  leaves the editor source untouched and asks before replacing retained study results.
+  Study and CSV dialogs explain prerequisites, file types, example inputs and next actions;
+  native-only device libraries explicitly direct users to the CLI.
+- Application menus support arrow keys, Home/End, submenu navigation and Escape focus return.
+  Modal Tab navigation wraps within the dialog, Analyze dialogs return focus to their menu,
+  and background Save/Run shortcuts are suppressed
+  while a dialog is open. Failed lazy page/tool loading offers recovery instead of a blank
+  screen; a research-tool failure can be dismissed without replacing the editor source.
+- CLI installation puts Ngspice prerequisites before simulation, includes simulator
+  verification and platform-specific uninstall guidance, and offers a copyable complete
+  external-agent task with fixed requirements, capabilities discovery and artifact output.
+  A small `llms.txt` points agents to authoritative public guides.
+- Documentation topics are collapsed on narrow screens without requiring JavaScript;
+  desktop navigation remains directly available.
+
 - SPICE import failures show the file, original-line diagnostics, a complete expandable report
   and direct retry/guide actions. Rejected imports preserve the circuit and save destination;
   a changed document during the file chooser is not replaced by a late selection.
