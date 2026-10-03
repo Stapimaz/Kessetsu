@@ -273,7 +273,7 @@ test('shows browser draft failure, preserves unsaved work and offers a portable 
     Object.defineProperty(window, '__restoreDraftStorage', { value: () => { Storage.prototype.setItem = original; } });
   });
   await page.goto('/#editor');
-  await expect(page.getByTestId('compile-success')).toBeVisible();
+  await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText('Browser draft recovery is unavailable.')).toBeVisible();
   await page.locator('.monaco-editor').click();
   await page.keyboard.press('ControlOrMeta+End');

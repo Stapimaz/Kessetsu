@@ -19,6 +19,8 @@ export default defineConfig({
     {
       name: 'firefox-document',
       testMatch: /document-lifecycle\.spec\.ts/,
+      // Each case cold-loads Monaco and WASM; avoid competing Firefox startups.
+      workers: 1,
       use: { ...devices['Desktop Firefox'] },
     },
   ],
