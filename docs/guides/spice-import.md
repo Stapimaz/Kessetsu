@@ -1,7 +1,18 @@
 # Importing SPICE netlists
 
-Development builds can convert a deliberately bounded Ngspice-compatible netlist into editable
-Kessetsu source:
+Kessetsu 1.3.0 can convert the supported Ngspice-compatible netlist subset into editable
+Kessetsu source. For a complete first example, save this as `filter.cir`:
+
+```spice
+.title RC low-pass
+VIN IN 0 AC 1
+R1 IN OUT 1k
+C1 OUT 0 159.154943n
+.ac dec 40 10 100k
+.end
+```
+
+With the CLI and Ngspice installed, run:
 
 ```bash
 kess import filter.cir --output filter.kess
@@ -13,9 +24,13 @@ If `--output` is omitted for a file input, the CLI uses the same basename with `
 Existing files require `--force`. Standard input is supported with
 `kess import - --output circuit.kess`; it never chooses an implicit file destination.
 
-In development Web Hub builds, choose **File > Import SPICE netlist...** or drop a supported
+In Web Hub, choose **File → Import SPICE netlist…** or drop a supported
 netlist onto the editor. Conversion runs locally through the same Core contract. A complete
 import opens as an unsaved editable circuit; a rejected import leaves the current document intact.
+For the example above, wait for **Source valid**, then press **Run** in Simulation and select
+`V(out)` for the low-pass response. Import preserves the AC analysis but does not invent
+engineering requirements: add `assert` statements in the generated `.kess` if you want
+PASS/FAIL checks. See the [first-circuit tutorial](tutorial.md) for a complete five-check filter.
 
 ## What the first subset accepts
 

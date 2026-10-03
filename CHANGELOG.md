@@ -45,6 +45,9 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 - The first tutorial now matches the built-in RC example's five checks and explains restored
   drafts. Scope references distinguish single-run analyses from sampled/temperature studies,
   and introductory documentation lists all nine engineering export formats.
+- Import documentation now describes released 1.3.0 behavior with a complete RC netlist;
+  the Cookbook distinguishes excerpts from whole circuits and portable Web model binding
+  from native-only compatibility. CLI tutorial prerequisites are explicit.
 - Generated agent tasks now tell agents to remove unrelated placeholder circuitry, encode supported
   measurable requirements as assertions and avoid claiming an unperformed Kessetsu run.
 

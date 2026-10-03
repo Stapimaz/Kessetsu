@@ -86,3 +86,18 @@ test('keeps the landing page readable and actionable on mobile', async ({ page }
     await page.screenshot({ path: 'test-results/landing-mobile.png', fullPage: true });
   }
 });
+
+test('explains the external-agent handoff before requesting a reply on desktop and narrow screens', async ({ page }) => {
+  await page.goto('/#editor');
+  await expect(page.getByTestId('compile-success')).toBeVisible();
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Work with an AI agent…', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Work with an AI agent', exact: true });
+  await expect(dialog).toContainText('Kessetsu never contacts an AI service');
+  await expect(dialog.locator('textarea')).toHaveCount(2);
+  await expect(dialog.getByRole('link', { name: /How the agent handoff works/ })).toHaveAttribute('href', '/docs/guides/web-editor/#review-a-proposal-from-an-external-agent');
+  if (process.env.KESSETSU_E2E_SCREENSHOTS) await page.screenshot({ path: 'test-results/proposal-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBeTruthy();
+  if (process.env.KESSETSU_E2E_SCREENSHOTS) await page.screenshot({ path: 'test-results/proposal-mobile.png', fullPage: true });
+});

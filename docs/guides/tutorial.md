@@ -38,6 +38,10 @@ simulation shows which cutoff assertions no longer pass. Restore `1k`, run once 
 
 ## Run it with the CLI
 
+Install [Kessetsu CLI and its simulator prerequisites](https://kessetsu.com/install/) first.
+`kess check` needs only the CLI; `kess test` also needs Ngspice. Browser users do not need
+either local installation.
+
 Save the source as `rc.kess`. First validate syntax, semantics, ERC and schematic connectivity
 without simulation:
 

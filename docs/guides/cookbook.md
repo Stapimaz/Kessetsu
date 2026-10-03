@@ -1,5 +1,9 @@
 # Kessetsu Cookbook
 
+Start with the complete [first-circuit tutorial](tutorial.md). Snippets below explain individual
+features; unless explicitly linked as a complete example, they need the surrounding circuit,
+connections and analyses. Do not replace your whole Source with a declaration-only excerpt.
+
 ## Start from a useful calculation
 
 The Web toolkit offers a loaded voltage divider and an RC low-pass filter. Enter SI quantities,
@@ -214,6 +218,8 @@ Read `diagnostics[]`, `assertions.assertions[]` and `assertions.summary`; do not
 - Schematic JSON: lossless versioned Kessetsu interchange.
 - SPICE: canonical simulation netlist.
 - KiCad/LTspice: editable handoff with the loss/capability report documented in [export formats](../reference/exports.md).
+- BOM CSV: grouped physical-part selections and unresolved items.
+- Handoff JSON: component/footprint readiness, pin maps and model dependencies.
 
 ## Choose and verify a component model
 
@@ -285,4 +291,10 @@ kess compile .\design.kess --output .\design.spice --format json --include model
 kess test .\design.kess --format json --include models
 ```
 
-The digest, `.SUBCKT` entry, canonical five-pin mapping, license and compatibility mode must all match. The current Web Hub and stdin-only CLI cannot bind external file bytes and fail closed instead of substituting a generic model. See [language reference](../reference/language.md#typed-models-and-packages) for the complete contract.
+The digest, `.SUBCKT` entry, canonical five-pin mapping, license and compatibility mode must all
+match. The `ngspice_ps` declaration shown here needs the native CLI; stdin-only CLI input cannot
+resolve local model files. Web Hub can bind portable `ngspice` models explicitly through
+**View → Circuit details…**, but it does not silently convert a native-only model or substitute
+a generic one. See the [model catalog](../reference/model-catalog.md) for working downloadable
+Web examples and the [language reference](../reference/language.md#typed-models-and-packages)
+for the complete declaration contract.
