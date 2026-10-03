@@ -46,6 +46,7 @@ export function ArtifactBar({ enabled, capabilities, message, filenameStem, onEx
       <header><div><h2 id="export-title">Export circuit</h2><p>Choose a format to download.</p></div>
         <button aria-label="Close export" onClick={() => dialogRef.current?.close()}><X size={18} /></button>
       </header>
+      <p className="dialog-help-link"><a href={`${import.meta.env.BASE_URL}docs/reference/exports/`} target="_blank" rel="noreferrer">Compare formats and what each preserves</a></p>
       <div className="export-buttons" data-testid="export-capabilities">
         {capabilities.map((descriptor) => (
           <button

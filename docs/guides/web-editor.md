@@ -21,6 +21,9 @@ The Source panel is a text editor with language completion and diagnostics. Chan
 automatically compile, run ERC and update the schematic after a short delay. The header
 status reports checking, success or errors. Fix source diagnostics before exporting or running.
 An automatic check is structural verification, not a completed simulation.
+When an error blocks work, **Show source errors** restores Source even if it was minimized;
+click a diagnostic with a line number to jump to that location. While your edits are being
+checked, the panels say **Checking source**, not that they are ready to run.
 
 ## Arrange the panels
 
@@ -49,6 +52,14 @@ When the source records physical-part ratings, a separate **Provided part limits
 model stress, utilization, recorded conditions and citation. Its Within/Exceeds/Unavailable state
 is advisory and never presented as a requirement PASS or hardware-safety approval.
 Editing the source makes previous results stale: rerun before drawing conclusions.
+Old results are cleared rather than shown as evidence for the edited circuit; **Run again**
+uses the current source. A canceled run leaves the source unchanged. If a run fails, the panel
+shows the actual error and a troubleshooting link instead of accepted results.
+
+A valid circuit with no analysis can still be exported. The Simulation panel explains how to
+add `simulate op` for DC node voltages and currents, and links to the other analysis types;
+it does not offer a Run action that can only fail. A successful run with no assertions explicitly
+says that no requirement checks were defined.
 See [simulation and assertions](../reference/simulation-and-assertions.md) and
 [measurements](../reference/measurements.md) for exact meanings and analysis requirements.
 
@@ -110,6 +121,8 @@ for **File → Restore previous circuit** where available.
 
 For an `external_subcircuit`, open **View → Circuit details…** and select the file beside
 the declared resource. Its exact hash and interface must match before compilation succeeds.
+When files are missing or mismatched, **Choose model files** in Simulation or Schematic
+opens that dialog directly. Selecting a file alone is not validation; wait for **Source valid**.
 Files remain in memory only: reselect after reload, opening another document or sharing.
 Browser-incompatible models require the native CLI; there is no generic replacement.
 The [model catalog](../reference/model-catalog.md) provides example downloads and limits.
@@ -127,3 +140,6 @@ separately under their license terms. Large sources produce longer links; no ser
 short-link service is currently provided.
 
 For compilation, simulation or storage failures, consult [troubleshooting](troubleshooting.md).
+**Help → First circuit tutorial** and **Help → Troubleshooting** lead directly to these
+starting and recovery paths. Export, Circuit details and Analyze dialogs also link to their
+relevant guides without requiring you to search the full documentation.

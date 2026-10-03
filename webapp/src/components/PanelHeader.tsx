@@ -4,6 +4,7 @@ import type { MouseEvent, ReactNode } from 'react';
 export interface PanelWindowControls {
   panel: 'source' | 'schematic' | 'results';
   maximized: boolean;
+  visible: boolean;
   minimize(): void;
   toggleMaximize(): void;
 }

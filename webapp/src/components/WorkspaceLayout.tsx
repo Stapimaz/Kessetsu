@@ -91,11 +91,20 @@ interface Props {
   schematic: PanelRenderer;
   results: PanelRenderer;
   resetRequest: number;
+  sourceRevealRequest: number;
 }
 
-export function WorkspaceLayout({ source, schematic, results, resetRequest }: Props) {
+export function WorkspaceLayout({ source, schematic, results, resetRequest, sourceRevealRequest }: Props) {
   const [layout, setLayout] = useState(readLayout);
   const previousResetRequest = useRef(resetRequest);
+  const previousSourceRevealRequest = useRef(sourceRevealRequest);
+
+  useEffect(() => {
+    if (previousSourceRevealRequest.current !== sourceRevealRequest) {
+      previousSourceRevealRequest.current = sourceRevealRequest;
+      setLayout((current) => ({ ...current, source: true, maximized: null }));
+    }
+  }, [sourceRevealRequest]);
 
   useEffect(() => {
     try { localStorage.setItem(storageKey, JSON.stringify(layout)); } catch { /* Nonessential preference. */ }
@@ -128,6 +137,7 @@ export function WorkspaceLayout({ source, schematic, results, resetRequest }: Pr
   const controls = (panel: Panel): PanelWindowControls => ({
     panel,
     maximized: layout.maximized === panel,
+    visible: isVisible(panel),
     minimize: () => setLayout((current) => ({ ...current, [panel]: false, maximized: null })),
     toggleMaximize: () => setLayout((current) => ({
       ...current,

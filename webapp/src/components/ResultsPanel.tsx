@@ -1,14 +1,18 @@
 import { Activity, RotateCcw, Square, Zap } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import type { SimulationState } from '../domain';
+import type { SimulationState, SourceFeedback } from '../domain';
 import type { AssertionResult, BrowserEvaluation, Dataset } from '../simulation/types';
 import { PanelHeader, type PanelWindowControls } from './PanelHeader';
 
 interface Props {
   state: SimulationState;
+  hasSimulationAttempt: boolean;
   message: string;
   evaluation: BrowserEvaluation | null;
   compileSucceeded: boolean;
+  sourceFeedback: SourceFeedback | null;
+  simulationConfigured: boolean;
+  onResolveSource(): void;
   onRun(): void;
   onCancel(): void;
   panelControls: PanelWindowControls;
@@ -199,32 +203,41 @@ function DatasetView({ dataset, assertions }: { dataset: Dataset; assertions: As
   /></>;
 }
 
-export function ResultsPanel({ state, message, evaluation, compileSucceeded, onRun, onCancel, panelControls }: Props) {
+export function ResultsPanel({ state, hasSimulationAttempt, message, evaluation, compileSucceeded, sourceFeedback, simulationConfigured, onResolveSource, onRun, onCancel, panelControls }: Props) {
   const [datasetIndex, setDatasetIndex] = useState(0);
   const datasets = evaluation?.simulation.datasets ?? [];
   const selected = datasets[datasetIndex] ?? datasets[0];
   useEffect(() => setDatasetIndex(0), [evaluation]);
   const summary = evaluation?.assertions.summary;
-  const showFirstRunGuide = state === 'idle' && (message.startsWith('Run the simulation') || message.startsWith('This starter circuit'));
+  const showFirstRunGuide = !sourceFeedback && simulationConfigured && state === 'idle'
+    && (message.startsWith('Run the simulation') || message.startsWith('This starter circuit'));
+  const needsAnalysis = !sourceFeedback && !simulationConfigured;
+  const rerun = hasSimulationAttempt && (state === 'failed' || state === 'cancelled' || message.startsWith('Simulation results are out of date') || message.startsWith('Model bindings changed'));
+  const displayedMessage = sourceFeedback?.message ?? (needsAnalysis
+    ? 'Your circuit is valid and can be exported. Add an analysis in Source to calculate its behavior.'
+    : message);
   const statusText = useMemo(() => {
+    if (sourceFeedback) return sourceFeedback.title;
+    if (!simulationConfigured) return 'No analysis configured';
     if (summary && summary.total > 0) return `${summary.passed}/${summary.total} requirements passed · ${evaluation?.simulation.simulator.version}`;
     if (state === 'succeeded') return `Simulation complete · ${evaluation?.simulation.simulator.version}`;
     if (state === 'running') return message;
     if (state === 'failed') return 'Failed';
     if (state === 'cancelled') return 'Cancelled';
     if (message.startsWith('Simulation results are out of date')) return 'Results out of date';
+    if (message.startsWith('Model bindings changed')) return 'Results out of date';
     if (message.startsWith('Add a simulation command')) return 'Not configured';
     return 'Ready';
-  }, [evaluation?.simulation.simulator.version, message, state, summary]);
+  }, [evaluation?.simulation.simulator.version, message, state, summary, sourceFeedback, simulationConfigured]);
 
   return (
     <section className="workspace-panel results-panel" aria-label="Circuit simulation" data-testid="simulation-summary" data-state={state}>
       <PanelHeader controls={panelControls} icon={<Activity size={15} />} title="Simulation">
         <div className="simulation-toolbar">
-          <span className={`run-status status-${state}`}>{statusText}</span>
+          <span className={`run-status status-${state}`} role="status">{statusText}</span>
           {state === 'running'
             ? <button className="simulation-run-button cancel-button" aria-label="Cancel simulation" onClick={onCancel}><Square size={12} /><span>Cancel</span></button>
-            : <button className="simulation-run-button run-button" aria-label="Run simulation" onClick={onRun} disabled={!compileSucceeded}><Zap size={13} /><span>Run</span></button>}
+            : <button className="simulation-run-button run-button" aria-label="Run simulation" title={sourceFeedback?.message ?? (needsAnalysis ? 'Add a simulation analysis in Source first.' : 'Simulate the current source and evaluate its assertions.')} onClick={onRun} disabled={!compileSucceeded || !simulationConfigured}><Zap size={13} /><span>{rerun ? 'Run again' : 'Run'}</span></button>}
         </div>
       </PanelHeader>
       <div className="results-body">
@@ -243,14 +256,28 @@ export function ResultsPanel({ state, message, evaluation, compileSucceeded, onR
             </div>
             {selected && <DatasetView dataset={selected.data} assertions={evaluation?.assertions.assertions ?? []} />}
           </>
-        ) : <div className={`result-empty result-${state}`}><Activity size={28} />
+        ) : <div className={`result-empty result-${state}`}>
+          <Activity size={28} className={state === 'running' ? 'simulation-running-icon' : undefined} />
+          {sourceFeedback && <strong>{sourceFeedback.title}</strong>}
+          {needsAnalysis && <strong>Add an analysis to simulate</strong>}
           {showFirstRunGuide && <strong>Ready for your first run</strong>}
-          <p>{message}</p>
+          <p>{displayedMessage}</p>
+          {sourceFeedback?.actionLabel && <button className="secondary-button" onClick={onResolveSource}>{sourceFeedback.actionLabel}</button>}
+          {needsAnalysis && <div className="simulation-help">
+            <p>Start with <code>simulate op</code> on a new line for DC voltages and currents.</p>
+            <a href={`${import.meta.env.BASE_URL}docs/reference/simulation-and-assertions/`} target="_blank" rel="noreferrer">Choose an analysis: operating point, AC, transient or DC sweep</a>
+          </div>}
+          {!sourceFeedback && !needsAnalysis && state === 'failed' && <div className="simulation-help">
+            <p>No results were accepted. Check the error above and your source, then Run again.</p>
+            <a href={`${import.meta.env.BASE_URL}docs/guides/troubleshooting/`} target="_blank" rel="noreferrer">Simulation troubleshooting</a>
+          </div>}
+          {!sourceFeedback && !needsAnalysis && state === 'cancelled' && <p>Your source is unchanged. Run again when you are ready.</p>}
           {showFirstRunGuide && <div className="result-start-guide" aria-label="First simulation steps">
-            <span><b>1</b> Edit a value in Source</span><span><b>2</b> Press Run above</span><span><b>3</b> Inspect plots and assertions</span>
+            <span><b>1</b> Review Source</span><span><b>2</b> Press Run above</span><span><b>3</b> Inspect plots and assertions</span><span><b>4</b> Export from the top bar</span>
             <a href={`${import.meta.env.BASE_URL}docs/guides/tutorial/`} target="_blank" rel="noreferrer">Open the first-circuit tutorial</a>
           </div>}
         </div>}
+        {state === 'succeeded' && summary?.total === 0 && <p className="simulation-help">Simulation completed without requirement checks. Add <code>assert</code> statements in Source to test measurable limits. <a href={`${import.meta.env.BASE_URL}docs/reference/simulation-and-assertions/`} target="_blank" rel="noreferrer">Learn about assertions</a></p>}
         {!!evaluation?.assertions.assertions.length && <div className="requirements-wrap">
           <table className="requirements-table" aria-label="Engineering requirements">
             <thead><tr><th>Status</th><th>Requirement</th><th>Measured</th><th>Limit</th></tr></thead>

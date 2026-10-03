@@ -158,6 +158,7 @@ export function StudyDialog({ open, source, name, resources, onClose, onApplySou
 
   return <dialog ref={dialog} className="app-dialog study-dialog" aria-labelledby="study-title" onClose={() => { if (active.current) cancel(); onClose(); }}>
     <header><div><h2 id="study-title">Parameter study</h2><p>Try conditions, keep every outcome and compare the results.</p></div><button aria-label="Close parameter study" onClick={() => dialog.current?.close()}><X size={18} /></button></header>
+    <p className="dialog-help-link"><a href={`${import.meta.env.BASE_URL}docs/guides/parameter-studies/`} target="_blank" rel="noreferrer">How to set up a study and read its outcomes</a></p>
     <nav className="study-tabs" aria-label="Study sections"><button aria-pressed={tab === 'configure'} onClick={() => setTab('configure')}>Configure</button><button aria-pressed={tab === 'results'} disabled={!results} onClick={() => setTab('results')}>Results</button><button onClick={() => importInput.current?.click()} disabled={running}>Open study / results…</button></nav>
     <input ref={importInput} type="file" className="sr-only" accept=".json" aria-label="Open study file" onChange={event => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (file) void importFile(file, false); }} />
     <input ref={compareInput} type="file" className="sr-only" accept=".json" aria-label="Compare study results file" onChange={event => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (file) void importFile(file, true); }} />

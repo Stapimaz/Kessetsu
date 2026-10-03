@@ -37,6 +37,7 @@ export function CircuitDetailsDialog({ open, spice, models, onClose, resources, 
         </div>
         <button aria-label="Close circuit details" onClick={() => dialogRef.current?.close()}><X size={18} /></button>
       </header>
+      <p className="dialog-help-link"><a href={`${import.meta.env.BASE_URL}docs/reference/model-catalog/`} target="_blank" rel="noreferrer">Model examples, local files and simulation limits</a></p>
       {resources.length > 0 && <section className="model-details">
         <div className="dialog-section-heading"><h3>Local model files</h3>
           <button onClick={onClearFiles} disabled={boundResources.length === 0}>Clear files</button>

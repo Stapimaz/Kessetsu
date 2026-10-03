@@ -126,7 +126,10 @@ replacing the generated simulation artifact from the first call, not the origina
 On subsequent file-based runs, use it only when replacing that output is intended.
 Editing a design setting must not silently rewrite its acceptance criteria.
 The `KESSETSU_OPAMP_V1` model is
-generic, not a manufacturer part. Finite bandwidth, output swing and loading still matter.
+generic, not a manufacturer part. Its finite-gain, RC-pole model includes bandwidth and loading,
+but its supply pins are unused internally: it does not model rail-limited output swing,
+supply consumption or a realistic output-current limit. Use an appropriate external device model
+when those effects determine whether a design meets its requirements.
 A requested gain of 1 makes this resistor topology invalid; use a directly wired follower
 instead. The formula is not a guarantee for any requested gain or physical device.
 

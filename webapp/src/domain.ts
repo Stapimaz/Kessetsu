@@ -1,4 +1,4 @@
-import type { BrowserEvaluation } from './simulation/types';
+import type { Analysis, BrowserEvaluation } from './simulation/types';
 
 export interface CompileDiagnostic {
   code: string;
@@ -47,6 +47,7 @@ export interface SchematicNet {
 }
 
 export interface CircuitIrSummary {
+  analyses: Analysis[];
   components: Array<{
     id: string;
     instance_path?: string[];
@@ -159,6 +160,12 @@ export interface ExportArtifact extends ExportDescriptor {
 export type SimulationState = 'idle' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 export type CompileState = 'loading' | 'checking' | 'valid' | 'invalid';
 
+export interface SourceFeedback {
+  title: string;
+  message: string;
+  actionLabel?: string;
+}
+
 export interface WorkspaceState {
   code: string;
   circuitName: string | null;
@@ -178,6 +185,7 @@ export interface WorkspaceState {
   exportCapabilities: ExportDescriptor[];
   exportMessage: string;
   simulationState: SimulationState;
+  hasSimulationAttempt: boolean;
   simulationMessage: string;
   evaluation: BrowserEvaluation | null;
 }

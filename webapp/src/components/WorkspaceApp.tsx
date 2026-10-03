@@ -1,6 +1,7 @@
 import { CheckCircle2, ChevronRight, CircleAlert, LoaderCircle, Share2 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
+import type { SourceFeedback } from '../domain';
 import productVersionSource from '../../../VERSION?raw';
 import {
   downloadTextFile,
@@ -43,6 +44,7 @@ export function WorkspaceApp() {
   const [openMenu, setOpenMenu] = useState<MenuId | null>(null);
   const [examplesOpen, setExamplesOpen] = useState(false);
   const [resetRequest, setResetRequest] = useState(0);
+  const [sourceRevealRequest, setSourceRevealRequest] = useState(0);
   const [circuitDetailsOpen, setCircuitDetailsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -80,6 +82,18 @@ export function WorkspaceApp() {
     : state.compileState === 'invalid'
       ? CircleAlert
       : LoaderCircle;
+  const modelFileError = modelRequirements.length > 0
+    && state.diagnostics.some((diagnostic) => ['KES-C015', 'KES-C016', 'KES-C017'].includes(diagnostic.code));
+  const sourceFeedback: SourceFeedback | null = state.compileState === 'valid' ? null
+    : state.wasmError ? { title: 'Editor unavailable', message: 'The editor could not load this circuit. See the error above before reloading.' }
+    : state.compileState === 'loading' ? { title: 'Loading editor', message: 'Preparing local circuit checks. Simulation and export will be available when the source is valid.' }
+    : state.compileState === 'checking' ? { title: 'Checking source', message: 'Checking your changes before simulation and export.' }
+    : modelFileError ? { title: 'Model file needed', message: 'Choose the exact local model file declared in Source. Missing or mismatched files cannot be simulated.', actionLabel: 'Choose model files' }
+    : { title: 'Fix source errors', message: 'Simulation and export are paused. Open the source diagnostics; select a reported line to fix it.', actionLabel: 'Show source errors' };
+  const resolveSource = () => {
+    if (modelFileError) setCircuitDetailsOpen(true);
+    else setSourceRevealRequest((current) => current + 1);
+  };
 
   useEffect(() => {
     document.documentElement.dataset.theme = 'dark';
@@ -340,7 +354,13 @@ export function WorkspaceApp() {
                     </button>
                   ))}
                   <span className="menu-group-label">Local model files</span>
-                  {(['comparator', 'memristor', 'study_filter', 'study_driver'] as const).map((id) => (
+                  {(['comparator', 'memristor'] as const).map((id) => (
+                    <button key={id} role="menuitem" aria-label={examples[id].label} onClick={() => selectExample(id)}>
+                      <strong>{examples[id].label}</strong><small>{examples[id].description}</small>
+                    </button>
+                  ))}
+                  <span className="menu-group-label">Parameter studies</span>
+                  {(['study_filter', 'study_driver'] as const).map((id) => (
                     <button key={id} role="menuitem" aria-label={examples[id].label} onClick={() => selectExample(id)}>
                       <strong>{examples[id].label}</strong><small>{examples[id].description}</small>
                     </button>
@@ -373,7 +393,9 @@ export function WorkspaceApp() {
           <div className="application-menu">
             <button aria-haspopup="menu" aria-expanded={openMenu === 'help'} onClick={() => toggleMenu('help')}>Help</button>
             {openMenu === 'help' && <div className="menu-popover" role="menu" aria-label="Help menu">
+              <a role="menuitem" href={`${import.meta.env.BASE_URL}docs/guides/tutorial/`} target="_blank" rel="noreferrer">First circuit tutorial</a>
               <a role="menuitem" href={`${import.meta.env.BASE_URL}docs/`} target="_blank" rel="noreferrer">Documentation</a>
+              <a role="menuitem" href={`${import.meta.env.BASE_URL}docs/guides/troubleshooting/`} target="_blank" rel="noreferrer">Troubleshooting</a>
               <a role="menuitem" href={`${import.meta.env.BASE_URL}changelog/`} target="_blank" rel="noreferrer">What’s new in {productVersion}</a>
               <a role="menuitem" href="https://github.com/Stapimaz/Kessetsu" target="_blank" rel="noreferrer" aria-label="Kessetsu corresponding source code">Corresponding source</a>
               <a role="menuitem" href={`${import.meta.env.BASE_URL}LICENSE.txt`} target="_blank" rel="noreferrer">License</a>
@@ -462,19 +484,26 @@ export function WorkspaceApp() {
       {state.wasmLoaded && researchDataMounted && <Suspense fallback={null}><ResearchDataDialog open={researchDataOpen} evaluation={state.evaluation} circuitName={documentName} onClose={() => setResearchDataOpen(false)} /></Suspense>}
       <WorkspaceLayout
         resetRequest={resetRequest}
+        sourceRevealRequest={sourceRevealRequest}
         source={(panelControls) => <EditorPanel
           code={state.code}
           diagnostics={state.diagnostics}
           compileSucceeded={state.compileSucceeded}
+          compileState={state.compileState}
+          revealRequest={sourceRevealRequest}
           onCodeChange={setCode}
           panelControls={panelControls}
         />}
-        schematic={(panelControls) => <SchematicPanel schematic={state.schematic} circuitIr={state.circuitIr} svg={state.schematicSvg} panelControls={panelControls} />}
+        schematic={(panelControls) => <SchematicPanel schematic={state.schematic} circuitIr={state.circuitIr} svg={state.schematicSvg} panelControls={panelControls} sourceFeedback={sourceFeedback} onResolveSource={resolveSource} />}
         results={(panelControls) => <ResultsPanel
           state={state.simulationState}
+          hasSimulationAttempt={state.hasSimulationAttempt}
           message={state.simulationMessage}
           evaluation={state.evaluation}
           compileSucceeded={state.compileSucceeded}
+          sourceFeedback={sourceFeedback}
+          simulationConfigured={Boolean(state.circuitIr?.analyses.length)}
+          onResolveSource={resolveSource}
           onRun={() => void run()}
           onCancel={cancel}
           panelControls={panelControls}

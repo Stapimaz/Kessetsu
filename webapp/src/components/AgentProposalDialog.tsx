@@ -270,6 +270,7 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
   return <dialog ref={dialog} className="app-dialog agent-proposal-dialog" aria-labelledby="agent-proposal-title"
     onCancel={(event) => { event.preventDefault(); close(); }} onClose={() => { invalidatePending(); onClose(); }}>
     <header><div><h2 id="agent-proposal-title">Work with an AI agent</h2><p>Send the current circuit to an AI, then let Kessetsu test its returned design before you apply it.</p></div><button aria-label="Close AI agent workflow" onClick={close}><X size={18} /></button></header>
+    <p className="dialog-help-link"><a href={`${import.meta.env.BASE_URL}docs/guides/web-editor/#review-a-proposal-from-an-external-agent`} target="_blank" rel="noreferrer">How the agent handoff works and what a test proves</a></p>
 
     <div className="agent-privacy-note">
       <strong>You stay in control.</strong>

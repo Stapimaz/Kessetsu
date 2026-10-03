@@ -250,6 +250,16 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .result-start-guide span { padding: 5px 7px; border: 1px solid var(--border); border-radius: 5px; color: #9fb0c5; background: var(--panel-raised); font-size: 10px; }
 .result-start-guide b { display: inline-grid; width: 16px; height: 16px; margin-right: 3px; place-items: center; border: 1px solid #315267; border-radius: 50%; color: var(--accent); font-size: 8px; }
 .result-start-guide a { flex-basis: 100%; margin-top: 3px; color: #8dc7ff; text-align: center; font-size: 10px; }
+.source-recovery { display: grid; justify-items: center; gap: 8px; max-width: 440px; padding: 20px; text-align: center; }
+.source-recovery strong { color: var(--text); }
+.source-recovery p { margin: 0; }
+.result-empty { padding: 16px; }
+.simulation-help { max-width: 520px; font-size: 11px; color: var(--muted); text-align: center; overflow-wrap: anywhere; }
+.simulation-help p { margin: 6px 0; }
+.simulation-help a { color: #8dc7ff; }
+.simulation-running-icon { color: var(--accent); }
+.dialog-help-link { margin: 0 0 12px; font-size: 12px; }
+.dialog-help-link a { color: #8dc7ff; }
 .analysis-tabs { display: flex; gap: 5px; overflow-x: auto; margin-bottom: 8px; }
 .analysis-tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--muted); background: transparent; padding: 7px 12px; cursor: pointer; text-transform: capitalize; font-size: 12px; }
 .analysis-tabs button[aria-selected='true'] { border-color: var(--accent); color: var(--accent); background: var(--accent-dark); }

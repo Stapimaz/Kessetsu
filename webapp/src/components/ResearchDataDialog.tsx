@@ -321,6 +321,7 @@ export function ResearchDataDialog({ open, evaluation, circuitName, onClose }: P
 
   return <dialog ref={dialog} className="app-dialog research-dialog" aria-labelledby="research-data-title" onClose={onClose}>
     <header><div><h2 id="research-data-title">Research data</h2><p>Map and compare local CSV evidence. Files stay in this browser tab.</p></div><button aria-label="Close research data" onClick={() => dialog.current?.close()}><X size={17} /></button></header>
+    <p className="dialog-help-link"><a href={`${import.meta.env.BASE_URL}docs/guides/research-data/`} target="_blank" rel="noreferrer">CSV inputs, mapping and comparison walkthrough</a></p>
     <nav className="research-steps" aria-label="Research data steps">
       <button aria-pressed={step === 'data'} onClick={() => setStep('data')}>1 · Observed {data.dataset && <CheckCircle2 size={13} />}</button>
       <button aria-pressed={step === 'reference'} onClick={() => setStep('reference')}>2 · Reference {reference.dataset && <CheckCircle2 size={13} />}</button>

@@ -89,6 +89,7 @@ const initialState: WorkspaceState = {
   exportCapabilities: [],
   exportMessage: '',
   simulationState: 'idle',
+  hasSimulationAttempt: false,
   simulationMessage: 'Run the simulation to inspect plots and requirements.',
   evaluation: null,
 };
@@ -242,7 +243,7 @@ export function useKessetsuWorkspace() {
       kicadSch: '',
       modelManifest: null,
       simulationState: 'idle',
-      simulationMessage: 'Simulation results are out of date. Run again.',
+      simulationMessage: current.hasSimulationAttempt ? 'Simulation results are out of date. Run again.' : 'Run the simulation to inspect plots and requirements.',
       evaluation: null,
       exportMessage: '',
     }));
@@ -270,6 +271,7 @@ export function useKessetsuWorkspace() {
       modelManifest: null,
       simulationState: 'idle',
       simulationMessage: 'Run the simulation to inspect plots and requirements.',
+      hasSimulationAttempt: false,
       evaluation: null,
       exportMessage: '',
     }));
@@ -297,6 +299,7 @@ export function useKessetsuWorkspace() {
       modelManifest: null,
       simulationState: 'idle',
       simulationMessage: 'This starter circuit includes an operating-point analysis. Press Run to simulate it.',
+      hasSimulationAttempt: false,
       evaluation: null,
       exportMessage: '',
     }));
@@ -330,6 +333,7 @@ export function useKessetsuWorkspace() {
       modelManifest: null,
       simulationState: 'idle',
       simulationMessage: 'Run the simulation to inspect plots and requirements.',
+      hasSimulationAttempt: false,
       evaluation: null,
       exportMessage: '',
     }));
@@ -374,6 +378,7 @@ export function useKessetsuWorkspace() {
       modelManifest: null,
       simulationState: 'idle',
       simulationMessage: 'Imported from SPICE. Run the simulation to inspect results.',
+      hasSimulationAttempt: false,
       evaluation: null,
       exportMessage: '',
     }));
@@ -397,7 +402,7 @@ export function useKessetsuWorkspace() {
   const run = useCallback(async () => {
     if (!state.wasmLoaded || !state.compileSucceeded || !runnerRef.current) return;
     const revision = ++revisionRef.current;
-    setState((current) => ({ ...current, evaluation: null, simulationState: 'running', simulationMessage: 'Preparing simulation…' }));
+    setState((current) => ({ ...current, evaluation: null, simulationState: 'running', hasSimulationAttempt: true, simulationMessage: 'Preparing simulation…' }));
     try {
       const plan = prepare_browser_simulation_with_resources(state.code, modelResources) as BrowserSimulationPlan;
       if (plan.analyses.length === 0) throw new Error('The circuit has no simulation command to run');
@@ -454,7 +459,7 @@ export function useKessetsuWorkspace() {
     setState((current) => ({ ...current, compileState: 'checking', compileSucceeded: false,
       schematic: null, circuitIr: null, schematicSvg: '', spiceNetlist: '', kicadSch: '', modelManifest: null,
       diagnostics: [], evaluation: null, simulationState: 'idle', exportMessage: '',
-      simulationMessage: 'Model bindings changed. Run the simulation again.' }));
+      simulationMessage: current.hasSimulationAttempt ? 'Model bindings changed. Run the simulation again.' : 'Run the simulation to inspect plots and requirements.' }));
   }, []);
 
   const bindModelFile = useCallback(async (resource: string, file: File) => {

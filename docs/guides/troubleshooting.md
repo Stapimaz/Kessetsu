@@ -45,7 +45,21 @@ Kessetsu accepts only `kessetsu.share.v1`, limits compressed input and decompres
 
 ## Web simulation does not start
 
+Check the Simulation panel's status first:
+
+- **Checking source:** wait for the automatic check after your edit.
+- **Fix source errors:** choose **Show source errors** to restore Source, then click the
+  diagnostic's reported line. Simulation/export wait for a valid source.
+- **Model file needed:** choose **Choose model files**, then select the exact declared library.
+  A wrong file remains rejected; see its diagnostic for hash or interface mismatches.
+- **No analysis configured:** add an analysis such as `simulate op` to Source. A schematic
+  and export do not require a simulation command.
+- **Results out of date:** source or model bindings changed; run again before using results.
+
 Confirm that JavaScript, WebAssembly and module Workers are allowed and reload once. The production build pins and integrity-checks the runtime. Browser simulation runs locally; the Web Hub sends no telemetry and has no server-side fallback.
+
+A completed run with no assertions is not a verified requirement set. Add measurable
+`assert` statements, or use the [first circuit tutorial](tutorial.md) for a five-check example.
 
 ## KiCad/LTspice warning on open
 

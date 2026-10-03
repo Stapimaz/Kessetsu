@@ -1,6 +1,6 @@
 import { Boxes, CircuitBoard, Focus, Grid3X3, Minus, Plus, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { CircuitIrSummary, SchematicComponent, SchematicSummary } from '../domain';
+import type { CircuitIrSummary, SchematicComponent, SchematicSummary, SourceFeedback } from '../domain';
 import { PanelHeader, type PanelWindowControls } from './PanelHeader';
 
 interface Props {
@@ -8,6 +8,8 @@ interface Props {
   circuitIr: CircuitIrSummary | null;
   svg: string;
   panelControls: PanelWindowControls;
+  sourceFeedback: SourceFeedback | null;
+  onResolveSource(): void;
 }
 
 type Selection =
@@ -71,7 +73,7 @@ function componentKind(kind: string | Record<string, unknown> | undefined) {
   return Object.keys(kind)[0]?.replaceAll('_', ' ') ?? 'Component';
 }
 
-export function SchematicPanel({ schematic, circuitIr, svg, panelControls }: Props) {
+export function SchematicPanel({ schematic, circuitIr, svg, panelControls, sourceFeedback, onResolveSource }: Props) {
   const [view, setView] = useState({ zoom: 1, pan: { x: 0, y: 0 } });
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
   const [gridVisible, setGridVisible] = useState(true);
@@ -208,7 +210,7 @@ export function SchematicPanel({ schematic, circuitIr, svg, panelControls }: Pro
     <section className="workspace-panel schematic-panel" aria-label="Canonical schematic">
       <PanelHeader controls={panelControls} icon={<CircuitBoard size={15} />} title="Schematic">
         <span className={`quality-badge ${schematic?.quality.passed ? 'quality-pass' : ''}`}>
-          {schematic?.connectivity.verified ? 'Connectivity verified' : 'Waiting'}
+          {schematic?.connectivity.verified ? 'Connectivity verified' : sourceFeedback?.title ?? 'Waiting'}
         </span>
         <div className="icon-actions" aria-label="Schematic view">
           <button
@@ -301,7 +303,11 @@ export function SchematicPanel({ schematic, circuitIr, svg, panelControls }: Pro
             style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
             dangerouslySetInnerHTML={{ __html: svg }}
           />
-        ) : <div className="empty-state">Waiting for a valid circuit…</div>}
+        ) : <div className="empty-state source-recovery" onPointerDown={(event) => event.stopPropagation()}>
+          <strong>{sourceFeedback?.title ?? 'Waiting for a valid circuit'}</strong>
+          <p>{sourceFeedback?.message ?? 'A valid source will generate the schematic automatically.'}</p>
+          {sourceFeedback?.actionLabel && <button className="secondary-button" onClick={onResolveSource}>{sourceFeedback.actionLabel}</button>}
+        </div>}
 
         {svg && navigatorOpen && <aside className="schematic-navigator" aria-label="Schematic inspector" onPointerDown={(event) => event.stopPropagation()} onWheel={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key.startsWith('Arrow')) event.stopPropagation(); }}>
           <header><div><strong>{selection ? 'Inspect' : 'Navigate'}</strong><small>{components.length} components · {nets.length} nets</small></div><button aria-label="Close schematic inspector" onClick={() => setNavigatorOpen(false)}><X size={14} /></button></header>

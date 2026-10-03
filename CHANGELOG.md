@@ -30,6 +30,13 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 - The Simulation panel now gives a compact edit → run → inspect first-use path and links directly
   to the tutorial. A new circuit correctly says its included operating-point analysis is ready to
   run instead of incorrectly asking the user to add a simulation command.
+- Simulation and Schematic now explain checking, source errors and missing/mismatched model
+  files with direct recovery actions. Source errors can restore a minimized Source panel without
+  resetting its split sizes. A valid circuit without an analysis remains exportable, while Run
+  stays disabled with analysis guidance; a completed run without assertions is explicitly unchecked.
+- Editing source clears obsolete results and offers Run again. Help, export, model selection and
+  advanced-analysis dialogs link directly to their relevant guides. Built-in parameter-study
+  examples no longer appear under local model files.
 - Landing and product-preview copy now describes source-based browser editing and encoded
   assertions precisely, and the landing export list includes BOM CSV and handoff JSON.
 - Public documentation now keeps the short first-circuit path separate from advanced analysis,

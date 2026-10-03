@@ -2,7 +2,7 @@ import Editor, { type OnMount } from '@monaco-editor/react';
 import { Code2 } from 'lucide-react';
 import { useCallback, useEffect, useRef } from 'react';
 import type { editor } from 'monaco-editor';
-import type { CompileDiagnostic } from '../domain';
+import type { CompileDiagnostic, CompileState } from '../domain';
 import { monaco } from '../monaco';
 import { PanelHeader, type PanelWindowControls } from './PanelHeader';
 
@@ -10,13 +10,16 @@ interface Props {
   code: string;
   diagnostics: CompileDiagnostic[];
   compileSucceeded: boolean;
+  compileState: CompileState;
+  revealRequest: number;
   onCodeChange(code: string): void;
   panelControls: PanelWindowControls;
 }
 
-export function EditorPanel({ code, diagnostics, compileSucceeded, onCodeChange, panelControls }: Props) {
+export function EditorPanel({ code, diagnostics, compileSucceeded, compileState, revealRequest, onCodeChange, panelControls }: Props) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const modelRef = useRef<editor.ITextModel | null>(null);
+  const previousRevealRequest = useRef(revealRequest);
 
   const applyMarkers = useCallback(() => {
     const model = modelRef.current;
@@ -37,6 +40,19 @@ export function EditorPanel({ code, diagnostics, compileSucceeded, onCodeChange,
   }, [diagnostics]);
 
   useEffect(applyMarkers, [applyMarkers]);
+
+  useEffect(() => {
+    if (!panelControls.visible || previousRevealRequest.current === revealRequest) return;
+    previousRevealRequest.current = revealRequest;
+    const diagnostic = diagnostics.find((item) => item.severity === 'error' && item.line);
+    // A recovery request must wait until the layout has actually restored Source.
+    editorRef.current?.layout();
+    if (diagnostic?.line) {
+      editorRef.current?.revealLineInCenter(diagnostic.line);
+      editorRef.current?.setPosition({ lineNumber: diagnostic.line, column: diagnostic.column ?? 1 });
+    }
+    editorRef.current?.focus();
+  }, [diagnostics, revealRequest, panelControls.visible]);
 
   const onMount: OnMount = (instance) => {
     editorRef.current = instance;
@@ -79,7 +95,7 @@ export function EditorPanel({ code, diagnostics, compileSucceeded, onCodeChange,
             <span>{diagnostic.message}</span>
             {diagnostic.line && <span className="diagnostic-location">L{diagnostic.line}:{diagnostic.column ?? 1}</span>}
           </button>
-        )) : <span className="diagnostic-pending">Initializing Core…</span>}
+        )) : <span className="diagnostic-pending">{compileState === 'loading' ? 'Loading circuit checks…' : compileState === 'checking' ? 'Checking your changes…' : 'Source needs attention. See the editor status above.'}</span>}
       </div>
     </section>
   );
