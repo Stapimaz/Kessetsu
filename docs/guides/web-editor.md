@@ -144,12 +144,22 @@ The [model catalog](../reference/model-catalog.md) provides example downloads an
 
 ## Export or share
 
-Use **Export** in the main header and choose a format and its available options. Review
+Use **Export** in the main header and choose a format. Review
 format warnings, especially model dependencies and EDA limitations. Save source separately;
 a PNG is not an editable circuit. See [export formats](../reference/exports.md).
 
-**Share** opens a dialog where you can name the circuit, then copy its URL. The link carries
-source and exact package identities, not current simulation datasets, file permissions or
+Exports are grouped by purpose: images/documents, editable schematics, simulation netlist,
+parts/handoff and structured schematic data. All advertised formats remain directly selectable.
+The download notice shows the chosen filename and format-specific warnings, including dependencies
+that must be supplied separately. To reopen work in Kessetsu, save a `.kess` from File instead.
+
+**Share** opens a dialog where you can name the circuit, then copy its URL. This creates a
+snapshot, not a live collaborative document: recipients edit their own copy, and later edits
+do not update links already sent. Anyone with the link can read its circuit.
+If clipboard access fails, select and copy the displayed link manually. Changing the name
+requires a new link. Closing abandons pending creation; late completion cannot rename the circuit
+or change its URL. Reopening starts a fresh sharing session for the current source.
+The link carries source and exact package identities, not current simulation datasets, file permissions or
 local model bytes. A recipient recompiles and runs locally. External models must be supplied
 separately under their license terms. Large sources produce longer links; no server-stored
 short-link service is currently provided.

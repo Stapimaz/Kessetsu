@@ -484,11 +484,12 @@ export function useKessetsuWorkspace() {
     if (artifact.schema_version !== export_schema_version()) {
       throw new Error(`Unsupported export schema: ${artifact.schema_version}`);
     }
+    const notices = [...new Set([...artifact.warnings, ...artifact.losses])];
     setState((current) => ({
       ...current,
-      exportMessage: artifact.losses.length > 0
-        ? `${artifact.label}: ${artifact.losses.join(' ')}`
-        : `${artifact.label}: connectivity verified · ${artifact.sha256.slice(0, 12)}`,
+      exportMessage: notices.length > 0
+        ? `${artifact.label}: ${notices.join(' ')}`
+        : `${artifact.label}: ${artifact.connectivity_verified ? 'connectivity verified' : 'supporting data'} · ${artifact.sha256.slice(0, 12)}`,
     }));
     return artifact;
   }, [state.code, state.compileSucceeded, state.wasmLoaded, modelResources]);
@@ -521,11 +522,12 @@ export function useKessetsuWorkspace() {
     setModelResources({});
   }, [invalidateBindings]);
 
-  const share = useCallback(async (name: string): Promise<string> => {
+  const share = useCallback(async (name: string, signal: AbortSignal): Promise<string> => {
     const snapshot = captureDocumentRevision();
     if (!state.wasmLoaded || !state.compileSucceeded) throw new Error('Compile must succeed before sharing');
     const circuitName = name.trim();
     const fragment = await encodeShareFragment(state.code, compile_schema_version(), state.modelManifest, circuitName);
+    if (signal.aborted) throw new Error('Link creation cancelled.');
     if (!isCurrentDocumentRevision(snapshot)) throw new Error('The circuit changed while creating the link. Create a new link for the current version.');
     const url = new URL(globalThis.location.href);
     url.hash = fragment.slice(1);

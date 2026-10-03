@@ -302,8 +302,8 @@ export function WorkspaceApp() {
     detachFileHandle();
   }, [detachFileHandle, renameDocument]);
 
-  const shareCircuit = useCallback(async (name: string) => {
-    const link = await share(name);
+  const shareCircuit = useCallback(async (name: string, signal: AbortSignal) => {
+    const link = await share(name, signal);
     if (name.trim() !== documentName) detachFileHandle();
     return link;
   }, [detachFileHandle, documentName, share]);
@@ -504,6 +504,7 @@ export function WorkspaceApp() {
       />
       <ShareDialog
         open={shareOpen}
+        source={state.code}
         currentName={documentName}
         onClose={() => setShareOpen(false)}
         onCreateLink={shareCircuit}

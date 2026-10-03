@@ -6,6 +6,12 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ### Web editor usability
 
+- Sharing explains source snapshots and privacy, supports manual copying when clipboard access
+  is blocked, and abandons pending link creation on close. Late creation/copy results cannot
+  change a reopened sharing session; repeated Enter presses do not start parallel requests.
+- Export formats are grouped by purpose while retaining direct access to all nine formats.
+  Download notices show filenames and complete Core warnings/loss notes, and explain that
+  saving `.kess` is the way to reopen a project in Kessetsu.
 - Native Save tracks the exact document revision: edits made during a pending write remain
   unsaved, repeated Save shortcuts do not start concurrent writes, and an older circuit's
   destination cannot attach to a new document. Failed writes attempt to abort their stream.

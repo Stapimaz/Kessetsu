@@ -17,6 +17,15 @@ const formatDescriptions: Record<ExportFormat, string> = {
   bom_csv: 'Grouped parts and unresolved selections', handoff_json: 'Parts, footprints, and model dependencies',
 };
 
+// Presentation only: Core's capability catalog still controls which formats exist.
+const exportGroups: { title: string; formats: ExportFormat[] }[] = [
+  { title: 'Images and documents', formats: ['svg', 'png', 'pdf'] },
+  { title: 'Editable schematics', formats: ['kicad', 'ltspice'] },
+  { title: 'Simulation netlist', formats: ['spice'] },
+  { title: 'Parts and engineering handoff', formats: ['bom_csv', 'handoff_json'] },
+  { title: 'Structured schematic data', formats: ['schematic_json'] },
+];
+
 function downloadArtifact(artifact: ExportArtifact, filenameStem: string) {
   const blob = new Blob([new Uint8Array(artifact.bytes)], { type: artifact.mime_type });
   const url = URL.createObjectURL(blob);
@@ -29,11 +38,15 @@ function downloadArtifact(artifact: ExportArtifact, filenameStem: string) {
 
 export function ArtifactBar({ enabled, capabilities, message, filenameStem, onExport }: Props) {
   const [error, setError] = useState('');
+  const [downloaded, setDownloaded] = useState('');
   const dialogRef = useRef<HTMLDialogElement>(null);
   const exportOne = (format: ExportFormat) => {
     try {
       setError('');
-      downloadArtifact(onExport(format), filenameStem);
+      setDownloaded('');
+      const artifact = onExport(format);
+      downloadArtifact(artifact, filenameStem);
+      setDownloaded(`${filenameStem}.${artifact.extension}`);
     } catch (cause: unknown) {
       setError(cause instanceof Error ? cause.message : String(cause));
     }
@@ -41,14 +54,26 @@ export function ArtifactBar({ enabled, capabilities, message, filenameStem, onEx
 
   return (
     <aside className="artifact-bar" aria-label="Exports">
-      <button className="header-action-button export-button" disabled={!enabled} onClick={() => dialogRef.current?.showModal()} aria-haspopup="dialog" aria-label="Export"><Download size={15} /><span>Export</span></button>
+      <button className="header-action-button export-button" disabled={!enabled} onClick={() => {
+        setError(''); setDownloaded(''); dialogRef.current?.showModal();
+      }} aria-haspopup="dialog" aria-label="Export"><Download size={15} /><span>Export</span></button>
       <dialog ref={dialogRef} className="app-dialog export-dialog" aria-labelledby="export-title">
-      <header><div><h2 id="export-title">Export circuit</h2><p>Choose a format to download.</p></div>
+      <header><div><h2 id="export-title">Export circuit</h2><p>Choose what you want to do with this circuit.</p></div>
         <button aria-label="Close export" onClick={() => dialogRef.current?.close()}><X size={18} /></button>
       </header>
       <p className="dialog-help-link"><a href={`${import.meta.env.BASE_URL}docs/reference/exports/`} target="_blank" rel="noreferrer">Compare formats and what each preserves</a></p>
-      <div className="export-buttons" data-testid="export-capabilities">
-        {capabilities.map((descriptor) => (
+      <p className="export-guidance">To reopen this project in Kessetsu, save a <strong>.kess</strong> file from the File menu. These exports are for other tools; local model files are not bundled.</p>
+      {!enabled && <p role="status" className="export-error">The source is being checked or has errors. Fix source errors before exporting.</p>}
+      {(error || downloaded) && <div className={error ? 'export-status export-error' : 'export-status'} role="status">
+        {error || <><strong>Download requested: {downloaded}</strong><p>{message}</p></>}
+      </div>}
+      <div data-testid="export-capabilities">
+        {exportGroups.map((group) => {
+          const formats = group.formats.flatMap((format) => capabilities.filter((item) => item.format === format));
+          return formats.length > 0 && <section className="export-group" key={group.title} aria-label={group.title}>
+          <h3>{group.title}</h3>
+          <div className="export-buttons">
+          {formats.map((descriptor) => (
           <button
             key={descriptor.format}
             disabled={!enabled}
@@ -59,7 +84,10 @@ export function ArtifactBar({ enabled, capabilities, message, filenameStem, onEx
             <strong>{descriptor.label}</strong>
             <small>{formatDescriptions[descriptor.format]}</small>
           </button>
-        ))}
+          ))}
+          </div>
+          </section>;
+        })}
       </div>
       <details className="export-details">
         <summary>Format details</summary>
@@ -81,7 +109,6 @@ export function ArtifactBar({ enabled, capabilities, message, filenameStem, onEx
           ))}
         </div>
       </details>
-      {(error || message) && <span className={error ? 'export-status export-error' : 'export-status'} role="status">{error || message}</span>}
       </dialog>
     </aside>
   );

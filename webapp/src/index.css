@@ -305,7 +305,10 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .artifact-bar { display: flex; align-items: center; gap: 4px; }
 .artifact-bar button { padding: 4px 8px; font-size: 11px; }
 .artifact-bar > .header-action-button { padding: 0 10px; }
-.export-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-block: 16px; }
+.export-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-block: 8px 16px; }
+.export-group h3 { margin: 16px 0 0; font-size: 12px; }
+.export-guidance { color: var(--muted); font-size: 12px; line-height: 1.6; }
+@media (max-width: 480px) { .export-buttons { grid-template-columns: 1fr; } }
 .app-dialog { width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 40px); overflow: auto; padding: 22px; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 24px 80px #0008; }
 .app-dialog::backdrop { background: #000a; }
 .workspace-toast { position: fixed; z-index: 80; right: 12px; bottom: 12px; max-width: min(360px, calc(100vw - 24px)); padding: 9px 12px; border: 1px solid #277d71; border-radius: 6px; color: #cffff7; background: #12342f; box-shadow: 0 10px 28px #0008; font-size: 11px; }
@@ -317,7 +320,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .export-dialog { width: min(520px, calc(100vw - 24px)); }
 .export-dialog .export-buttons button { height: auto; min-height: 58px; display: flex; align-items: flex-start; flex-direction: column; gap: 6px; padding: 11px 14px; text-align: left; background: var(--panel-raised); }
 .export-buttons small { color: var(--muted); font-size: 11px; }
-.export-dialog .export-status { display: block; max-width: none; white-space: normal; font-size: 12px; margin-top: 14px; }
+.export-dialog .export-status { display: block; max-width: none; white-space: normal; overflow-wrap: anywhere; font-size: 12px; margin-block: 14px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; }
+.export-dialog .export-status p { margin: 6px 0 0; }
 .export-status { max-width: 320px; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .export-error { color: #fca5a5; }
 .export-details { position: relative; font-size: 11px; }
