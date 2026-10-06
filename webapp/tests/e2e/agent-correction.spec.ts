@@ -6,7 +6,7 @@ test('recovers a rejected agent reply and failed requirement without changing th
   await page.addInitScript(() => {
     const state = { text: '', blocked: false };
     Object.defineProperty(window, '__correctionClipboard', { value: state });
-    Object.defineProperty(navigator.clipboard, 'writeText', { value: async (text: string) => {
+    Object.defineProperty(navigator.clipboard, 'writeText', { configurable: true, value: async (text: string) => {
       if (state.blocked) throw new Error('Clipboard blocked');
       state.text = text;
     } });
@@ -78,6 +78,8 @@ test('recovers a rejected agent reply and failed requirement without changing th
   });
   await recovery.getByRole('button', { name: 'Copy correction task', exact: true }).click();
   await expect(recovery.getByRole('button', { name: 'Preparing feedback…', exact: true })).toBeDisabled();
+  await expect.poll(() => page.evaluate(() => typeof
+    (window as unknown as { __finishCorrectionCopy?: unknown }).__finishCorrectionCopy)).toBe('function');
   await dialog.getByRole('button', { name: 'Close AI agent workflow' }).click();
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Work with an AI agent…', exact: true }).click();
