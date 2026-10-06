@@ -20,6 +20,15 @@ remain unchanged from 1.3.0.
 
 ### Web editor usability
 
+- Browser agent tasks include concise syntax guidance, a complete example and public
+  references. Rejected replies and unsatisfied checks offer a copy/download correction
+  task with unchanged human requirements, source identity and actual local feedback.
+  Parse errors show their source line and a readable explanation; technical diagnostics
+  remain available. Clipboard failure supports manual copying.
+- Landing emphasizes the complete circuit workflow rather than a calculator showcase.
+  Existing calculators remain available from the footer; parameter studies and measured-data
+  comparison have quiet contextual guide links instead of more competing primary actions.
+
 - Parameter studies include a one-action, complete six-case loaded-filter example that
   leaves the editor source untouched and asks before replacing retained study results.
   Study and CSV dialogs explain prerequisites, file types, example inputs and next actions;

@@ -6,6 +6,7 @@ export default defineConfig({
   testDir: './tests',
   testMatch: [
     '**/e2e/browser-smoke.spec.ts',
+    '**/e2e/agent-correction.spec.ts',
     '**/e2e/install.spec.ts',
     '**/e2e/circuit-tools.spec.ts',
     '**/e2e/discovery.spec.ts',

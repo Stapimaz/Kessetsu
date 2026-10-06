@@ -91,6 +91,27 @@ These workflows are optional. A first circuit only needs Source, Schematic and S
 
 ## Review a proposal from an external agent
 
+Copied tasks include a compact Kessetsu syntax guide, a complete working example and links
+to the authoritative references. This also helps chat-only agents that cannot run the CLI.
+The example teaches syntax; your own electrical requirements remain the design target.
+
+If a reply is rejected or its assertions are not satisfied, use **Copy correction task**
+or **Download correction file**. Send it back to the same agent, then paste the new complete
+reply into Step 2. The correction retains your original requirements and source hash, the
+rejected reply and actual local diagnostic/assertion evidence. It does not change the editor,
+automatically fix code, relax limits or send anything to an AI service. A blocked clipboard
+has a selectable manual-copy fallback. Source, request or model changes invalidate old feedback.
+
+For example, a 3 V ±50 mV target is two root-level assertions after `simulate op`:
+
+```kess
+assert value(V(OUT)) >= 2.95V
+assert value(V(OUT)) <= 3.05V
+```
+
+These are an excerpt, not a complete circuit. `analyze` blocks, `voltage(OUT)` and inline
+`+/-` bands are not supported Kessetsu syntax; the language reference describes valid forms.
+
 Open **Analyze → Work with an AI agent…** for a provider-neutral handoff. Describe the outcome you
 own, then copy or download the versioned agent-task JSON. Paste it into ChatGPT, Gemini, Claude,
 Codex or another agent of your choice. You decide which

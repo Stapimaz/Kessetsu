@@ -6,7 +6,7 @@ test('calculates the loaded divider, downloads source and restores the prior wor
     schema_version: 'kessetsu.web-draft.v1', saved_at: new Date().toISOString(),
     name: 'My prior circuit', source: 'net GND\nnet OUT\nsource V1 5V\nresistor R1 1000\nconnect V1.plus, R1.p1 to OUT\nconnect V1.minus, R1.p2 to GND\nsimulate op\n', dirty: true,
   })));
-  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Tools', exact: true }).click();
+  await page.getByRole('navigation', { name: 'Footer navigation' }).getByRole('link', { name: 'Calculators', exact: true }).click();
   await page.getByRole('link', { name: /Loaded voltage divider/ }).click();
   await page.getByLabel('Component values', { exact: true }).selectOption('exact');
   await page.getByRole('button', { name: 'Calculate circuit' }).click();

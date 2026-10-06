@@ -19,6 +19,14 @@
 .agent-step details { margin-top: 9px; color: var(--muted); font-size: 10px; }
 .agent-step pre { max-height: 180px; overflow: auto; padding: 9px; border: 1px solid var(--border); border-radius: 5px; color: #a9b8cc; background: #090e16; white-space: pre-wrap; }
 .agent-review { padding-top: 14px; border-top: 1px solid var(--border); }
+.agent-recovery { margin: 12px 0; padding: 12px; border: 1px solid #69572d; border-radius: 6px; background: #211d17; }
+.agent-recovery h3 { margin: 0 0 6px; font-size: 13px; color: #f0d799; }
+.agent-recovery p, .agent-recovery li { color: #c6bfae; font-size: 11px; line-height: 1.5; }
+.agent-recovery ul { padding-left: 18px; }
+.agent-recovery li code { display: block; margin: 5px 0; padding: 6px; color: var(--text); background: #0b1019; white-space: pre-wrap; overflow-wrap: anywhere; }
+.agent-recovery details { margin-top: 8px; font-size: 11px; color: var(--muted); }
+.agent-recovery pre { max-height: 160px; overflow: auto; white-space: pre-wrap; }
+.agent-recovery textarea { width: 100%; margin-top: 8px; padding: 8px; color: var(--text); background: #0b1019; border: 1px solid var(--border); font: 11px/1.5 ui-monospace, monospace; }
 .agent-check-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
 .agent-check-card { min-width: 0; display: flex; align-items: flex-start; gap: 8px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 10px; }
 .agent-check-card > svg { flex: 0 0 auto; margin-top: 1px; }

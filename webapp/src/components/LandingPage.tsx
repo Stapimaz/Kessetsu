@@ -31,7 +31,6 @@ export function LandingPage() {
         <nav className="landing-nav" aria-label="Main navigation">
           <a href="#agent-workflow">Agent workflow</a>
           <a href="#web-hub">Web Hub</a>
-          <a href={`${import.meta.env.BASE_URL}tools/`}>Tools</a>
           <a href="#outputs">Exports</a>
           <a href={`${import.meta.env.BASE_URL}docs/`}>Docs</a>
         </nav>
@@ -133,26 +132,13 @@ export function LandingPage() {
             Work with analog circuits, reusable stages and local device models.{' '}
             <a href={`${import.meta.env.BASE_URL}docs/guides/tutorial/`}>Follow the circuit tutorial.</a>
           </p>
+          <details className="hub-advanced">
+            <summary>Check more than one operating condition</summary>
+            <p>Use <a href={`${import.meta.env.BASE_URL}docs/guides/parameter-studies/`}>parameter studies</a> to compare component choices, loads, temperatures and tolerances. Keep failed cases alongside successful ones.</p>
+            <p>Bring measured CSV data into <a href={`${import.meta.env.BASE_URL}docs/guides/research-data/`}>research comparison</a> to inspect residuals against a simulation or reference dataset.</p>
+          </details>
         </div>
         <WebHubPreview />
-      </section>
-
-      <section className="landing-section toolkit-section" aria-labelledby="toolkit-title">
-        <div className="section-heading compact-heading">
-          <p className="eyebrow">Circuit tools</p>
-          <h2 id="toolkit-title">Start with a calculation. Keep the circuit.</h2>
-          <p>Choose nominal component values, see the achieved result and open an editable circuit for simulation and export.</p>
-        </div>
-        <div className="landing-tool-links">
-          <a href={`${import.meta.env.BASE_URL}tools/voltage-divider/`}>
-            <strong>Loaded voltage divider <ArrowRight size={16} /></strong>
-            <span>Size resistors for an actual load. Inspect output voltage, current and dissipation.</span>
-          </a>
-          <a href={`${import.meta.env.BASE_URL}tools/rc-lowpass/`}>
-            <strong>RC low-pass filter <ArrowRight size={16} /></strong>
-            <span>Set a cutoff, choose standard R/C values and inspect the frequency response in the editor.</span>
-          </a>
-        </div>
       </section>
 
       <section className="landing-section engine-section" id="outputs" aria-labelledby="engine-title">
@@ -181,6 +167,7 @@ export function LandingPage() {
         <nav aria-label="Footer navigation">
           <a href={`${import.meta.env.BASE_URL}docs/`}>Docs</a>
           <a href={`${import.meta.env.BASE_URL}changelog/`}>Changelog</a>
+          <a href={`${import.meta.env.BASE_URL}tools/`}>Calculators</a>
           <a href="https://github.com/Stapimaz/Kessetsu">Source</a>
           <a href="https://github.com/Stapimaz/Kessetsu/issues">Feedback</a>
         </nav>

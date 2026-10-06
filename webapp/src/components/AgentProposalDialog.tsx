@@ -8,6 +8,8 @@ import {
 } from 'kessetsu-core';
 import {
   createAgentTask,
+  createAgentCorrectionTask,
+  describeProposalDiagnostic,
   assertionOutcome,
   lineDiff,
   MAX_AGENT_PROPOSAL_BYTES,
@@ -51,6 +53,8 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
   latestInputs.current = { open, source, resources };
   const operationId = useRef(0);
   const taskOperationId = useRef(0);
+  const correctionOperationId = useRef(0);
+  const correctionPendingRef = useRef(false);
   if (!runner.current) runner.current = new BrowserSimulationRunner();
   const [requirements, setRequirements] = useState('');
   const [taskText, setTaskText] = useState('');
@@ -62,11 +66,17 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
   const [confirmApply, setConfirmApply] = useState(false);
   const [status, setStatus] = useState('Nothing leaves this browser automatically.');
   const [error, setError] = useState('');
+  const [correctionText, setCorrectionText] = useState('');
+  const [correctionPending, setCorrectionPending] = useState(false);
   const latestReview = useRef({ verificationState, proposal, proposalText });
   latestReview.current = { verificationState, proposal, proposalText };
 
   const resetProposal = (nextStatus = 'Nothing leaves this browser automatically.') => {
     const nextOperation = ++operationId.current;
+    correctionOperationId.current++;
+    correctionPendingRef.current = false;
+    setCorrectionText('');
+    setCorrectionPending(false);
     runner.current?.cancel();
     setProposal(null);
     setCompileReport(null);
@@ -88,6 +98,10 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
   const invalidatePending = () => {
     operationId.current++;
     taskOperationId.current++;
+    correctionOperationId.current++;
+    correctionPendingRef.current = false;
+    setCorrectionText('');
+    setCorrectionPending(false);
     runner.current?.cancel();
     const { verificationState, proposal, proposalText } = latestReview.current;
     if (verificationState === 'running') {
@@ -134,6 +148,10 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
   const connectivityVerified = Boolean(compileReport?.schematic?.connectivity.verified && compileReport.schematic_svg);
   const assertionSummary = verification?.assertions.summary;
   const checkedAssertions = assertionOutcome(assertionSummary);
+  const needsCorrection = Boolean(error && proposalText.trim())
+    || Boolean(proposal && (compileErrors.length > 0 || !connectivityVerified))
+    || verificationState === 'failed'
+    || verificationState === 'complete' && checkedAssertions !== 'passed';
   const inputsMatch = sourceSnapshot.current === source && resourceSnapshot.current === resources;
   const canApply = open && inputsMatch && Boolean(proposal) && verificationState === 'complete';
   const verificationPassed = canApply && checkedAssertions === 'passed';
@@ -186,6 +204,38 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
     setStatus('Task downloaded. Give the JSON file to the AI agent you want to use.');
   };
 
+  const sendCorrection = async (download: boolean) => {
+    if (!open || !needsCorrection || !inputsMatch || !requirements.trim() || correctionPendingRef.current) return;
+    correctionPendingRef.current = true;
+    setCorrectionPending(true);
+    const correctionId = ++correctionOperationId.current;
+    const reviewId = operationId.current;
+    const isCurrent = () => correctionId === correctionOperationId.current && operationIsCurrent(reviewId);
+    try {
+      const task = await createAgentCorrectionTask(source, name, requirements, productVersion,
+        compile_schema_version(), proposalText, error || 'Local simulation did not satisfy all encoded requirements.',
+        compileReport?.diagnostics ?? [], verification?.assertions ?? null);
+      if (!isCurrent()) return;
+      const serialized = JSON.stringify(task, null, 2);
+      setCorrectionText(serialized);
+      if (download) {
+        downloadTextFile(serialized, `${sanitizeFileStem(name)}.correction.kessagent.json`);
+        setStatus('Correction task downloaded. Send it to your agent, then paste its new complete reply in Step 2.');
+      } else {
+        try {
+          await navigator.clipboard.writeText(serialized);
+          if (isCurrent()) setStatus('Correction task copied. Send it to your agent, then paste its new complete reply in Step 2.');
+        } catch {
+          if (isCurrent()) setStatus('Clipboard access was blocked. Copy the correction text below or download its file.');
+        }
+      }
+    } catch (cause) {
+      if (isCurrent()) setStatus(`Could not prepare correction task: ${message(cause)}`);
+    } finally {
+      if (isCurrent()) { correctionPendingRef.current = false; setCorrectionPending(false); }
+    }
+  };
+
   const reviewProposal = async (text = proposalText) => {
     const requestId = resetProposal('Checking the returned circuit…');
     try {
@@ -215,6 +265,10 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
     if (!open || !inputsMatch || !proposal || !connectivityVerified || compileErrors.length) return;
     const candidate = proposal;
     const requestId = ++operationId.current;
+    correctionOperationId.current++;
+    correctionPendingRef.current = false;
+    setCorrectionPending(false);
+    setCorrectionText('');
     setError('');
     setVerification(null);
     setVerificationState('running');
@@ -279,7 +333,7 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
 
     <section className="agent-step">
       <div className="agent-step-heading"><span>1</span><div><h3>Tell the agent what you need</h3><p>Write the electrical target and limits. Kessetsu includes your current circuit automatically.</p></div></div>
-      <textarea rows={4} value={requirements} maxLength={12_000} placeholder="Example: Design for 2 W RMS into 8 ohm, gain near 20, and less than 2 W transistor dissipation. Include simulations and assertions for every target." onChange={(event) => {
+      <textarea aria-label="Your circuit requirements" rows={4} value={requirements} maxLength={12_000} placeholder="Example: Design for 2 W RMS into 8 ohm, gain near 20, and less than 2 W transistor dissipation. Include simulations and assertions for every target." onChange={(event) => {
         taskOperationId.current++;
         setRequirements(event.target.value);
         setTaskText('');
@@ -293,7 +347,7 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
 
     <section className="agent-step">
       <div className="agent-step-heading"><span>2</span><div><h3>Bring back the agent's reply</h3><p>Paste the complete JSON response, or open the JSON file the agent created.</p></div></div>
-      <textarea rows={5} value={proposalText} placeholder={`Paste the returned ${'kessetsu.agent-proposal.v1'} JSON here…`} onChange={(event) => {
+      <textarea aria-label="Agent reply JSON" rows={5} value={proposalText} placeholder={`Paste the returned ${'kessetsu.agent-proposal.v1'} JSON here…`} onChange={(event) => {
         const text = event.target.value;
         setProposalText(text);
         resetProposal(text.trim() ? 'Reply changed. Check this version before testing or applying it.' : undefined);
@@ -313,6 +367,24 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
       }} />
       <div className="agent-actions"><button onClick={() => fileInput.current?.click()}><FileUp size={14} /> Open reply file…</button><button className="agent-primary" disabled={!proposalText.trim()} onClick={() => void reviewProposal()}>Check returned circuit</button></div>
     </section>
+
+    {needsCorrection && <section className="agent-recovery" aria-label="Correct the agent reply" role="alert">
+      <h3>The returned circuit needs a correction</h3>
+      <p>Your editor circuit is unchanged. Send the feedback to your agent; you do not need to decipher or rewrite its code.</p>
+      {compileErrors.length > 0 ? <ul>{compileErrors.map((diagnostic, index) => <li key={index}>
+        <span>{describeProposalDiagnostic(diagnostic)}</span>
+        {diagnostic.line && proposal && <code>{proposal.proposed_source.split(/\r?\n/)[diagnostic.line - 1]?.slice(0, 240)}</code>}
+      </li>)}</ul> : <p>{error || (checkedAssertions === 'unchecked'
+        ? 'No assertions checked your requested outcome. Ask the agent to encode the measurable targets.'
+        : 'Some assertions failed, errored or were skipped. The correction task includes the actual results.')}</p>}
+      {compileErrors.length > 0 && <details><summary>Technical diagnostics</summary><pre>{compileErrors.map(item => `${item.code}: ${item.message}`).join('\n\n')}</pre></details>}
+      <div className="agent-actions">
+        <button className="agent-primary" disabled={!requirements.trim() || correctionPending} onClick={() => void sendCorrection(false)}><Clipboard size={14} /> {correctionPending ? 'Preparing feedback…' : 'Copy correction task'}</button>
+        <button disabled={!requirements.trim() || correctionPending} onClick={() => void sendCorrection(true)}><Download size={14} /> Download correction file</button>
+      </div>
+      <p>{requirements.trim() ? 'Your original requirements and source revision stay fixed. Bring the new reply back to Step 2 and test it again.' : 'Add your electrical target in Step 1 and send a fresh task first.'}</p>
+      {correctionText && <details><summary>Copy correction text manually</summary><textarea aria-label="Correction task JSON" readOnly rows={5} value={correctionText} onFocus={event => event.currentTarget.select()} /></details>}
+    </section>}
 
     {proposal && <section className="agent-review" aria-label="Agent proposal review">
       <div className="agent-step-heading"><span>3</span><div><h3>Review and test the returned circuit</h3><p>The candidate remains separate from the editor until you explicitly apply it.</p></div></div>
@@ -354,7 +426,7 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
       </div>}
     </section>}
 
-    {error && <p className="agent-error" role="alert">{error}</p>}
+    {error && !needsCorrection && <p className="agent-error" role="alert">{error}</p>}
     <footer className="agent-footer"><p role="status">{status}</p><div>{verificationState === 'running' ? <button onClick={cancelVerification}><Square size={14} /> Stop test</button> : <button disabled={!inputsMatch || !proposal || !connectivityVerified || compileErrors.length > 0} onClick={() => void runVerification()}><Play size={14} /> {verificationState === 'complete' || verificationState === 'failed' || verificationState === 'cancelled' ? 'Test again' : 'Test proposed circuit'}</button>}<button className="agent-accept" disabled={!canApply} onClick={() => {
       if (!proposal || !canApply) return;
       if (verificationPassed) { onAccept(proposal.proposed_source); close(); }
