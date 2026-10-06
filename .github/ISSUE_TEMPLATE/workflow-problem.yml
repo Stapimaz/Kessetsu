@@ -1,0 +1,37 @@
+name: Problem or blocked workflow
+description: Report a bug or explain a circuit-engineering task you could not complete.
+title: "[Workflow] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Tell us what you were trying to achieve, not just which button failed.
+        This is a public report. Do not attach confidential circuits, credentials, proprietary model libraries or files you cannot redistribute. A small anonymized example is enough.
+  - type: textarea
+    id: task
+    attributes:
+      label: What were you trying to do?
+      description: Describe the circuit, desired result and where the workflow stopped.
+      placeholder: "I imported a transistor amplifier and tried to export an editable LTspice schematic…"
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps and expected versus actual result
+      description: Include the menu action or CLI command, exact diagnostic, and a minimal .kess example when safe. Screenshots can help.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Version and environment
+      description: Find the version in the Web Hub Help menu or run kess --version. Include browser/OS and whether you used Web Hub or CLI.
+      placeholder: "Kessetsu 1.3.1, Web Hub, Firefox on Windows 11"
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Workaround or previous tool (optional)
+      description: Did another tool complete this job, or did you find a way around the problem?

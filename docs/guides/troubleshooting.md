@@ -87,3 +87,12 @@ Reload does not clear stored browser drafts, but in-memory model files, CSV work
 study results must be reselected or reimported. Download Results JSON before normal reloads
 when you want to preserve a study. If the error persists, report the page, browser version
 and any console diagnostic; do not clear site data as a first recovery step.
+
+## Report a problem or blocked workflow
+
+Use **Help → Report a problem** in the editor, or the site's **Feedback** link.
+Describe the engineering task, steps or CLI command, expected and actual result, exact
+diagnostic, Kessetsu version and browser/OS. A small anonymized `.kess` example helps us
+reproduce the problem. Reports are public: do not attach confidential circuits, credentials,
+proprietary model libraries or files you cannot redistribute. GitHub requires an account
+to submit a report; using Kessetsu itself does not.

@@ -41,7 +41,7 @@ test('opens the landing page, enters Web Hub, initializes WASM and compiles the 
   await expect(page.getByText('First-release scope:')).toHaveCount(0);
   await expect(page.locator('.preview-generated-schematic [data-component="VIN"].reference')).toBeVisible();
   await expect(page.getByRole('contentinfo')).toContainText(`Kessetsu ${productVersion}`);
-  await expect(page.getByRole('navigation', { name: 'Footer navigation' }).getByRole('link')).toHaveCount(4);
+  await expect(page.getByRole('navigation', { name: 'Footer navigation' }).getByRole('link', { name: 'Calculators' })).toHaveAttribute('href', '/tools/');
   await expect(page.locator('.monaco-editor')).toHaveCount(0);
   if (process.env.KESSETSU_E2E_SCREENSHOTS) {
     await page.screenshot({ path: 'test-results/landing-desktop.png', fullPage: true });
@@ -65,6 +65,10 @@ test('opens the landing page, enters Web Hub, initializes WASM and compiles the 
   ]);
   await expect(page.getByRole('button', { name: 'Run simulation' })).toBeVisible();
   await expect(page.locator('.monaco-editor')).toBeVisible();
+  await page.getByRole('button', { name: 'Help', exact: true }).click();
+  await expect(page.getByRole('menuitem', { name: 'Report a problem', exact: true })).toHaveAttribute('href',
+    'https://github.com/Stapimaz/Kessetsu/issues/new?template=workflow-problem.yml');
+  await page.getByRole('button', { name: 'Help', exact: true }).click();
   await page.getByRole('button', { name: 'View', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Circuit details…' }).click();
   await expect(page.getByText('Generated SPICE Netlist', { exact: true })).toBeVisible();

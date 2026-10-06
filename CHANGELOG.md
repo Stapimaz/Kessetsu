@@ -6,7 +6,7 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 No changes queued.
 
-## [1.3.1]
+## [1.3.1] — 2026-10-06
 
 Maintenance update for the browser workflow, first-use guidance and installation.
 Language syntax, electrical and schematic semantics, and machine-contract versions
@@ -17,6 +17,8 @@ remain unchanged from 1.3.0.
 - Update the editor's DOMPurify override to 3.4.16, addressing
   [GHSA-p98j-92pf-mc4p](https://github.com/advisories/GHSA-p98j-92pf-mc4p).
 - Keep guide links usable in the CLI archive's relocated supported-domain document.
+- Update the transitive source-map-js dependency to 1.2.2, addressing
+  [GHSA-68fv-2mgg-jv7q](https://github.com/advisories/GHSA-68fv-2mgg-jv7q).
 
 ### Web editor usability
 
@@ -28,6 +30,8 @@ remain unchanged from 1.3.0.
 - Landing emphasizes the complete circuit workflow rather than a calculator showcase.
   Existing calculators remain available from the footer; parameter studies and measured-data
   comparison have quiet contextual guide links instead of more competing primary actions.
+- Editor Help links directly to a public, task-focused problem report with reproducibility
+  guidance and a reminder not to attach confidential circuits or proprietary model files.
 
 - Parameter studies include a one-action, complete six-case loaded-filter example that
   leaves the editor source untouched and asks before replacing retained study results.

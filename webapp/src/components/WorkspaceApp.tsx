@@ -442,6 +442,7 @@ export function WorkspaceApp() {
               <a role="menuitem" href={`${import.meta.env.BASE_URL}docs/guides/tutorial/`} target="_blank" rel="noreferrer">First circuit tutorial</a>
               <a role="menuitem" href={`${import.meta.env.BASE_URL}docs/`} target="_blank" rel="noreferrer">Documentation</a>
               <a role="menuitem" href={`${import.meta.env.BASE_URL}docs/guides/troubleshooting/`} target="_blank" rel="noreferrer">Troubleshooting</a>
+              <a role="menuitem" href="https://github.com/Stapimaz/Kessetsu/issues/new?template=workflow-problem.yml" target="_blank" rel="noreferrer">Report a problem</a>
               <a role="menuitem" href={`${import.meta.env.BASE_URL}changelog/`} target="_blank" rel="noreferrer">What’s new in {productVersion}</a>
               <a role="menuitem" href="https://github.com/Stapimaz/Kessetsu" target="_blank" rel="noreferrer" aria-label="Kessetsu corresponding source code">Corresponding source</a>
               <a role="menuitem" href={`${import.meta.env.BASE_URL}LICENSE.txt`} target="_blank" rel="noreferrer">License</a>
