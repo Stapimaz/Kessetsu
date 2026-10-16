@@ -491,15 +491,6 @@ export function WorkspaceApp() {
           <span className={`compile-status compile-${state.compileState}`} role="status" aria-label={`Automatic source check: ${compileStatus}`} data-testid="compile-status" title={compileStatus}>
             <CompileStatusIcon size={14} /><span>{compileStatus}</span>
           </span>
-          <button
-            className="header-action-button agent-header-button"
-            onClick={() => setAgentProposalOpen(true)}
-            disabled={!state.wasmLoaded}
-            aria-label="Open AI agent workflow"
-            title="Work with an AI agent"
-          >
-            <Sparkles size={14} /> <span>AI Agent</span>
-          </button>
           <ArtifactBar enabled={state.compileSucceeded}
             capabilities={state.exportCapabilities} message={state.exportMessage}
             filenameStem={sanitizeFileStem(documentName)} onExport={createExport} />
@@ -614,8 +605,15 @@ export function WorkspaceApp() {
           diagnostics={state.diagnostics}
           compileSucceeded={state.compileSucceeded}
           compileState={state.compileState}
+          wasmLoaded={state.wasmLoaded}
           revealRequest={sourceRevealRequest}
           onCodeChange={setCode}
+          onChooseSpiceFile={chooseSpiceDocument}
+          onSpiceConverted={(nextCode, components) => {
+            detachFileHandle();
+            setCode(nextCode);
+            showDocumentNotice(`Converted SPICE netlist (${components} components) to Kessetsu`);
+          }}
           panelControls={panelControls}
         />}
         schematic={(panelControls) => <SchematicPanel schematic={state.schematic} circuitIr={state.circuitIr} svg={state.schematicSvg} panelControls={panelControls} sourceFeedback={sourceFeedback} onResolveSource={resolveSource} />}

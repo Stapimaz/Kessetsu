@@ -24,11 +24,12 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 - Add the [Agent design workflow](docs/guides/agent-workflow.md) guide, surface MCP setup
   on the installation and documentation pages, and unwrap outer Markdown JSON fences in
   browser AI proposal replies.
-- Redesign the web editor `Analyze` menu with icons, workflow badges, section grouping,
-  and a top-bar `AI Agent` quick action; add a Source panel quick-insert snippet toolbar
-  (`+ .op`, `+ .ac`, `+ .tran`, `+ param`, `+ assert`), 1-click requirement starter chips
-  and `Paste & check` in `Work with an AI agent`, and automatic SPICE import when opening
-  `.cir`, `.sp`, `.spice`, `.net`, `.ckt`, or `.cki` files.
+- Redesign the web editor `Analyze` menu with icons, workflow badges, and section grouping;
+  add a `Source` panel `SPICE → .kess` converter drawer (`Paste & convert`, sample SPICE
+  loader, and automatic detection when SPICE is pasted into the editor) plus quick-insert
+  snippet buttons (`+ .op`, `+ .ac`, `+ .tran`, `+ param`, `+ assert`), 1-click requirement
+  starter chips and `Paste & check` in `Work with an AI agent`, and automatic SPICE import
+  when opening `.cir`, `.sp`, `.spice`, `.net`, `.ckt`, or `.cki` files.
 
 ## [1.3.1] — 2026-10-06
 

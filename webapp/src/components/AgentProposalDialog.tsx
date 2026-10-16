@@ -21,6 +21,7 @@ import { downloadTextFile, sanitizeFileStem } from '../document';
 import type { CompileReport } from '../domain';
 import { BrowserSimulationRunner, SimulationCancelledError } from '../simulation/browserRunner';
 import type { BrowserEvaluation, BrowserSimulationPlan } from '../simulation/types';
+import { convertSpiceTextToKess, looksLikeSpiceNetlist } from '../spiceImport';
 import './AgentProposalDialog.css';
 
 interface Props {
@@ -260,9 +261,24 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
     try {
       const parsed = await parseAgentProposal(text, source);
       if (!operationIsCurrent(requestId)) return;
-      const report = compileCandidate(parsed.proposed_source, resources);
+      let candidateProposal = parsed;
+      let report = compileCandidate(candidateProposal.proposed_source, resources);
+      if (
+        report.diagnostics.some((item) => item.code === 'KES-P001' && item.severity === 'error')
+        && looksLikeSpiceNetlist(candidateProposal.proposed_source)
+      ) {
+        try {
+          const imported = convertSpiceTextToKess(candidateProposal.proposed_source);
+          if (imported.kess_source) {
+            candidateProposal = { ...parsed, proposed_source: imported.kess_source };
+            report = compileCandidate(candidateProposal.proposed_source, resources);
+          }
+        } catch {
+          // Keep original compile report if SPICE import fails.
+        }
+      }
       if (!operationIsCurrent(requestId)) return;
-      setProposal(parsed);
+      setProposal(candidateProposal);
       setCompileReport(report);
       const errors = report.diagnostics.filter((item) => item.severity === 'error');
       const verified = Boolean(report.schematic?.connectivity.verified && report.schematic_svg);
