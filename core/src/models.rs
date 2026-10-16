@@ -231,6 +231,27 @@ fn resolve_package(
     ))
 }
 
+/// Standard Ngspice junction-diode model parameters accepted by typed user models.
+pub const DIODE_MODEL_PARAMETERS: &[&str] = &[
+    "is", "rs", "n", "cjo", "cj0", "m", "vj", "tt", "bv", "ibv", "eg", "xti", "fc", "kf", "af",
+    "isr", "nr", "ikf", "nbv", "ibvl", "nbvl", "tnom",
+];
+
+/// Standard Ngspice Gummel-Poon BJT model parameters accepted by typed user models.
+pub const BJT_MODEL_PARAMETERS: &[&str] = &[
+    "is", "bf", "nf", "vaf", "ikf", "ise", "ne", "br", "nr", "var", "ikr", "isc", "nc", "rb",
+    "irb", "rbm", "re", "rc", "cje", "vje", "mje", "tf", "xtf", "vtf", "itf", "ptf", "cjc", "vjc",
+    "mjc", "xcjc", "tr", "cjs", "vjs", "mjs", "xtb", "eg", "xti", "kf", "af", "fc", "tnom",
+];
+
+/// Ngspice level-1 MOSFET parameters accepted by typed user models. `cgd`/`cgs` are retained
+/// for compatibility with earlier Kessetsu sources.
+pub const MOSFET_MODEL_PARAMETERS: &[&str] = &[
+    "vto", "kp", "gamma", "phi", "lambda", "rd", "rs", "cbd", "cbs", "is", "pb", "cgso", "cgdo",
+    "cgbo", "rsh", "cj", "mj", "cjsw", "mjsw", "js", "tox", "ld", "u0", "fc", "nsub", "tnom", "kf",
+    "af", "cgd", "cgs",
+];
+
 fn compile_user_model(declaration: &ModelDecl) -> Result<ModelRef, SemanticDiagnostic> {
     let (metadata, parameters) = split_metadata(&declaration.parameters, &declaration.name)?;
     let (kind, spice_kind, allowed): (ComponentKind, &str, &[&str]) = match declaration.kind {
@@ -243,11 +264,7 @@ fn compile_user_model(declaration: &ModelDecl) -> Result<ModelRef, SemanticDiagn
                     "polarity",
                 ));
             }
-            (
-                ComponentKind::Diode,
-                "D",
-                &["is", "rs", "n", "cjo", "m", "vj", "tt"],
-            )
+            (ComponentKind::Diode, "D", DIODE_MODEL_PARAMETERS)
         }
         ModelDeclKind::BJT => {
             let polarity = declaration.polarity.as_deref().ok_or_else(|| {
@@ -262,13 +279,13 @@ fn compile_user_model(declaration: &ModelDecl) -> Result<ModelRef, SemanticDiagn
                 (
                     ComponentKind::BJT(BJTPolarity::NPN),
                     "NPN",
-                    &["is", "bf", "vaf", "cje", "cjc", "tf", "tr"],
+                    BJT_MODEL_PARAMETERS,
                 )
             } else if polarity.eq_ignore_ascii_case("pnp") {
                 (
                     ComponentKind::BJT(BJTPolarity::PNP),
                     "PNP",
-                    &["is", "bf", "vaf", "cje", "cjc", "tf", "tr"],
+                    BJT_MODEL_PARAMETERS,
                 )
             } else {
                 return Err(error(
@@ -292,13 +309,13 @@ fn compile_user_model(declaration: &ModelDecl) -> Result<ModelRef, SemanticDiagn
                 (
                     ComponentKind::MOSFET(FETPolarity::NMOS),
                     "NMOS",
-                    &["vto", "kp", "lambda", "rd", "rs", "cgd", "cgs"],
+                    MOSFET_MODEL_PARAMETERS,
                 )
             } else if polarity.eq_ignore_ascii_case("pmos") {
                 (
                     ComponentKind::MOSFET(FETPolarity::PMOS),
                     "PMOS",
-                    &["vto", "kp", "lambda", "rd", "rs", "cgd", "cgs"],
+                    MOSFET_MODEL_PARAMETERS,
                 )
             } else {
                 return Err(error(

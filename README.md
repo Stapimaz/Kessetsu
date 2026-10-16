@@ -1,36 +1,33 @@
 # Kessetsu
 
-[Web Hub](https://kessetsu.com/) · [Install CLI](https://kessetsu.com/install/) · [Documentation](docs/README.md) · [Tutorial](docs/guides/tutorial.md) · [Supported domain](docs/reference/supported-domain.md)
+[Web Hub](https://kessetsu.com/) · [Install CLI](https://kessetsu.com/install/) · [Documentation](docs/README.md) · [Agent Workflow](docs/guides/agent-workflow.md) · [Tutorial](docs/guides/tutorial.md) · [Supported domain](docs/reference/supported-domain.md)
 
-Kessetsu is an agent-driven circuit engineering platform for describing circuits as text, compiling and simulating them like software, and verifying them with engineering assertions. The CLI's human mode serves engineers, its versioned JSON mode serves AI agents and automation, and the zero-friction Web Hub serves browser users. Every surface uses the same Rust Core: typed Circuit IR, deterministic graph/ERC, SPICE netlists, schematics, and EDA outputs all derive from shared semantics.
+Kessetsu is a verification, ERC, automatic-schematic and EDA handoff platform for analog circuits. Give it readable `.kess` source or a supported Ngspice netlist (`.cir`/`.sp`), pin acceptance criteria in a separate `.kessreq` file, and let Kessetsu check electrical rules, run Ngspice, evaluate requirements (`PASS`/`FAIL`), render a connectivity-verified schematic, and export to KiCad, LTspice, or BOM CSV. Every surface—human CLI, versioned JSON CLI, `kess mcp` stdio server for AI agents, and the zero-account Web Hub—uses the same Rust Core.
 
 ```text
-Electrical requirements → Kessetsu source → compile/ERC → simulate/measure/assert → structured feedback
+Requirements (.kessreq) + Circuit (.kess or SPICE) → ERC (check) → Ngspice + Assert (test) → Schematic & KiCad/BOM
 ```
 
-The project is not limited to a particular educational scenario or circuit class. Its goal is to let people and AI agents start from measurable requirements and iteratively develop topology, value, and model choices using reliable structured feedback.
+When a student or engineer tells an AI agent *"design this circuit with Kessetsu"*, the agent follows a traceable, testable loop without needing a custom prompt for Ngspice scripting, raw output parsing, or file organization. See the [Agent design workflow](docs/guides/agent-workflow.md).
 
 ## Current capabilities
 
-- Rust parser, module flattening, and typed Circuit IR
+- Direct `.kess` and supported SPICE netlist (`--input auto|kess|spice`) input across `check`, `compile`, `simulate`, `test`, `render`, and `export`, including inline `.model` (`D`/`NPN`/`PNP`/`NMOS`/`PMOS`) and embedded `.SUBCKT` conversion
+- Built-in `kess mcp` stdio server exposing `kessetsu_guide`, `kessetsu_capabilities`, `kessetsu_check`, `kessetsu_simulate`, `kessetsu_test`, `kessetsu_render_schematic`, `kessetsu_export`, and `kessetsu_import_spice`
+- Evaluator-owned, exact-hash `.kessreq` files for agent loops that must not rewrite their own acceptance criteria
+- Rust parser, module flattening, and typed Circuit IR (`kessetsu.compile.v9`)
 - Unit-checked named parameters, reusable circuit modules and CLI numeric overrides
 - Hash-verified local op-amp/comparator/two-terminal models, with explicit browser file selection
-- Versioned compile reports (`kessetsu.compile.v9`) and the `kessetsu.schematic.v3` schematic contract
-- Deterministic net naming and `KES-P/C/E/I/S/F` diagnostic namespaces
+- Deterministic net naming and `KES-P/C/E/I/S/F/N` diagnostic namespaces
 - SPICE generation, simulator discovery/provenance, and a Windows Ngspice sidecar runtime
 - Typed OP/transient/AC/DC simulation results and PASS/FAIL/ERROR/SKIPPED assertion evaluation
 - Compact `kessetsu.cli.v1` JSON, stdin-based agent loops, and opt-in debug fields through `--include`
 - Versioned `kess capabilities --format json` discovery for commands, contracts, measurements, exports and bounded workloads
-- Evaluator-owned, exact-hash `.kessreq` files for agent loops that must not rewrite their own acceptance criteria
 - Typed user/package model and subcircuit resolution, provenance manifests, and `kessetsu.lock`
-- Human/JSON CLI modes with safe output, overwrite, and exit-code contracts
-- A React Web Hub with WASM Core and real in-browser simulation
-- A canonical, connectivity-verified automatic schematic engine
+- A canonical, connectivity-verified automatic schematic engine (`kessetsu.schematic.v3`)
 - SVG, PNG, PDF, Schematic JSON, SPICE, KiCad, LTspice, BOM CSV, and handoff-manifest exports
-- Versioned, compressed, package-aware share URLs
-- Shared loaded-divider and RC-filter tools with typed inputs, standard component selection and editable circuit generation (CLI 1.1.0+)
-- Reproducible parameter studies, local research-data comparison, finite calibration/holdout
-  fitting and a thin Python/Jupyter adapter over the same Core contracts
+- A React Web Hub with WASM Core, real in-browser simulation, and versioned share URLs
+- Shared loaded-divider and RC-filter tools, reproducible parameter studies, local research-data comparison, finite calibration/holdout fitting, and an optional Python/Jupyter adapter
 
 Read the [documentation](https://kessetsu.com/docs/) and [changelog](https://kessetsu.com/changelog/) on the website. The [architecture](docs/architecture.md), [component and simulation reference](docs/reference/supported-domain.md), and [measurement reference](docs/reference/measurements.md) define technical behavior and assumptions.
 

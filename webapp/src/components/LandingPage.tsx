@@ -91,27 +91,27 @@ export function LandingPage() {
         <ol className="workflow-grid">
           <li>
             <span className="step-number">01</span>
-            <strong>Specify</strong>
-            <p>Describe topology constraints, load, gain, power, stress, or another supported measurable requirement.</p>
+            <strong>Specify (.kessreq)</strong>
+            <p>Pin acceptance criteria—gain, cutoff, power, ripple, or dissipation—in a separate requirement file the design cannot rewrite.</p>
           </li>
           <li>
             <span className="step-number">02</span>
-            <strong>Design</strong>
-            <p>The agent writes a complete `.kess` circuit and calls the CLI directly through stdin.</p>
+            <strong>Design (.kess or SPICE)</strong>
+            <p>The agent writes readable <code>.kess</code> source or a supported SPICE netlist and calls Kessetsu through <code>kess mcp</code> or the CLI.</p>
           </li>
           <li>
             <span className="step-number">03</span>
-            <strong>Verify and revise</strong>
-            <p>Structured diagnostics and assertion results expose exactly what failed, without scraping terminal prose.</p>
+            <strong>Check and test</strong>
+            <p>ERC catches floating pins and shorted sources before Ngspice runs; structured PASS/FAIL assertions report exact measured values.</p>
           </li>
           <li>
             <span className="step-number">04</span>
-            <strong>Continue anywhere</strong>
-            <p>Keep the verified source or export the schematic, SPICE netlist, KiCad, and LTspice artifacts.</p>
+            <strong>Review and hand off</strong>
+            <p>Render a connectivity-verified schematic (PNG/SVG) for human review and export to KiCad, LTspice, SPICE, or BOM CSV.</p>
           </li>
         </ol>
         <p className="provider-note">
-          <ShieldCheck size={18} /> Kessetsu is AI-provider independent. Your agent uses a versioned CLI contract; the circuit engine stays the same.
+          <ShieldCheck size={18} /> Kessetsu is AI-provider independent. Connect any agent via <code>kess mcp</code> or the versioned JSON CLI; see the <a href={`${import.meta.env.BASE_URL}docs/guides/agent-workflow/`}>agent workflow guide</a>.
         </p>
       </section>
 
@@ -151,7 +151,7 @@ export function LandingPage() {
           <span className="flow-arrow">→</span>
           <div className="core-card"><CircuitBoard size={22} /><span>Kessetsu Core</span><small>Compile · ERC · SPICE · Assert · Layout</small></div>
           <span className="flow-arrow">←</span>
-          <div className="surface-card"><Terminal size={20} /><span>AI agent</span><strong>CLI + JSON</strong></div>
+          <div className="surface-card"><Terminal size={20} /><span>AI agent</span><strong>CLI + MCP</strong></div>
         </div>
         <div className="export-row">
           <FileDown size={18} aria-hidden="true" />

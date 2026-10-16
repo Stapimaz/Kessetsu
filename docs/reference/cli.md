@@ -1,34 +1,30 @@
 # Kessetsu CLI Reference
 
-Kessetsu provides `kess study create/plan/run/export/package` and
-`kess fit evaluate`; see the [study guide](../guides/parameter-studies.md) for
-specifications, checkpoints, exit codes and reports, and the
-[fitting guide](../guides/model-fitting.md) for calibration/validation semantics.
+The Kessetsu CLI sends `.kess` source or supported SPICE netlists through the shared Rust compilation pipeline and provides ERC, SPICE generation, Ngspice execution, requirement testing, automatic schematic rendering, and EDA/BOM export commands. Human output is intended for people; versioned JSON output and the built-in MCP server (`kess mcp`) are intended for AI agents and automation.
 
-Use `kess import` for the declared SPICE subset; see the
-[SPICE import guide](../guides/spice-import.md). Versioned installed-build discovery is
-available through `kess capabilities`.
+See the [agent design workflow](../guides/agent-workflow.md) for the disciplined `.kessreq` → `check` → `test` → `render` → `export` loop, and the [SPICE import guide](../guides/spice-import.md) for direct SPICE input and `kess import`. Kessetsu also provides `kess study create/plan/run/export/package` ([study guide](../guides/parameter-studies.md)) and `kess fit evaluate` ([fitting guide](../guides/model-fitting.md)).
 
-The Kessetsu CLI sends `.kess` source through the shared Rust compilation pipeline and provides ERC, SPICE generation, Ngspice execution, and assertion evaluation commands. Human output is intended for people; versioned JSON output is intended for automation and AI agents.
-
-Kessetsu 1.3.0 uses compile contract v9 and supports typed parameters, reusable blocks,
+Kessetsu 1.3.0+ uses compile contract v9 and supports typed parameters, reusable blocks,
 local external devices, physical-part metadata and schematic navigation identities.
-Earlier CLI versions require an update for these additions.
 
 ## Usage
 
 ```bash
 kess [--format human|json] [--schema-version kessetsu.cli.v1] \
+  [--input auto|kess|spice] \
   [--include ast,ir,graph,spice,datasets,simulation,models,raw-log,effective-source] \
   [--param NAME=VALUE] <COMMAND> [OPTIONS] [FILE]
 ```
 
-`--format` is a true global option and can appear before or after the subcommand:
+`--format` and `--input` are true global options and can appear before or after the subcommand:
 
 ```bash
 kess --format json check examples/rc_low_pass.kess
-kess check examples/rc_low_pass.kess --format json
+kess check filter.cir --format json
+kess test - --input spice --requirements limits.kessreq --format json < filter.cir
 ```
+
+`--input auto` (the default) treats `.cir`, `.sp`, `.spice`, `.net`, `.ckt`, and `.cki` files—as well as stdin containing SPICE dot directives—as SPICE netlists, converting them through the canonical importer before running the requested command. Use `--include effective-source` on JSON calls when you want the converted `.kess` text alongside the result.
 
 `--schema-version` and `--include` are also global options. `--include` accepts a comma-separated list or repeated uses. An unknown schema version is rejected with `KES-F002` and exit code `2` before the source is read or any output is created.
 
@@ -277,6 +273,16 @@ represent a required feature. Replacing an existing file requires `--force`. Wit
 artifacts report schema/version, MIME type, SHA-256, byte length, connectivity, capability,
 warnings, and known losses. See the [export matrix](exports.md) for format boundaries.
 
+### `mcp`
+
+Starts a stdio Model Context Protocol (MCP) server exposing Kessetsu's verification, simulation, schematic and export tools (`kessetsu_guide`, `kessetsu_capabilities`, `kessetsu_check`, `kessetsu_simulate`, `kessetsu_test`, `kessetsu_render_schematic`, `kessetsu_export`, `kessetsu_import_spice`) and the `design_circuit` prompt:
+
+```bash
+kess mcp
+```
+
+Every MCP tool re-invokes `kess` with `--format json` and returns the canonical `kessetsu.cli.v1` envelope as `structuredContent`, so MCP and CLI results are identical.
+
 ### `study package`
 
 Creates a new portable research folder from the original study specification and a completed,
@@ -425,14 +431,14 @@ Human and JSON formats use the same code path and exit semantics.
 
 ## Agent Loop
 
-No separate daemon or dedicated Agent API is required. An agent can implement the following loop by reading JSON fields only:
+Agents can connect through `kess mcp` (see the [agent design workflow](../guides/agent-workflow.md)) or invoke the CLI directly by reading JSON fields only:
 
-1. Run `capabilities --format json` once to inspect the installed build instead of assuming features from a website or prompt.
-2. Run `check - --format json` to obtain syntax, semantic, and ERC diagnostics.
+1. Run `capabilities --format json` (or MCP `kessetsu_guide` / `kessetsu_capabilities`) once to inspect the installed build instead of assuming features from a website or prompt.
+2. Run `check - --format json` (accepting `.kess` or SPICE via `--input auto`) to obtain syntax, semantic, and ERC diagnostics.
 3. Run `compile - --format json --include spice` when inspection of the canonical netlist is needed.
 4. Run `simulate - --format json` to read typed measurements and the analysis summary.
 5. Run `test - --requirements frozen.kessreq --format json` when the supervising process, rather than the design source, owns acceptance criteria. Optionally pin `--requirements-sha256`; record `requirements.sha256` from the response.
-6. Read `assertions[].status`, `actual`, `threshold`, and summary fields to determine the remaining target difference.
-7. Revise only the design source and repeat the same stdin call.
+6. Read `assertions.assertions[].status`, `actual`, `threshold`, and summary fields to determine the remaining target difference.
+7. Revise only the design source (`.kess` or SPICE) and repeat the same call, then render the schematic (`render`) and export handoff artifacts (`export`).
 
 The repository contract suite verifies this flow with a cross-platform fixture: it reads the measured 200 mA result from a failing 10 Ω candidate, revises the resistor to 100 Ω, and passes the assertion at 20 mA. The test never parses human terminal text.

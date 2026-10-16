@@ -1222,9 +1222,16 @@ fn complex_signal<'a>(
             "AC engineering metric currently requires voltage signals, got '{signal}'"
         ));
     }
+    let key = target.to_ascii_lowercase();
     dataset
         .signals
-        .get(&target.to_ascii_lowercase())
+        .get(&key)
+        .or_else(|| {
+            key.bytes()
+                .all(|byte| byte.is_ascii_digit())
+                .then(|| dataset.signals.get(&format!("n_{key}")))
+                .flatten()
+        })
         .ok_or_else(|| format!("AC signal '{signal}' was not produced"))
 }
 
@@ -1318,6 +1325,15 @@ fn lookup_scalar(values: &std::collections::BTreeMap<String, f64>, key: &str) ->
         .iter()
         .find(|(name, _)| name.eq_ignore_ascii_case(key))
         .map(|(_, value)| *value)
+        .or_else(|| {
+            key.bytes().all(|byte| byte.is_ascii_digit()).then(|| {
+                let mapped = format!("n_{key}");
+                values
+                    .iter()
+                    .find(|(name, _)| name.eq_ignore_ascii_case(&mapped))
+                    .map(|(_, value)| *value)
+            })?
+        })
 }
 
 fn lookup_series<'a>(series: &'a RealSeriesDataset, key: &str) -> Option<&'a Vec<f64>> {
@@ -1326,6 +1342,16 @@ fn lookup_series<'a>(series: &'a RealSeriesDataset, key: &str) -> Option<&'a Vec
         .iter()
         .find(|(name, _)| name.eq_ignore_ascii_case(key))
         .map(|(_, values)| values)
+        .or_else(|| {
+            key.bytes().all(|byte| byte.is_ascii_digit()).then(|| {
+                let mapped = format!("n_{key}");
+                series
+                    .signals
+                    .iter()
+                    .find(|(name, _)| name.eq_ignore_ascii_case(&mapped))
+                    .map(|(_, values)| values)
+            })?
+        })
 }
 
 fn windowed_values(

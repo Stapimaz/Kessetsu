@@ -191,6 +191,10 @@ pub fn capability_manifest(cli_schema_version: &str) -> CapabilityManifest {
                     "https://kessetsu.com/docs/reference/cli/#agent-loop".into(),
                 ),
                 (
+                    "agent_workflow".into(),
+                    "https://kessetsu.com/docs/guides/agent-workflow/".into(),
+                ),
+                (
                     "exports".into(),
                     "https://kessetsu.com/docs/reference/exports/".into(),
                 ),
@@ -228,7 +232,7 @@ pub fn capability_manifest(cli_schema_version: &str) -> CapabilityManifest {
             WorkflowStep {
                 goal: "Validate a complete in-memory candidate".into(),
                 command: "kess check - --format json".into(),
-                note: "Send the complete .kess source on stdin; no adjacent artifact is created.".into(),
+                note: "Send the complete .kess or SPICE source on stdin; no adjacent artifact is created.".into(),
             },
             WorkflowStep {
                 goal: "Inspect the canonical netlist when needed".into(),
@@ -262,6 +266,13 @@ fn command_capabilities() -> Vec<CommandCapability> {
             false,
             false,
             "stdout_only",
+        ),
+        (
+            "mcp",
+            "Serve Kessetsu tools to AI agents over the Model Context Protocol (stdio)",
+            true,
+            true,
+            "stdio_jsonrpc",
         ),
         (
             "import",

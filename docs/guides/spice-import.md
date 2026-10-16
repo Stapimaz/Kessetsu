@@ -12,17 +12,27 @@ C1 OUT 0 159.154943n
 .end
 ```
 
-With the CLI and Ngspice installed, run:
+With the CLI and Ngspice installed, you can check, simulate, test against `.kessreq` requirements,
+render a schematic or export to KiCad **directly from the SPICE file** (`--input auto` is the default):
+
+```bash
+kess check filter.cir
+kess simulate filter.cir
+kess test filter.cir --requirements filter.kessreq
+kess render filter.cir --output filter.svg
+kess export filter.cir --target kicad --output filter.kicad_sch
+```
+
+To save the converted, editable `.kess` file explicitly, use `kess import`:
 
 ```bash
 kess import filter.cir --output filter.kess
-kess check filter.kess
-kess simulate filter.kess
 ```
 
-If `--output` is omitted for a file input, the CLI uses the same basename with `.kess`.
+If `--output` is omitted for a file input, `kess import` uses the same basename with `.kess`.
 Existing files require `--force`. Standard input is supported with
-`kess import - --output circuit.kess`; it never chooses an implicit file destination.
+`kess import - --output circuit.kess` (or `kess check - --input spice`); it never chooses an
+implicit file destination.
 
 In Web Hub, choose **File → Import SPICE netlist…** or drop a supported
 netlist onto the editor. Conversion runs locally through the same Core contract. A complete
@@ -35,27 +45,28 @@ lines, substitute models or detach the existing save destination. A changed circ
 file picker/read is pending requires a fresh import rather than replacing your new edits.
 For the example above, wait for **Source valid**, then press **Run** in Simulation and select
 `V(out)` for the low-pass response. Import preserves the AC analysis but does not invent
-engineering requirements: add `assert` statements in the generated `.kess` if you want
-PASS/FAIL checks. See the [first-circuit tutorial](tutorial.md) for a complete five-check filter.
+engineering requirements: pass `--requirements limits.kessreq` in the CLI/MCP workflow or add
+`assert` statements in the generated `.kess` if you want PASS/FAIL checks. See the
+[first-circuit tutorial](tutorial.md) and [agent design workflow](agent-workflow.md).
 
-## What the first subset accepts
+## What the supported subset accepts
 
 | SPICE form | Kessetsu result |
 |---|---|
 | `R`, `C`, `L` with literal values | resistor, capacitor, inductor |
 | Independent `V` and `I` | DC, AC, three-field SINE, seven-field PULSE or PWL source |
-| `D` | selected built-in `1N4148`/`1N4007` models |
-| `Q` | selected typed built-in NPN/PNP models |
-| Three-terminal `M`, or four-terminal with bulk tied to source | selected built-in MOSFET models |
+| `D`, `Q`, three-terminal `M` (or four-terminal with bulk tied to source) | built-in models (`1N4148`, `1N4007`, `2N3904`, `2N3906`, `2N2222`, `IRF540`, `KESSETSU_*`) or inline `.model` |
+| Inline `.model NAME D|NPN|PNP|NMOS|PMOS(...)` | typed `model` declaration with validated Ngspice parameters (descriptive vendor fields such as `MFG` or `VCEO` are ignored with a warning) |
 | `.op`, bounded `.tran`, `.ac`, single-source `.dc` | typed `simulate` statements |
 | `.param NAME=literal` | typed editable parameter, with unit inferred from its supported uses |
 | Source-embedded `.SUBCKT` plus root `X` instances | editable `module`/`use`, preserving ports, local topology and literal typed overrides |
+| First-line plain title, `.control ... .endc`, `.print`, `.plot`, `.probe`, `.save`, `.meas`, `.options` | tolerated and skipped with informational/warning diagnostics (`KES-N010`..`KES-N012`) because Kessetsu owns simulation runner control and measurement evaluation |
 
 Continuation lines beginning with `+`, comments, `.title` and `.end` are understood. SPICE node
-`0` becomes the explicit `GND` net. Other node and component names are preserved when valid or
-mapped deterministically when Kessetsu identifiers require it. `--format json` returns the
-`kessetsu.spice-import.v1` report, source hash, name mappings, diagnostics, summary and verified
-editable source.
+`0` becomes the explicit `GND` net. Other node, component and inline-model names are preserved when
+valid or mapped deterministically when Kessetsu identifiers or built-in model names require it.
+`--format json` returns the `kessetsu.spice-import.v1` report, source hash, name mappings,
+diagnostics, summary and verified editable source.
 
 SPICE suffix meaning is preserved rather than copied blindly. In SPICE, `10M` means 10 milliohms,
 while Kessetsu uses SI casing where `10M` would mean 10 megaohms. The importer therefore writes a
@@ -63,14 +74,13 @@ normalized number and canonical recompilation confirms the resolved value.
 
 ## Fail-closed limits
 
-The initial importer rejects these constructs instead of guessing or silently removing them:
+The importer rejects electrical constructs that cannot be represented truthfully in Circuit IR instead of guessing or silently removing components:
 
-- `.control`/`.endc`, shell-like or simulator-control content;
 - arbitrary `.include`/`.lib` paths;
-- inline `.model` and general SPICE expressions;
+- unknown `.model` families or unsupported model parameters;
 - parameter expressions, unused parameters or one parameter used across conflicting electrical units;
-- controlled or behavioral sources and unsupported component families;
-- unknown semiconductor models, untied MOSFET bulk nodes, non-zero AC source phase, or analysis
+- controlled or behavioral sources (`E`, `F`, `G`, `H`, `B`) and unsupported component families;
+- unknown semiconductor models without an inline `.model`, untied MOSFET bulk nodes, non-zero AC source phase, or analysis
   options that the typed Kessetsu IR cannot represent.
 
 Embedded subcircuits are intentionally structural, not raw simulator text. A `.SUBCKT` must have

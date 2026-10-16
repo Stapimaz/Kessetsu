@@ -45,6 +45,9 @@ use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::process;
 
+#[path = "kess_support/mcp.rs"]
+mod mcp;
+
 const CLI_SCHEMA_VERSION: &str = "kessetsu.cli.v1";
 
 #[derive(Parser)]
@@ -73,6 +76,18 @@ struct Cli {
     /// Override a declared root parameter with a numeric literal (repeatable NAME=VALUE)
     #[arg(long = "param", global = true)]
     parameters: Vec<String>,
+
+    /// Circuit source language. `auto` treats .cir/.sp/.spice/.net/.ckt files, and stdin
+    /// containing SPICE dot directives, as SPICE netlists.
+    #[arg(long = "input", value_enum, default_value_t = InputLanguage::Auto, global = true)]
+    input: InputLanguage,
+}
+
+#[derive(Clone, Copy, ValueEnum, PartialEq, Eq, Debug)]
+enum InputLanguage {
+    Auto,
+    Kess,
+    Spice,
 }
 
 #[derive(Subcommand)]
@@ -101,6 +116,8 @@ enum Commands {
     Render(RenderCommand),
     /// Export a machine-readable or editable circuit artifact
     Export(ExportCommand),
+    /// Serve Kessetsu tools to AI agents over the Model Context Protocol (stdio)
+    Mcp,
 }
 
 #[derive(Args)]
@@ -1406,6 +1423,10 @@ fn run(cli: Cli) -> i32 {
         return run_capabilities(&cli.format, &includes);
     }
 
+    if matches!(cli.command, Commands::Mcp) {
+        return mcp::serve();
+    }
+
     if let Commands::Import(import) = &cli.command {
         if !cli.parameters.is_empty() {
             let mut report = import_spice("");
@@ -1543,6 +1564,46 @@ fn run(cli: Cli) -> i32 {
             return 2;
         }
     };
+    let mut import_notes = Vec::new();
+    let source = if resolve_input_language(cli.input, source_path, &source) == InputLanguage::Spice
+    {
+        let imported = import_spice(&source);
+        let mut converted = imported
+            .diagnostics
+            .iter()
+            .map(import_diagnostic)
+            .collect::<Vec<_>>();
+        match imported.kess_source {
+            Some(kess) if !imported.has_errors() => {
+                import_notes = converted;
+                kess
+            }
+            _ => {
+                if converted.is_empty() {
+                    converted.push(diagnostic(
+                        "KES-N005",
+                        DiagnosticStage::Parse,
+                        "SPICE input could not be converted into canonical Kessetsu source",
+                    ));
+                }
+                let mut report = CompileReport::failure(converted.remove(0));
+                report.diagnostics.extend(converted);
+                emit(
+                    &cli.format,
+                    command,
+                    &includes,
+                    "error",
+                    report,
+                    None,
+                    None,
+                    None,
+                );
+                return 2;
+            }
+        }
+    } else {
+        source
+    };
 
     let needs_spice = !matches!(cli.command, Commands::Check { .. });
     let needs_schematic = matches!(cli.command, Commands::Render(_) | Commands::Export(_));
@@ -1570,6 +1631,9 @@ fn run(cli: Cli) -> i32 {
             }
         };
     let mut report = compile_source_with_inputs(&source, options, &inputs, &external_resources);
+    if !import_notes.is_empty() {
+        report.diagnostics.splice(0..0, import_notes);
+    }
     if includes.contains(&Include::EffectiveSource)
         && !report.has_errors()
         && report.effective_source.is_none()
@@ -1926,6 +1990,7 @@ fn command_name(command: &Commands) -> &'static str {
         Commands::Test(_) => "test",
         Commands::Render(_) => "render",
         Commands::Export(_) => "export",
+        Commands::Mcp => "mcp",
     }
 }
 
@@ -2225,6 +2290,47 @@ fn read_source(source_path: &Path) -> io::Result<String> {
     }
 }
 
+/// Resolves `--input auto`: SPICE file extensions, or stdin/unknown text containing a line
+/// that starts with a SPICE dot directive. Kessetsu source never starts a line with `.`.
+fn resolve_input_language(requested: InputLanguage, path: &Path, source: &str) -> InputLanguage {
+    if requested != InputLanguage::Auto {
+        return requested;
+    }
+    let extension = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(str::to_ascii_lowercase);
+    match extension.as_deref() {
+        Some("kess") => InputLanguage::Kess,
+        Some("cir" | "sp" | "spice" | "net" | "ckt" | "cki") => InputLanguage::Spice,
+        _ if source
+            .lines()
+            .any(|line| line.trim_start().starts_with('.')) =>
+        {
+            InputLanguage::Spice
+        }
+        _ => InputLanguage::Kess,
+    }
+}
+
+fn import_diagnostic(diagnostic: &ImportDiagnostic) -> Diagnostic {
+    Diagnostic {
+        code: diagnostic.code.clone(),
+        severity: match diagnostic.severity {
+            ImportSeverity::Error => DiagnosticSeverity::Error,
+            ImportSeverity::Warning => DiagnosticSeverity::Warning,
+            ImportSeverity::Info => DiagnosticSeverity::Info,
+        },
+        stage: DiagnosticStage::Parse,
+        message: format!("SPICE input: {}", diagnostic.message),
+        component: None,
+        pin: None,
+        field: None,
+        line: diagnostic.line,
+        column: diagnostic.column,
+    }
+}
+
 fn load_external_model_resources(
     source_path: &Path,
     source_is_stdin: bool,
@@ -2321,7 +2427,8 @@ fn command_path(command: &Commands) -> &Path {
         | Commands::Data(_)
         | Commands::Fit(_)
         | Commands::Study(_)
-        | Commands::Tool(_) => {
+        | Commands::Tool(_)
+        | Commands::Mcp => {
             unreachable!("non-circuit commands are handled before reading source")
         }
         Commands::Check { file } => file,
@@ -2344,7 +2451,8 @@ fn output_command(command: &Commands) -> Option<&OutputCommand> {
         | Commands::Check { .. }
         | Commands::Render(_)
         | Commands::Export(_)
-        | Commands::Tool(_) => None,
+        | Commands::Tool(_)
+        | Commands::Mcp => None,
     }
 }
 

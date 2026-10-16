@@ -354,3 +354,74 @@ quit
         assert!((actual_imaginary - expected_imaginary).abs() <= scale * 1e-12);
     }
 }
+
+#[test]
+fn inline_models_and_direct_spice_cli_test_with_requirements() {
+    let workspace = TestWorkspace::new("spice-direct-test");
+    let netlist = "Diode Clamper and RC Filter
+V1 IN 0 AC 1
+R1 IN OUT 1k
+C1 OUT 0 159.154943n
+D1 OUT 0 DMOD
+.model DMOD D(IS=2.52n RS=0.568 N=1.752 CJO=4p M=0.4 TT=20n BV=100 IBV=100u MFG=Generic)
+.control
+run
+plot v(out)
+.endc
+.meas ac f3db WHEN vdb(OUT)=-3
+.ac dec 40 10 100k
+.end
+";
+    let cir_path = workspace.write("circuit.cir", netlist);
+    let req_path = workspace.write(
+        "requirements.kessreq",
+        "assert upper_cutoff(V(OUT),V(IN)) > 950Hz\nassert upper_cutoff(V(OUT),V(IN)) < 1050Hz\nassert gain_at(V(OUT),V(IN),100Hz) > 0.99\n",
+    );
+    let cir_arg = cir_path.to_string_lossy().into_owned();
+    let req_arg = req_path.to_string_lossy().into_owned();
+
+    let output = workspace.run_cli(&[
+        "--format",
+        "json",
+        "test",
+        &cir_arg,
+        "--requirements",
+        &req_arg,
+    ]);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid CLI JSON");
+    assert_eq!(json["status"], "success");
+    assert_eq!(json["summary"]["assertions"]["passed"], 3);
+    assert_eq!(json["summary"]["assertions"]["failed"], 0);
+    let diagnostics = json["diagnostics"].as_array().expect("diagnostics array");
+    assert!(diagnostics.iter().any(|d| d["code"] == "KES-N010"));
+    assert!(diagnostics.iter().any(|d| d["code"] == "KES-N011"));
+    assert!(diagnostics.iter().any(|d| d["code"] == "KES-N012"));
+
+    let numbered_cir = workspace.write(
+        "numbered.cir",
+        "V1 1 0 AC 1\nR1 1 2 1k\nC1 2 0 159.154943n\n.ac dec 40 10 100k\n.end\n",
+    );
+    let numbered_req = workspace.write(
+        "numbered.kessreq",
+        "assert upper_cutoff(V(2),V(1)) > 950Hz\nassert upper_cutoff(V(2),V(1)) < 1050Hz\n",
+    );
+    let numbered_output = workspace.run_cli(&[
+        "--format",
+        "json",
+        "test",
+        &numbered_cir.to_string_lossy(),
+        "--requirements",
+        &numbered_req.to_string_lossy(),
+    ]);
+    assert_eq!(numbered_output.status.code(), Some(0));
+    let numbered_json: Value =
+        serde_json::from_slice(&numbered_output.stdout).expect("valid CLI JSON");
+    assert_eq!(numbered_json["status"], "success");
+    assert_eq!(numbered_json["summary"]["assertions"]["passed"], 2);
+}

@@ -4,7 +4,23 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
-No changes queued.
+### Agent workflow and direct SPICE verification
+
+- Add `kess mcp`, a built-in stdio Model Context Protocol server exposing `kessetsu_guide`,
+  `kessetsu_capabilities`, `kessetsu_check`, `kessetsu_simulate`, `kessetsu_test`,
+  `kessetsu_render_schematic`, `kessetsu_export`, `kessetsu_import_spice` and the
+  `design_circuit` prompt over the canonical `kessetsu.cli.v1` JSON contract.
+- Add global `--input auto|kess|spice` so `check`, `compile`, `simulate`, `test`, `render`
+  and `export` accept supported SPICE netlists (`.cir`, `.sp`, `.spice`, `.net`, `.ckt`,
+  `.cki` or dot-directive stdin) directly alongside `.kess` source and `.kessreq` files.
+- Expand SPICE import to convert inline `.model` cards (`D`, `NPN`, `PNP`, `NMOS`, `PMOS`)
+  into typed `model` declarations, tolerate first-line plain titles (`KES-N010`), and skip
+  `.control ... .endc` blocks (`KES-N012`) and output/simulator-option directives (`.print`,
+  `.plot`, `.probe`, `.save`, `.meas`, `.options` -> `KES-N011`) with warnings.
+- Allow `.kessreq` and inline assertions to reference original numeric SPICE node numbers
+  such as `V(1)` and `V(2)` when testing imported SPICE netlists.
+- Add the [Agent design workflow](docs/guides/agent-workflow.md) guide and surface MCP setup
+  on the installation and documentation pages.
 
 ## [1.3.1] — 2026-10-06
 

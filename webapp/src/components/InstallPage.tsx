@@ -129,9 +129,11 @@ export function InstallPage() {
         </ol>
         <section className="install-followup" aria-labelledby="install-next">
           <h2 id="install-next"><Terminal size={20} /> Use it with your agent</h2>
-          <p>Your agent needs access to your local terminal and the installed CLI. A chat-only model can propose source, but cannot run local checks for you. Kessetsu requires no AI subscription or API key.</p>
+          <p>Connect your AI agent through Kessetsu’s built-in MCP server (<code>kess mcp</code>) or let it run the local CLI directly. Kessetsu requires no AI subscription or API key.</p>
+          <CopyCommand command="claude mcp add kessetsu -- kess mcp" label="MCP registration command" />
+          <p className="install-note">For Cursor, Windsurf, VS Code or other MCP clients, configure <code>{`{"command": "kess", "args": ["mcp"]}`}</code>; see the <a href={`${base}docs/guides/agent-workflow/`}>Agent design workflow</a>.</p>
           <details><summary>Copy a complete first task for your agent</summary><p>A small, reproducible design task with fixed requirements and editable outputs. Replace the brief with your own requirements once this works.</p><CopyCommand command={agentTask} label="complete agent task" /></details>
-          <p><a href={`${base}docs/guides/cookbook/#give-an-external-agent-a-complete-task`}>Walk through the same design and verification loop</a>. Local manufacturer models need exact file bindings; see <a href={`${base}docs/reference/model-catalog/`}>device models</a>.</p>
+          <p><a href={`${base}docs/guides/agent-workflow/`}>Read the agent design workflow</a> or <a href={`${base}docs/guides/cookbook/#give-an-external-agent-a-complete-task`}>walk through the complete task in the Cookbook</a>. Local manufacturer models need exact file bindings; see <a href={`${base}docs/reference/model-catalog/`}>device models</a>.</p>
           <details><summary>Next: try a transistor circuit</summary>
             <p><a href={`${base}examples/transistor_driver.kess`} download="transistor-driver.kess">Download the complete emitter-follower example</a> as <code>transistor-driver.kess</code>. From its folder, with Ngspice installed, run:</p>
             <CopyCommand command="kess test transistor-driver.kess --format json" label="transistor example command" />

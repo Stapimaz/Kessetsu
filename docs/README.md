@@ -7,13 +7,14 @@ Use the free [Web Hub](https://kessetsu.com/#editor) without an account or insta
 ## Start here
 
 - [Tutorial](guides/tutorial.md): build your first circuit and verify its frequency response.
+- [Agent design workflow](guides/agent-workflow.md): use Kessetsu with an AI agent via `kess mcp` or CLI (`.kessreq` requirements, ERC, testing, schematic and handoff).
+- [SPICE netlist import and direct use](guides/spice-import.md): check, test, render, export or convert supported Ngspice netlists.
 - [Web editor](guides/web-editor.md): examples, files, panels, simulation, exports and sharing.
 - [Why Kessetsu?](guides/why-kessetsu.md): how the combined workflow complements SPICE and EDA tools.
 - [Cookbook](guides/cookbook.md): calculations, reusable blocks, agent loops and device models.
 
-## Import, automation and advanced analysis
+## Automation and advanced analysis
 
-- [SPICE netlist import](guides/spice-import.md): convert the supported subset into editable, canonically verified `.kess`.
 - [Parameter studies](guides/parameter-studies.md): multi-condition experiments and reports.
 - [Research data](guides/research-data.md): local CSV mapping, evidence and scalar comparisons.
 - [Finite parameter fitting](guides/model-fitting.md): calibration-only selection with separate holdout validation.

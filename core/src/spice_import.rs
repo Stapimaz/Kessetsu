@@ -32,6 +32,7 @@ pub enum ImportNameKind {
     Parameter,
     Module,
     ModulePort,
+    Model,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -179,6 +180,59 @@ impl ImportUnit {
 type ImportedNames = (BTreeMap<String, String>, BTreeMap<String, String>);
 type NameAllocationError = (usize, String);
 
+/// Built-in Kessetsu model names. Inline SPICE models with these names are renamed so the
+/// user's parameters are never silently replaced by the built-in card.
+const BUILTIN_MODEL_NAMES: &[&str] = &[
+    "2N3904",
+    "2N3906",
+    "2N2222",
+    "1N4148",
+    "1N4007",
+    "IRF540",
+    "KESSETSU_POWER_NPN_V1",
+    "KESSETSU_POWER_PNP_V1",
+    "KESSETSU_PMOS_V1",
+    "KESSETSU_OPAMP_V1",
+];
+
+/// Vendor/LTspice descriptive fields that carry no Ngspice electrical meaning.
+const DESCRIPTIVE_MODEL_FIELDS: &[&str] = &[
+    "mfg", "type", "vceo", "icrate", "icrating", "iave", "vpk", "vds", "ron", "qg",
+];
+
+/// Output/control directives whose job (printing, plotting, measuring) is owned by Kessetsu
+/// measurements and requirements. They are skipped with a warning, never executed.
+const OUTPUT_DIRECTIVES: &[&str] = &[
+    ".print",
+    ".plot",
+    ".probe",
+    ".save",
+    ".meas",
+    ".measure",
+    ".four",
+    ".width",
+    ".options",
+    ".option",
+    ".backanno",
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum InlineModelKind {
+    Diode,
+    Bjt(&'static str),
+    Mosfet(&'static str),
+}
+
+#[derive(Debug, Clone)]
+struct InlineModel {
+    original: String,
+    mapped: String,
+    kind: InlineModelKind,
+    parameters: Vec<(String, String)>,
+}
+
+type InlineModels = BTreeMap<String, InlineModel>;
+
 pub fn import_spice(source: &str) -> SpiceImportReport {
     let mut report = SpiceImportReport {
         schema_version: SPICE_IMPORT_SCHEMA_VERSION.into(),
@@ -226,6 +280,10 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
         .iter()
         .map(|parameter| (parameter.original_name.to_ascii_lowercase(), parameter))
         .collect::<BTreeMap<_, _>>();
+    let models = collect_models(&root_lines, &mut report);
+    if report.has_errors() {
+        return report;
+    }
     let mut module_identifiers = BTreeSet::new();
     let mut module_names = BTreeMap::<String, (String, usize)>::new();
     for block in &blocks {
@@ -273,7 +331,7 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
     }
     let mut subcircuits = Vec::new();
     for block in &blocks {
-        match parse_subcircuit(block, &module_names) {
+        match parse_subcircuit(block, &module_names, &models) {
             Ok(subcircuit) => subcircuits.push(subcircuit),
             Err((line, message)) => push_error(&mut report, "KES-N007", message, Some(line)),
         }
@@ -291,10 +349,30 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
     let mut instances = Vec::new();
     let mut analyses = Vec::<(usize, Vec<String>)>::new();
     let mut ended = false;
+    let mut control_start = None;
 
     for line in root_lines {
         let text = line.text.trim();
         if text.is_empty() || text.starts_with('*') || text.starts_with(';') {
+            continue;
+        }
+        if let Some(start) = control_start {
+            if text
+                .split_whitespace()
+                .next()
+                .is_some_and(|field| field.eq_ignore_ascii_case(".endc"))
+            {
+                control_start = None;
+                push_warning(
+                    &mut report,
+                    "KES-N011",
+                    format!(
+                        "skipped simulator .control block (lines {start}-{}); Kessetsu runs only dot analyses and owns measurement/assertions",
+                        line.number
+                    ),
+                    Some(start),
+                );
+            }
             continue;
         }
         if ended {
@@ -322,21 +400,31 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
                 ".op" | ".tran" | ".ac" | ".dc" => {
                     analyses.push((line.number, fields));
                 }
-                ".param" => {}
-                ".control" | ".endc" => push_unsupported(
+                ".param" | ".model" => {}
+                ".control" => control_start = Some(line.number),
+                ".endc" => push_unsupported(
                     &mut report,
                     line.number,
-                    "simulator control blocks are not executed or partially imported",
+                    ".endc without a matching .control",
                 ),
                 ".include" | ".lib" => push_unsupported(
                     &mut report,
                     line.number,
                     "model libraries require an explicit resource binding; arbitrary paths are not imported",
                 ),
-                ".model" | ".ends" => push_unsupported(
+                ".ends" => push_unsupported(
                     &mut report,
                     line.number,
-                    "inline model definitions and unmatched .ENDS directives are not importable",
+                    "unmatched .ENDS directive is not importable",
+                ),
+                output if OUTPUT_DIRECTIVES.contains(&output) => push_warning(
+                    &mut report,
+                    "KES-N011",
+                    format!(
+                        "skipped output/simulator-option directive '{}'; use Kessetsu assertions or .kessreq requirements for measurements",
+                        fields[0]
+                    ),
+                    Some(line.number),
                 ),
                 _ => push_unsupported(
                     &mut report,
@@ -347,6 +435,7 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
             continue;
         }
 
+        let is_first_line = line.number == 1;
         if text
             .chars()
             .next()
@@ -360,16 +449,31 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
                 &mut parameter_units,
             ) {
                 Ok(instance) => instances.push(instance),
+                Err(_) if is_first_line => push_title_info(&mut report),
                 Err(message) => push_error(&mut report, "KES-N007", message, Some(line.number)),
             }
         } else {
-            match parse_component(text, line.number, &parameter_lookup, &mut parameter_units) {
+            match parse_component(
+                text,
+                line.number,
+                &parameter_lookup,
+                &mut parameter_units,
+                &models,
+            ) {
                 Ok(component) => components.push(component),
+                Err(_) if is_first_line => push_title_info(&mut report),
                 Err(message) => push_error(&mut report, "KES-N002", message, Some(line.number)),
             }
         }
     }
 
+    if let Some(start) = control_start {
+        push_unsupported(
+            &mut report,
+            start,
+            ".control block is not terminated by .endc",
+        );
+    }
     if components.is_empty() && instances.is_empty() {
         push_error(
             &mut report,
@@ -496,6 +600,48 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
         generated.push_str(&format!("net {net}\n"));
     }
     if !declared_nets.is_empty() {
+        generated.push('\n');
+    }
+
+    let referenced_models = components
+        .iter()
+        .chain(
+            subcircuits
+                .iter()
+                .flat_map(|module| module.components.iter()),
+        )
+        .filter_map(|component| match &component.kind {
+            ImportedKind::Diode(model)
+            | ImportedKind::Bjt { model, .. }
+            | ImportedKind::Mosfet(model) => Some(model.clone()),
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
+    let mut emitted_models = false;
+    for model in models.values() {
+        if !referenced_models.contains(&model.mapped) {
+            report.diagnostics.push(ImportDiagnostic {
+                code: "KES-N012".into(),
+                severity: ImportSeverity::Info,
+                message: format!(
+                    "inline model '{}' is not referenced by an imported device and was not emitted",
+                    model.original
+                ),
+                line: None,
+                column: None,
+            });
+            continue;
+        }
+        report.names.push(ImportNameMapping {
+            kind: ImportNameKind::Model,
+            original: model.original.clone(),
+            kessetsu: model.mapped.clone(),
+        });
+        generated.push_str(&render_inline_model(model));
+        generated.push('\n');
+        emitted_models = true;
+    }
+    if emitted_models {
         generated.push('\n');
     }
 
@@ -751,6 +897,7 @@ fn partition_subcircuits(
 fn parse_subcircuit(
     block: &SubcircuitBlock,
     module_names: &BTreeMap<String, (String, usize)>,
+    models: &InlineModels,
 ) -> Result<ImportedSubcircuit, (usize, String)> {
     let fields = split_fields(block.header.text.trim());
     let name = fields
@@ -860,8 +1007,14 @@ fn parse_subcircuit(
             ));
         }
         components.push(
-            parse_component(text, line.number, &parameter_lookup, &mut parameter_units)
-                .map_err(|message| (line.number, message))?,
+            parse_component(
+                text,
+                line.number,
+                &parameter_lookup,
+                &mut parameter_units,
+                models,
+            )
+            .map_err(|message| (line.number, message))?,
         );
     }
     if components.is_empty() {
@@ -1295,6 +1448,7 @@ fn parse_component(
     line: usize,
     parameters: &BTreeMap<String, &ImportedParameter>,
     parameter_units: &mut BTreeMap<String, ImportUnit>,
+    models: &InlineModels,
 ) -> Result<ImportedComponent, String> {
     let fields = split_fields(text);
     let name = fields
@@ -1357,11 +1511,21 @@ fn parse_component(
             if fields.len() != 4 {
                 return Err("D expects name, anode, cathode and model".into());
             }
+            let model = match models.get(&fields[3].to_ascii_lowercase()) {
+                Some(inline) if inline.kind == InlineModelKind::Diode => inline.mapped.clone(),
+                Some(inline) => {
+                    return Err(format!(
+                        "diode '{name}' references non-diode model '{}'",
+                        inline.original
+                    ));
+                }
+                None => fields[3].clone(),
+            };
             Ok(ImportedComponent {
                 original_name: name.clone(),
                 nodes: fields[1..3].to_vec(),
                 pins: &["p1", "p2"],
-                kind: ImportedKind::Diode(fields[3].clone()),
+                kind: ImportedKind::Diode(model),
                 line,
             })
         }
@@ -1369,14 +1533,30 @@ fn parse_component(
             if fields.len() != 5 {
                 return Err("Q expects name, collector, base, emitter and model; substrate nodes are not supported".into());
             }
-            let model = fields[4].clone();
-            let polarity = match model.to_ascii_uppercase().as_str() {
-                "2N3906" | "KESSETSU_POWER_PNP_V1" => "pnp",
-                "2N3904" | "2N2222" | "KESSETSU_POWER_NPN_V1" => "npn",
-                _ => {
+            let (polarity, model) = match models.get(&fields[4].to_ascii_lowercase()) {
+                Some(InlineModel {
+                    kind: InlineModelKind::Bjt(polarity),
+                    mapped,
+                    ..
+                }) => (*polarity, mapped.clone()),
+                Some(inline) => {
                     return Err(format!(
-                        "BJT model '{model}' has no typed polarity in the supported import subset"
+                        "transistor '{name}' references non-BJT model '{}'",
+                        inline.original
                     ));
+                }
+                None => {
+                    let model = fields[4].clone();
+                    let polarity = match model.to_ascii_uppercase().as_str() {
+                        "2N3906" | "KESSETSU_POWER_PNP_V1" => "pnp",
+                        "2N3904" | "2N2222" | "KESSETSU_POWER_NPN_V1" => "npn",
+                        _ => {
+                            return Err(format!(
+                                "BJT model '{model}' is neither built in nor defined by an inline .model NPN/PNP card"
+                            ));
+                        }
+                    };
+                    (polarity, model)
                 }
             };
             Ok(ImportedComponent {
@@ -1404,14 +1584,31 @@ fn parse_component(
                     );
                 }
             };
-            if !matches!(
-                model.to_ascii_uppercase().as_str(),
-                "IRF540" | "KESSETSU_PMOS_V1"
-            ) {
-                return Err(format!(
-                    "MOSFET model '{model}' is outside the supported typed import subset"
-                ));
-            }
+            let model = match models.get(&model.to_ascii_lowercase()) {
+                Some(InlineModel {
+                    kind: InlineModelKind::Mosfet(_),
+                    mapped,
+                    ..
+                }) => mapped.clone(),
+                Some(inline) => {
+                    return Err(format!(
+                        "MOSFET '{name}' references non-MOSFET model '{}'",
+                        inline.original
+                    ));
+                }
+                None if matches!(
+                    model.to_ascii_uppercase().as_str(),
+                    "IRF540" | "KESSETSU_PMOS_V1"
+                ) =>
+                {
+                    model
+                }
+                None => {
+                    return Err(format!(
+                        "MOSFET model '{model}' is neither built in nor defined by an inline .model NMOS/PMOS card"
+                    ));
+                }
+            };
             Ok(ImportedComponent {
                 original_name: name.clone(),
                 nodes,
@@ -1897,6 +2094,237 @@ fn push_unsupported(report: &mut SpiceImportReport, line: usize, message: &str) 
         format!("Unsupported SPICE construct: {message}"),
         Some(line),
     );
+}
+
+fn push_title_info(report: &mut SpiceImportReport) {
+    report.diagnostics.push(ImportDiagnostic {
+        code: "KES-N010".into(),
+        severity: ImportSeverity::Info,
+        message: "first line is not a supported card and was treated as the SPICE title".into(),
+        line: Some(1),
+        column: Some(1),
+    });
+}
+
+fn push_warning(
+    report: &mut SpiceImportReport,
+    code: &str,
+    message: impl Into<String>,
+    line: Option<usize>,
+) {
+    report.diagnostics.push(ImportDiagnostic {
+        code: code.into(),
+        severity: ImportSeverity::Warning,
+        message: message.into(),
+        line,
+        column: line.map(|_| 1),
+    });
+}
+
+/// Collects root-level `.model` cards into typed inline models. Unsupported model families,
+/// non-literal values and parameters outside the typed allowlist fail closed with the
+/// original line number.
+fn collect_models(lines: &[LogicalLine], report: &mut SpiceImportReport) -> InlineModels {
+    let mut models = InlineModels::new();
+    let mut used_names = BTreeSet::new();
+    for line in lines {
+        let text = line.text.trim();
+        let mut tokens = text.split_whitespace();
+        if !tokens
+            .next()
+            .is_some_and(|field| field.eq_ignore_ascii_case(".model"))
+        {
+            continue;
+        }
+        match parse_inline_model(text, &mut used_names) {
+            Ok((model, dropped)) => {
+                if !dropped.is_empty() {
+                    report.diagnostics.push(ImportDiagnostic {
+                        code: "KES-N012".into(),
+                        severity: ImportSeverity::Info,
+                        message: format!(
+                            "model '{}': descriptive vendor fields without Ngspice electrical meaning were not copied: {}",
+                            model.original,
+                            dropped.join(", ")
+                        ),
+                        line: Some(line.number),
+                        column: Some(1),
+                    });
+                }
+                let key = model.original.to_ascii_lowercase();
+                if models.insert(key, model).is_some() {
+                    push_error(
+                        report,
+                        "KES-N012",
+                        "duplicate .model name; SPICE names are case-insensitive",
+                        Some(line.number),
+                    );
+                }
+            }
+            Err(message) => push_error(report, "KES-N012", message, Some(line.number)),
+        }
+    }
+    models
+}
+
+fn parse_inline_model(
+    text: &str,
+    used_names: &mut BTreeSet<String>,
+) -> Result<(InlineModel, Vec<String>), String> {
+    let rest = text[".model".len()..].trim_start();
+    let name_end = rest
+        .find(|character: char| character.is_whitespace() || character == '(')
+        .ok_or("'.model' requires a name and a model type")?;
+    let original = rest[..name_end].to_string();
+    let rest = rest[name_end..].trim_start();
+    let type_end = rest
+        .find(|character: char| !character.is_ascii_alphanumeric())
+        .unwrap_or(rest.len());
+    let model_type = rest[..type_end].to_ascii_uppercase();
+    let kind = match model_type.as_str() {
+        "D" => InlineModelKind::Diode,
+        "NPN" => InlineModelKind::Bjt("npn"),
+        "PNP" => InlineModelKind::Bjt("pnp"),
+        "NMOS" => InlineModelKind::Mosfet("nmos"),
+        "PMOS" => InlineModelKind::Mosfet("pmos"),
+        "" => return Err(format!("model '{original}' has no model type")),
+        other => {
+            return Err(format!(
+                "model '{original}' type '{other}' is outside the typed subset (D, NPN, PNP, NMOS, PMOS)"
+            ));
+        }
+    };
+    let mut body = rest[type_end..].trim().to_string();
+    if let Some(inner) = body.strip_prefix('(') {
+        body = inner
+            .strip_suffix(')')
+            .ok_or_else(|| format!("model '{original}' has an unterminated parameter list"))?
+            .to_string();
+    }
+    let allowed = match kind {
+        InlineModelKind::Diode => crate::models::DIODE_MODEL_PARAMETERS,
+        InlineModelKind::Bjt(_) => crate::models::BJT_MODEL_PARAMETERS,
+        InlineModelKind::Mosfet(_) => crate::models::MOSFET_MODEL_PARAMETERS,
+    };
+    let mut parameters = Vec::new();
+    let mut dropped = Vec::new();
+    let mut seen = BTreeSet::new();
+    for assignment in normalize_assignments(&body.replace(',', " ")).split_whitespace() {
+        let (key, value) = assignment.split_once('=').ok_or_else(|| {
+            format!("model '{original}' parameter '{assignment}' is not a NAME=value assignment")
+        })?;
+        let key = key.to_ascii_lowercase();
+        if DESCRIPTIVE_MODEL_FIELDS.contains(&key.as_str()) {
+            dropped.push(key);
+            continue;
+        }
+        if key == "level" {
+            if canonical_number(value).ok().as_deref() == Some("1") {
+                continue;
+            }
+            return Err(format!(
+                "model '{original}' uses level={value}; only Ngspice level 1 cards are importable"
+            ));
+        }
+        if !allowed.contains(&key.as_str()) {
+            return Err(format!(
+                "model '{original}' parameter '{key}' is outside the typed Ngspice allowlist: {}",
+                allowed.join(", ")
+            ));
+        }
+        let value = canonical_number(value)
+            .map_err(|message| format!("model '{original}' parameter '{key}': {message}"))?;
+        if !seen.insert(key.clone()) {
+            return Err(format!("model '{original}' repeats parameter '{key}'"));
+        }
+        parameters.push((key, value));
+    }
+    if parameters.is_empty() {
+        return Err(format!(
+            "model '{original}' has no electrical parameters to import"
+        ));
+    }
+    let valid_identifier = original
+        .chars()
+        .next()
+        .is_some_and(|character| character.is_ascii_alphabetic())
+        && original
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '_');
+    let builtin = BUILTIN_MODEL_NAMES
+        .iter()
+        .any(|builtin| builtin.eq_ignore_ascii_case(&original));
+    let mapped =
+        if valid_identifier && !builtin && !used_names.contains(&original.to_ascii_lowercase()) {
+            original.clone()
+        } else {
+            let sanitized = original
+                .chars()
+                .map(|character| {
+                    if character.is_ascii_alphanumeric() {
+                        character
+                    } else {
+                        '_'
+                    }
+                })
+                .collect::<String>();
+            let mut candidate = format!("SPICE_{sanitized}");
+            let mut suffix = 2;
+            while used_names.contains(&candidate.to_ascii_lowercase()) {
+                candidate = format!("SPICE_{sanitized}_{suffix}");
+                suffix += 1;
+            }
+            candidate
+        };
+    used_names.insert(mapped.to_ascii_lowercase());
+    Ok((
+        InlineModel {
+            original,
+            mapped,
+            kind,
+            parameters,
+        },
+        dropped,
+    ))
+}
+
+/// Removes whitespace around `=` so `IS = 1e-14` and `IS=1e-14` tokenize identically.
+fn normalize_assignments(text: &str) -> String {
+    let characters = text.chars().collect::<Vec<_>>();
+    let mut normalized = String::with_capacity(text.len());
+    for (index, character) in characters.iter().enumerate() {
+        if character.is_whitespace() {
+            let previous = normalized.chars().last();
+            let next = characters[index + 1..]
+                .iter()
+                .find(|candidate| !candidate.is_whitespace());
+            if previous.is_none_or(|value| value == '=' || value == ' ') || next == Some(&'=') {
+                continue;
+            }
+            normalized.push(' ');
+        } else {
+            normalized.push(*character);
+        }
+    }
+    normalized
+}
+
+fn render_inline_model(model: &InlineModel) -> String {
+    let (kind, polarity) = match model.kind {
+        InlineModelKind::Diode => ("diode", String::new()),
+        InlineModelKind::Bjt(polarity) => ("bjt", format!(" {polarity}")),
+        InlineModelKind::Mosfet(polarity) => ("mosfet", format!(" {polarity}")),
+    };
+    let parameters = model
+        .parameters
+        .iter()
+        .map(|(key, value)| format!("{key}={value}"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    format!(
+        "model {kind} {}{polarity} version=0.0.0 license=unspecified source=spice-import {parameters}",
+        model.mapped
+    )
 }
 
 fn push_error(

@@ -5,6 +5,7 @@
     "docs/architecture.md",
     "docs/assets/web-hub-power-amplifier.png",
     "docs/assets/web-hub-workspace.png",
+    "docs/guides/agent-workflow.md",
     "docs/guides/cookbook.md",
     "docs/guides/model-fitting.md",
     "docs/guides/memristor-protocol.md",

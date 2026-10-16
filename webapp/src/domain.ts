@@ -81,7 +81,7 @@ export interface SpiceImportReport {
   source_bytes: number;
   diagnostics: SpiceImportDiagnostic[];
   names: Array<{
-    kind: 'component' | 'net' | 'parameter' | 'module' | 'module_port';
+    kind: 'component' | 'net' | 'parameter' | 'module' | 'module_port' | 'model';
     original: string;
     kessetsu: string;
   }>;

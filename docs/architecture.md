@@ -69,20 +69,27 @@ workspace recovery. Preferred E12/E24 values describe nominal selection, not tol
 `spice_import.rs` owns a pure, bounded `kessetsu.spice-import.v1` conversion contract.
 It parses only a declared Ngspice-compatible subset into typed import records, emits editable
 `.kess`, and recompiles that source through the canonical compiler before reporting success.
-It never sends imported text directly to a backend or simulator. Unknown directives, executable
-control blocks, arbitrary include paths, expressions and unsupported device families fail with
-source-line diagnostics; they are not silently dropped. Frontends retain the original input bytes,
-own safe output writes and expose name mappings. Initial source supports literal R/C/L, independent
-V/I sources, selected built-in D/Q/M models, OP/TRAN/AC/DC analyses and literal `.param`
-assignments whose single electrical unit is inferred from supported uses. Source-embedded
-`.SUBCKT` definitions map to source-local modules and root `X` cards map to module instances, so
-port identity, local topology and typed literal defaults/overrides survive instead of being
-silently flattened. Nested instances, implicit subcircuit globals and body directives remain
-fail-closed. Ambiguous/unused parameters and SPICE parameter expressions also fail closed.
-External model libraries remain outside automatic conversion: callers must use the existing
-contained, exact-hash, typed resource contract because a path alone cannot establish bytes, pins,
-license or redistribution policy. Controlled/behavioral sources and schematic-file import remain
-outside the declared subset until typed semantics exist.
+It never sends imported text directly to a backend or simulator. CLI circuit commands (`check`,
+`compile`, `simulate`, `test`, `render`, `export`) accept SPICE netlists directly through
+`--input auto|spice`, routing them through `import_spice` before canonical compilation; `kess mcp`
+exposes the same CLI JSON contracts over stdio without owning separate circuit semantics.
+Source supports literal R/C/L, independent V/I sources, built-in and inline `.model` D/Q/M cards
+(converting D/NPN/PNP/NMOS/PMOS parameters into typed `model` declarations and warning on
+descriptive vendor fields), OP/TRAN/AC/DC analyses and literal `.param` assignments whose single
+electrical unit is inferred from supported uses. First-line plain titles, `.control ... .endc`
+blocks and output/simulator-option directives (`.print`, `.plot`, `.save`, `.meas`, `.options`)
+are skipped with diagnostics (`KES-N010`..`KES-N012`) because Kessetsu owns simulation execution
+and measurement evaluation. Unknown electrical directives, arbitrary include paths, expressions
+and unsupported device families fail with source-line diagnostics; they are not silently dropped.
+Frontends retain the original input bytes, own safe output writes and expose name mappings.
+Source-embedded `.SUBCKT` definitions map to source-local modules and root `X` cards map to
+module instances, so port identity, local topology and typed literal defaults/overrides survive
+instead of being silently flattened. Nested instances, implicit subcircuit globals and body
+directives remain fail-closed. Ambiguous/unused parameters and SPICE parameter expressions also
+fail closed. External model libraries remain outside automatic conversion: callers must use the
+existing contained, exact-hash, typed resource contract because a path alone cannot establish
+bytes, pins, license or redistribution policy. Controlled/behavioral sources and schematic-file
+import remain outside the declared subset until typed semantics exist.
 
 ### Parameter-expression boundary
 

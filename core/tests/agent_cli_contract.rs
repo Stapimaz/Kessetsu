@@ -201,3 +201,62 @@ fn external_agent_loop_compiles_measures_and_revises_without_parsing_human_text(
     assert_eq!(passing_json["assertions"]["assertions"][0]["actual"], 0.02);
     assert_eq!(passing_json["summary"]["assertions"]["passed"], 1);
 }
+
+#[test]
+fn mcp_stdio_serves_initialize_tools_and_circuit_verification() {
+    let workspace = TestWorkspace::new("mcp-stdio");
+    let requests = [
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": { "protocolVersion": "2025-03-26" }
+        })
+        .to_string(),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized"
+        })
+        .to_string(),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/list"
+        })
+        .to_string(),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "tools/call",
+            "params": {
+                "name": "kessetsu_check",
+                "arguments": {
+                    "source": "V1 IN 0 5\nR1 IN OUT 1k\nR2 OUT 0 1k\n.op\n.end\n"
+                }
+            }
+        })
+        .to_string(),
+    ]
+    .join("\n")
+        + "\n";
+
+    let output = workspace.run_cli_with_stdin(&["mcp"], &requests);
+    assert_eq!(output.status.code(), Some(0));
+    let lines: Vec<Value> = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| serde_json::from_str(line).expect("each MCP stdout line must be JSON"))
+        .collect();
+    assert_eq!(lines.len(), 3, "notification must not emit a response");
+    assert_eq!(lines[0]["id"], 1);
+    assert_eq!(lines[0]["result"]["serverInfo"]["name"], "kessetsu");
+    assert_eq!(lines[1]["id"], 2);
+    assert!(
+        lines[1]["result"]["tools"]
+            .as_array()
+            .is_some_and(|tools| tools.iter().any(|t| t["name"] == "kessetsu_test"))
+    );
+    assert_eq!(lines[2]["id"], 3);
+    assert_eq!(lines[2]["result"]["isError"], false);
+    assert_eq!(lines[2]["result"]["structuredContent"]["status"], "success");
+}
