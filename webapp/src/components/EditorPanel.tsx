@@ -1,10 +1,11 @@
 import Editor, { type OnMount } from '@monaco-editor/react';
 import { ArrowRightLeft, Clipboard, Code2, FileUp, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { import_spice_netlist, spice_import_schema_version } from 'kessetsu-core';
 import type { editor } from 'monaco-editor';
-import type { CompileDiagnostic, CompileState, SpiceImportDiagnostic } from '../domain';
+import type { CompileDiagnostic, CompileState, SpiceImportDiagnostic, SpiceImportReport } from '../domain';
 import { monaco } from '../monaco';
-import { convertSpiceTextToKess, importDiagnosticLabel, looksLikeSpiceNetlist, SpiceImportError } from '../spiceImport';
+import { assertValidSpiceReport, importDiagnosticLabel, SpiceImportError } from '../spiceImport';
 import { PanelHeader, type PanelWindowControls } from './PanelHeader';
 
 const SAMPLE_SPICE_NETLIST = `* 1 kHz RC Low-Pass Filter
@@ -115,7 +116,8 @@ export function EditorPanel({
     setConverterError('');
     setConverterDiagnostics([]);
     try {
-      const report = convertSpiceTextToKess(rawSpice);
+      const rawReport = import_spice_netlist(rawSpice) as SpiceImportReport;
+      const report = assertValidSpiceReport(rawReport, spice_import_schema_version());
       if (!report.kess_source) return;
       if (onSpiceConverted) {
         onSpiceConverted(report.kess_source, report.summary.components);
@@ -149,8 +151,6 @@ export function EditorPanel({
       setConverterError('Clipboard read was blocked by the browser. Paste the SPICE netlist into the box below with Ctrl+V.');
     }
   };
-
-  const editorLooksLikeSpice = !compileSucceeded && wasmLoaded && looksLikeSpiceNetlist(code);
 
   return (
     <section className="workspace-panel editor-panel" aria-label="Kessetsu source editor">
@@ -235,21 +235,6 @@ export function EditorPanel({
         />
       </div>
       <div className="inline-diagnostics" aria-label="Diagnostics" aria-live="polite">
-        {editorLooksLikeSpice && (
-          <div className="spice-detected-banner" role="status">
-            <span>Detected a raw SPICE netlist in the Source editor.</span>
-            <button
-              type="button"
-              className="spice-detected-button"
-              onClick={() => {
-                setSpiceInput(code);
-                runSpiceConversion(code);
-              }}
-            >
-              <ArrowRightLeft size={12} /> Convert SPICE to .kess
-            </button>
-          </div>
-        )}
         {compileSucceeded && diagnostics.length === 0 ? (
           <span className="diagnostic-ok" data-testid="compile-success">Source valid · ERC and schematic connectivity passed</span>
         ) : diagnostics.length > 0 ? diagnostics.map((diagnostic, index) => (

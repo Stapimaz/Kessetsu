@@ -176,9 +176,6 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .editor-container { min-height: 0; flex: 1; }
 
 .inline-diagnostics { max-height: 150px; overflow-y: auto; border-top: 1px solid var(--border); background: #0b1019; }
-.spice-detected-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 10px; border-bottom: 1px solid #244b46; color: #b8f5e8; background: #0f2624; font-size: 11px; }
-.spice-detected-button { height: 24px; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; padding: 0 9px; border: 1px solid #268c7e; border-radius: 4px; color: #e0fff9; background: #165e54; cursor: pointer; font-size: 10.5px; font-weight: 600; }
-.spice-detected-button:hover { background: #1c7569; }
 .diagnostic-row { width: 100%; display: grid; grid-template-columns: 72px 1fr auto; gap: 8px; text-align: left; padding: 7px 10px; border: 0; border-bottom: 1px solid #1d2938; background: transparent; cursor: pointer; font: 12px ui-monospace, monospace; }
 .diagnostic-row:disabled { cursor: default; opacity: 1; }
 .diagnostic-error { color: #fecdd3; }

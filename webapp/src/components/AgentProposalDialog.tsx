@@ -4,7 +4,9 @@ import {
   compile_kessetsu_with_resources,
   compile_schema_version,
   evaluate_browser_simulation_with_resources,
+  import_spice_netlist,
   prepare_browser_simulation_with_resources,
+  spice_import_schema_version,
 } from 'kessetsu-core';
 import {
   createAgentTask,
@@ -18,10 +20,10 @@ import {
   type AgentProposalEnvelope,
 } from '../agentProposal';
 import { downloadTextFile, sanitizeFileStem } from '../document';
-import type { CompileReport } from '../domain';
+import type { CompileReport, SpiceImportReport } from '../domain';
 import { BrowserSimulationRunner, SimulationCancelledError } from '../simulation/browserRunner';
 import type { BrowserEvaluation, BrowserSimulationPlan } from '../simulation/types';
-import { convertSpiceTextToKess, looksLikeSpiceNetlist } from '../spiceImport';
+import { assertValidSpiceReport, looksLikeSpiceNetlist } from '../spiceImport';
 import './AgentProposalDialog.css';
 
 interface Props {
@@ -268,7 +270,8 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
         && looksLikeSpiceNetlist(candidateProposal.proposed_source)
       ) {
         try {
-          const imported = convertSpiceTextToKess(candidateProposal.proposed_source);
+          const rawReport = import_spice_netlist(candidateProposal.proposed_source) as SpiceImportReport;
+          const imported = assertValidSpiceReport(rawReport, spice_import_schema_version());
           if (imported.kess_source) {
             candidateProposal = { ...parsed, proposed_source: imported.kess_source };
             report = compileCandidate(candidateProposal.proposed_source, resources);

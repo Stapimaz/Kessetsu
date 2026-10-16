@@ -9,6 +9,7 @@ import {
   parseAgentProposal,
   summarizeProposalChanges,
 } from './agentProposal';
+import { looksLikeSpiceNetlist } from './spiceImport';
 
 const source = 'net GND\nsource V1 5V\n';
 
@@ -81,5 +82,17 @@ describe('agent proposal contracts', () => {
     expect(summary.components).toEqual({ added: 2, removed: 1 });
     expect(summary.analyses).toEqual({ added: 1, removed: 1 });
     expect(summary.assertions).toEqual({ added: 1, removed: 1 });
+  });
+
+  it('accurately distinguishes SPICE netlists from Kessetsu source', () => {
+    // Valid and invalid Kessetsu source must NEVER be flagged as SPICE
+    expect(looksLikeSpiceNetlist('net GND\nnet IN\nresistor R1 1k\nconnect R1.p1 to IN\n')).toBe(false);
+    expect(looksLikeSpiceNetlist('net GND\nresistor R1 1k\ncapacitor C1 100n\nsimulate op\n')).toBe(false);
+    expect(looksLikeSpiceNetlist('source VIN 5V\nresistor R1 1k\nconnect VIN.plus to R1.p1\n')).toBe(false);
+
+    // Actual SPICE netlists must be detected
+    expect(looksLikeSpiceNetlist('V1 in 0 5\nR1 in out 1k\nR2 out 0 2k\n.op\n.end\n')).toBe(true);
+    expect(looksLikeSpiceNetlist('* Filter\nR1 in out 1k\nC1 out 0 100n\n.ac dec 40 10 100k\n.end\n')).toBe(true);
+    expect(looksLikeSpiceNetlist('.subckt STAGE in out\nR1 in out 1k\n.ends\n')).toBe(true);
   });
 });
