@@ -181,11 +181,14 @@ export function StudyDialog({ open, source, name, resources, onClose, onApplySou
         <ol className="study-note"><li>Choose the parameters and values to try, or load the complete example below.</li><li>Run the study. Inspect every case and its measurements, including failures.</li><li>Download Results JSON to keep or resume the evidence. Apply parameters only when you want to change the editor circuit.</li></ol>
         <p className="study-note">Six ideal-passive AC cases with fixed assertions, including three expected failures. Loads a study snapshot only; your editor circuit is untouched.</p>
       </details>
-      <div className="study-row"><label>Study name<input value={spec.name} onChange={event => update({ name: event.target.value })} /></label><button onClick={reset}><RotateCcw size={14} /> Use current circuit</button><button onClick={tryExample}>Try loaded-filter study</button></div>
+      <div className="study-row"><label>Study name<input value={spec.name} onChange={event => update({ name: event.target.value })} /></label><button onClick={reset}><RotateCcw size={14} /> Use current circuit</button><button className="study-example-button" onClick={tryExample}>Try loaded-filter study</button></div>
       <p className="study-note">A source snapshot, not changes to the open circuit. Local models stay separate and are never uploaded.</p>
       {spec.source !== source && <p className="study-note">This study uses a different source snapshot from the editor. Choose “Use current circuit” to start from the current source.</p>}
       {parameterError && <p role="alert">{parameterError} Open the study source in the editor and choose its matching model files.</p>}
-      {parameters.length === 0 && !parameterError && <p className="study-note">This source has no named root parameters. With no axes, only the nominal design runs. Add <code>param</code> declarations in Source, then choose “Use current circuit”, or choose “Try loaded-filter study” above.</p>}
+      {parameters.length === 0 && !parameterError && <div className="study-empty-params">
+        <strong>No sweepable <code>param</code> declarations in this circuit yet</strong>
+        <p className="study-note">This source has no named root parameters. With no axes, only the nominal design runs. Add <code>param</code> declarations in Source (or use the <code>+ param</code> button in the Source panel header), then choose “Use current circuit”, or choose “Try loaded-filter study” above to explore a ready-made 6-case study.</p>
+      </div>}
       <label>Study type<select value={mode} onChange={event => changeMode(event.target.value)}><option value="sweep">Parameter sweep</option><option value="corners">Nominal + tolerance corners</option><option value="monte_carlo">Nominal + Monte Carlo samples</option></select></label>
       {!spec.tolerances ? <section><h3>Sweep parameters</h3>{spec.axes.map((axis, index) => <div className="study-axis" key={index}>
         <label>Parameter<select aria-label={`Sweep parameter ${index + 1}`} value={axis.parameter} onChange={event => { const parameter = parameters.find(p => p.name === event.target.value); if (parameter) axisUpdate(index, parameterAxis(parameter)); }}>{parameterOptions}</select></label>

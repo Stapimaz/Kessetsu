@@ -67,9 +67,35 @@ export function EditorPanel({ code, diagnostics, compileSucceeded, compileState,
     editorRef.current?.focus();
   };
 
+  const insertSnippet = (snippet: string, placement: 'top' | 'bottom' = 'bottom') => {
+    const trimmed = code.replace(/\s+$/, '');
+    let nextCode: string;
+    if (placement === 'top') {
+      const lines = trimmed ? trimmed.split(/\r?\n/) : [];
+      let insertIndex = 0;
+      while (insertIndex < lines.length && /^\s*(?:\/\/|net\b|param\b)/.test(lines[insertIndex])) {
+        insertIndex += 1;
+      }
+      lines.splice(insertIndex, 0, snippet);
+      nextCode = `${lines.join('\n')}\n`;
+    } else {
+      nextCode = trimmed ? `${trimmed}\n${snippet}\n` : `${snippet}\n`;
+    }
+    onCodeChange(nextCode);
+    editorRef.current?.focus();
+  };
+
   return (
     <section className="workspace-panel editor-panel" aria-label="Kessetsu source editor">
-      <PanelHeader controls={panelControls} icon={<Code2 size={15} />} title="Source" />
+      <PanelHeader controls={panelControls} icon={<Code2 size={15} />} title="Source">
+        <div className="editor-quick-snippets" aria-label="Quick insert statements">
+          <button type="button" title="Insert DC operating point analysis" onClick={() => insertSnippet('simulate op')}>+ .op</button>
+          <button type="button" title="Insert AC frequency sweep analysis" onClick={() => insertSnippet('simulate ac dec 40 10Hz 100kHz')}>+ .ac</button>
+          <button type="button" title="Insert transient time-domain analysis" onClick={() => insertSnippet('simulate tran 10us 5ms')}>+ .tran</button>
+          <button type="button" title="Insert sweepable circuit parameter for Parameter Study" onClick={() => insertSnippet('param R_load: Ohm = 10kOhm', 'top')}>+ param</button>
+          <button type="button" title="Insert verifiable requirement assertion" onClick={() => insertSnippet('assert value(V(OUT)) >= 0.5V')}>+ assert</button>
+        </div>
+      </PanelHeader>
       <div className="editor-container">
         <Editor
           height="100%"

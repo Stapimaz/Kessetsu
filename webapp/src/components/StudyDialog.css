@@ -6,11 +6,16 @@
 .study-dialog button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 10px; border: 1px solid #334155; border-radius: 5px; background: #172231; color: #dbe5ef; cursor: pointer; }
 .study-dialog button:disabled { opacity: .45; cursor: default; }
 .study-dialog button.primary { background: #167269; border-color: #24998c; }
+.study-dialog button.study-example-button { border-color: #2c6e65; color: #b9f5ea; background: #123531; }
+.study-dialog button.study-example-button:hover { border-color: #35d0ba; background: #174540; }
 .study-dialog label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #aab9cc; }
 .study-tabs, .study-row { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin: 14px 0; }
-.study-tabs button[aria-pressed=true] { border-color: #2cc7b5; }
+.study-tabs button[aria-pressed=true] { border-color: #2cc7b5; background: #143634; color: #d5fff8; }
 .study-row > label { flex: 1; min-width: 160px; }
 .study-config { border: 0; margin: 0; padding: 0; min-width: 0; }
+.study-empty-params { margin: 10px 0 14px; padding: 10px 12px; border: 1px solid #4d4324; border-radius: 6px; background: #1e1b13; }
+.study-empty-params strong { display: block; margin-bottom: 4px; color: #f3d98b; font-size: 12px; }
+.study-empty-params .study-note { margin: 0; color: #cbbd93; }
 .study-dialog h3 { font-size: 14px; margin: 16px 0 10px; }
 .study-dialog section, .study-dialog details { margin: 12px 0; }
 .study-dialog details { border-top: 1px solid #263548; padding-top: 12px; }

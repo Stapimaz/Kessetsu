@@ -1,4 +1,4 @@
-import { CheckCircle2, ChevronRight, CircleAlert, LoaderCircle, Share2 } from 'lucide-react';
+import { CheckCircle2, ChevronRight, CircleAlert, LineChart, LoaderCircle, RotateCcw, Share2, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { applicationMenuKeyDown } from '../applicationMenuKeyboard';
 import { keepModalTabFocus } from '../modalKeyboard';
@@ -187,6 +187,20 @@ export function WorkspaceApp() {
     newDocument();
     setOpenMenu(null);
   };
+  const isSpiceNetlistFile = (fileName: string) => /\.(?:cir|sp|spice|net|ckt|cki)$/i.test(fileName);
+
+  const importSpiceFile = useCallback(async (file: File) => {
+    setDocumentError('');
+    setImportFailure(null);
+    try {
+      const report = await importSpiceDocument(file);
+      detachFileHandle();
+      showDocumentNotice(`Imported ${report.summary.components} components from ${file.name}`);
+    } catch (cause: unknown) {
+      setImportFailure({ filename: file.name, error: cause instanceof Error ? cause : new Error(String(cause)) });
+    }
+  }, [detachFileHandle, importSpiceDocument, showDocumentNotice]);
+
   const chooseDocument = () => {
     if (state.isDirty && !globalThis.confirm('Discard the current unsaved changes and open another circuit?')) return;
     setOpenMenu(null);
@@ -201,6 +215,10 @@ export function WorkspaceApp() {
         }
         if (result.status === 'cancelled') return;
         if (!isCurrentDocumentRevision(snapshot)) throw new Error('The circuit changed while choosing a file. Open it again to replace the current work.');
+        if (isSpiceNetlistFile(result.file.name)) {
+          await importSpiceFile(result.file);
+          return;
+        }
         await openDocument(result.file);
         detachFileHandle();
         fileHandleRef.current = result.handle;
@@ -209,18 +227,6 @@ export function WorkspaceApp() {
         setDocumentError(`Could not open circuit: ${cause instanceof Error ? cause.message : String(cause)}`);
       });
   };
-
-  const importSpiceFile = useCallback(async (file: File) => {
-    setDocumentError('');
-    setImportFailure(null);
-    try {
-      const report = await importSpiceDocument(file);
-      detachFileHandle();
-      showDocumentNotice(`Imported ${report.summary.components} components from ${file.name}`);
-    } catch (cause: unknown) {
-      setImportFailure({ filename: file.name, error: cause instanceof Error ? cause : new Error(String(cause)) });
-    }
-  }, [detachFileHandle, importSpiceDocument, showDocumentNotice]);
 
   const chooseSpiceDocument = () => {
     if (state.isDirty && !globalThis.confirm('Discard the current unsaved changes and import a SPICE netlist?')) return;
@@ -239,7 +245,7 @@ export function WorkspaceApp() {
       void openDocument(file).then(detachFileHandle).catch((cause: unknown) => {
         setDocumentError(`Could not open circuit: ${cause instanceof Error ? cause.message : String(cause)}`);
       });
-    } else if (/\.(?:cir|sp|spice|net)$/i.test(file.name)) {
+    } else if (isSpiceNetlistFile(file.name)) {
       void importSpiceFile(file);
     } else {
       setDocumentError('Drop a .kess circuit or a .cir, .sp, .spice or .net SPICE netlist.');
@@ -429,11 +435,37 @@ export function WorkspaceApp() {
           <div className="application-menu">
             <button aria-haspopup="menu" aria-expanded={openMenu === 'analyze'} onClick={() => toggleMenu('analyze')}>Analyze</button>
             {openMenu === 'analyze' && <div className="menu-popover analyze-menu" role="menu" aria-label="Analyze menu">
-              <button role="menuitem" aria-label="Work with an AI agent…" disabled={!state.wasmLoaded} onClick={() => { setAgentProposalOpen(true); setOpenMenu(null); }}><strong>Work with an AI agent…</strong><small>Send a task, inspect the reply, and test it locally</small></button>
-              {acceptedProposal && state.code === acceptedProposal.after && <button role="menuitem" onClick={undoAgentProposal}><strong>Undo AI agent change</strong><small>Restore the exact circuit from before the last accepted reply</small></button>}
-              <div className="menu-separator" role="separator" />
-              <button role="menuitem" aria-label="Test parameter variations…" disabled={!state.wasmLoaded || state.simulationState === 'running'} onClick={() => { setStudyOpen(true); setOpenMenu(null); }}><strong>Test parameter variations…</strong><small>Sweep values, tolerances, loads, and temperatures</small></button>
-              <button role="menuitem" aria-label="Compare research data…" disabled={!state.wasmLoaded} onClick={() => { setResearchDataMounted(true); setResearchDataOpen(true); setOpenMenu(null); }}><strong>Compare research data…</strong><small>Compare CSV measurements, references, and simulation</small></button>
+              <span className="menu-group-label">Design &amp; Verification</span>
+              <button role="menuitem" aria-label="Work with an AI agent…" disabled={!state.wasmLoaded} onClick={() => { setAgentProposalOpen(true); setOpenMenu(null); }}>
+                <Sparkles size={15} className="analyze-item-icon" />
+                <span className="analyze-item-body">
+                  <span className="analyze-item-title"><strong>Work with an AI agent…</strong><em className="analyze-item-badge">AI + .kessreq</em></span>
+                  <small>Pin electrical targets, verify AI replies locally, and diff before applying</small>
+                </span>
+              </button>
+              {acceptedProposal && state.code === acceptedProposal.after && <button role="menuitem" onClick={undoAgentProposal}>
+                <RotateCcw size={15} className="analyze-item-icon" />
+                <span className="analyze-item-body">
+                  <span className="analyze-item-title"><strong>Undo AI agent change</strong></span>
+                  <small>Restore the exact circuit from before the last accepted reply</small>
+                </span>
+              </button>}
+              <span className="menu-group-label">Exploration &amp; Lab Data</span>
+              <button role="menuitem" aria-label="Test parameter variations…" disabled={!state.wasmLoaded || state.simulationState === 'running'} onClick={() => { setStudyOpen(true); setOpenMenu(null); }}>
+                <SlidersHorizontal size={15} className="analyze-item-icon" />
+                <span className="analyze-item-body">
+                  <span className="analyze-item-title"><strong>Test parameter variations…</strong><em className="analyze-item-badge">Sweep · Monte Carlo</em></span>
+                  <small>Sweep component values, tolerances, corners, and temperatures</small>
+                </span>
+              </button>
+              <button role="menuitem" aria-label="Compare research data…" disabled={!state.wasmLoaded} onClick={() => { setResearchDataMounted(true); setResearchDataOpen(true); setOpenMenu(null); }}>
+                <LineChart size={15} className="analyze-item-icon" />
+                <span className="analyze-item-body">
+                  <span className="analyze-item-title"><strong>Compare research data…</strong><em className="analyze-item-badge">CSV vs. SPICE</em></span>
+                  <small>Overlay bench CSV measurements or paper references against simulation</small>
+                </span>
+              </button>
+              <div className="analyze-menu-footer"><span>Run simulation anytime with <kbd>Ctrl+Enter</kbd></span></div>
             </div>}
           </div>
           <div className="application-menu">
@@ -459,6 +491,15 @@ export function WorkspaceApp() {
           <span className={`compile-status compile-${state.compileState}`} role="status" aria-label={`Automatic source check: ${compileStatus}`} data-testid="compile-status" title={compileStatus}>
             <CompileStatusIcon size={14} /><span>{compileStatus}</span>
           </span>
+          <button
+            className="header-action-button agent-header-button"
+            onClick={() => setAgentProposalOpen(true)}
+            disabled={!state.wasmLoaded}
+            aria-label="Open AI agent workflow"
+            title="Work with an AI agent"
+          >
+            <Sparkles size={14} /> <span>AI Agent</span>
+          </button>
           <ArtifactBar enabled={state.compileSucceeded}
             capabilities={state.exportCapabilities} message={state.exportMessage}
             filenameStem={sanitizeFileStem(documentName)} onExport={createExport} />
@@ -471,7 +512,7 @@ export function WorkspaceApp() {
         ref={fileInputRef}
         className="sr-only"
         type="file"
-        accept=".kess,text/plain"
+        accept=".kess,.cir,.sp,.spice,.net,.ckt,.cki,text/plain"
         aria-label="Open Kessetsu source file"
         onChange={(event) => {
           const file = event.currentTarget.files?.[0];
@@ -484,6 +525,10 @@ export function WorkspaceApp() {
             setDocumentError('The circuit changed while choosing a file. Open it again to replace the current work.');
             return;
           }
+          if (isSpiceNetlistFile(file.name)) {
+            void importSpiceFile(file);
+            return;
+          }
           void openDocument(file).then(detachFileHandle).catch((cause: unknown) => {
             setDocumentError(`Could not open circuit: ${cause instanceof Error ? cause.message : String(cause)}`);
           });
@@ -493,7 +538,7 @@ export function WorkspaceApp() {
         ref={spiceInputRef}
         className="sr-only"
         type="file"
-        accept=".cir,.sp,.spice,.net,text/plain"
+        accept=".cir,.sp,.spice,.net,.ckt,.cki,text/plain"
         aria-label="Import SPICE netlist"
         onChange={(event) => {
           const file = event.currentTarget.files?.[0];

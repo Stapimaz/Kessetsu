@@ -55,6 +55,11 @@ const kessetsuFilePickerTypes = [{
   accept: { 'text/plain': ['.kess'] },
 }];
 
+const openFilePickerTypes = [{
+  description: 'Kessetsu or SPICE circuit',
+  accept: { 'text/plain': ['.kess', '.cir', '.sp', '.spice', '.net', '.ckt', '.cki'] },
+}];
+
 function filePickerHost(): FilePickerHost {
   return globalThis as unknown as FilePickerHost;
 }
@@ -71,7 +76,7 @@ export async function openWithNativeFilePicker(): Promise<NativeOpenResult> {
   const picker = filePickerHost().showOpenFilePicker;
   if (!picker) return { status: 'unsupported' };
   try {
-    const [handle] = await picker({ multiple: false, types: kessetsuFilePickerTypes });
+    const [handle] = await picker({ multiple: false, types: openFilePickerTypes });
     if (!handle) return { status: 'cancelled' };
     return { status: 'selected', handle, file: await handle.getFile() };
   } catch (cause: unknown) {
@@ -136,7 +141,7 @@ export function documentNameFromFile(fileName: string): string {
 }
 
 export function documentNameFromSpiceFile(fileName: string): string {
-  const withoutExtension = fileName.replace(/\.(?:cir|sp|spice|net)$/i, '');
+  const withoutExtension = fileName.replace(/\.(?:cir|sp|spice|net|ckt|cki)$/i, '');
   return normalizeDocumentName(withoutExtension || 'Imported circuit');
 }
 

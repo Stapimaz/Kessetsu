@@ -36,6 +36,25 @@ interface Props {
 type VerificationState = 'idle' | 'running' | 'complete' | 'failed' | 'cancelled';
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 
+const REQUIREMENT_PRESETS = [
+  {
+    label: 'Verify & add assertions',
+    text: 'Verify this circuit, add appropriate simulation analyses if missing, and encode assertions for the key operating point and signal targets.',
+  },
+  {
+    label: '1 kHz RC low-pass',
+    text: 'Design or tune an RC low-pass filter with a -3 dB cutoff near 1 kHz (between 950 Hz and 1.05 kHz) and passband gain >= 0.98 at 20 Hz. Include AC simulation and assertions.',
+  },
+  {
+    label: 'Op-amp gain = 2',
+    text: 'Design a non-inverting op-amp stage powered by +12 V and -12 V with DC output near 2 V for a 1 V input. Include operating-point simulation and assertions.',
+  },
+  {
+    label: '5 V → 3.3 V divider',
+    text: 'Design a 5 V to 3.3 V resistive divider with output between 3.25 V and 3.35 V and total supply current under 1 mA. Include operating-point simulation and assertions.',
+  },
+] as const;
+
 function compileCandidate(source: string, resources: Record<string, number[]>): CompileReport {
   const report = compile_kessetsu_with_resources(source, resources) as CompileReport;
   if (report.schema_version !== compile_schema_version()) throw new Error(`Unsupported compile report: ${report.schema_version}`);
@@ -316,6 +335,28 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
     setStatus('Proposal simulation cancelled. The editor source is unchanged.');
   };
 
+  const applyRequirementPreset = (presetText: string) => {
+    taskOperationId.current++;
+    setRequirements(presetText);
+    setTaskText('');
+    setProposalText('');
+    resetProposal(proposal || proposalText ? 'Requirements changed. Create a new task and bring back a new reply.' : 'Preset loaded. Click Copy task for AI to generate the handoff package.');
+  };
+
+  const pasteAndCheck = async () => {
+    try {
+      const clip = await navigator.clipboard.readText();
+      if (!clip.trim()) {
+        setStatus('Clipboard is empty. Copy the JSON reply from your AI agent first.');
+        return;
+      }
+      setProposalText(clip);
+      await reviewProposal(clip);
+    } catch {
+      setError('Clipboard access was blocked. Paste the reply into Step 2 with Ctrl+V, then select Check returned circuit.');
+    }
+  };
+
   const close = () => {
     invalidatePending();
     dialog.current?.close();
@@ -324,15 +365,31 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
   return <dialog ref={dialog} className="app-dialog agent-proposal-dialog" aria-labelledby="agent-proposal-title"
     onCancel={(event) => { event.preventDefault(); close(); }} onClose={() => { invalidatePending(); onClose(); }}>
     <header><div><h2 id="agent-proposal-title">Work with an AI agent</h2><p>Send the current circuit to an AI, then let Kessetsu test its returned design before you apply it.</p></div><button aria-label="Close AI agent workflow" onClick={close}><X size={18} /></button></header>
-    <p className="dialog-help-link"><a href={`${import.meta.env.BASE_URL}docs/guides/web-editor/#review-a-proposal-from-an-external-agent`} target="_blank" rel="noreferrer">How the agent handoff works and what a test proves</a></p>
+    <p className="dialog-help-link"><a href={`${import.meta.env.BASE_URL}docs/guides/web-editor/#review-a-proposal-from-an-external-agent`} target="_blank" rel="noreferrer">How the agent handoff works and what a test proves</a> · <a href={`${import.meta.env.BASE_URL}docs/guides/agent-workflow/`} target="_blank" rel="noreferrer">MCP server guide</a></p>
 
     <div className="agent-privacy-note">
       <strong>You stay in control.</strong>
       <span>Kessetsu never contacts an AI service or changes your circuit automatically. You choose the agent and move the task between apps.</span>
     </div>
 
+    <details className="agent-mcp-banner">
+      <summary>Using Claude Code, Cursor, or VS Code? Connect <code>kess mcp</code> for zero-copy verification</summary>
+      <div className="agent-mcp-body">
+        <p>Local coding agents can call Kessetsu’s ERC, SPICE simulation, <code>.kessreq</code> testing, and schematic tools directly over stdio without manual copy-paste:</p>
+        <pre>claude mcp add kessetsu -- kess mcp</pre>
+      </div>
+    </details>
+
     <section className="agent-step">
-      <div className="agent-step-heading"><span>1</span><div><h3>Tell the agent what you need</h3><p>Write the electrical target and limits. Kessetsu includes your current circuit automatically.</p></div></div>
+      <div className="agent-step-heading"><span>1</span><div><h3>Tell the agent what you need</h3><p>Write the electrical target and limits, or pick a quick starter below. Kessetsu includes your current circuit automatically.</p></div></div>
+      <div className="agent-preset-chips" aria-label="Requirement starter templates">
+        <span>Quick starters:</span>
+        {REQUIREMENT_PRESETS.map((preset) => (
+          <button key={preset.label} type="button" className="agent-preset-chip" onClick={() => applyRequirementPreset(preset.text)}>
+            {preset.label}
+          </button>
+        ))}
+      </div>
       <textarea aria-label="Your circuit requirements" rows={4} value={requirements} maxLength={12_000} placeholder="Example: Design for 2 W RMS into 8 ohm, gain near 20, and less than 2 W transistor dissipation. Include simulations and assertions for every target." onChange={(event) => {
         taskOperationId.current++;
         setRequirements(event.target.value);
@@ -341,12 +398,12 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
         resetProposal(proposal || proposalText ? 'Requirements changed. Create a new task and bring back a new reply.' : undefined);
       }} />
       <div className="agent-actions"><button className="agent-primary" onClick={() => void copyTask()}><Clipboard size={14} /> Copy task for AI</button><button onClick={() => void downloadTask()}><Download size={14} /> Download task file</button></div>
-      {taskText && <div className="agent-next-step"><CheckCircle2 size={16} /><div><strong>Task ready</strong><span>Paste it into ChatGPT, Gemini, Claude, Codex, or another agent. Ask it to return only the requested JSON object.</span></div></div>}
+      {taskText && <div className="agent-next-step"><CheckCircle2 size={16} /><div><strong>Task ready</strong><span>Paste it into ChatGPT, Gemini, Claude, Codex, or another agent. Ask it to return the JSON object (Markdown code fences are also accepted).</span></div></div>}
       {taskText && <details><summary>Inspect the task JSON</summary><pre>{taskText}</pre></details>}
     </section>
 
     <section className="agent-step">
-      <div className="agent-step-heading"><span>2</span><div><h3>Bring back the agent's reply</h3><p>Paste the complete JSON response, or open the JSON file the agent created.</p></div></div>
+      <div className="agent-step-heading"><span>2</span><div><h3>Bring back the agent's reply</h3><p>Paste the agent’s JSON response (raw JSON or a <code>```json</code> block), or open the JSON file it created.</p></div></div>
       <textarea aria-label="Agent reply JSON" rows={5} value={proposalText} placeholder={`Paste the returned ${'kessetsu.agent-proposal.v1'} JSON here…`} onChange={(event) => {
         const text = event.target.value;
         setProposalText(text);
@@ -365,7 +422,11 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
           if (operationIsCurrent(fileRequestId)) setError(message(cause));
         });
       }} />
-      <div className="agent-actions"><button onClick={() => fileInput.current?.click()}><FileUp size={14} /> Open reply file…</button><button className="agent-primary" disabled={!proposalText.trim()} onClick={() => void reviewProposal()}>Check returned circuit</button></div>
+      <div className="agent-actions">
+        <button type="button" onClick={() => void pasteAndCheck()}><Clipboard size={14} /> Paste &amp; check</button>
+        <button onClick={() => fileInput.current?.click()}><FileUp size={14} /> Open reply file…</button>
+        <button className="agent-primary" disabled={!proposalText.trim()} onClick={() => void reviewProposal()}>Check returned circuit</button>
+      </div>
     </section>
 
     {needsCorrection && <section className="agent-recovery" aria-label="Correct the agent reply" role="alert">
