@@ -113,10 +113,13 @@ analysis each metric needs (for example cutoff metrics need `simulate ac`).
 
 Every circuit command accepts a supported Ngspice-style netlist directly. Kessetsu converts
 it through the canonical importer, then applies the same ERC, simulation, assertions,
-schematic and exports. Inline `.model` cards for D/NPN/PNP/NMOS/PMOS are imported as typed
-models; `.control` blocks and output directives (`.print`, `.plot`, `.meas`, `.options`...)
-are skipped with warnings because Kessetsu owns measurement. Unsupported constructs fail with
-line numbers instead of being dropped. See the [SPICE import guide](spice-import.md).
+schematic and exports. Five-terminal op-amps (`XU1 in_p in_n vcc vee out KESSETSU_OPAMP_V1`
+or `OPAMP`) become native `opamp` components, numeric SPICE nodes can be referenced directly
+in `.kessreq` (`V(1)`, `V(2)`), and inline `.model` cards for D/NPN/PNP/NMOS/PMOS are
+imported as typed models; `.control` blocks and output directives (`.print`, `.plot`, `.meas`,
+`.options`...) are skipped with warnings because Kessetsu owns measurement. Unsupported
+constructs fail with line numbers instead of being dropped. See the
+[SPICE import guide](spice-import.md).
 
 ## Reading results
 

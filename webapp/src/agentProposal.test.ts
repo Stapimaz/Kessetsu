@@ -17,6 +17,7 @@ describe('agent proposal contracts', () => {
     const task = await createAgentTask(source, 'Amplifier', '2 W into 8 Ohm.', '1.3.1', 'kessetsu.compile.v9');
     expect(task.requirements).toBe('2 W into 8 Ohm.');
     expect(task.language.example_source).toContain('assert value(V(OUT)) >= 2.95V');
+    expect(task.language.references).toContain('https://kessetsu.com/docs/guides/agent-workflow/');
     expect(task.language.references).toContain('https://kessetsu.com/docs/reference/language/');
     expect(task.instructions.join(' ')).toContain('Do not invent syntax');
   });
@@ -37,13 +38,16 @@ describe('agent proposal contracts', () => {
 
   it('binds tasks and proposals to the exact source revision', async () => {
     const task = await createAgentTask(source, 'Divider', 'Keep OUT below 3.3 V.', '1.2.0', 'kessetsu.compile.v9');
-    const proposal = await parseAgentProposal(JSON.stringify({
+    const rawJson = JSON.stringify({
       schema_version: AGENT_PROPOSAL_SCHEMA,
       base_source_sha256: task.circuit.source_sha256,
       proposed_source: `${source}resistor R1 1k\n`,
       summary: 'Added the load resistor.',
-    }), source);
+    });
+    const proposal = await parseAgentProposal(rawJson, source);
     expect(proposal.proposed_source).toContain('R1');
+    const fencedProposal = await parseAgentProposal(`\`\`\`json\n${rawJson}\n\`\`\``, source);
+    expect(fencedProposal.proposed_source).toContain('R1');
     await expect(parseAgentProposal(JSON.stringify({ ...proposal, base_source_sha256: '0'.repeat(64) }), source))
       .rejects.toThrow(/different circuit revision/);
   });

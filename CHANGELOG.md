@@ -14,13 +14,16 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
   and `export` accept supported SPICE netlists (`.cir`, `.sp`, `.spice`, `.net`, `.ckt`,
   `.cki` or dot-directive stdin) directly alongside `.kess` source and `.kessreq` files.
 - Expand SPICE import to convert inline `.model` cards (`D`, `NPN`, `PNP`, `NMOS`, `PMOS`)
-  into typed `model` declarations, tolerate first-line plain titles (`KES-N010`), and skip
-  `.control ... .endc` blocks (`KES-N012`) and output/simulator-option directives (`.print`,
-  `.plot`, `.probe`, `.save`, `.meas`, `.options` -> `KES-N011`) with warnings.
+  into typed `model` declarations, import 5-terminal `X` op-amp cards (`KESSETSU_OPAMP_V1`
+  or `OPAMP`) and Kessetsu's built-in op-amp subcircuit as native `opamp` components,
+  tolerate first-line plain titles (`KES-N010`), and skip `.control ... .endc` blocks
+  (`KES-N012`) and output/simulator-option directives (`.print`, `.plot`, `.probe`, `.save`,
+  `.meas`, `.options` -> `KES-N011`) with warnings.
 - Allow `.kessreq` and inline assertions to reference original numeric SPICE node numbers
   such as `V(1)` and `V(2)` when testing imported SPICE netlists.
-- Add the [Agent design workflow](docs/guides/agent-workflow.md) guide and surface MCP setup
-  on the installation and documentation pages.
+- Add the [Agent design workflow](docs/guides/agent-workflow.md) guide, surface MCP setup
+  on the installation and documentation pages, and unwrap outer Markdown JSON fences in
+  browser AI proposal replies.
 
 ## [1.3.1] — 2026-10-06
 

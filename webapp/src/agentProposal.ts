@@ -145,6 +145,7 @@ export async function createAgentTask(
     ],
     language: {
       references: [
+        'https://kessetsu.com/docs/guides/agent-workflow/',
         'https://kessetsu.com/docs/reference/language/',
         'https://kessetsu.com/docs/reference/simulation-and-assertions/',
         'https://kessetsu.com/docs/reference/measurements/',
@@ -194,10 +195,16 @@ function objectValue(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+function stripOuterJsonFence(input: string): string {
+  const trimmed = input.replace(/^\uFEFF/, '').trim();
+  const match = /^```(?:json)?\s*\r?\n([\s\S]*?)\r?\n```$/i.exec(trimmed);
+  return match ? match[1].trim() : trimmed;
+}
+
 export async function parseAgentProposal(text: string, currentSource: string): Promise<AgentProposalEnvelope> {
   if (utf8Length(text) > MAX_AGENT_PROPOSAL_BYTES) throw new Error('Proposal file is too large');
   let parsed: Record<string, unknown>;
-  try { parsed = objectValue(JSON.parse(text.replace(/^\uFEFF/, ''))); }
+  try { parsed = objectValue(JSON.parse(stripOuterJsonFence(text))); }
   catch (cause) { throw new Error(`Proposal is not valid JSON: ${cause instanceof Error ? cause.message : String(cause)}`); }
   if (parsed.schema_version !== AGENT_PROPOSAL_SCHEMA) {
     throw new Error(`Unsupported proposal schema. Expected ${AGENT_PROPOSAL_SCHEMA}`);

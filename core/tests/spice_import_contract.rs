@@ -425,3 +425,67 @@ plot v(out)
     assert_eq!(numbered_json["status"], "success");
     assert_eq!(numbered_json["summary"]["assertions"]["passed"], 2);
 }
+
+#[test]
+fn builtin_opamp_spice_import_and_requirements_verification() {
+    let workspace = TestWorkspace::new("spice-opamp-import");
+    let netlist = "Non-Inverting Op-Amp Amplifier (Gain = 2)
+VCC vcc 0 15
+VEE 0 vee 15
+VIN in 0 1
+R1 fb 0 10k
+R2 out fb 10k
+XU1 in fb vcc vee out OPAMP
+.subckt KESSETSU_OPAMP_V1 in_p in_n vcc vee out
+EGAIN n_int 0 in_p in_n 200000
+RPOLE n_int out 1
+CPOLE out 0 0.031830988618
+RLOAD out 0 1e9
+.ends KESSETSU_OPAMP_V1
+.op
+.end
+";
+    let report = import_spice(netlist);
+    assert!(!report.has_errors(), "{:?}", report.diagnostics);
+    let source = report.kess_source.as_deref().expect("verified kess source");
+    assert!(
+        source.contains("opamp XU1 KESSETSU_OPAMP_V1"),
+        "expected native opamp declaration in:\n{source}"
+    );
+    let compiled = compile_source(source, CompileOptions::all_outputs());
+    assert!(!compiled.has_errors(), "{:?}", compiled.diagnostics);
+    let schematic = compiled.schematic.as_ref().expect("schematic output");
+    assert!(schematic.connectivity.verified);
+    assert!(schematic.quality.passed, "{:?}", schematic.quality.issues);
+
+    let cir_path = workspace.write("opamp_gain.cir", netlist);
+    let req_path = workspace.write(
+        "opamp_gain.kessreq",
+        "assert value(V(out)) > 1.99V\nassert value(V(out)) < 2.01V\n",
+    );
+    let output = workspace.run_cli(&[
+        "--format",
+        "json",
+        "test",
+        &cir_path.to_string_lossy(),
+        "--requirements",
+        &req_path.to_string_lossy(),
+    ]);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid CLI JSON");
+    assert_eq!(json["status"], "success");
+    assert_eq!(json["summary"]["assertions"]["passed"], 2);
+
+    let unknown_opamp = import_spice("V1 1 0 1\nXU1 1 2 vcc vee out LM741\n.op\n.end\n");
+    assert!(unknown_opamp.has_errors());
+    assert!(unknown_opamp.diagnostics.iter().any(|d| {
+        d.code == "KES-N007"
+            && d.message.contains("KESSETSU_OPAMP_V1")
+            && d.message.contains("OPAMP")
+    }));
+}

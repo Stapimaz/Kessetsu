@@ -89,6 +89,7 @@ enum ImportedKind {
         model: String,
     },
     Mosfet(String),
+    OpAmp(String),
 }
 
 #[derive(Debug, Clone)]
@@ -286,7 +287,8 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
     }
     let mut module_identifiers = BTreeSet::new();
     let mut module_names = BTreeMap::<String, (String, usize)>::new();
-    for block in &blocks {
+    let mut user_blocks = Vec::new();
+    for block in blocks {
         let fields = split_fields(block.header.text.trim());
         let Some(name) = fields.get(1) else {
             push_error(
@@ -304,6 +306,21 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
                 format!("invalid SPICE subcircuit name '{name}'"),
                 Some(block.header.number),
             );
+            continue;
+        }
+        if name.eq_ignore_ascii_case("KESSETSU_OPAMP_V1")
+            && fields.len() == 7
+            && !fields[2..]
+                .iter()
+                .any(|field| field.contains('=') || field.eq_ignore_ascii_case("params:"))
+        {
+            report.diagnostics.push(ImportDiagnostic {
+                code: "KES-N012".into(),
+                severity: ImportSeverity::Info,
+                message: "recognized built-in op-amp subcircuit 'KESSETSU_OPAMP_V1'".into(),
+                line: Some(block.header.number),
+                column: Some(1),
+            });
             continue;
         }
         let folded = name.to_ascii_lowercase();
@@ -325,12 +342,13 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
                 block.header.number,
             ),
         );
+        user_blocks.push(block);
     }
     if report.has_errors() {
         return report;
     }
     let mut subcircuits = Vec::new();
-    for block in &blocks {
+    for block in &user_blocks {
         match parse_subcircuit(block, &module_names, &models) {
             Ok(subcircuit) => subcircuits.push(subcircuit),
             Err((line, message)) => push_error(&mut report, "KES-N007", message, Some(line)),
@@ -441,16 +459,26 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
             .next()
             .is_some_and(|character| character.eq_ignore_ascii_case(&'x'))
         {
-            match parse_instance(
-                text,
-                line.number,
-                &module_lookup,
-                &parameter_lookup,
-                &mut parameter_units,
-            ) {
-                Ok(instance) => instances.push(instance),
-                Err(_) if is_first_line => push_title_info(&mut report),
-                Err(message) => push_error(&mut report, "KES-N007", message, Some(line.number)),
+            if let Some(opamp_result) =
+                try_parse_builtin_opamp(text, line.number, &module_lookup, Some(&mut report))
+            {
+                match opamp_result {
+                    Ok(component) => components.push(component),
+                    Err(_) if is_first_line => push_title_info(&mut report),
+                    Err(message) => push_error(&mut report, "KES-N007", message, Some(line.number)),
+                }
+            } else {
+                match parse_instance(
+                    text,
+                    line.number,
+                    &module_lookup,
+                    &parameter_lookup,
+                    &mut parameter_units,
+                ) {
+                    Ok(instance) => instances.push(instance),
+                    Err(_) if is_first_line => push_title_info(&mut report),
+                    Err(message) => push_error(&mut report, "KES-N007", message, Some(line.number)),
+                }
             }
         } else {
             match parse_component(
@@ -998,6 +1026,13 @@ fn parse_subcircuit(
             .next()
             .is_some_and(|character| character.eq_ignore_ascii_case(&'x'))
         {
+            let empty_modules = BTreeMap::new();
+            if let Some(opamp_result) =
+                try_parse_builtin_opamp(text, line.number, &empty_modules, None)
+            {
+                components.push(opamp_result.map_err(|message| (line.number, message))?);
+                continue;
+            }
             return Err((
                 line.number,
                 format!(
@@ -1173,6 +1208,71 @@ fn parse_parameter_assignments(
     Ok(parameters)
 }
 
+fn try_parse_builtin_opamp(
+    text: &str,
+    line: usize,
+    modules: &BTreeMap<String, &ImportedSubcircuit>,
+    report: Option<&mut SpiceImportReport>,
+) -> Option<Result<ImportedComponent, String>> {
+    let fields = split_fields(text);
+    if fields.len() < 3 {
+        return None;
+    }
+    let assignment_start = fields
+        .iter()
+        .position(|field| field.contains('=') || field.eq_ignore_ascii_case("params:"))
+        .unwrap_or(fields.len());
+    let module_index = assignment_start.saturating_sub(1);
+    if module_index < 2 {
+        return None;
+    }
+    let requested_module = &fields[module_index];
+    if modules.contains_key(&requested_module.to_ascii_lowercase()) {
+        return None;
+    }
+    if !matches!(
+        requested_module.to_ascii_uppercase().as_str(),
+        "KESSETSU_OPAMP_V1" | "OPAMP"
+    ) {
+        return None;
+    }
+    if assignment_start < fields.len() {
+        return Some(Err(format!(
+            "built-in op-amp '{requested_module}' does not accept instance parameter overrides"
+        )));
+    }
+    let nodes = fields[1..module_index].to_vec();
+    if nodes.len() != 5 {
+        return Some(Err(format!(
+            "op-amp instance '{}' supplies {} nodes, but '{}' expects 5 terminals (in_p in_n vcc vee out)",
+            fields[0],
+            nodes.len(),
+            requested_module
+        )));
+    }
+    if requested_module.eq_ignore_ascii_case("OPAMP")
+        && let Some(report) = report
+    {
+        report.diagnostics.push(ImportDiagnostic {
+            code: "KES-N012".into(),
+            severity: ImportSeverity::Info,
+            message: format!(
+                "mapped generic 5-pin SPICE op-amp '{}' on '{}' to built-in model 'KESSETSU_OPAMP_V1' (pin order: in_p in_n vcc vee out)",
+                requested_module, fields[0]
+            ),
+            line: Some(line),
+            column: Some(1),
+        });
+    }
+    Some(Ok(ImportedComponent {
+        original_name: fields[0].clone(),
+        nodes,
+        pins: &["in_p", "in_n", "vcc", "vee", "out"],
+        kind: ImportedKind::OpAmp("KESSETSU_OPAMP_V1".into()),
+        line,
+    }))
+}
+
 fn parse_instance(
     text: &str,
     line: usize,
@@ -1197,10 +1297,17 @@ fn parse_instance(
         .get(&requested_module.to_ascii_lowercase())
         .copied()
         .ok_or_else(|| {
-            format!(
-                "subcircuit instance '{}' references unknown embedded .SUBCKT '{}'",
-                fields[0], requested_module
-            )
+            if fields[1..module_index].len() == 5 {
+                format!(
+                    "subcircuit instance '{}' references unknown embedded .SUBCKT '{}'; for a built-in 5-pin op-amp (in_p in_n vcc vee out), use model 'KESSETSU_OPAMP_V1' or 'OPAMP'",
+                    fields[0], requested_module
+                )
+            } else {
+                format!(
+                    "subcircuit instance '{}' references unknown embedded .SUBCKT '{}'",
+                    fields[0], requested_module
+                )
+            }
         })?;
     let nodes = fields[1..module_index].to_vec();
     if nodes.len() != module.ports.len() {
@@ -1273,6 +1380,7 @@ fn render_component_declaration(component: &ImportedComponent, name: &str) -> St
             format!("transistor {name} {polarity} {model}")
         }
         ImportedKind::Mosfet(model) => format!("mosfet {name} {model}"),
+        ImportedKind::OpAmp(model) => format!("opamp {name} {model}"),
     }
 }
 

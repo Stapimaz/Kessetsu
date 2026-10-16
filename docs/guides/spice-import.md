@@ -56,6 +56,7 @@ engineering requirements: pass `--requirements limits.kessreq` in the CLI/MCP wo
 | `R`, `C`, `L` with literal values | resistor, capacitor, inductor |
 | Independent `V` and `I` | DC, AC, three-field SINE, seven-field PULSE or PWL source |
 | `D`, `Q`, three-terminal `M` (or four-terminal with bulk tied to source) | built-in models (`1N4148`, `1N4007`, `2N3904`, `2N3906`, `2N2222`, `IRF540`, `KESSETSU_*`) or inline `.model` |
+| 5-terminal `X` op-amp (`in_p in_n vcc vee out` with `KESSETSU_OPAMP_V1` or `OPAMP`) | native `opamp` component using built-in `KESSETSU_OPAMP_V1` (with op-amp ERC and schematic symbol) |
 | Inline `.model NAME D|NPN|PNP|NMOS|PMOS(...)` | typed `model` declaration with validated Ngspice parameters (descriptive vendor fields such as `MFG` or `VCEO` are ignored with a warning) |
 | `.op`, bounded `.tran`, `.ac`, single-source `.dc` | typed `simulate` statements |
 | `.param NAME=literal` | typed editable parameter, with unit inferred from its supported uses |
