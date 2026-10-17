@@ -4,22 +4,11 @@ import { import_spice_netlist, spice_import_schema_version } from 'kessetsu-core
 import type { SpiceImportDiagnostic, SpiceImportReport } from '../domain';
 import { assertValidSpiceReport, importDiagnosticLabel, SpiceImportError } from '../spiceImport';
 
-const SAMPLE_RC_SPICE = `* 1 kHz RC Low-Pass Filter
+const PLACEHOLDER_SPICE_EXAMPLE = `* Example SPICE netlist (paste yours or open a .cir / .sp file):
 V1 in 0 AC 1
 R1 in out 1k
-C1 out 0 159.154943n
+C1 out 0 159.15n
 .ac dec 40 10 100k
-.end`;
-
-const SAMPLE_OPAMP_SPICE = `* Non-Inverting Op-Amp Stage (Gain = 2)
-VCC vcc 0 15
-VEE 0 vee 15
-VIN in 0 SIN(0 0.5 1k) AC 1
-R1 fb 0 10k
-R2 out fb 10k
-XU1 in fb vcc vee out OPAMP
-.op
-.ac dec 30 10 1Meg
 .end`;
 
 interface Props {
@@ -36,7 +25,7 @@ export function SpiceConverterDialog({
   onApply,
 }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const [spiceInput, setSpiceInput] = useState(SAMPLE_RC_SPICE);
+  const [spiceInput, setSpiceInput] = useState('');
   const [copied, setCopied] = useState(false);
   const [clipboardError, setClipboardError] = useState('');
 
@@ -144,12 +133,6 @@ export function SpiceConverterDialog({
               <button type="button" onClick={() => void pasteFromClipboard()}>
                 Paste
               </button>
-              <button type="button" onClick={() => { setSpiceInput(SAMPLE_RC_SPICE); setClipboardError(''); }}>
-                RC example
-              </button>
-              <button type="button" onClick={() => { setSpiceInput(SAMPLE_OPAMP_SPICE); setClipboardError(''); }}>
-                Op-Amp example
-              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -166,7 +149,7 @@ export function SpiceConverterDialog({
             aria-label="SPICE netlist input"
             rows={12}
             value={spiceInput}
-            placeholder={'V1 in 0 AC 1\nR1 in out 1k\nC1 out 0 159.15n\n.ac dec 40 10 100k\n.end'}
+            placeholder={PLACEHOLDER_SPICE_EXAMPLE}
             onChange={(event) => {
               setSpiceInput(event.target.value);
               setCopied(false);
@@ -209,7 +192,7 @@ export function SpiceConverterDialog({
             <strong>Kessetsu (.kess) Output</strong>
             {conversion.report && (
               <span className="spice-summary-badge">
-                {conversion.report.summary.components} components · {conversion.report.summary.nets} nets · {conversion.report.summary.analyses} analyses
+                {conversion.report.summary.components} components · {conversion.report.summary.nets} nets · {conversion.report.summary.analyses} {conversion.report.summary.analyses === 1 ? 'analysis' : 'analyses'}
               </span>
             )}
           </div>
@@ -221,7 +204,7 @@ export function SpiceConverterDialog({
               <p>
                 {spiceInput.trim()
                   ? 'Resolve the SPICE diagnostics on the left to generate the .kess output.'
-                  : 'Paste a SPICE netlist on the left or choose an example.'}
+                  : 'Paste a SPICE netlist on the left to preview the converted .kess source.'}
               </p>
             </div>
           )}

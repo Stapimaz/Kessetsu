@@ -378,6 +378,7 @@ button.measurement-card.is-interactive:hover:not(:disabled) { border-color: #2c6
 .spice-pane-actions button { height: 24px; display: inline-flex; align-items: center; padding: 0 8px; border: 1px solid var(--border); border-radius: 5px; color: var(--text); background: var(--panel); cursor: pointer; font-size: 10.5px; }
 .spice-pane-actions button:hover { border-color: #3c526e; background: #1b2638; }
 .spice-dialog-pane textarea { width: 100%; min-height: 230px; flex: 1; resize: vertical; padding: 9px 10px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: #090e16; font: 11.5px/1.5 ui-monospace, monospace; }
+.spice-dialog-pane textarea::placeholder { color: #54657d; }
 .spice-dialog-pane textarea:focus { border-color: var(--accent); outline: 1px solid var(--accent); }
 .spice-summary-badge { color: var(--muted); font-size: 11px; }
 .spice-preview-code { min-height: 230px; max-height: 280px; flex: 1; overflow: auto; margin: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; color: #dbe5f5; background: #090e16; white-space: pre; font: 11px/1.5 ui-monospace, monospace; }

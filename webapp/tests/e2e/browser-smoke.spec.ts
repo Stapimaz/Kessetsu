@@ -117,9 +117,12 @@ test('converts SPICE netlists with live preview from the File menu and keeps Ana
   await page.getByRole('menuitem', { name: 'Convert SPICE netlist…', exact: true }).click();
   const converter = page.getByRole('dialog', { name: 'Convert SPICE Netlist' });
   await expect(converter).toBeVisible();
-  await expect(converter.getByTestId('spice-preview-code')).toContainText('resistor R1 1e3');
 
-  await converter.getByRole('button', { name: 'Op-Amp example' }).click();
+  const spiceTextarea = converter.getByRole('textbox', { name: 'SPICE netlist input' });
+  await expect(spiceTextarea).toHaveValue('');
+  await expect(spiceTextarea).toHaveAttribute('placeholder', /Example SPICE netlist/);
+
+  await spiceTextarea.fill('VCC vcc 0 15\nVEE 0 vee 15\nVIN in 0 1\nR1 fb 0 10k\nR2 out fb 10k\nXU1 in fb vcc vee out OPAMP\n.op\n.end\n');
   await expect(converter.getByTestId('spice-preview-code')).toContainText('opamp XU1 KESSETSU_OPAMP_V1');
 
   await converter.getByRole('button', { name: 'Open in Editor' }).click();
