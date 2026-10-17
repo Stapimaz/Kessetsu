@@ -439,14 +439,12 @@ export function WorkspaceApp() {
           <div className="application-menu">
             <button aria-haspopup="menu" aria-expanded={openMenu === 'analyze'} onClick={() => toggleMenu('analyze')}>Analyze</button>
             {openMenu === 'analyze' && <div className="menu-popover" role="menu" aria-label="Analyze menu">
-              <button
-                role="menuitem"
-                aria-label="Run simulation"
-                disabled={!state.compileSucceeded || !state.circuitIr?.analyses.length || state.simulationState === 'running'}
-                onClick={() => { setOpenMenu(null); void run(); }}
-              >
-                <span>Run simulation</span><kbd>Ctrl+Enter</kbd>
+              <button role="menuitem" disabled={!state.wasmLoaded} onClick={() => { setAgentProposalOpen(true); setOpenMenu(null); }}>
+                <span>Work with an AI agent…</span>
               </button>
+              {acceptedProposal && state.code === acceptedProposal.after && <button role="menuitem" onClick={undoAgentProposal}>
+                <span>Undo AI agent change</span>
+              </button>}
               <div className="menu-separator" role="separator" />
               <button role="menuitem" disabled={!state.wasmLoaded || state.simulationState === 'running'} onClick={() => { setStudyOpen(true); setOpenMenu(null); }}>
                 <span>Test parameter variations…</span>
@@ -454,13 +452,6 @@ export function WorkspaceApp() {
               <button role="menuitem" disabled={!state.wasmLoaded} onClick={() => { setResearchDataMounted(true); setResearchDataOpen(true); setOpenMenu(null); }}>
                 <span>Compare research data…</span>
               </button>
-              <div className="menu-separator" role="separator" />
-              <button role="menuitem" disabled={!state.wasmLoaded} onClick={() => { setAgentProposalOpen(true); setOpenMenu(null); }}>
-                <span>Work with an AI agent…</span>
-              </button>
-              {acceptedProposal && state.code === acceptedProposal.after && <button role="menuitem" onClick={undoAgentProposal}>
-                <span>Undo AI agent change</span>
-              </button>}
             </div>}
           </div>
           <div className="application-menu">
