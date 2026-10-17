@@ -119,10 +119,15 @@ button:focus-visible, select:focus-visible, a:focus-visible, [tabindex]:focus-vi
 .panel-slot { min-width: 0; min-height: 0; }
 .panel-slot > .workspace-panel { height: 100%; }
 .panel-slot[hidden], .output-panels[hidden] { display: none; }
-.workspace-splitter { background: var(--border); touch-action: none; position: relative; }
-.workspace-splitter:hover, .workspace-splitter:focus-visible { background: var(--accent); }
+.workspace-splitter { background: var(--border); touch-action: none; position: relative; z-index: 2; transition: background 120ms ease; }
+.workspace-splitter::before { content: ''; position: absolute; inset: -3px; }
+.workspace-splitter::after { content: ''; position: absolute; left: 50%; top: 50%; border-radius: 999px; background: #4b5e78; transform: translate(-50%, -50%); opacity: .65; transition: background 120ms ease, opacity 120ms ease; }
 .splitter-horizontal { cursor: col-resize; }
+.splitter-horizontal::after { width: 2px; height: 24px; }
 .splitter-vertical { cursor: row-resize; }
+.splitter-vertical::after { width: 24px; height: 2px; }
+.workspace-splitter:hover, .workspace-splitter:focus-visible { background: var(--accent); }
+.workspace-splitter:hover::after, .workspace-splitter:focus-visible::after { background: #d5fff8; opacity: 1; }
 .workspace-empty { display: grid; place-items: center; color: var(--muted); font-size: 12px; }
 .panel-dock { min-height: 31px; flex-shrink: 0; display: flex; align-items: center; gap: 4px; padding: 3px 8px; border-top: 1px solid var(--border); background: #0e141f; }
 .panel-dock button { height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 9px; border: 1px solid transparent; border-radius: 4px; color: var(--muted); background: transparent; cursor: pointer; font-size: 10px; text-transform: capitalize; }
@@ -130,9 +135,16 @@ button:focus-visible, select:focus-visible, a:focus-visible, [tabindex]:focus-vi
 .workspace-panel { min-width: 0; min-height: 0; overflow: hidden; background: var(--panel); display: flex; flex-direction: column; }
 .editor-panel { grid-row: 1 / 3; }
 .workspace-header { min-height: 32px; display: flex; align-items: center; gap: 7px; padding: 3px 5px 3px 9px; border-bottom: 1px solid var(--border); background: #161e2b; user-select: none; }
+.source-expand-pill { height: 22px; display: inline-flex; align-items: center; gap: 4px; padding: 0 7px; border: 1px solid #2b3d54; border-radius: 4px; color: #93c5fd; background: #101824; cursor: pointer; font-size: 10px; font-weight: 600; }
+.source-expand-pill:hover { border-color: #3f6a99; color: #dbeafe; background: #162438; }
 .header-title { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
 .header-title svg { color: var(--accent); }
 .header-title strong { font-size: 11px; font-weight: 700; }
+.canvas-mode-switch { display: inline-flex; align-items: center; gap: 1px; margin-left: 4px; padding: 2px; border: 1px solid #243246; border-radius: 5px; background: #0e141f; }
+.canvas-mode-button { height: 20px; padding: 0 7px; border: 0; border-radius: 3.5px; color: #8b9bb4; background: transparent; cursor: pointer; font-size: 10px; font-weight: 600; transition: color 100ms ease, background 100ms ease; }
+.canvas-mode-button:hover { color: var(--text); background: #1a2536; }
+.canvas-mode-button.is-active { color: #5eead4; background: #162a33; box-shadow: inset 0 0 0 1px rgba(56, 218, 194, .28); }
+.schematic-quick-run { margin-inline: 2px; }
 .editor-panel .panel-window-actions { margin-left: auto; }
 .panel-window-actions { display: flex; gap: 1px; }
 .panel-window-actions button { width: 25px; height: 24px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 3px; color: #91a0b5; background: transparent; cursor: pointer; }
@@ -282,7 +294,11 @@ button.measurement-card.is-interactive:hover:not(:disabled) { border-color: #2c6
 .measurement-card > small { color: #8295ae; font: 10px ui-monospace, monospace; }
 .bode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .plot-card { min-width: 0; width: 100%; max-width: 620px; display: flex; flex-direction: column; padding: 5px 8px 5px; border: 1px solid #223044; border-radius: 7px; background: #0d131d; }
-.bode-grid .plot-card { max-width: none; }
+.resizable-workspace[data-canvas-mode='results'] .plot-card,
+.resizable-workspace[data-maximized-panel='results'] .plot-card { max-width: 900px; padding: 8px 12px; }
+.bode-grid .plot-card,
+.resizable-workspace[data-canvas-mode='results'] .bode-grid .plot-card,
+.resizable-workspace[data-maximized-panel='results'] .bode-grid .plot-card { max-width: none; }
 .plot-card-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 2px; line-height: 1.2; }
 .plot-title { color: #c4d2e4; font-size: 11px; font-weight: 600; }
 .plot-legend { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 600 10.5px ui-monospace, monospace; color: #38dac2; }
@@ -291,6 +307,8 @@ button.measurement-card.is-interactive:hover:not(:disabled) { border-color: #2c6
 .requirements-wrap > .plot-explanation { padding-inline: 10px; }
 .plot-wrap { position: relative; min-width: 0; }
 .result-plot { display: block; width: 100%; max-height: 195px; cursor: crosshair; }
+.resizable-workspace[data-canvas-mode='results'] .result-plot,
+.resizable-workspace[data-maximized-panel='results'] .result-plot { max-height: 300px; }
 .plot-bg { fill: #090e16; stroke: #243347; }
 .grid-line { stroke: #1e2b3d; stroke-width: 1; }
 .signal-line { fill: none; stroke: #38dac2; stroke-width: 2.1; vector-effect: non-scaling-stroke; }
@@ -445,7 +463,7 @@ button.measurement-card.is-interactive:hover:not(:disabled) { border-color: #2c6
   .global-actions .artifact-bar > button span,
   .compile-status > span { display: none; }
   .workspace-layout, .resizable-workspace, .output-panels { display: flex; flex-direction: column; }
-  .workspace-splitter { display: none; }
+  .workspace-splitter, .canvas-mode-switch { display: none; }
   .panel-slot > .workspace-panel { height: 480px; }
   .panel-slot > .editor-panel { height: 600px; }
   .workspace-panel { min-height: 430px; }

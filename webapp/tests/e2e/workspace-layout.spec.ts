@@ -65,6 +65,20 @@ test('resizes, minimizes, maximizes and persists panels without losing circuit s
   await page.getByRole('button', { name: 'Minimize schematic panel' }).click();
   await page.screenshot({ path: 'test-results/workspace-requirements.png', fullPage: true });
   await page.getByRole('button', { name: 'Restore minimized schematic panel' }).click();
+
+  await page.getByRole('button', { name: 'Focus schematic view' }).click();
+  await expect(page.locator('.resizable-workspace')).toHaveAttribute('data-canvas-mode', 'schematic');
+  await expect(page.getByLabel('Circuit simulation')).toBeHidden();
+  await page.keyboard.press('Control+b');
+  await expect(page.getByLabel('Kessetsu source editor')).toBeHidden();
+  await page.getByRole('button', { name: 'Expand source panel' }).click();
+  await expect(page.getByLabel('Kessetsu source editor')).toBeVisible();
+  await page.getByRole('button', { name: 'Run simulation', exact: true }).click();
+  await expect(page.locator('.resizable-workspace')).toHaveAttribute('data-canvas-mode', 'results');
+  await expect(page.getByLabel('Circuit simulation')).toBeVisible();
+  await page.getByRole('button', { name: 'Split schematic and simulation' }).click();
+  await expect(page.locator('.resizable-workspace')).toHaveAttribute('data-canvas-mode', 'split');
+
   await page.getByRole('button', { name: 'Export', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.screenshot({ path: 'test-results/workspace-export-dialog.png' });

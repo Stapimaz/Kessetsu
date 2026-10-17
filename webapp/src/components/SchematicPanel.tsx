@@ -1,6 +1,6 @@
-import { Boxes, CircuitBoard, Code2, Focus, Grid3X3, Minus, Plus, Search, X } from 'lucide-react';
+import { Boxes, CircuitBoard, Code2, Focus, Grid3X3, LoaderCircle, Minus, Play, Plus, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { CircuitIrSummary, SchematicComponent, SchematicSummary, SourceFeedback } from '../domain';
+import type { CircuitIrSummary, SchematicComponent, SchematicSummary, SimulationState, SourceFeedback } from '../domain';
 import { summarizeAcSeries, summarizeWaveformSeries } from '../simulation/plot';
 import type { BrowserEvaluation } from '../simulation/types';
 import { PanelHeader, type PanelWindowControls } from './PanelHeader';
@@ -14,6 +14,9 @@ interface Props {
   onResolveSource(): void;
   evaluation?: BrowserEvaluation | null;
   onRevealSymbol?(symbol: string): void;
+  canRun?: boolean;
+  simulationState?: SimulationState;
+  onRun?(): void;
 }
 
 function formatEngineering(value: number, unit = ''): string {
@@ -98,6 +101,9 @@ export function SchematicPanel({
   onResolveSource,
   evaluation = null,
   onRevealSymbol,
+  canRun = false,
+  simulationState = 'idle',
+  onRun,
 }: Props) {
   const [view, setView] = useState({ zoom: 1, pan: { x: 0, y: 0 } });
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
@@ -304,6 +310,21 @@ export function SchematicPanel({
         <span className={`quality-badge ${schematic?.quality.passed ? 'quality-pass' : ''}`}>
           {schematic?.connectivity.verified ? 'Connectivity verified' : sourceFeedback?.title ?? 'Waiting'}
         </span>
+        {panelControls.canvasMode === 'schematic' && onRun && (
+          <button
+            className="run-button simulation-run-button schematic-quick-run"
+            disabled={!canRun || simulationState === 'running'}
+            aria-label="Run simulation"
+            title={canRun ? 'Run simulation and open results' : 'Fix source or add analysis to run simulation'}
+            onClick={() => {
+              panelControls.setCanvasMode?.('results');
+              onRun();
+            }}
+          >
+            {simulationState === 'running' ? <LoaderCircle size={13} className="simulation-running-icon" /> : <Play size={13} />}
+            <span>{simulationState === 'running' ? 'Running…' : 'Run'}</span>
+          </button>
+        )}
         <div className="icon-actions" aria-label="Schematic view">
           <button
             aria-label="Find and inspect schematic"

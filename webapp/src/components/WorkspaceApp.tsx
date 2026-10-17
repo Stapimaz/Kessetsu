@@ -30,7 +30,7 @@ import { ResultsPanel } from './ResultsPanel';
 import { SchematicPanel } from './SchematicPanel';
 import { ShareDialog } from './ShareDialog';
 import { SpiceConverterDialog } from './SpiceConverterDialog';
-import { WorkspaceLayout } from './WorkspaceLayout';
+import { WorkspaceLayout, type WorkspaceLayoutCommand } from './WorkspaceLayout';
 import { StudyDialog } from './StudyDialog';
 
 type MenuId = 'file' | 'view' | 'analyze' | 'help';
@@ -51,6 +51,7 @@ export function WorkspaceApp() {
   const [openMenu, setOpenMenu] = useState<MenuId | null>(null);
   const [examplesOpen, setExamplesOpen] = useState(false);
   const [resetRequest, setResetRequest] = useState(0);
+  const [layoutCommand, setLayoutCommand] = useState<WorkspaceLayoutCommand | null>(null);
   const [sourceRevealRequest, setSourceRevealRequest] = useState(0);
   const [symbolRevealRequest, setSymbolRevealRequest] = useState<{ id: number; symbol: string } | null>(null);
   const [circuitDetailsOpen, setCircuitDetailsOpen] = useState(false);
@@ -432,6 +433,20 @@ export function WorkspaceApp() {
               <button role="menuitem" onClick={() => { setCircuitDetailsOpen(true); setOpenMenu(null); }}>
                 <span>Circuit details…</span>
               </button>
+              <div className="menu-separator" role="separator" />
+              <button role="menuitem" onClick={() => { setLayoutCommand((current) => ({ id: (current?.id ?? 0) + 1, action: 'schematic' })); setOpenMenu(null); }}>
+                <span>Focus schematic</span>
+              </button>
+              <button role="menuitem" onClick={() => { setLayoutCommand((current) => ({ id: (current?.id ?? 0) + 1, action: 'results' })); setOpenMenu(null); }}>
+                <span>Focus simulation</span>
+              </button>
+              <button role="menuitem" onClick={() => { setLayoutCommand((current) => ({ id: (current?.id ?? 0) + 1, action: 'split' })); setOpenMenu(null); }}>
+                <span>Split schematic and simulation</span>
+              </button>
+              <button role="menuitem" onClick={() => { setLayoutCommand((current) => ({ id: (current?.id ?? 0) + 1, action: 'toggle-source' })); setOpenMenu(null); }}>
+                <span>Toggle source editor</span><kbd>Ctrl+B</kbd>
+              </button>
+              <div className="menu-separator" role="separator" />
               <button role="menuitem" onClick={() => { setResetRequest((current) => current + 1); setOpenMenu(null); }}>
                 <span>Reset panel layout</span>
               </button>
@@ -597,6 +612,7 @@ export function WorkspaceApp() {
       <WorkspaceLayout
         resetRequest={resetRequest}
         sourceRevealRequest={sourceRevealRequest}
+        layoutCommand={layoutCommand}
         source={(panelControls) => <EditorPanel
           code={state.code}
           diagnostics={state.diagnostics}
@@ -615,6 +631,9 @@ export function WorkspaceApp() {
           sourceFeedback={sourceFeedback}
           onResolveSource={resolveSource}
           evaluation={state.evaluation}
+          canRun={state.compileSucceeded && Boolean(state.circuitIr?.analyses.length)}
+          simulationState={state.simulationState}
+          onRun={() => void run()}
           onRevealSymbol={(symbol) => {
             setSourceRevealRequest((current) => current + 1);
             setSymbolRevealRequest((current) => ({ id: (current?.id ?? 0) + 1, symbol }));
