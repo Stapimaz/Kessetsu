@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { nearestSampleIndex, preferredSignal, signalLabel, signalUnit, sweepAxis, zoomAroundPointer } from './plot';
+import {
+  nearestSampleIndex,
+  preferredSignal,
+  signalLabel,
+  signalUnit,
+  summarizeAcSeries,
+  summarizeWaveformSeries,
+  sweepAxis,
+  zoomAroundPointer,
+} from './plot';
+import { mergeConvertedKessIntoSource } from '../spiceImport';
 import type { AssertionResult } from './types';
 
 describe('physical plot coordinates', () => {
@@ -38,3 +48,38 @@ it('uses typed sweep units and chooses external voltages before internal/current
   expect(signalUnit('sense')).toBe('V');
   expect(signalLabel('v_vin#branch')).toBe('I(vin)');
 });
+
+describe('quick measurement summaries and SPICE merge preview', () => {
+  it('summarizes AC peak, -3 dB cutoff, and phase', () => {
+    const freqs = [10, 100, 1000, 10000];
+    const mag = [0, -0.04, -3.0103, -20];
+    const phase = [-0.5, -5.7, -45, -84.3];
+    const summary = summarizeAcSeries(freqs, mag, phase)!;
+    expect(summary.peakIndex).toBe(0);
+    expect(summary.peakMagnitudeDb).toBe(0);
+    expect(summary.cutoffFrequencyHz).toBeCloseTo(1000, 0);
+    expect(summary.phaseAtCutoffOrPeakDeg).toBeCloseTo(-45, 1);
+    expect(summary.minIndex).toBe(3);
+  });
+
+  it('summarizes transient min, max, peak-to-peak, average, and RMS', () => {
+    const summary = summarizeWaveformSeries([0, 1, 2, 3], [-2, 0, 2, 0])!;
+    expect(summary.minValue).toBe(-2);
+    expect(summary.maxValue).toBe(2);
+    expect(summary.peakToPeak).toBe(4);
+    expect(summary.average).toBe(0);
+    expect(summary.rms).toBeCloseTo(Math.SQRT2, 6);
+  });
+
+  it('merges converted SPICE into existing .kess without duplicating nets or analyses', () => {
+    const existing = 'net GND\nnet in\nsource V1 ac(1V)\nsimulate ac dec 40 10Hz 100kHz\n';
+    const converted = '// Imported from a supported SPICE subset by Kessetsu.\n// Original source: sha256:abc\nnet GND\nnet in\nnet out\nresistor Rload 1e3\nconnect Rload.p1 to in\nconnect Rload.p2 to out\nsimulate ac dec 20 10Hz 100kHz\n';
+    const merged = mergeConvertedKessIntoSource(existing, converted);
+    expect(merged.match(/^net GND$/gm)).toHaveLength(1);
+    expect(merged.match(/^net in$/gm)).toHaveLength(1);
+    expect(merged).toContain('net out');
+    expect(merged).toContain('resistor Rload 1e3');
+    expect(merged.match(/^simulate ac\b/gm)).toHaveLength(1);
+  });
+});
+

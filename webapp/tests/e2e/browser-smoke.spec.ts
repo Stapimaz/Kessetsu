@@ -105,3 +105,29 @@ test('explains the external-agent handoff before requesting a reply on desktop a
   expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBeTruthy();
   if (process.env.KESSETSU_E2E_SCREENSHOTS) await page.screenshot({ path: 'test-results/proposal-mobile.png', fullPage: true });
 });
+
+test('converts SPICE netlists with live preview in the modal and avoids duplicating existing analyses from quick pills', async ({ page }) => {
+  await page.goto('/#editor');
+  await expect(page.getByTestId('compile-success')).toBeVisible();
+
+  // Clicking .ac when simulate ac already exists in the canonical RC filter must focus, not duplicate (no KES-C009)
+  const acPill = page.getByLabel('Quick insert statements').getByRole('button', { name: '.ac', exact: true });
+  await expect(acPill).toBeVisible();
+  await acPill.click();
+  await expect(page.getByTestId('compile-success')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Convert SPICE netlist…', exact: true }).click();
+  const converter = page.getByRole('dialog', { name: 'SPICE → Kessetsu Converter' });
+  await expect(converter).toBeVisible();
+  await expect(converter.getByTestId('spice-preview-code')).toContainText('resistor R1 1e3');
+
+  await converter.getByRole('button', { name: 'Op-Amp example' }).click();
+  await expect(converter.getByTestId('spice-preview-code')).toContainText('opamp XU1 KESSETSU_OPAMP_V1');
+
+  await converter.getByRole('button', { name: 'Replace current circuit' }).click();
+  await expect(converter).toBeHidden();
+  await expect(page.getByTestId('compile-success')).toBeVisible();
+  await expect(page.locator('svg g.component[data-component="XU1"]')).toBeVisible();
+});
+

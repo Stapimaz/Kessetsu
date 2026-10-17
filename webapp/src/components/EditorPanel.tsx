@@ -1,31 +1,28 @@
 import Editor, { type OnMount } from '@monaco-editor/react';
-import { ArrowRightLeft, Clipboard, Code2, FileUp, X } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { import_spice_netlist, spice_import_schema_version } from 'kessetsu-core';
+import { Code2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { editor } from 'monaco-editor';
-import type { CompileDiagnostic, CompileState, SpiceImportDiagnostic, SpiceImportReport } from '../domain';
+import type { CompileDiagnostic, CompileState } from '../domain';
 import { monaco } from '../monaco';
-import { assertValidSpiceReport, importDiagnosticLabel, SpiceImportError } from '../spiceImport';
 import { PanelHeader, type PanelWindowControls } from './PanelHeader';
-
-const SAMPLE_SPICE_NETLIST = `* 1 kHz RC Low-Pass Filter
-V1 in 0 AC 1
-R1 in out 1k
-C1 out 0 159.154943n
-.ac dec 40 10 100k
-.end`;
 
 interface Props {
   code: string;
   diagnostics: CompileDiagnostic[];
   compileSucceeded: boolean;
   compileState: CompileState;
-  wasmLoaded?: boolean;
   revealRequest: number;
   onCodeChange(code: string): void;
-  onChooseSpiceFile?(): void;
-  onSpiceConverted?(kessSource: string, componentCount: number): void;
   panelControls: PanelWindowControls;
+}
+
+function findAnalysisLine(code: string, kind: 'op' | 'ac' | 'tran'): number | null {
+  const pattern = new RegExp(`^\\s*simulate\\s+${kind}\\b`, 'i');
+  const lines = code.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    if (pattern.test(lines[index])) return index + 1;
+  }
+  return null;
 }
 
 export function EditorPanel({
@@ -33,20 +30,19 @@ export function EditorPanel({
   diagnostics,
   compileSucceeded,
   compileState,
-  wasmLoaded = true,
   revealRequest,
   onCodeChange,
-  onChooseSpiceFile,
-  onSpiceConverted,
   panelControls,
 }: Props) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const modelRef = useRef<editor.ITextModel | null>(null);
   const previousRevealRequest = useRef(revealRequest);
-  const [converterOpen, setConverterOpen] = useState(false);
-  const [spiceInput, setSpiceInput] = useState('');
-  const [converterError, setConverterError] = useState('');
-  const [converterDiagnostics, setConverterDiagnostics] = useState<SpiceImportDiagnostic[]>([]);
+
+  const existingAnalyses = useMemo(() => ({
+    op: findAnalysisLine(code, 'op'),
+    ac: findAnalysisLine(code, 'ac'),
+    tran: findAnalysisLine(code, 'tran'),
+  }), [code]);
 
   const applyMarkers = useCallback(() => {
     const model = modelRef.current;
@@ -87,6 +83,21 @@ export function EditorPanel({
     applyMarkers();
   };
 
+  const focusLine = (lineNumber: number) => {
+    const instance = editorRef.current;
+    const model = modelRef.current;
+    if (!instance) return;
+    instance.revealLineInCenter(lineNumber);
+    const maxCol = model ? model.getLineMaxColumn(lineNumber) : 1;
+    instance.setSelection({
+      startLineNumber: lineNumber,
+      startColumn: 1,
+      endLineNumber: lineNumber,
+      endColumn: maxCol,
+    });
+    instance.focus();
+  };
+
   const reveal = (diagnostic: CompileDiagnostic) => {
     if (!diagnostic.line) return;
     editorRef.current?.revealLineInCenter(diagnostic.line);
@@ -94,62 +105,40 @@ export function EditorPanel({
     editorRef.current?.focus();
   };
 
+  const insertOrFocusAnalysis = (kind: 'op' | 'ac' | 'tran', defaultSnippet: string) => {
+    const existingLine = existingAnalyses[kind];
+    if (existingLine !== null) {
+      focusLine(existingLine);
+      return;
+    }
+    const trimmed = code.replace(/\s+$/, '');
+    const nextCode = trimmed ? `${trimmed}\n${defaultSnippet}\n` : `${defaultSnippet}\n`;
+    onCodeChange(nextCode);
+    editorRef.current?.focus();
+  };
+
   const insertSnippet = (snippet: string, placement: 'top' | 'bottom' = 'bottom') => {
+    const lines = code.split(/\r?\n/);
+    const existingIdx = lines.findIndex((line) => line.trim() === snippet.trim());
+    if (existingIdx >= 0) {
+      focusLine(existingIdx + 1);
+      return;
+    }
     const trimmed = code.replace(/\s+$/, '');
     let nextCode: string;
     if (placement === 'top') {
-      const lines = trimmed ? trimmed.split(/\r?\n/) : [];
+      const nextLines = trimmed ? trimmed.split(/\r?\n/) : [];
       let insertIndex = 0;
-      while (insertIndex < lines.length && /^\s*(?:\/\/|net\b|param\b)/.test(lines[insertIndex])) {
+      while (insertIndex < nextLines.length && /^\s*(?:\/\/|net\b|param\b)/.test(nextLines[insertIndex])) {
         insertIndex += 1;
       }
-      lines.splice(insertIndex, 0, snippet);
-      nextCode = `${lines.join('\n')}\n`;
+      nextLines.splice(insertIndex, 0, snippet);
+      nextCode = `${nextLines.join('\n')}\n`;
     } else {
       nextCode = trimmed ? `${trimmed}\n${snippet}\n` : `${snippet}\n`;
     }
     onCodeChange(nextCode);
     editorRef.current?.focus();
-  };
-
-  const runSpiceConversion = (rawSpice: string) => {
-    setConverterError('');
-    setConverterDiagnostics([]);
-    try {
-      const rawReport = import_spice_netlist(rawSpice) as SpiceImportReport;
-      const report = assertValidSpiceReport(rawReport, spice_import_schema_version());
-      if (!report.kess_source) return;
-      if (onSpiceConverted) {
-        onSpiceConverted(report.kess_source, report.summary.components);
-      } else {
-        onCodeChange(report.kess_source);
-      }
-      setConverterOpen(false);
-      setSpiceInput('');
-      editorRef.current?.focus();
-    } catch (cause: unknown) {
-      if (cause instanceof SpiceImportError) {
-        setConverterError(cause.message);
-        setConverterDiagnostics(cause.diagnostics.filter((item) => item.severity === 'error'));
-      } else {
-        setConverterError(cause instanceof Error ? cause.message : String(cause));
-      }
-      setConverterOpen(true);
-    }
-  };
-
-  const pasteAndConvertSpice = async () => {
-    try {
-      const clip = await navigator.clipboard.readText();
-      if (!clip.trim()) {
-        setConverterError('Clipboard is empty. Copy a SPICE netlist first or paste it below.');
-        return;
-      }
-      setSpiceInput(clip);
-      runSpiceConversion(clip);
-    } catch {
-      setConverterError('Clipboard read was blocked by the browser. Paste the SPICE netlist into the box below with Ctrl+V.');
-    }
   };
 
   return (
@@ -158,71 +147,44 @@ export function EditorPanel({
         <div className="editor-quick-snippets" aria-label="Quick insert statements">
           <button
             type="button"
-            className="spice-converter-trigger"
-            aria-expanded={converterOpen}
-            disabled={!wasmLoaded}
-            title="Paste or convert a SPICE netlist (.cir / .sp) into Kessetsu source"
-            onClick={() => {
-              setConverterOpen((open) => !open);
-              setConverterError('');
-              setConverterDiagnostics([]);
-            }}
+            className={existingAnalyses.op ? 'snippet-present' : undefined}
+            title={existingAnalyses.op ? `Focus existing .op analysis on line ${existingAnalyses.op}` : 'Insert DC operating point analysis'}
+            onClick={() => insertOrFocusAnalysis('op', 'simulate op')}
           >
-            <ArrowRightLeft size={11} /> SPICE → .kess
+            {existingAnalyses.op ? '.op' : '+ .op'}
           </button>
-          <span className="editor-snippet-divider" aria-hidden="true" />
-          <button type="button" title="Insert DC operating point analysis" onClick={() => insertSnippet('simulate op')}>+ .op</button>
-          <button type="button" title="Insert AC frequency sweep analysis" onClick={() => insertSnippet('simulate ac dec 40 10Hz 100kHz')}>+ .ac</button>
-          <button type="button" title="Insert transient time-domain analysis" onClick={() => insertSnippet('simulate tran 10us 5ms')}>+ .tran</button>
-          <button type="button" title="Insert sweepable circuit parameter for Parameter Study" onClick={() => insertSnippet('param R_load: Ohm = 10kOhm', 'top')}>+ param</button>
-          <button type="button" title="Insert verifiable requirement assertion" onClick={() => insertSnippet('assert value(V(OUT)) >= 0.5V')}>+ assert</button>
+          <button
+            type="button"
+            className={existingAnalyses.ac ? 'snippet-present' : undefined}
+            title={existingAnalyses.ac ? `Focus existing .ac analysis on line ${existingAnalyses.ac}` : 'Insert AC frequency sweep analysis'}
+            onClick={() => insertOrFocusAnalysis('ac', 'simulate ac dec 40 10Hz 100kHz')}
+          >
+            {existingAnalyses.ac ? '.ac' : '+ .ac'}
+          </button>
+          <button
+            type="button"
+            className={existingAnalyses.tran ? 'snippet-present' : undefined}
+            title={existingAnalyses.tran ? `Focus existing .tran analysis on line ${existingAnalyses.tran}` : 'Insert transient time-domain analysis'}
+            onClick={() => insertOrFocusAnalysis('tran', 'simulate tran 10us 5ms')}
+          >
+            {existingAnalyses.tran ? '.tran' : '+ .tran'}
+          </button>
+          <button
+            type="button"
+            title="Insert sweepable circuit parameter for Parameter Study"
+            onClick={() => insertSnippet('param R_load: Ohm = 10kOhm', 'top')}
+          >
+            + param
+          </button>
+          <button
+            type="button"
+            title="Insert verifiable requirement assertion"
+            onClick={() => insertSnippet('assert value(V(OUT)) >= 0.5V')}
+          >
+            + assert
+          </button>
         </div>
       </PanelHeader>
-      {converterOpen && (
-        <div className="spice-converter-drawer" role="region" aria-label="SPICE to Kessetsu converter">
-          <div className="spice-converter-header">
-            <div>
-              <strong>SPICE → Kessetsu Converter</strong>
-              <span>Paste an LTspice / Ngspice netlist below (or open a .cir/.sp file) to convert it into verified .kess source.</span>
-            </div>
-            <button type="button" aria-label="Close SPICE converter" onClick={() => setConverterOpen(false)}><X size={14} /></button>
-          </div>
-          <div className="spice-converter-toolbar">
-            <button type="button" onClick={() => void pasteAndConvertSpice()}><Clipboard size={12} /> Paste &amp; convert</button>
-            <button type="button" onClick={() => { setSpiceInput(SAMPLE_SPICE_NETLIST); setConverterError(''); setConverterDiagnostics([]); }}>Load example SPICE</button>
-            {onChooseSpiceFile && <button type="button" onClick={() => { setConverterOpen(false); onChooseSpiceFile(); }}><FileUp size={12} /> Open .cir/.sp file…</button>}
-          </div>
-          <textarea
-            aria-label="SPICE netlist input"
-            rows={5}
-            value={spiceInput}
-            placeholder={'V1 in 0 AC 1\nR1 in out 1k\nC1 out 0 159.15n\n.ac dec 40 10 100k\n.end'}
-            onChange={(event) => {
-              setSpiceInput(event.target.value);
-              setConverterError('');
-              setConverterDiagnostics([]);
-            }}
-          />
-          {converterError && (
-            <div className="spice-converter-error" role="alert">
-              <strong>{converterError}</strong>
-              {converterDiagnostics.length > 1 && (
-                <ul>
-                  {converterDiagnostics.slice(0, 4).map((diag, idx) => (
-                    <li key={idx}>{importDiagnosticLabel(diag)}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-          <div className="spice-converter-actions">
-            <button type="button" className="spice-convert-primary" disabled={!spiceInput.trim()} onClick={() => runSpiceConversion(spiceInput)}>
-              <ArrowRightLeft size={12} /> Convert to .kess
-            </button>
-            <button type="button" onClick={() => setConverterOpen(false)}>Cancel</button>
-          </div>
-        </div>
-      )}
       <div className="editor-container">
         <Editor
           height="100%"

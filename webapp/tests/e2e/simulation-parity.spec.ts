@@ -137,6 +137,16 @@ test('normalizes OP, transient, AC and DC sweep results and restarts after cance
   const acNearest = frequencies.reduce((best, value, index) => Math.abs(Math.log10(value) - logTarget) < Math.abs(Math.log10(frequencies[best]) - logTarget) ? index : best, 0);
   await moveOverPlot(page, summary.locator('.result-plot').first(), 0.4);
   await expect(summary.locator('.cursor-readout')).toHaveAttribute('data-axis-value', String(frequencies[acNearest]));
+
+  // Verify quick measurements, multi-trace overlay, and pinned M1/M2 markers on AC plot
+  await expect(summary.getByTestId('quick-measurements')).toBeVisible();
+  await summary.getByRole('group', { name: 'Compare traces' }).getByRole('button', { name: 'V(in)' }).click();
+  await expect(summary.locator('.overlay-signal-line')).toHaveCount(2);
+  await summary.getByTestId('quick-measurements').getByRole('button', { name: /Peak/ }).click();
+  await expect(summary.locator('.pinned-markers-bar').first()).toContainText('M1');
+  await summary.locator('.clear-markers-button').first().click();
+  await expect(summary.locator('.pinned-markers-bar')).toHaveCount(0);
+
   await summary.getByRole('tab', { name: 'dc sweep' }).click();
   await expect(summary.locator('.result-plot')).toHaveCount(1);
   await expect(summary).toContainText('Sweep of VIN (V)');

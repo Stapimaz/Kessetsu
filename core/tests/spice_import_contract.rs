@@ -489,3 +489,40 @@ RLOAD out 0 1e9
             && d.message.contains("OPAMP")
     }));
 }
+
+#[test]
+fn real_world_spice_source_tran_param_and_comment_edge_cases() {
+    let ltspice_style = "* LTspice & textbook edge cases
+.param R_LOAD = 1k, C_LOAD = 100n ; spaced and comma-separated params
+.temp 27 ; nominal temperature directive
+V1 in 0 DC 0 AC 1 SIN (0 1 1k 0 0) ; spaced SIN with zero Td/Theta and preceding DC/AC
+V2 pulse_in 0 PULSE 0 5 0 1n 1n 0.5m 1m 0 ; unparenthesized PULSE with zero Ncycles
+R1 in out {R_LOAD} ; inline comment on resistor
+R2 pulse_in out {R_LOAD}
+C1 out 0 {C_LOAD}
+.tran 0 5m 0 10u
+.ac dec 20 10 100k
+.end
+";
+    let report = import_spice(ltspice_style);
+    assert!(!report.has_errors(), "{:?}", report.diagnostics);
+    let source = report.kess_source.as_deref().expect("verified kess source");
+    assert!(source.contains("source V1 sine_ac(0,1,1e3,1)"), "{source}");
+    assert!(
+        source.contains("source V2 pulse(0,5,0,1e-9,1e-9,5e-4,1e-3)"),
+        "{source}"
+    );
+    assert!(source.contains("simulate tran 1e-5 5e-3"), "{source}");
+
+    let single_arg_tran = import_spice("V1 in 0 SIN 0 2 500\nR1 in 0 1k\n.tran 2m\n.end\n");
+    assert!(
+        !single_arg_tran.has_errors(),
+        "{:?}",
+        single_arg_tran.diagnostics
+    );
+    let single_tran_source = single_arg_tran.kess_source.expect("verified source");
+    assert!(
+        single_tran_source.contains("simulate tran 1e-5 2e-3"),
+        "{single_tran_source}"
+    );
+}

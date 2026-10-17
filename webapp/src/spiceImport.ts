@@ -52,3 +52,68 @@ export function assertValidSpiceReport(report: SpiceImportReport, expectedVersio
   }
   return report;
 }
+
+/** Merge a converted SPICE .kess circuit into an existing .kess source without duplicating net or analysis declarations. */
+export function mergeConvertedKessIntoSource(currentSource: string, convertedKess: string): string {
+  const trimmedCurrent = currentSource.trim();
+  if (!trimmedCurrent) return convertedKess;
+
+  const existingNets = new Set<string>();
+  const existingAnalysisKinds = new Set<string>();
+  for (const line of trimmedCurrent.split(/\r?\n/)) {
+    const netMatch = /^\s*net\s+([A-Za-z_][A-Za-z0-9_]*)\s*$/.exec(line);
+    if (netMatch) existingNets.add(netMatch[1]);
+    const simMatch = /^\s*simulate\s+(op|ac|tran|dc)\b/i.exec(line);
+    if (simMatch) existingAnalysisKinds.add(simMatch[1].toLowerCase());
+  }
+
+  const netLinesToInsert: string[] = [];
+  const bodyLinesToAppend: string[] = [];
+
+  for (const line of convertedKess.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    if (trimmed.startsWith('// Imported from ') || trimmed.startsWith('// Original source:')) {
+      continue;
+    }
+    const netMatch = /^net\s+([A-Za-z_][A-Za-z0-9_]*)$/.exec(trimmed);
+    if (netMatch) {
+      if (!existingNets.has(netMatch[1])) {
+        existingNets.add(netMatch[1]);
+        netLinesToInsert.push(`net ${netMatch[1]}`);
+      }
+      continue;
+    }
+    const simMatch = /^simulate\s+(op|ac|tran|dc)\b/i.exec(trimmed);
+    if (simMatch && existingAnalysisKinds.has(simMatch[1].toLowerCase())) {
+      continue;
+    }
+    bodyLinesToAppend.push(line);
+  }
+
+  const currentLines = trimmedCurrent.split(/\r?\n/);
+  if (netLinesToInsert.length > 0) {
+    let lastNetIndex = -1;
+    for (let i = 0; i < currentLines.length; i += 1) {
+      if (/^\s*net\s+[A-Za-z_][A-Za-z0-9_]*\s*$/.test(currentLines[i])) {
+        lastNetIndex = i;
+      }
+    }
+    if (lastNetIndex >= 0) {
+      currentLines.splice(lastNetIndex + 1, 0, ...netLinesToInsert);
+    } else {
+      let headerEnd = 0;
+      while (headerEnd < currentLines.length && /^\s*\/\//.test(currentLines[headerEnd])) {
+        headerEnd += 1;
+      }
+      currentLines.splice(headerEnd, 0, ...netLinesToInsert);
+    }
+  }
+
+  const merged = [
+    currentLines.join('\n'),
+    ...(bodyLinesToAppend.length > 0 ? ['// --- Merged from SPICE netlist ---', ...bodyLinesToAppend] : []),
+  ].join('\n');
+  return `${merged.replace(/\s+$/, '')}\n`;
+}
+

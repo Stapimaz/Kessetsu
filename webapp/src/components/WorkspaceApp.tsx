@@ -1,4 +1,4 @@
-import { CheckCircle2, ChevronRight, CircleAlert, LineChart, LoaderCircle, RotateCcw, Share2, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { ArrowRightLeft, CheckCircle2, ChevronRight, CircleAlert, LineChart, LoaderCircle, RotateCcw, Share2, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { applicationMenuKeyDown } from '../applicationMenuKeyboard';
 import { keepModalTabFocus } from '../modalKeyboard';
@@ -29,6 +29,7 @@ import { RenameDialog } from './RenameDialog';
 import { ResultsPanel } from './ResultsPanel';
 import { SchematicPanel } from './SchematicPanel';
 import { ShareDialog } from './ShareDialog';
+import { SpiceConverterDialog } from './SpiceConverterDialog';
 import { WorkspaceLayout } from './WorkspaceLayout';
 import { StudyDialog } from './StudyDialog';
 
@@ -58,6 +59,7 @@ export function WorkspaceApp() {
   const [researchDataOpen, setResearchDataOpen] = useState(false);
   const [researchDataMounted, setResearchDataMounted] = useState(false);
   const [agentProposalOpen, setAgentProposalOpen] = useState(false);
+  const [spiceConverterOpen, setSpiceConverterOpen] = useState(false);
   const [acceptedProposal, setAcceptedProposal] = useState<{ before: string; after: string } | null>(null);
   const [documentError, setDocumentError] = useState('');
   const [importFailure, setImportFailure] = useState<{ filename: string; error: Error } | null>(null);
@@ -369,6 +371,7 @@ export function WorkspaceApp() {
               <button role="menuitem" onClick={startNewDocument}><span>New circuit</span></button>
               <button role="menuitem" onClick={chooseDocument}><span>Open .kess…</span></button>
               <button role="menuitem" onClick={chooseSpiceDocument}><span>Import SPICE netlist...</span></button>
+              <button role="menuitem" disabled={!state.wasmLoaded} onClick={() => { setSpiceConverterOpen(true); setOpenMenu(null); }}><span>Convert SPICE netlist…</span></button>
               <button role="menuitem" disabled={documentSaving || !state.wasmLoaded} aria-label={nativeFileSaving ? 'Save' : 'Save in browser'} onClick={() => void saveDocument()}>
                 <span>{nativeFileSaving ? 'Save' : 'Save in browser'}</span><kbd>Ctrl+S</kbd>
               </button>
@@ -450,6 +453,13 @@ export function WorkspaceApp() {
                   <small>Restore the exact circuit from before the last accepted reply</small>
                 </span>
               </button>}
+              <button role="menuitem" aria-label="Convert SPICE netlist…" disabled={!state.wasmLoaded} onClick={() => { setSpiceConverterOpen(true); setOpenMenu(null); }}>
+                <ArrowRightLeft size={15} className="analyze-item-icon" />
+                <span className="analyze-item-body">
+                  <span className="analyze-item-title"><strong>Convert SPICE netlist…</strong><em className="analyze-item-badge">SPICE → .kess</em></span>
+                  <small>Paste LTspice or Ngspice netlists, preview verified .kess, and copy, merge, or replace</small>
+                </span>
+              </button>
               <span className="menu-group-label">Exploration &amp; Lab Data</span>
               <button role="menuitem" aria-label="Test parameter variations…" disabled={!state.wasmLoaded || state.simulationState === 'running'} onClick={() => { setStudyOpen(true); setOpenMenu(null); }}>
                 <SlidersHorizontal size={15} className="analyze-item-icon" />
@@ -596,6 +606,21 @@ export function WorkspaceApp() {
       {state.wasmLoaded && <AgentProposalDialog open={agentProposalOpen} source={state.code} name={documentName}
         productVersion={productVersion} resources={modelResources} onAccept={acceptAgentProposal}
         onClose={() => { setAgentProposalOpen(false); focusAnalyzeMenu(); }} />}
+      {state.wasmLoaded && <SpiceConverterDialog
+        open={spiceConverterOpen}
+        currentSource={state.code}
+        onClose={() => setSpiceConverterOpen(false)}
+        onChooseSpiceFile={chooseSpiceDocument}
+        onApply={(nextSource, mode, components) => {
+          detachFileHandle();
+          setCode(nextSource);
+          showDocumentNotice(
+            mode === 'insert'
+              ? `Merged ${components} SPICE components into current circuit`
+              : `Converted SPICE netlist (${components} components) to Kessetsu`,
+          );
+        }}
+      />}
       {state.wasmLoaded && researchDataMounted && <PageLoadBoundary page="research data" onDismiss={() => { setResearchDataOpen(false); setResearchDataMounted(false); focusAnalyzeMenu(); }}><Suspense fallback={<aside className="feature-loading" role="status">Opening research data…</aside>}><ResearchDataDialog open={researchDataOpen} evaluation={state.evaluation} circuitName={documentName} onClose={() => { setResearchDataOpen(false); focusAnalyzeMenu(); }} /></Suspense></PageLoadBoundary>}
       <WorkspaceLayout
         resetRequest={resetRequest}
@@ -605,15 +630,8 @@ export function WorkspaceApp() {
           diagnostics={state.diagnostics}
           compileSucceeded={state.compileSucceeded}
           compileState={state.compileState}
-          wasmLoaded={state.wasmLoaded}
           revealRequest={sourceRevealRequest}
           onCodeChange={setCode}
-          onChooseSpiceFile={chooseSpiceDocument}
-          onSpiceConverted={(nextCode, components) => {
-            detachFileHandle();
-            setCode(nextCode);
-            showDocumentNotice(`Converted SPICE netlist (${components} components) to Kessetsu`);
-          }}
           panelControls={panelControls}
         />}
         schematic={(panelControls) => <SchematicPanel schematic={state.schematic} circuitIr={state.circuitIr} svg={state.schematicSvg} panelControls={panelControls} sourceFeedback={sourceFeedback} onResolveSource={resolveSource} />}

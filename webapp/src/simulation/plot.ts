@@ -50,3 +50,117 @@ export function sweepAxis(analysis: Analysis): { label: string; unit: string } {
   const unit = analysis.start.unit === 'Ampere' ? 'A' : 'V';
   return { label: `Sweep of ${analysis.source}`, unit };
 }
+
+export interface AcQuickSummary {
+  peakMagnitudeDb: number;
+  peakFrequencyHz: number;
+  peakIndex: number;
+  cutoffFrequencyHz: number | null;
+  cutoffIndex: number | null;
+  phaseAtCutoffOrPeakDeg: number;
+  minMagnitudeDb: number;
+  minFrequencyHz: number;
+  minIndex: number;
+}
+
+export function summarizeAcSeries(
+  frequenciesHz: number[],
+  magnitudeDb: number[],
+  phaseDeg: number[],
+): AcQuickSummary | null {
+  if (frequenciesHz.length === 0 || magnitudeDb.length === 0) return null;
+  let peakIndex = 0;
+  let minIndex = 0;
+  for (let i = 1; i < magnitudeDb.length; i += 1) {
+    if (magnitudeDb[i] > magnitudeDb[peakIndex]) peakIndex = i;
+    if (magnitudeDb[i] < magnitudeDb[minIndex]) minIndex = i;
+  }
+  const peakMagnitudeDb = magnitudeDb[peakIndex];
+  const targetDb = peakMagnitudeDb - 3.010299956639812; // -3 dB
+
+  let cutoffIndex: number | null = null;
+  let cutoffFrequencyHz: number | null = null;
+
+  // Search forward from peak first (low-pass / band-pass upper edge), then backward (high-pass lower edge)
+  for (let i = peakIndex; i < magnitudeDb.length - 1; i += 1) {
+    if (magnitudeDb[i] >= targetDb && magnitudeDb[i + 1] <= targetDb) {
+      const span = magnitudeDb[i] - magnitudeDb[i + 1];
+      const frac = span > 1e-12 ? (magnitudeDb[i] - targetDb) / span : 0;
+      const logF0 = Math.log10(Math.max(frequenciesHz[i], Number.MIN_VALUE));
+      const logF1 = Math.log10(Math.max(frequenciesHz[i + 1], Number.MIN_VALUE));
+      cutoffFrequencyHz = 10 ** (logF0 + frac * (logF1 - logF0));
+      cutoffIndex = frac < 0.5 ? i : i + 1;
+      break;
+    }
+  }
+  if (cutoffFrequencyHz === null) {
+    for (let i = peakIndex; i > 0; i -= 1) {
+      if (magnitudeDb[i] >= targetDb && magnitudeDb[i - 1] <= targetDb) {
+        const span = magnitudeDb[i] - magnitudeDb[i - 1];
+        const frac = span > 1e-12 ? (magnitudeDb[i] - targetDb) / span : 0;
+        const logF0 = Math.log10(Math.max(frequenciesHz[i], Number.MIN_VALUE));
+        const logF1 = Math.log10(Math.max(frequenciesHz[i - 1], Number.MIN_VALUE));
+        cutoffFrequencyHz = 10 ** (logF0 + frac * (logF1 - logF0));
+        cutoffIndex = frac < 0.5 ? i : i - 1;
+        break;
+      }
+    }
+  }
+
+  const refIndex = cutoffIndex ?? peakIndex;
+  return {
+    peakMagnitudeDb,
+    peakFrequencyHz: frequenciesHz[peakIndex],
+    peakIndex,
+    cutoffFrequencyHz,
+    cutoffIndex,
+    phaseAtCutoffOrPeakDeg: phaseDeg[refIndex] ?? 0,
+    minMagnitudeDb: magnitudeDb[minIndex],
+    minFrequencyHz: frequenciesHz[minIndex],
+    minIndex,
+  };
+}
+
+export interface WaveformQuickSummary {
+  minValue: number;
+  minAxis: number;
+  minIndex: number;
+  maxValue: number;
+  maxAxis: number;
+  maxIndex: number;
+  peakToPeak: number;
+  average: number;
+  rms: number;
+}
+
+export function summarizeWaveformSeries(
+  axis: number[],
+  values: number[],
+): WaveformQuickSummary | null {
+  if (axis.length === 0 || values.length === 0) return null;
+  let minIndex = 0;
+  let maxIndex = 0;
+  let sum = 0;
+  let sumSq = 0;
+  for (let i = 0; i < values.length; i += 1) {
+    const v = values[i];
+    if (v < values[minIndex]) minIndex = i;
+    if (v > values[maxIndex]) maxIndex = i;
+    sum += v;
+    sumSq += v * v;
+  }
+  const minValue = values[minIndex];
+  const maxValue = values[maxIndex];
+  return {
+    minValue,
+    minAxis: axis[minIndex],
+    minIndex,
+    maxValue,
+    maxAxis: axis[maxIndex],
+    maxIndex,
+    peakToPeak: maxValue - minValue,
+    average: sum / values.length,
+    rms: Math.sqrt(sumSq / values.length),
+  };
+}
+

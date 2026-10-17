@@ -214,6 +214,7 @@ const OUTPUT_DIRECTIVES: &[&str] = &[
     ".width",
     ".options",
     ".option",
+    ".temp",
     ".backanno",
 ];
 
@@ -1428,6 +1429,17 @@ fn render_subcircuit(module: &ImportedSubcircuit) -> String {
     generated
 }
 
+fn strip_inline_comment(raw: &str) -> &str {
+    let trimmed = raw.trim_start();
+    if trimmed.starts_with('*') || trimmed.starts_with(';') {
+        return raw;
+    }
+    match raw.find(';') {
+        Some(index) => raw[..index].trim_end(),
+        None => raw,
+    }
+}
+
 fn logical_lines(source: &str, report: &mut SpiceImportReport) -> Vec<LogicalLine> {
     let physical = source.lines().collect::<Vec<_>>();
     if physical.len() > MAX_IMPORT_LINES {
@@ -1441,7 +1453,8 @@ fn logical_lines(source: &str, report: &mut SpiceImportReport) -> Vec<LogicalLin
     }
     let mut logical: Vec<LogicalLine> = Vec::new();
     for (index, raw) in physical.into_iter().enumerate() {
-        let trimmed = raw.trim_start();
+        let cleaned = strip_inline_comment(raw);
+        let trimmed = cleaned.trim_start();
         if let Some(continuation) = trimmed.strip_prefix('+') {
             let Some(previous) = logical.last_mut() else {
                 push_error(
@@ -1452,12 +1465,15 @@ fn logical_lines(source: &str, report: &mut SpiceImportReport) -> Vec<LogicalLin
                 );
                 continue;
             };
-            previous.text.push(' ');
-            previous.text.push_str(continuation.trim());
+            let continuation = continuation.trim();
+            if !continuation.is_empty() {
+                previous.text.push(' ');
+                previous.text.push_str(continuation);
+            }
         } else {
             logical.push(LogicalLine {
                 number: index + 1,
-                text: raw.to_string(),
+                text: cleaned.to_string(),
             });
         }
     }
@@ -1472,14 +1488,15 @@ fn collect_parameters(
     let mut seen = BTreeMap::<String, (String, usize)>::new();
     let mut used = BTreeSet::new();
     for line in lines {
-        let fields = split_fields(line.text.trim());
-        if fields
-            .first()
-            .is_none_or(|field| !field.eq_ignore_ascii_case(".param"))
-        {
+        let trimmed = line.text.trim();
+        let first_token = trimmed.split_whitespace().next();
+        if first_token.is_none_or(|field| !field.eq_ignore_ascii_case(".param")) {
             continue;
         }
-        if fields.len() < 2 {
+        let rest = trimmed[".param".len()..].replace(',', " ");
+        let normalized = normalize_assignments(&rest);
+        let fields = split_fields(normalized.trim());
+        if fields.is_empty() {
             push_error(
                 report,
                 "KES-N006",
@@ -1488,7 +1505,7 @@ fn collect_parameters(
             );
             continue;
         }
-        for assignment in &fields[1..] {
+        for assignment in &fields {
             let Some((name, value)) = assignment.split_once('=') else {
                 push_error(
                     report,
@@ -1772,79 +1789,178 @@ fn translate_numeric(
     canonical_number(input)
 }
 
+fn normalize_source_fields(fields: &[String]) -> Vec<String> {
+    let expanded = fields
+        .iter()
+        .flat_map(|field| {
+            if let Some((prefix, rest)) = field.split_once('=')
+                && matches!(prefix.to_ascii_lowercase().as_str(), "dc" | "ac")
+                && !rest.is_empty()
+            {
+                vec![prefix.to_string(), rest.to_string()]
+            } else {
+                vec![field.clone()]
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let mut normalized = Vec::new();
+    let mut index = 0;
+    while index < expanded.len() {
+        let token = &expanded[index];
+        let lower = token.to_ascii_lowercase();
+        if matches!(lower.as_str(), "sin" | "sine" | "pulse" | "pwl") {
+            if index + 1 < expanded.len() && expanded[index + 1].starts_with('(') {
+                normalized.push(format!("{token}{}", expanded[index + 1]));
+                index += 2;
+                continue;
+            }
+            let mut args = Vec::new();
+            index += 1;
+            while index < expanded.len() {
+                let candidate = &expanded[index];
+                if matches!(candidate.to_ascii_lowercase().as_str(), "ac" | "dc")
+                    || candidate.contains('(')
+                {
+                    break;
+                }
+                for part in candidate.split(',') {
+                    let trimmed = part.trim();
+                    if !trimmed.is_empty() {
+                        args.push(trimmed.to_string());
+                    }
+                }
+                index += 1;
+            }
+            normalized.push(format!("{token}({})", args.join(" ")));
+            continue;
+        }
+        normalized.push(token.clone());
+        index += 1;
+    }
+    normalized
+}
+
 fn translate_source(
     fields: &[String],
     value_unit: ImportUnit,
     parameters: &BTreeMap<String, &ImportedParameter>,
     parameter_units: &mut BTreeMap<String, ImportUnit>,
 ) -> Result<String, String> {
-    if fields.len() == 1 {
-        if let Some((name, args)) = parse_call(&fields[0])? {
+    let normalized = normalize_source_fields(fields);
+    if normalized.len() == 1 {
+        if let Some((name, args)) = parse_call(&normalized[0])? {
             return translate_waveform(name, args, value_unit, None, parameters, parameter_units);
         }
-        return translate_numeric(&fields[0], value_unit, parameters, parameter_units);
+        return translate_numeric(&normalized[0], value_unit, parameters, parameter_units);
     }
-    if fields[0].eq_ignore_ascii_case("ac") {
-        if fields.len() > 3 {
-            return Err("AC source expects magnitude and optional zero-degree phase".into());
+
+    let mut dc_field: Option<&str> = None;
+    let mut ac_mag: Option<&str> = None;
+    let mut ac_phase: Option<&str> = None;
+    let mut waveform_field: Option<&str> = None;
+    let mut index = 0;
+    while index < normalized.len() {
+        let token = normalized[index].as_str();
+        if token.eq_ignore_ascii_case("dc") {
+            if dc_field.is_some() || index + 1 >= normalized.len() {
+                return Err("source has unsupported DC/AC field combination".into());
+            }
+            dc_field = Some(normalized[index + 1].as_str());
+            index += 2;
+        } else if token.eq_ignore_ascii_case("ac") {
+            if ac_mag.is_some() || index + 1 >= normalized.len() {
+                return Err("AC source expects magnitude and optional zero-degree phase".into());
+            }
+            ac_mag = Some(normalized[index + 1].as_str());
+            index += 2;
+            if index < normalized.len() {
+                let next = normalized[index].as_str();
+                if !next.eq_ignore_ascii_case("dc")
+                    && !next.eq_ignore_ascii_case("ac")
+                    && !next.contains('(')
+                {
+                    if index + 1 < normalized.len()
+                        && !normalized[index + 1].contains('(')
+                        && !normalized[index + 1].eq_ignore_ascii_case("dc")
+                    {
+                        return Err(if dc_field.is_some() {
+                            "AC source has unsupported trailing fields".into()
+                        } else if waveform_field.is_some() {
+                            "waveform AC suffix has unsupported trailing fields".into()
+                        } else {
+                            "AC source expects magnitude and optional zero-degree phase".into()
+                        });
+                    }
+                    ac_phase = Some(next);
+                    index += 1;
+                }
+            }
+        } else if parse_call(token)?.is_some() {
+            if waveform_field.is_some() {
+                return Err("source specifies multiple waveforms".into());
+            }
+            waveform_field = Some(token);
+            index += 1;
+        } else {
+            return Err(if dc_field.is_some() && ac_mag.is_none() {
+                "source has unsupported DC/AC field combination".into()
+            } else {
+                "source value must be a literal, AC, SINE, PULSE or PWL form".into()
+            });
         }
-        if fields.len() == 3 && canonical_number(&fields[2])? != "0" {
-            return Err("non-zero AC source phase is not representable in Kessetsu yet".into());
+    }
+
+    if let Some(phase) = ac_phase
+        && canonical_number(phase)? != "0"
+    {
+        return Err("non-zero AC source phase is not representable in Kessetsu yet".into());
+    }
+
+    if let Some(wf) = waveform_field {
+        if let Some(dc) = dc_field
+            && canonical_number(dc)? != "0"
+        {
+            return Err("combined non-zero DC bias and waveform is not representable yet".into());
+        }
+        let (name, args) = parse_call(wf)?.expect("validated waveform call");
+        let ac_translated = match ac_mag {
+            Some(mag) => Some(translate_numeric(
+                mag,
+                value_unit,
+                parameters,
+                parameter_units,
+            )?),
+            None => None,
+        };
+        return translate_waveform(
+            name,
+            args,
+            value_unit,
+            ac_translated,
+            parameters,
+            parameter_units,
+        );
+    }
+
+    if let Some(mag) = ac_mag {
+        if let Some(dc) = dc_field
+            && canonical_number(dc)? != "0"
+        {
+            return Err(
+                "combined non-zero DC bias and AC magnitude is not representable yet".into(),
+            );
         }
         return Ok(format!(
             "ac({})",
-            translate_numeric(&fields[1], value_unit, parameters, parameter_units)?
+            translate_numeric(mag, value_unit, parameters, parameter_units)?
         ));
     }
-    if fields[0].eq_ignore_ascii_case("dc") {
-        if fields.len() == 2 {
-            return translate_numeric(&fields[1], value_unit, parameters, parameter_units);
-        }
-        if fields.len() >= 4 && fields[2].eq_ignore_ascii_case("ac") {
-            if canonical_number(&fields[1])? != "0" {
-                return Err(
-                    "combined non-zero DC bias and AC magnitude is not representable yet".into(),
-                );
-            }
-            if fields.len() > 5 {
-                return Err("AC source has unsupported trailing fields".into());
-            }
-            if fields.len() == 5 && canonical_number(&fields[4])? != "0" {
-                return Err("non-zero AC source phase is not representable in Kessetsu yet".into());
-            }
-            return Ok(format!(
-                "ac({})",
-                translate_numeric(&fields[3], value_unit, parameters, parameter_units)?
-            ));
-        }
-        return Err("source has unsupported DC/AC field combination".into());
+
+    if let Some(dc) = dc_field {
+        return translate_numeric(dc, value_unit, parameters, parameter_units);
     }
-    if let Some((name, args)) = parse_call(&fields[0])? {
-        if fields.len() == 1 {
-            return translate_waveform(name, args, value_unit, None, parameters, parameter_units);
-        }
-        if fields.len() >= 3 && fields[1].eq_ignore_ascii_case("ac") {
-            if fields.len() > 4 {
-                return Err("waveform AC suffix has unsupported trailing fields".into());
-            }
-            if fields.len() == 4 && canonical_number(&fields[3])? != "0" {
-                return Err("non-zero AC source phase is not representable in Kessetsu yet".into());
-            }
-            return translate_waveform(
-                name,
-                args,
-                value_unit,
-                Some(translate_numeric(
-                    &fields[2],
-                    value_unit,
-                    parameters,
-                    parameter_units,
-                )?),
-                parameters,
-                parameter_units,
-            );
-        }
-    }
+
     Err("source value must be a literal, AC, SINE, PULSE or PWL form".into())
 }
 
@@ -1864,13 +1980,32 @@ fn parse_call(field: &str) -> Result<Option<(&str, Vec<&str>)>, String> {
 
 fn translate_waveform(
     name: &str,
-    args: Vec<&str>,
+    mut args: Vec<&str>,
     value_unit: ImportUnit,
     ac: Option<String>,
     parameters: &BTreeMap<String, &ImportedParameter>,
     parameter_units: &mut BTreeMap<String, ImportUnit>,
 ) -> Result<String, String> {
-    let expected = match name.to_ascii_lowercase().as_str() {
+    let waveform = name.to_ascii_lowercase();
+    if matches!(waveform.as_str(), "sin" | "sine") && (4..=6).contains(&args.len()) {
+        for extra in &args[3..] {
+            if canonical_number(extra)? != "0" {
+                return Err(
+                    "non-zero SIN delay, damping or phase is not representable in Kessetsu yet"
+                        .into(),
+                );
+            }
+        }
+        args.truncate(3);
+    } else if waveform == "pulse" && args.len() == 8 {
+        if canonical_number(args[7])? != "0" {
+            return Err(
+                "finite PULSE cycle count (Ncycles) is not representable in Kessetsu yet".into(),
+            );
+        }
+        args.truncate(7);
+    }
+    let expected = match waveform.as_str() {
         "sin" | "sine" => 3,
         "pulse" => 7,
         "pwl" if args.len() >= 4 && args.len().is_multiple_of(2) => args.len(),
@@ -1884,7 +2019,6 @@ fn translate_waveform(
             args.len()
         ));
     }
-    let waveform = name.to_ascii_lowercase();
     let values = args
         .into_iter()
         .enumerate()
@@ -1898,7 +2032,7 @@ fn translate_waveform(
             translate_numeric(value, unit, parameters, parameter_units)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let normalized = match name.to_ascii_lowercase().as_str() {
+    let normalized = match waveform.as_str() {
         "sin" | "sine" if ac.is_some() => "sine_ac",
         "sin" | "sine" => "sine",
         "pulse" => "pulse",
@@ -1922,18 +2056,92 @@ fn translate_analysis(
 ) -> Result<String, String> {
     match fields[0].to_ascii_lowercase().as_str() {
         ".op" if fields.len() == 1 => Ok("simulate op".into()),
-        ".tran"
-            if matches!(fields.len(), 3 | 4)
-                && (fields.len() == 3 || fields[3].eq_ignore_ascii_case("uic")) =>
-        {
-            Ok(format!(
-                "simulate tran {} {}{}",
-                translate_numeric(&fields[1], ImportUnit::Second, parameters, parameter_units,)?,
-                translate_numeric(&fields[2], ImportUnit::Second, parameters, parameter_units,)?,
-                if fields.len() == 4 { " uic" } else { "" }
-            ))
+        ".tran" => {
+            let has_uic = fields
+                .last()
+                .is_some_and(|field| field.eq_ignore_ascii_case("uic"));
+            let time_fields = if has_uic {
+                &fields[1..fields.len() - 1]
+            } else {
+                &fields[1..]
+            };
+            let uic_suffix = if has_uic { " uic" } else { "" };
+            match time_fields.len() {
+                1 => {
+                    let tstop = translate_numeric(
+                        &time_fields[0],
+                        ImportUnit::Second,
+                        parameters,
+                        parameter_units,
+                    )?;
+                    let tstop_val: f64 = tstop.parse().map_err(|_| {
+                        "single-argument .tran requires a literal stop time so tstep can be inferred"
+                            .to_string()
+                    })?;
+                    if tstop_val <= 0.0 {
+                        return Err("TRAN stop time must be positive".into());
+                    }
+                    let tstep = stable_scientific(tstop_val / 200.0);
+                    Ok(format!("simulate tran {tstep} {tstop}{uic_suffix}"))
+                }
+                2 => Ok(format!(
+                    "simulate tran {} {}{uic_suffix}",
+                    translate_numeric(
+                        &time_fields[0],
+                        ImportUnit::Second,
+                        parameters,
+                        parameter_units,
+                    )?,
+                    translate_numeric(
+                        &time_fields[1],
+                        ImportUnit::Second,
+                        parameters,
+                        parameter_units,
+                    )?,
+                )),
+                3 | 4 => {
+                    if canonical_number(&time_fields[2])? != "0" {
+                        return Err(
+                            "TRAN import supports tstep, tstop and optional UIC only (tstart must be 0)"
+                                .into(),
+                        );
+                    }
+                    let tstop = translate_numeric(
+                        &time_fields[1],
+                        ImportUnit::Second,
+                        parameters,
+                        parameter_units,
+                    )?;
+                    let raw_step = if canonical_number(&time_fields[0]).ok().as_deref() == Some("0")
+                    {
+                        if let Some(tmax) = time_fields.get(3)
+                            && canonical_number(tmax).ok().as_deref() != Some("0")
+                        {
+                            translate_numeric(
+                                tmax,
+                                ImportUnit::Second,
+                                parameters,
+                                parameter_units,
+                            )?
+                        } else {
+                            let tstop_val: f64 = tstop
+                                .parse()
+                                .map_err(|_| "TRAN stop time must be positive".to_string())?;
+                            stable_scientific(tstop_val / 200.0)
+                        }
+                    } else {
+                        translate_numeric(
+                            &time_fields[0],
+                            ImportUnit::Second,
+                            parameters,
+                            parameter_units,
+                        )?
+                    };
+                    Ok(format!("simulate tran {raw_step} {tstop}{uic_suffix}"))
+                }
+                _ => Err("TRAN import supports tstep, tstop and optional UIC only".into()),
+            }
         }
-        ".tran" => Err("TRAN import supports tstep, tstop and optional UIC only".into()),
         ".ac" if fields.len() == 5 => {
             let scale = fields[1].to_ascii_lowercase();
             if !matches!(scale.as_str(), "dec" | "oct" | "lin") {

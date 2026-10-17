@@ -1,9 +1,26 @@
-import { Activity, RotateCcw, Square, Zap } from 'lucide-react';
+import { Activity, Crosshair, Plus, RotateCcw, Square, X, Zap } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SimulationState, SourceFeedback } from '../domain';
 import type { Analysis, AssertionResult, BrowserEvaluation, Dataset } from '../simulation/types';
-import { nearestSampleIndex, preferredSignal, signalLabel, signalUnit, sweepAxis, zoomAroundPointer } from '../simulation/plot';
+import {
+  nearestSampleIndex,
+  preferredSignal,
+  signalLabel,
+  signalUnit,
+  summarizeAcSeries,
+  summarizeWaveformSeries,
+  sweepAxis,
+  zoomAroundPointer,
+} from '../simulation/plot';
 import { PanelHeader, type PanelWindowControls } from './PanelHeader';
+
+const OVERLAY_COLORS = ['#60a5fa', '#f59e0b', '#c084fc', '#fb7185'];
+
+interface OverlaySeries {
+  label: string;
+  color: string;
+  values: number[];
+}
 
 interface Props {
   state: SimulationState;
@@ -52,6 +69,10 @@ function partRatingLabel(rating: string) {
 interface PlotProps {
   axis: number[];
   values: number[];
+  overlays?: OverlaySeries[];
+  pinnedIndices?: number[];
+  onTogglePinIndex?(index: number): void;
+  onClearPins?(): void;
   axisName: string;
   axisUnit: string;
   valueUnit: string;
@@ -72,7 +93,18 @@ function pointerPositionInPlot(svg: SVGSVGElement, clientX: number, clientY: num
   return Math.max(0, Math.min(1, (local.x - PLOT_LEFT) / PLOT_WIDTH));
 }
 
-function LinePlot({ axis, values, axisName, axisUnit, valueUnit, logX = false }: PlotProps) {
+function LinePlot({
+  axis,
+  values,
+  overlays = [],
+  pinnedIndices = [],
+  onTogglePinIndex,
+  onClearPins,
+  axisName,
+  axisUnit,
+  valueUnit,
+  logX = false,
+}: PlotProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [zoom, setZoom] = useState<[number, number]>([0, 1]);
   const [cursor, setCursor] = useState<number | null>(null);
@@ -101,16 +133,33 @@ function LinePlot({ axis, values, axisName, axisUnit, valueUnit, logX = false }:
   const [minY, maxY] = useMemo(() => {
     let low = Infinity;
     let high = -Infinity;
-    for (const index of visible) { low = Math.min(low, values[index]); high = Math.max(high, values[index]); }
+    for (const index of visible) {
+      low = Math.min(low, values[index]);
+      high = Math.max(high, values[index]);
+      for (const overlay of overlays) {
+        const ov = overlay.values[index];
+        if (ov !== undefined && Number.isFinite(ov)) {
+          low = Math.min(low, ov);
+          high = Math.max(high, ov);
+        }
+      }
+    }
     return visible.length ? [low, high] : [0, 0];
-  }, [values, visible]);
+  }, [overlays, values, visible]);
   const x = useCallback((value: number) => PLOT_LEFT + ((value - minX) / (maxX - minX || 1)) * PLOT_WIDTH, [minX, maxX]);
   const y = useCallback((value: number) => 174 - ((value - minY) / (maxY - minY || 1)) * 146, [minY, maxY]);
   const points = useMemo(() => xValues.map((value, index) => `${x(value)},${y(values[visible[index]])}`).join(' '), [xValues, values, visible, x, y]);
+  const overlayPolylines = useMemo(() => overlays.map((overlay) => ({
+    ...overlay,
+    points: xValues.map((value, index) => `${x(value)},${y(overlay.values[visible[index]])}`).join(' '),
+  })), [overlays, visible, x, xValues, y]);
+
   const localIndex = cursor === null ? null : nearestSampleIndex(xValues, minX + cursor * (maxX - minX));
   const cursorIndex = localIndex === null ? null : visible[localIndex];
   const cursorX = cursorIndex === null ? null : x(coordinates[cursorIndex]);
   const physicalX = (value: number) => logX ? 10 ** value : value;
+
+  const validPins = pinnedIndices.filter((idx) => idx >= 0 && idx < axis.length);
 
   return (
     <div className="plot-wrap">
@@ -128,11 +177,42 @@ function LinePlot({ axis, values, axisName, axisUnit, valueUnit, logX = false }:
           ));
         }}
         onPointerLeave={() => setCursor(null)}
+        onClick={(event) => {
+          if (!onTogglePinIndex || !xValues.length) return;
+          const fraction = pointerPositionInPlot(event.currentTarget, event.clientX, event.clientY);
+          if (fraction === null) return;
+          const nearestLocal = nearestSampleIndex(xValues, minX + fraction * (maxX - minX));
+          if (nearestLocal !== null) {
+            onTogglePinIndex(visible[nearestLocal]);
+          }
+        }}
       >
         <rect x={PLOT_LEFT} y="18" width={PLOT_WIDTH} height="156" className="plot-bg" />
         {[0, 0.25, 0.5, 0.75, 1].map((ratio) => <line key={ratio} x1={PLOT_LEFT} x2={PLOT_RIGHT} y1={28 + ratio * 146} y2={28 + ratio * 146} className="grid-line" />)}
+        {overlayPolylines.map((overlay) => (
+          <polyline
+            key={overlay.label}
+            points={overlay.points}
+            className="signal-line overlay-signal-line"
+            style={{ stroke: overlay.color }}
+          />
+        ))}
         <polyline points={points} className="signal-line" />
         {!visible.length && <text x="310" y="96" textAnchor="middle" className="axis-label">No recorded samples in this zoom range</text>}
+        {validPins.map((pinIdx, markerNumber) => {
+          const coord = coordinates[pinIdx];
+          if (coord < minX || coord > maxX) return null;
+          const px = x(coord);
+          const py = y(values[pinIdx]);
+          const label = `M${markerNumber + 1}`;
+          return (
+            <g key={`pin-${pinIdx}-${markerNumber}`} className={`pinned-marker pinned-marker-${markerNumber + 1}`}>
+              <line x1={px} x2={px} y1="18" y2="174" className="pinned-marker-line" />
+              <circle cx={px} cy={py} r="4.5" className="pinned-marker-dot" />
+              <text x={Math.min(PLOT_RIGHT - 18, px + 5)} y="30" className="pinned-marker-tag">{label}</text>
+            </g>
+          );
+        })}
         {cursorIndex !== null && (
           <>
             <line x1={cursorX!} x2={cursorX!} y1="18" y2="174" className="cursor-line" />
@@ -146,9 +226,39 @@ function LinePlot({ axis, values, axisName, axisUnit, valueUnit, logX = false }:
       {cursorIndex !== null && (
         <output className="cursor-readout" data-axis-value={axis[cursorIndex]} data-signal-value={values[cursorIndex]}>
           {engineering(axis[cursorIndex], axisUnit)} · {engineering(values[cursorIndex], valueUnit)}
+          {overlays.map((ov) => ` · ${ov.label}: ${engineering(ov.values[cursorIndex], valueUnit)}`).join('')}
         </output>
       )}
       {zoom[1] - zoom[0] < 0.999 && <button className="plot-reset" onClick={() => setZoom([0, 1])}><RotateCcw size={12} /> Reset zoom</button>}
+      {validPins.length > 0 && (
+        <div className="pinned-markers-bar" role="region" aria-label={`${axisName} pinned markers`}>
+          {validPins.map((pinIdx, idx) => (
+            <span key={`readout-${pinIdx}-${idx}`} className={`pinned-marker-chip marker-chip-${idx + 1}`}>
+              <b>M{idx + 1}</b>
+              <span>{engineering(axis[pinIdx], axisUnit)} · {engineering(values[pinIdx], valueUnit)}</span>
+              {overlays.map((ov) => (
+                <small key={ov.label} style={{ color: ov.color }}>{ov.label}: {engineering(ov.values[pinIdx], valueUnit)}</small>
+              ))}
+            </span>
+          ))}
+          {validPins.length === 2 && (() => {
+            const dx = axis[validPins[1]] - axis[validPins[0]];
+            const dy = values[validPins[1]] - values[validPins[0]];
+            const equivFreq = axisUnit === 's' && Math.abs(dx) > 1e-18 ? ` (${engineering(1 / Math.abs(dx), 'Hz')})` : '';
+            return (
+              <span className="pinned-marker-delta" data-testid="marker-delta">
+                <b>Δ (M2−M1)</b>
+                <span>Δ{axisName[0]}: {engineering(dx, axisUnit)}{equivFreq} · ΔY: {engineering(dy, valueUnit)}</span>
+              </span>
+            );
+          })()}
+          {onClearPins && (
+            <button type="button" className="clear-markers-button" aria-label="Clear pinned markers" onClick={onClearPins}>
+              <X size={11} /> Clear
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -157,19 +267,72 @@ function DatasetView({ dataset, analysis, assertions }: { dataset: Dataset; anal
   const signalNames = dataset.kind === 'operating_point' ? Object.keys(dataset.values) : Object.keys(dataset.signals);
   const preferred = preferredSignal(signalNames, assertions);
   const [signal, setSignal] = useState(preferred);
+  const [overlaySignals, setOverlaySignals] = useState<string[]>([]);
+  const [pinnedIndices, setPinnedIndices] = useState<number[]>([]);
+
   useEffect(() => {
     setSignal(preferred);
+    setOverlaySignals([]);
+    setPinnedIndices([]);
   }, [dataset, preferred]);
+
   const selectedSignal = signalNames.includes(signal) ? signal : preferred;
+  const primaryUnit = signalUnit(selectedSignal);
+  const compatibleOverlays = useMemo(
+    () => signalNames.filter((name) => name !== selectedSignal && signalUnit(name) === primaryUnit),
+    [primaryUnit, selectedSignal, signalNames],
+  );
+  const activeOverlays = useMemo(
+    () => overlaySignals.filter((name) => compatibleOverlays.includes(name)).slice(0, OVERLAY_COLORS.length),
+    [compatibleOverlays, overlaySignals],
+  );
+
+  const toggleOverlay = (name: string) => {
+    setOverlaySignals((current) =>
+      current.includes(name) ? current.filter((item) => item !== name) : [...current, name].slice(0, OVERLAY_COLORS.length),
+    );
+  };
+
+  const togglePinIndex = useCallback((index: number) => {
+    setPinnedIndices((current) => {
+      if (current.includes(index)) return current.filter((item) => item !== index);
+      if (current.length < 2) return [...current, index];
+      return [current[0], index];
+    });
+  }, []);
+
+  const pinSingleIndex = useCallback((index: number | null) => {
+    if (index === null) return;
+    setPinnedIndices((current) => (current.length === 1 && current[0] === index ? [] : [index]));
+  }, []);
+
   const ac = useMemo(() => {
     if (dataset.kind !== 'ac') return null;
     const series = dataset.signals[selectedSignal];
     if (!series) return null;
-    return {
-      magnitude: series.real.map((real, index) => 20 * Math.log10(Math.max(Math.hypot(real, series.imaginary[index]), Number.MIN_VALUE))),
-      phase: series.real.map((real, index) => Math.atan2(series.imaginary[index], real) * 180 / Math.PI),
-    };
-  }, [dataset, selectedSignal]);
+    const magnitude = series.real.map((real, index) => 20 * Math.log10(Math.max(Math.hypot(real, series.imaginary[index]), Number.MIN_VALUE)));
+    const phase = series.real.map((real, index) => Math.atan2(series.imaginary[index], real) * 180 / Math.PI);
+    const summary = summarizeAcSeries(dataset.frequency_hz, magnitude, phase);
+    const magOverlays: OverlaySeries[] = activeOverlays.flatMap((name, idx) => {
+      const ov = dataset.signals[name];
+      if (!ov) return [];
+      return [{
+        label: signalLabel(name),
+        color: OVERLAY_COLORS[idx % OVERLAY_COLORS.length],
+        values: ov.real.map((r, i) => 20 * Math.log10(Math.max(Math.hypot(r, ov.imaginary[i]), Number.MIN_VALUE))),
+      }];
+    });
+    const phaseOverlays: OverlaySeries[] = activeOverlays.flatMap((name, idx) => {
+      const ov = dataset.signals[name];
+      if (!ov) return [];
+      return [{
+        label: signalLabel(name),
+        color: OVERLAY_COLORS[idx % OVERLAY_COLORS.length],
+        values: ov.real.map((r, i) => Math.atan2(ov.imaginary[i], r) * 180 / Math.PI),
+      }];
+    });
+    return { magnitude, phase, summary, magOverlays, phaseOverlays };
+  }, [activeOverlays, dataset, selectedSignal]);
 
   if (dataset.kind === 'operating_point') {
     return <div className="op-grid">{Object.entries(dataset.values).map(([name, value]) => (
@@ -180,34 +343,197 @@ function DatasetView({ dataset, analysis, assertions }: { dataset: Dataset; anal
   if (signalNames.length === 0) {
     return <div className="result-empty">No plottable signals in this analysis.</div>;
   }
-  const signalControl = (
-    <label className="signal-picker">Signal
-      <select aria-label="Signal" value={selectedSignal} onChange={(event) => setSignal(event.target.value)}>
-        {signalNames.map((name) => <option key={name} value={name}>{signalLabel(name)}</option>)}
-      </select>
-    </label>
+
+  const signalToolbar = (
+    <div className="signal-toolbar">
+      <label className="signal-picker">Signal
+        <select
+          aria-label="Signal"
+          value={selectedSignal}
+          onChange={(event) => {
+            setSignal(event.target.value);
+            setOverlaySignals((current) => current.filter((item) => item !== event.target.value));
+          }}
+        >
+          {signalNames.map((name) => <option key={name} value={name}>{signalLabel(name)}</option>)}
+        </select>
+      </label>
+      {compatibleOverlays.length > 0 && (
+        <div className="trace-overlay-bar" role="group" aria-label="Compare traces">
+          <span className="trace-overlay-label">+ Trace:</span>
+          {compatibleOverlays.map((name) => {
+            const activeIdx = activeOverlays.indexOf(name);
+            const isActive = activeIdx >= 0;
+            const color = isActive ? OVERLAY_COLORS[activeIdx % OVERLAY_COLORS.length] : undefined;
+            return (
+              <button
+                key={name}
+                type="button"
+                className={`trace-chip${isActive ? ' is-active' : ''}`}
+                aria-pressed={isActive}
+                style={isActive ? { borderColor: color, color } : undefined}
+                onClick={() => toggleOverlay(name)}
+              >
+                <Plus size={10} />
+                <span>{signalLabel(name)}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <span className="plot-cursor-hint"><Crosshair size={11} /> Click plot to pin M1/M2 markers</span>
+    </div>
   );
 
   if (dataset.kind === 'ac') {
     if (!ac) return null;
-    const reference = signalUnit(selectedSignal) === 'A' ? '1 A' : '1 V';
-    const magnitudeUnit = signalUnit(selectedSignal) === 'A' ? 'dB re 1 A' : 'dBV';
-    return <>{signalControl}<p className="plot-explanation">Magnitude is 20 log₁₀(|{signalLabel(selectedSignal)}| / {reference}), not output/input gain. Phase is the angle of this signal.</p><div className="bode-grid">
-      <div><span className="plot-title">Magnitude (re {reference})</span><LinePlot axis={dataset.frequency_hz} values={ac.magnitude} axisName="Frequency" axisUnit="Hz" valueUnit={magnitudeUnit} logX /></div>
-      <div><span className="plot-title">Phase</span><LinePlot axis={dataset.frequency_hz} values={ac.phase} axisName="Frequency" axisUnit="Hz" valueUnit="°" logX /></div>
-    </div></>;
+    const reference = primaryUnit === 'A' ? '1 A' : '1 V';
+    const magnitudeUnit = primaryUnit === 'A' ? 'dB re 1 A' : 'dBV';
+    return (
+      <>
+        {signalToolbar}
+        {ac.summary && (
+          <div className="quick-measurements" aria-label="Quick signal measurements" data-testid="quick-measurements">
+            <button
+              type="button"
+              className="measurement-card is-interactive"
+              title="Click to pin marker M1 at peak magnitude"
+              onClick={() => pinSingleIndex(ac.summary!.peakIndex)}
+            >
+              <span>Peak</span>
+              <strong>{engineering(ac.summary.peakMagnitudeDb, magnitudeUnit)}</strong>
+              <small>@ {engineering(ac.summary.peakFrequencyHz, 'Hz')}</small>
+            </button>
+            <button
+              type="button"
+              className={`measurement-card${ac.summary.cutoffIndex !== null ? ' is-interactive' : ''}`}
+              disabled={ac.summary.cutoffIndex === null}
+              title={ac.summary.cutoffIndex !== null ? 'Click to pin marker M1 at -3 dB cutoff' : 'Signal does not cross -3 dB within this sweep'}
+              onClick={() => pinSingleIndex(ac.summary!.cutoffIndex)}
+            >
+              <span>-3 dB Cutoff</span>
+              <strong>{ac.summary.cutoffFrequencyHz !== null ? engineering(ac.summary.cutoffFrequencyHz, 'Hz') : '—'}</strong>
+              <small>{ac.summary.cutoffFrequencyHz !== null ? 'Rel. to peak' : 'No -3 dB crossing'}</small>
+            </button>
+            <div className="measurement-card">
+              <span>{ac.summary.cutoffFrequencyHz !== null ? 'Phase @ -3 dB' : 'Phase @ Peak'}</span>
+              <strong>{engineering(ac.summary.phaseAtCutoffOrPeakDeg, '°')}</strong>
+              <small>{signalLabel(selectedSignal)}</small>
+            </div>
+            <button
+              type="button"
+              className="measurement-card is-interactive"
+              title="Click to pin marker M1 at minimum magnitude"
+              onClick={() => pinSingleIndex(ac.summary!.minIndex)}
+            >
+              <span>Min in Sweep</span>
+              <strong>{engineering(ac.summary.minMagnitudeDb, magnitudeUnit)}</strong>
+              <small>@ {engineering(ac.summary.minFrequencyHz, 'Hz')}</small>
+            </button>
+          </div>
+        )}
+        <p className="plot-explanation">Magnitude is 20 log₁₀(|{signalLabel(selectedSignal)}| / {reference}), not output/input gain. Phase is the angle of this signal.</p>
+        <div className="bode-grid">
+          <div>
+            <span className="plot-title">Magnitude (re {reference})</span>
+            <LinePlot
+              axis={dataset.frequency_hz}
+              values={ac.magnitude}
+              overlays={ac.magOverlays}
+              pinnedIndices={pinnedIndices}
+              onTogglePinIndex={togglePinIndex}
+              onClearPins={() => setPinnedIndices([])}
+              axisName="Frequency"
+              axisUnit="Hz"
+              valueUnit={magnitudeUnit}
+              logX
+            />
+          </div>
+          <div>
+            <span className="plot-title">Phase</span>
+            <LinePlot
+              axis={dataset.frequency_hz}
+              values={ac.phase}
+              overlays={ac.phaseOverlays}
+              pinnedIndices={pinnedIndices}
+              onTogglePinIndex={togglePinIndex}
+              onClearPins={() => setPinnedIndices([])}
+              axisName="Frequency"
+              axisUnit="Hz"
+              valueUnit="°"
+              logX
+            />
+          </div>
+        </div>
+      </>
+    );
   }
 
   const values = dataset.signals[selectedSignal];
   if (!values) return null;
   const horizontal = sweepAxis(analysis);
-  return <>{signalControl}<span className="plot-title">{horizontal.label} ({horizontal.unit})</span><LinePlot
-    axis={dataset.axis.values}
-    values={values}
-    axisName={horizontal.label}
-    axisUnit={horizontal.unit}
-    valueUnit={signalUnit(selectedSignal)}
-  /></>;
+  const waveformSummary = summarizeWaveformSeries(dataset.axis.values, values);
+  const waveformOverlays: OverlaySeries[] = activeOverlays.flatMap((name, idx) => {
+    const ov = dataset.signals[name];
+    if (!ov) return [];
+    return [{
+      label: signalLabel(name),
+      color: OVERLAY_COLORS[idx % OVERLAY_COLORS.length],
+      values: ov,
+    }];
+  });
+
+  return (
+    <>
+      {signalToolbar}
+      {waveformSummary && (
+        <div className="quick-measurements" aria-label="Quick signal measurements" data-testid="quick-measurements">
+          <button
+            type="button"
+            className="measurement-card is-interactive"
+            title="Click to pin marker M1 at maximum value"
+            onClick={() => pinSingleIndex(waveformSummary.maxIndex)}
+          >
+            <span>Max</span>
+            <strong>{engineering(waveformSummary.maxValue, primaryUnit)}</strong>
+            <small>@ {engineering(waveformSummary.maxAxis, horizontal.unit)}</small>
+          </button>
+          <button
+            type="button"
+            className="measurement-card is-interactive"
+            title="Click to pin marker M1 at minimum value"
+            onClick={() => pinSingleIndex(waveformSummary.minIndex)}
+          >
+            <span>Min</span>
+            <strong>{engineering(waveformSummary.minValue, primaryUnit)}</strong>
+            <small>@ {engineering(waveformSummary.minAxis, horizontal.unit)}</small>
+          </button>
+          <div className="measurement-card">
+            <span>Peak-to-Peak</span>
+            <strong>{engineering(waveformSummary.peakToPeak, primaryUnit)}</strong>
+            <small>Δpp ({signalLabel(selectedSignal)})</small>
+          </div>
+          <div className="measurement-card">
+            <span>RMS / Avg</span>
+            <strong>{engineering(waveformSummary.rms, primaryUnit)}</strong>
+            <small>Avg: {engineering(waveformSummary.average, primaryUnit)}</small>
+          </div>
+        </div>
+      )}
+      <span className="plot-title">{horizontal.label} ({horizontal.unit})</span>
+      <LinePlot
+        axis={dataset.axis.values}
+        values={values}
+        overlays={waveformOverlays}
+        pinnedIndices={pinnedIndices}
+        onTogglePinIndex={togglePinIndex}
+        onClearPins={() => setPinnedIndices([])}
+        axisName={horizontal.label}
+        axisUnit={horizontal.unit}
+        valueUnit={primaryUnit}
+      />
+    </>
+  );
 }
 
 export function ResultsPanel({ state, hasSimulationAttempt, message, evaluation, compileSucceeded, sourceFeedback, simulationConfigured, onResolveSource, onRun, onCancel, panelControls }: Props) {
