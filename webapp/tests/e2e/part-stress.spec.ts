@@ -15,6 +15,7 @@ simulate tran 10us 1ms
   const fragment = await encodeShareFragment(source, 'kessetsu.compile.v9', null, 'Part stress example');
   await page.goto(`/${fragment}`);
   await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'Focus simulation view' }).click();
   await page.getByRole('button', { name: 'Run simulation', exact: true }).click();
 
   const summary = page.getByTestId('simulation-summary');

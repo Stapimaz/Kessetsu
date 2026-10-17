@@ -21,6 +21,7 @@ for (const example of [
     await expect(page.locator('.document-title')).toHaveText(example.label);
     await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('canonical-schematic')).toHaveAttribute('data-quality', 'pass');
+    await page.getByRole('button', { name: 'Split schematic and simulation' }).click();
     await page.getByRole('button', { name: 'Run simulation', exact: true }).click();
     const summary = page.getByTestId('simulation-summary');
     await expect(summary).toHaveAttribute('data-state', 'succeeded', { timeout: 60_000 });

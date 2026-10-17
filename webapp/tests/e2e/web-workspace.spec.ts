@@ -15,6 +15,7 @@ test('supports edit, inline diagnostic navigation, fix, simulation, assertion an
   await page.goto('/#editor');
   await expect(page.getByTestId('compile-success')).toBeVisible();
   await expect(page.getByTestId('compile-status')).toHaveText('Source valid');
+  await page.getByRole('button', { name: 'Split schematic and simulation' }).click();
   await expect(page.getByLabel('Circuit simulation')).toContainText('Run the simulation to inspect plots and requirements.');
   await expect(page.getByLabel('First simulation steps')).toBeVisible();
   await page.getByRole('button', { name: 'File', exact: true }).click();
@@ -80,6 +81,7 @@ test('supports edit, inline diagnostic navigation, fix, simulation, assertion an
 test('explains missing analyses without blocking schematic export and distinguishes an unchecked run', async ({ page }) => {
   await page.goto('/#editor');
   await expect(page.getByTestId('compile-success')).toBeVisible();
+  await page.getByRole('button', { name: 'Split schematic and simulation' }).click();
   const source = 'net GND\nnet OUT\nsource V1 5V\nresistor R1 1k\nconnect V1.plus, R1.p1 to OUT\nconnect V1.minus, R1.p2 to GND\n';
   await replaceSource(page, source);
   await expect(page.getByTestId('compile-success')).toBeVisible();
@@ -99,6 +101,7 @@ test('explains missing analyses without blocking schematic export and distinguis
 test('guides missing and mismatched local model files to the binding dialog', async ({ page }) => {
   await page.goto('/#editor');
   await expect(page.getByTestId('compile-success')).toBeVisible();
+  await page.getByRole('button', { name: 'Focus simulation view' }).click();
   await page.getByRole('button', { name: 'File', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Examples', exact: true }).click();
   await page.getByRole('menuitem', { name: 'External Comparator', exact: true }).click();
@@ -135,9 +138,10 @@ test('exposes keyboard controls and a usable mobile workspace', async ({ page })
   await page.goto('/#editor');
   await expect(page.getByLabel('Kessetsu source editor')).toBeVisible();
   await expect(page.getByLabel('Canonical schematic')).toBeVisible();
-  await expect(page.getByLabel('Circuit simulation')).toBeVisible();
   await page.getByLabel('Canonical schematic').locator('.schematic-surface').focus();
   await page.keyboard.press('ArrowRight');
+  await page.getByRole('button', { name: 'Split schematic and simulation' }).click();
+  await expect(page.getByLabel('Circuit simulation')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Run' })).toBeEnabled();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect(page.getByRole('button', { name: /theme/i })).toHaveCount(0);

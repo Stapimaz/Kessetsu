@@ -7,6 +7,7 @@ test('builtin diodes and the default model simulate without replacement models',
   const fragment = await encodeShareFragment(source, 'kessetsu.compile.v5', null, 'Builtin diodes');
   await page.goto(`/${fragment}`);
   await expect(page.getByTestId('compile-success')).toBeVisible();
+  await page.getByRole('button', { name: 'Focus simulation view' }).click();
   await page.getByRole('button', { name: 'Run simulation', exact: true }).click();
   const summary = page.getByTestId('simulation-summary');
   await expect(summary).toHaveAttribute('data-state', 'succeeded', { timeout: 30_000 });

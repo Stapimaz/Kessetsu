@@ -1,4 +1,3 @@
-import { Activity, CircuitBoard, Code2 } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { OutputCanvasMode, PanelWindowControls } from './PanelHeader';
 
@@ -8,8 +7,7 @@ interface LayoutState {
   horizontal: number;
   vertical: number;
   source: boolean;
-  schematic: boolean;
-  results: boolean;
+  canvasMode: OutputCanvasMode;
   maximized: Panel | null;
 }
 
@@ -22,29 +20,30 @@ const defaults: LayoutState = {
   horizontal: 40,
   vertical: 55,
   source: true,
-  schematic: true,
-  results: true,
+  canvasMode: 'schematic',
   maximized: null,
 };
-const storageKey = 'kessetsu.workspace-layout.v2';
-const legacyStorageKey = 'kessetsu.workspace-layout.v1';
+const storageKey = 'kessetsu.workspace-layout.v3';
 const panels: Panel[] = ['source', 'schematic', 'results'];
-const icons = { source: Code2, schematic: CircuitBoard, results: Activity };
-const labels = { source: 'Source', schematic: 'Schematic', results: 'Simulation' };
+const canvasModes: OutputCanvasMode[] = ['schematic', 'results', 'split'];
 const clamp = (value: number) => Math.max(15, Math.min(85, value));
 
 function readLayout(): LayoutState {
   try {
-    const raw = localStorage.getItem(storageKey) ?? localStorage.getItem(legacyStorageKey);
+    const raw = localStorage.getItem(storageKey);
     const saved = JSON.parse(raw ?? 'null');
     const maximized = saved?.maximized === null || panels.includes(saved?.maximized)
       ? saved.maximized as Panel | null
       : null;
-    if (saved && panels.every((key) => typeof saved[key] === 'boolean')
+    const canvasMode = canvasModes.includes(saved?.canvasMode)
+      ? saved.canvasMode as OutputCanvasMode
+      : defaults.canvasMode;
+    if (saved && typeof saved.source === 'boolean'
       && Number.isFinite(saved.horizontal) && Number.isFinite(saved.vertical)) {
       return {
         ...defaults,
-        ...saved,
+        source: saved.source,
+        canvasMode,
         maximized,
         horizontal: clamp(saved.horizontal),
         vertical: clamp(saved.vertical),
@@ -123,13 +122,7 @@ export function WorkspaceLayout({ source, schematic, results, resetRequest, sour
       if (layoutCommand.action === 'toggle-source') {
         return { ...current, source: !current.source, maximized: null };
       }
-      if (layoutCommand.action === 'schematic') {
-        return { ...current, schematic: true, results: false, maximized: null };
-      }
-      if (layoutCommand.action === 'results') {
-        return { ...current, schematic: false, results: true, maximized: null };
-      }
-      return { ...current, schematic: true, results: true, maximized: null };
+      return { ...current, canvasMode: layoutCommand.action, maximized: null };
     });
   }, [layoutCommand]);
 
@@ -160,27 +153,19 @@ export function WorkspaceLayout({ source, schematic, results, resetRequest, sour
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const isVisible = (panel: Panel) => layout[panel] && (!layout.maximized || layout.maximized === panel);
-  const sourceVisible = isVisible('source');
-  const schematicVisible = isVisible('schematic');
-  const resultsVisible = isVisible('results');
+  const sourceVisible = layout.maximized ? layout.maximized === 'source' : layout.source;
+  const schematicVisible = layout.maximized
+    ? layout.maximized === 'schematic'
+    : layout.canvasMode === 'schematic' || layout.canvasMode === 'split';
+  const resultsVisible = layout.maximized
+    ? layout.maximized === 'results'
+    : layout.canvasMode === 'results' || layout.canvasMode === 'split';
   const rightVisible = schematicVisible || resultsVisible;
   const bothColumns = sourceVisible && rightVisible;
   const bothRows = schematicVisible && resultsVisible;
-  const minimizedPanels = panels.filter((panel) => !layout[panel]);
 
-  const canvasMode: OutputCanvasMode = schematicVisible && resultsVisible
-    ? 'split'
-    : schematicVisible
-      ? 'schematic'
-      : 'results';
-
-  const setCanvasMode = (mode: OutputCanvasMode) => {
-    setLayout((current) => {
-      if (mode === 'schematic') return { ...current, schematic: true, results: false, maximized: null };
-      if (mode === 'results') return { ...current, schematic: false, results: true, maximized: null };
-      return { ...current, schematic: true, results: true, maximized: null };
-    });
+  const setCanvasMode = (canvasMode: OutputCanvasMode) => {
+    setLayout((current) => ({ ...current, canvasMode, maximized: null }));
   };
 
   const toggleSource = () => setLayout((current) => ({ ...current, source: !current.source, maximized: null }));
@@ -188,15 +173,19 @@ export function WorkspaceLayout({ source, schematic, results, resetRequest, sour
   const controls = (panel: Panel): PanelWindowControls => ({
     panel,
     maximized: layout.maximized === panel,
-    visible: isVisible(panel),
+    visible: panel === 'source' ? sourceVisible : panel === 'schematic' ? schematicVisible : resultsVisible,
     sourceVisible,
     toggleSource,
-    canvasMode,
+    canvasMode: layout.canvasMode,
     setCanvasMode,
-    minimize: () => setLayout((current) => ({ ...current, [panel]: false, maximized: null })),
+    minimize: () => {
+      if (panel === 'source') setLayout((current) => ({ ...current, source: false, maximized: null }));
+    },
     toggleMaximize: () => setLayout((current) => ({
       ...current,
-      [panel]: true,
+      ...(panel === 'source' ? { source: true } : {}),
+      ...(panel === 'schematic' && current.canvasMode === 'results' ? { canvasMode: 'schematic' as const } : {}),
+      ...(panel === 'results' && current.canvasMode === 'schematic' ? { canvasMode: 'results' as const } : {}),
       maximized: current.maximized === panel ? null : panel,
     })),
   });
@@ -205,7 +194,7 @@ export function WorkspaceLayout({ source, schematic, results, resetRequest, sour
     <div
       className={`resizable-workspace${layout.maximized ? ' has-maximized-panel' : ''}`}
       data-maximized-panel={layout.maximized ?? undefined}
-      data-canvas-mode={canvasMode}
+      data-canvas-mode={layout.canvasMode}
       style={{ gridTemplateColumns: bothColumns ? `minmax(0, ${layout.horizontal}fr) 5px minmax(0, ${100 - layout.horizontal}fr)` : 'minmax(0, 1fr)' }}
     >
       <div className="panel-slot source-slot" hidden={!sourceVisible}>{source(controls('source'))}</div>
@@ -215,15 +204,6 @@ export function WorkspaceLayout({ source, schematic, results, resetRequest, sour
         {bothRows && <Splitter axis="vertical" value={layout.vertical} onChange={(vertical) => setLayout((current) => ({ ...current, vertical }))} />}
         <div className="panel-slot" hidden={!resultsVisible}>{results(controls('results'))}</div>
       </div>
-      {!sourceVisible && !rightVisible && <div className="workspace-empty">All panels are minimized.</div>}
     </div>
-    {minimizedPanels.length > 0 && <nav className="panel-dock" aria-label="Minimized panels">
-      {minimizedPanels.map((panel) => {
-        const Icon = icons[panel];
-        return <button key={panel} aria-label={`Restore minimized ${labels[panel].toLowerCase()} panel`} onClick={() => setLayout((current) => ({ ...current, [panel]: true, maximized: null }))}>
-          <Icon size={13} /><span>{labels[panel]}</span>
-        </button>;
-      })}
-    </nav>}
   </div>;
 }

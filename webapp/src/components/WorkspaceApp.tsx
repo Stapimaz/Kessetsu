@@ -66,6 +66,7 @@ export function WorkspaceApp() {
   const [documentError, setDocumentError] = useState('');
   const [importFailure, setImportFailure] = useState<{ filename: string; error: Error } | null>(null);
   const [documentNotice, setDocumentNotice] = useState('');
+  const [draftToastVisible, setDraftToastVisible] = useState(false);
   const [documentSaving, setDocumentSaving] = useState(false);
   const menusRef = useRef<HTMLElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -127,6 +128,16 @@ export function WorkspaceApp() {
   useEffect(() => {
     if (state.isDirty) setDocumentNotice('');
   }, [state.isDirty]);
+
+  useEffect(() => {
+    if (!state.draftRestored) {
+      setDraftToastVisible(false);
+      return;
+    }
+    setDraftToastVisible(true);
+    const timer = globalThis.setTimeout(() => setDraftToastVisible(false), 3500);
+    return () => globalThis.clearTimeout(timer);
+  }, [state.draftRestored]);
 
   useEffect(() => setImportFailure(null), [state.code]);
 
@@ -545,7 +556,6 @@ export function WorkspaceApp() {
           if (file) void importSpiceFile(file);
         }}
       />
-      {state.draftRestored && <div className="draft-notice" role="status">Unsaved browser draft restored. Use File to save it here or download a portable .kess copy.</div>}
       {state.draftStorageError && <div className="draft-notice storage-warning" role="status">
         <span>{state.draftStorageError}</span>
         <button className="secondary-button" disabled={documentSaving} onClick={() => void saveDocument(true)}>Save a .kess copy</button>
@@ -567,7 +577,11 @@ export function WorkspaceApp() {
           <button onClick={() => setImportFailure(null)}>Dismiss</button>
         </div>
       </div>}
-      {documentNotice && <div className="workspace-toast" role="status">{documentNotice}</div>}
+      {(documentNotice || (draftToastVisible && state.draftRestored)) && (
+        <div className="workspace-toast" role="status" onClick={() => setDraftToastVisible(false)}>
+          {documentNotice || 'Unsaved browser draft restored. Use File to save it here or download a portable .kess copy.'}
+        </div>
+      )}
       {state.wasmError && <div className="global-error" role="alert">Core failed to initialize: {state.wasmError}</div>}
       <CircuitDetailsDialog
         open={circuitDetailsOpen}
@@ -631,9 +645,6 @@ export function WorkspaceApp() {
           sourceFeedback={sourceFeedback}
           onResolveSource={resolveSource}
           evaluation={state.evaluation}
-          canRun={state.compileSucceeded && Boolean(state.circuitIr?.analyses.length)}
-          simulationState={state.simulationState}
-          onRun={() => void run()}
           onRevealSymbol={(symbol) => {
             setSourceRevealRequest((current) => current + 1);
             setSymbolRevealRequest((current) => ({ id: (current?.id ?? 0) + 1, symbol }));

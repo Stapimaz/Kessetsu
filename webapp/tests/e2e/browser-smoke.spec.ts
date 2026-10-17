@@ -63,8 +63,11 @@ test('opens the landing page, enters Web Hub, initializes WASM and compiles the 
     { width: 76, height: 30 },
     { width: 76, height: 30 },
   ]);
-  await expect(page.getByRole('button', { name: 'Run simulation' })).toBeVisible();
   await expect(page.locator('.monaco-editor')).toBeVisible();
+  await expect(page.locator('svg polyline')).not.toHaveCount(0);
+  await page.getByRole('button', { name: 'Focus simulation view' }).click();
+  await expect(page.getByRole('button', { name: 'Run simulation' })).toBeVisible();
+  await page.getByRole('button', { name: 'Focus schematic view' }).click();
   await page.getByRole('button', { name: 'Help', exact: true }).click();
   await expect(page.getByRole('menuitem', { name: 'Report a problem', exact: true })).toHaveAttribute('href',
     'https://github.com/Stapimaz/Kessetsu/issues/new?template=workflow-problem.yml');
@@ -73,7 +76,6 @@ test('opens the landing page, enters Web Hub, initializes WASM and compiles the 
   await page.getByRole('menuitem', { name: 'Circuit details…' }).click();
   await expect(page.getByText('Generated SPICE Netlist', { exact: true })).toBeVisible();
   await expect(page.getByText('Unsupported compile report schema')).toHaveCount(0);
-  await expect(page.locator('svg polyline')).not.toHaveCount(0);
   expect(pageErrors).toEqual([]);
 });
 

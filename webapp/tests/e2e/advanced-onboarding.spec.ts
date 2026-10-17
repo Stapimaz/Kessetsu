@@ -86,6 +86,7 @@ test('cold informational pages avoid engineering modules; first editor and simul
   }
   expect(engineering).toEqual([]);
   await page.goto('/#editor'); await expect(page.getByTestId('compile-success')).toBeVisible();
+  await page.getByRole('button', { name: 'Focus simulation view' }).click();
   timings.editor_ready_ms = await page.evaluate(() => performance.now());
   const start = await page.evaluate(() => performance.now());
   await page.getByRole('button', { name: 'Run simulation', exact: true }).click();

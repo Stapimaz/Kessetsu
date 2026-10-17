@@ -37,6 +37,7 @@ test('runs the canonical RC filter in a worker and evaluates Core assertions', a
   await page.goto('/#editor');
   await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('.view-lines')).toContainText('Canonical first-order RC low-pass');
+  await page.getByRole('button', { name: 'Focus simulation view' }).click();
 
   await page.getByRole('button', { name: 'Run' }).click();
   const summary = page.getByTestId('simulation-summary');
@@ -82,6 +83,7 @@ test('normalizes OP, transient, AC and DC sweep results and restarts after cance
   );
   await page.goto('/#editor');
   await replaceSource(page, source);
+  await page.getByRole('button', { name: 'Focus simulation view' }).click();
 
   await page.getByRole('button', { name: 'Run' }).click();
   await page.getByRole('button', { name: 'Cancel' }).click();
@@ -157,6 +159,7 @@ test('labels a descending current-source sweep in amperes and selects its physic
   await page.goto('/#editor');
   await expect(page.getByTestId('compile-success')).toBeVisible();
   await replaceSource(page, 'net GND\nnet OUT\ncurrent_source I1 1mA\nresistor R1 1k\nconnect I1.plus, R1.p1 to OUT\nconnect I1.minus, R1.p2 to GND\nsimulate dc I1 2mA -2mA -1mA\n');
+  await page.getByRole('button', { name: 'Focus simulation view' }).click();
   await page.getByRole('button', { name: 'Run simulation' }).click();
   const summary = page.getByTestId('simulation-summary');
   await expect(summary).toHaveAttribute('data-state', 'succeeded');

@@ -15,6 +15,7 @@ test('independent filter instances simulate in parity and remain independently e
   await page.goto(`/${fragment}`);
   await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('img', { name: 'Kessetsu schematic' })).toBeVisible();
+  await page.getByRole('button', { name: 'Focus simulation view' }).click();
   await page.getByRole('button', { name: 'Run simulation', exact: true }).click();
   const summary = page.getByTestId('simulation-summary');
   await expect(summary).toHaveAttribute('data-state', 'succeeded', { timeout: 60_000 });

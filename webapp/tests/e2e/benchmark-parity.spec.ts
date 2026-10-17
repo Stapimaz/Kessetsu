@@ -12,6 +12,7 @@ test('keeps gain-stage and power-amplifier native/browser decisions, SPICE and m
   test.setTimeout(240_000);
   const binary = resolve('../core/target/release', process.platform === 'win32' ? 'kess.exe' : 'kess');
   await page.goto('/#editor');
+  await page.getByRole('button', { name: 'Focus simulation view' }).click();
 
   for (const benchmark of cases) {
     const fixturePath = resolve(`../core/tests/fixtures/benchmarks/${benchmark.fixture}`);

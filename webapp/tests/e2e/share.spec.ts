@@ -15,6 +15,7 @@ test('opens the final power-amplifier source from a versioned URL and runs the f
   await expect(page.locator('.document-title')).toHaveText('Power Amplifier');
   await expect(page.getByRole('img', { name: 'Kessetsu schematic' })).toBeVisible();
   await expect(page.locator('.view-lines')).toContainText('Four-stage amplifier');
+  await page.getByRole('button', { name: 'Split schematic and simulation' }).click();
 
   await page.getByRole('button', { name: 'Run' }).click();
   const summary = page.getByTestId('simulation-summary');

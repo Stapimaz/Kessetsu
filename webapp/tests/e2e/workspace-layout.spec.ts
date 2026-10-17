@@ -1,8 +1,13 @@
 import { expect, test } from '@playwright/test';
 
-test('resizes, minimizes, maximizes and persists panels without losing circuit state', async ({ page }) => {
+test('defaults to schematic view and switches cleanly between schematic, simulation, split and collapsed source', async ({ page }) => {
   await page.goto('/#editor');
   await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.resizable-workspace')).toHaveAttribute('data-canvas-mode', 'schematic');
+  await expect(page.getByLabel('Canonical schematic')).toBeVisible();
+  await expect(page.getByLabel('Circuit simulation')).toBeHidden();
+  await expect(page.getByRole('navigation', { name: 'Minimized panels' })).toHaveCount(0);
+
   const source = page.getByLabel('Kessetsu source editor');
   const original = (await source.boundingBox())!;
   const horizontal = page.getByRole('separator', { name: 'Resize source panel' });
@@ -17,23 +22,34 @@ test('resizes, minimizes, maximizes and persists panels without losing circuit s
   const saved = await horizontal.getAttribute('aria-valuenow');
   await page.reload();
   await expect(horizontal).toHaveAttribute('aria-valuenow', saved!);
-  await page.getByRole('button', { name: 'Minimize source panel' }).click();
-  await page.reload();
-  await expect(page.getByRole('button', { name: 'Restore minimized source panel' })).toBeVisible();
-  await page.getByRole('button', { name: 'Restore minimized source panel' }).click();
 
+  await page.getByRole('button', { name: 'Minimize source panel' }).click();
+  await expect(source).toBeHidden();
+  await expect(page.getByRole('navigation', { name: 'Minimized panels' })).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Expand source panel' })).toBeVisible();
+  await page.getByRole('button', { name: 'Expand source panel' }).click();
+  await expect(source).toBeVisible();
+
+  await page.getByRole('button', { name: 'Focus simulation view' }).click();
+  await expect(page.locator('.resizable-workspace')).toHaveAttribute('data-canvas-mode', 'results');
+  await expect(page.getByLabel('Circuit simulation')).toBeVisible();
   await page.getByRole('button', { name: 'Run simulation', exact: true }).click();
   await expect(page.getByTestId('simulation-summary')).toHaveAttribute('data-state', 'succeeded', { timeout: 30_000 });
   const circuit = await page.locator('.view-lines').innerText();
 
-  for (const panel of ['source', 'schematic', 'simulation']) {
-    await page.getByRole('button', { name: `Minimize ${panel} panel` }).click();
-    await expect(page.getByRole('button', { name: `Restore minimized ${panel} panel` })).toBeVisible();
-    await page.getByRole('button', { name: `Restore minimized ${panel} panel` }).click();
-  }
+  await page.keyboard.press('Control+b');
+  await expect(source).toBeHidden();
+  await page.keyboard.press('Control+b');
+  await expect(source).toBeVisible();
   await expect(page.locator('.view-lines')).toHaveText(circuit, { useInnerText: true });
   await expect(page.getByRole('table', { name: 'Engineering requirements' })).toBeVisible();
   await expect(page.locator('.assertion-pass')).toHaveCount(5);
+
+  await page.getByRole('button', { name: 'Split schematic and simulation' }).click();
+  await expect(page.locator('.resizable-workspace')).toHaveAttribute('data-canvas-mode', 'split');
+  await expect(page.getByLabel('Canonical schematic')).toBeVisible();
+  await expect(page.getByLabel('Circuit simulation')).toBeVisible();
 
   await page.getByLabel('Canonical schematic').locator('.header-title').dblclick();
   await expect(page.locator('.resizable-workspace')).toHaveAttribute('data-maximized-panel', 'schematic');
@@ -58,26 +74,13 @@ test('resizes, minimizes, maximizes and persists panels without losing circuit s
   await page.getByRole('button', { name: 'View', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Reset panel layout' }).click();
   await expect(horizontal).toHaveAttribute('aria-valuenow', '40');
-  await expect(vertical).toHaveAttribute('aria-valuenow', '55');
+  await expect(page.locator('.resizable-workspace')).toHaveAttribute('data-canvas-mode', 'schematic');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.screenshot({ path: 'test-results/workspace-revision-desktop.png', fullPage: true });
 
-  await page.getByRole('button', { name: 'Minimize schematic panel' }).click();
+  await page.getByRole('button', { name: 'Focus simulation view' }).click();
   await page.screenshot({ path: 'test-results/workspace-requirements.png', fullPage: true });
-  await page.getByRole('button', { name: 'Restore minimized schematic panel' }).click();
-
   await page.getByRole('button', { name: 'Focus schematic view' }).click();
-  await expect(page.locator('.resizable-workspace')).toHaveAttribute('data-canvas-mode', 'schematic');
-  await expect(page.getByLabel('Circuit simulation')).toBeHidden();
-  await page.keyboard.press('Control+b');
-  await expect(page.getByLabel('Kessetsu source editor')).toBeHidden();
-  await page.getByRole('button', { name: 'Expand source panel' }).click();
-  await expect(page.getByLabel('Kessetsu source editor')).toBeVisible();
-  await page.getByRole('button', { name: 'Run simulation', exact: true }).click();
-  await expect(page.locator('.resizable-workspace')).toHaveAttribute('data-canvas-mode', 'results');
-  await expect(page.getByLabel('Circuit simulation')).toBeVisible();
-  await page.getByRole('button', { name: 'Split schematic and simulation' }).click();
-  await expect(page.locator('.resizable-workspace')).toHaveAttribute('data-canvas-mode', 'split');
 
   await page.getByRole('button', { name: 'Export', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
@@ -88,17 +91,16 @@ test('resizes, minimizes, maximizes and persists panels without losing circuit s
 
 test.describe('touch navigation', () => {
 test.use({ hasTouch: true, isMobile: true });
-test('allows every panel to minimize and keeps menus and restore dock usable on mobile', async ({ page }) => {
+test('allows collapsing source and switching right canvas views on mobile', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/#editor');
   await expect(page.getByTestId('compile-success')).toBeVisible();
-  for (const panel of ['source', 'schematic', 'simulation']) {
-    await page.getByRole('button', { name: `Minimize ${panel} panel` }).tap();
-  }
-  await expect(page.getByText('All panels are minimized.')).toBeVisible();
-  await expect(page.getByRole('navigation', { name: 'Minimized panels' }).getByRole('button')).toHaveCount(3);
-  await page.getByRole('button', { name: 'Restore minimized source panel' }).tap();
+  await page.getByRole('button', { name: 'Minimize source panel' }).tap();
+  await expect(page.getByLabel('Kessetsu source editor')).toBeHidden();
+  await page.getByRole('button', { name: 'Expand source panel' }).tap();
   await expect(page.getByLabel('Kessetsu source editor')).toBeVisible();
+  await page.getByRole('button', { name: 'Focus simulation view' }).tap();
+  await expect(page.getByLabel('Circuit simulation')).toBeVisible();
 
   await page.getByRole('button', { name: 'File', exact: true }).tap();
   await page.getByRole('menuitem', { name: 'Examples', exact: true }).tap();

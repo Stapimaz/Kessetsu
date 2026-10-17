@@ -73,6 +73,7 @@ test('maps two local CSV files, compares every point and downloads reproducible 
 test('compares observed CSV directly with the current typed simulation projection', async ({ page }) => {
   await page.goto('/#editor');
   await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'Focus simulation view' }).click();
   await page.getByRole('button', { name: 'Run simulation' }).click();
   await expect(page.getByText(/requirements passed/)).toBeVisible({ timeout: 30_000 });
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();

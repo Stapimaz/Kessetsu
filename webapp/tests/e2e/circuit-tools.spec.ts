@@ -20,6 +20,7 @@ test('calculates the loaded divider, downloads source and restores the prior wor
   await page.getByRole('button', { name: 'Open in editor' }).click();
   await expect(page.getByTestId('compile-status')).toContainText('Source valid');
   await expect(page.locator('.document-title')).toContainText('Loaded voltage divider');
+  await page.getByRole('button', { name: 'Focus simulation view' }).click();
   await page.getByRole('button', { name: 'Run simulation', exact: true }).click();
   await expect(page.getByTestId('simulation-summary')).toHaveAttribute('data-state', 'succeeded', { timeout: 20_000 });
   await expect(page.locator('.op-grid > div').filter({ hasText: 'V(out)' })).toContainText('3.000 V');
@@ -63,6 +64,7 @@ test('RC rounding changes achieved cutoff, rejects wrong units and stays usable 
   } finally { await noJs.close(); }
   await page.getByRole('button', { name: 'Open in editor' }).click();
   await expect(page.getByTestId('compile-status')).toContainText('Source valid');
+  await page.getByRole('button', { name: 'Focus simulation view' }).click();
   await page.getByRole('button', { name: 'Run simulation', exact: true }).click();
   await expect(page.getByTestId('simulation-summary')).toHaveAttribute('data-state', 'succeeded', { timeout: 20_000 });
   await expect(page.getByLabel('Signal', { exact: true })).toHaveValue('out');

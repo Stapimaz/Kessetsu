@@ -11,6 +11,7 @@ test('typed assertion times, frequency and threshold match native and retain fix
   const fragment = await encodeShareFragment(source, 'kessetsu.compile.v5', null, 'Parameterized measurements');
   await page.goto(`/${fragment}`);
   await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'Focus simulation view' }).click();
   const run = page.getByRole('button', { name: 'Run simulation', exact: true });
   const summary = page.getByTestId('simulation-summary');
   await run.click();

@@ -183,6 +183,7 @@ test('keeps agent proposals separate until verified, accepted and explicitly rev
   await page.keyboard.press('ControlOrMeta+A');
   await page.keyboard.insertText(failingSource);
   await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'Focus simulation view' }).click();
   await page.getByRole('button', { name: 'Run simulation', exact: true }).click();
   const failingResults = page.getByTestId('simulation-summary');
   await expect(failingResults).toHaveAttribute('data-state', 'succeeded', { timeout: 90_000 });

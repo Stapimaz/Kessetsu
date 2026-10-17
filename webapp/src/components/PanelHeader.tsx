@@ -1,4 +1,4 @@
-import { Maximize2, Minimize2, Minus, PanelLeftClose, PanelLeftOpen, Rows2 } from 'lucide-react';
+import { Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, Rows2 } from 'lucide-react';
 import type { MouseEvent, ReactNode } from 'react';
 
 export type OutputCanvasMode = 'split' | 'schematic' | 'results';
@@ -89,13 +89,15 @@ export function PanelHeader({ controls, icon, title, children }: Props) {
       )}
       {children}
       <div className="panel-window-actions" aria-label={`${title} panel window controls`}>
-        <button
-          aria-label={`Minimize ${title.toLowerCase()} panel`}
-          title={controls.panel === 'source' ? 'Collapse Source panel (Ctrl+B)' : 'Minimize panel'}
-          onClick={controls.minimize}
-        >
-          {controls.panel === 'source' ? <PanelLeftClose size={14} /> : <Minus size={14} />}
-        </button>
+        {controls.panel === 'source' && (
+          <button
+            aria-label="Minimize source panel"
+            title="Collapse Source panel (Ctrl+B)"
+            onClick={controls.minimize}
+          >
+            <PanelLeftClose size={14} />
+          </button>
+        )}
         <button
           aria-label={controls.maximized ? `Restore ${title.toLowerCase()} panel from full workspace` : `Maximize ${title.toLowerCase()} panel`}
           title={controls.maximized ? 'Restore panel' : 'Maximize panel'}

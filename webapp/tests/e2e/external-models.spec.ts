@@ -37,6 +37,7 @@ for (const fixture of [
     await dialog.getByRole('button', { name: 'Close circuit details' }).click();
     await expect(page.getByTestId('compile-success')).toBeVisible();
     await expect(page.getByTestId('canonical-schematic')).toHaveAttribute('data-quality', 'pass');
+    await page.getByRole('button', { name: 'Split schematic and simulation' }).click();
     await page.getByRole('button', { name: 'Run simulation', exact: true }).click();
     const summary = page.getByTestId('simulation-summary');
     await expect(summary).toHaveAttribute('data-state', 'succeeded', { timeout: 60_000 });
@@ -80,6 +81,7 @@ test('native-only mode fails before loading the browser simulator', async ({ pag
   await dialog.getByLabel('Model file for CMP').setInputFiles(resolve('../examples/models/comparator.lib'));
   await dialog.getByRole('button', { name: 'Close circuit details' }).click();
   await expect(page.getByTestId('compile-success')).toBeVisible();
+  await page.getByRole('button', { name: 'Focus simulation view' }).click();
   await page.getByRole('button', { name: 'Run simulation', exact: true }).click();
   await expect(page.getByTestId('simulation-summary')).toHaveAttribute('data-state', 'failed');
   await expect(page.getByTestId('simulation-summary')).toContainText('native-only');
@@ -121,6 +123,7 @@ assert value(V(OUT)) < 1.201V
   await dialog.getByLabel('Model file for AMP').setInputFiles({ name: 'different-filename.lib', mimeType: 'text/plain', buffer: body });
   await dialog.getByRole('button', { name: 'Close circuit details' }).click();
   await expect(page.getByTestId('compile-success')).toBeVisible();
+  await page.getByRole('button', { name: 'Focus simulation view' }).click();
   await page.getByRole('button', { name: 'Run simulation', exact: true }).click();
   const summary = page.getByTestId('simulation-summary');
   await expect(summary).toHaveAttribute('data-state', 'succeeded', { timeout: 60_000 });
