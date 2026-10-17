@@ -1,6 +1,8 @@
-import { Boxes, CircuitBoard, Focus, Grid3X3, Minus, Plus, Search, X } from 'lucide-react';
+import { Boxes, CircuitBoard, Code2, Focus, Grid3X3, Minus, Plus, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CircuitIrSummary, SchematicComponent, SchematicSummary, SourceFeedback } from '../domain';
+import { summarizeAcSeries, summarizeWaveformSeries } from '../simulation/plot';
+import type { BrowserEvaluation } from '../simulation/types';
 import { PanelHeader, type PanelWindowControls } from './PanelHeader';
 
 interface Props {
@@ -10,6 +12,20 @@ interface Props {
   panelControls: PanelWindowControls;
   sourceFeedback: SourceFeedback | null;
   onResolveSource(): void;
+  evaluation?: BrowserEvaluation | null;
+  onRevealSymbol?(symbol: string): void;
+}
+
+function formatEngineering(value: number, unit = ''): string {
+  if (!Number.isFinite(value)) return '—';
+  if (unit.startsWith('dB') || unit === '°') return `${Number(value.toPrecision(4))} ${unit}`;
+  if (value === 0) return `0 ${unit}`.trim();
+  const absolute = Math.abs(value);
+  const scales = [
+    [1e9, 'G'], [1e6, 'M'], [1e3, 'k'], [1, ''], [1e-3, 'm'], [1e-6, 'µ'], [1e-9, 'n'], [1e-12, 'p'],
+  ] as const;
+  const [factor, prefix] = scales.find(([factor]) => absolute >= factor) ?? scales.at(-1)!;
+  return `${(value / factor).toPrecision(4)} ${prefix}${unit}`.trim();
 }
 
 type Selection =
@@ -73,7 +89,16 @@ function componentKind(kind: string | Record<string, unknown> | undefined) {
   return Object.keys(kind)[0]?.replaceAll('_', ' ') ?? 'Component';
 }
 
-export function SchematicPanel({ schematic, circuitIr, svg, panelControls, sourceFeedback, onResolveSource }: Props) {
+export function SchematicPanel({
+  schematic,
+  circuitIr,
+  svg,
+  panelControls,
+  sourceFeedback,
+  onResolveSource,
+  evaluation = null,
+  onRevealSymbol,
+}: Props) {
   const [view, setView] = useState({ zoom: 1, pan: { x: 0, y: 0 } });
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
   const [gridVisible, setGridVisible] = useState(true);
@@ -109,6 +134,73 @@ export function SchematicPanel({ schematic, circuitIr, svg, panelControls, sourc
   const selectedNet = selection?.type === 'net'
     ? nets.find((net) => net.id === selection.id) ?? null
     : null;
+
+  const netSimulationSummary = useMemo(() => {
+    if (!selectedNet || !evaluation) return null;
+    const key = selectedNet.name.toLocaleLowerCase('en-US');
+    const items: Array<{ label: string; value: string }> = [];
+    const opDataset = evaluation.simulation.datasets.find((d) => d.data.kind === 'operating_point')?.data;
+    if (selectedNet.kind === 'ground' || key === 'gnd' || key === '0') {
+      items.push({ label: 'DC Operating Point', value: '0 V (ground)' });
+    } else if (opDataset?.kind === 'operating_point' && key in opDataset.values) {
+      items.push({ label: 'DC Operating Point', value: formatEngineering(opDataset.values[key], 'V') });
+    }
+    const tranDataset = evaluation.simulation.datasets.find((d) => d.data.kind === 'transient')?.data;
+    if (tranDataset?.kind === 'transient' && key in tranDataset.signals) {
+      const summary = summarizeWaveformSeries(tranDataset.axis.values, tranDataset.signals[key]);
+      if (summary) {
+        items.push({ label: 'Transient Vpp', value: formatEngineering(summary.peakToPeak, 'V') });
+        items.push({ label: 'Transient RMS', value: formatEngineering(summary.rms, 'V') });
+      }
+    }
+    const acDataset = evaluation.simulation.datasets.find((d) => d.data.kind === 'ac')?.data;
+    if (acDataset?.kind === 'ac' && key in acDataset.signals) {
+      const series = acDataset.signals[key];
+      const mag = series.real.map((r, i) => 20 * Math.log10(Math.max(Math.hypot(r, series.imaginary[i]), Number.MIN_VALUE)));
+      const phase = series.real.map((r, i) => Math.atan2(series.imaginary[i], r) * 180 / Math.PI);
+      const summary = summarizeAcSeries(acDataset.frequency_hz, mag, phase);
+      if (summary) {
+        items.push({ label: 'AC Peak', value: `${formatEngineering(summary.peakMagnitudeDb, 'dBV')} @ ${formatEngineering(summary.peakFrequencyHz, 'Hz')}` });
+        if (summary.cutoffFrequencyHz !== null) {
+          items.push({ label: 'AC -3 dB Cutoff', value: formatEngineering(summary.cutoffFrequencyHz, 'Hz') });
+        }
+      }
+    }
+    return items.length > 0 ? items : null;
+  }, [evaluation, selectedNet]);
+
+  const componentSimulationSummary = useMemo(() => {
+    if (!selectedComponent || !evaluation) return null;
+    const opDataset = evaluation.simulation.datasets.find((d) => d.data.kind === 'operating_point')?.data;
+    const pinVoltages: Array<{ label: string; value: string }> = [];
+    if (opDataset?.kind === 'operating_point') {
+      for (const pin of selectedComponent.pins) {
+        const net = nets.find((candidate) => candidate.id === pin.net);
+        if (!net) continue;
+        const key = net.name.toLocaleLowerCase('en-US');
+        if (net.kind === 'ground' || key === 'gnd' || key === '0') {
+          pinVoltages.push({ label: `V(${pin.name})`, value: '0 V' });
+        } else if (key in opDataset.values) {
+          pinVoltages.push({ label: `V(${pin.name})`, value: formatEngineering(opDataset.values[key], 'V') });
+        }
+      }
+    }
+    const stresses = evaluation.part_stress.results.filter(
+      (r) => r.component === selectedComponent.id || r.component === selectedComponent.reference,
+    );
+    for (const stress of stresses) {
+      if (stress.actual != null) {
+        const unitMap: Record<string, string> = { volt: 'V', ampere: 'A', watt: 'W' };
+        const unit = unitMap[stress.limit.unit.toLowerCase()] ?? stress.limit.unit;
+        const util = stress.utilization_percent != null ? ` (${stress.utilization_percent.toPrecision(3)}%)` : '';
+        pinVoltages.push({
+          label: stress.rating.replaceAll('_', ' '),
+          value: `${formatEngineering(stress.actual, unit)}${util}`,
+        });
+      }
+    }
+    return pinVoltages.length > 0 ? pinVoltages : null;
+  }, [evaluation, nets, selectedComponent]);
 
   const focusSelector = (selector: string) => {
     globalThis.requestAnimationFrame(() => {
@@ -251,6 +343,22 @@ export function SchematicPanel({ schematic, circuitIr, svg, panelControls, sourc
             };
           });
         }}
+        onDoubleClick={(event) => {
+          if (!onRevealSymbol) return;
+          const directNet = netAtTarget(event.target);
+          const component = componentAtTarget(event.target)
+            ?? (directNet === null
+              ? componentAtPointer(event.target, event.currentTarget, event.clientX, event.clientY)
+              : null);
+          if (component) {
+            onRevealSymbol(component);
+            return;
+          }
+          if (directNet !== null) {
+            const net = nets.find((item) => item.id === directNet);
+            if (net) onRevealSymbol(net.name);
+          }
+        }}
         onPointerDown={(event) => {
           event.currentTarget.focus();
           const directNet = netAtTarget(event.target);
@@ -314,7 +422,20 @@ export function SchematicPanel({ schematic, circuitIr, svg, panelControls, sourc
           <label className="navigator-search"><Search size={13} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find component or net" /></label>
 
           {selectedComponent && <div className="inspector-content">
-            <div className="inspector-heading"><strong>{selectedComponent.reference}</strong><span>{componentKind(irComponents.get(selectedComponent.id)?.kind)}</span></div>
+            <div className="inspector-heading">
+              <strong>{selectedComponent.reference}</strong>
+              <span>{componentKind(irComponents.get(selectedComponent.id)?.kind)}</span>
+              {onRevealSymbol && (
+                <button
+                  type="button"
+                  className="inspector-source-link"
+                  title="Reveal declaration in Source editor"
+                  onClick={() => onRevealSymbol(selectedComponent.id)}
+                >
+                  <Code2 size={11} /> Source
+                </button>
+              )}
+            </div>
             {irComponents.get(selectedComponent.id)?.instance_path?.length
               ? <button className="group-breadcrumb" onClick={() => chooseGroup(irComponents.get(selectedComponent.id)!.instance_path!)}><Boxes size={12} />{irComponents.get(selectedComponent.id)!.instance_path!.join(' / ')}</button>
               : <small>Top-level circuit</small>}
@@ -323,6 +444,19 @@ export function SchematicPanel({ schematic, circuitIr, svg, panelControls, sourc
               {selectedComponent.model && <><dt>Model</dt><dd>{selectedComponent.model}</dd></>}
               {Object.entries(selectedComponent.instance_parameters ?? {}).map(([name, value]) => <span className="inspector-pair" key={name}><dt>{name}</dt><dd>{value}</dd></span>)}
             </dl>
+            {componentSimulationSummary && (
+              <>
+                <h4>Simulated</h4>
+                <dl className="inspector-sim-metrics">
+                  {componentSimulationSummary.map((item) => (
+                    <span className="inspector-pair" key={item.label}>
+                      <dt>{item.label}</dt>
+                      <dd>{item.value}</dd>
+                    </span>
+                  ))}
+                </dl>
+              </>
+            )}
             <h4>Pins</h4>
             <div className="inspector-pin-list">{selectedComponent.pins.map((pin) => {
               const net = nets.find((candidate) => candidate.id === pin.net);
@@ -332,13 +466,52 @@ export function SchematicPanel({ schematic, circuitIr, svg, panelControls, sourc
           </div>}
 
           {selectedNet && <div className="inspector-content">
-            <div className="inspector-heading"><strong>{selectedNet.name}</strong><span>{selectedNet.kind} net</span></div>
+            <div className="inspector-heading">
+              <strong>{selectedNet.name}</strong>
+              <span>{selectedNet.kind} net</span>
+              {onRevealSymbol && (
+                <button
+                  type="button"
+                  className="inspector-source-link"
+                  title="Reveal net in Source editor"
+                  onClick={() => onRevealSymbol(selectedNet.name)}
+                >
+                  <Code2 size={11} /> Source
+                </button>
+              )}
+            </div>
+            {netSimulationSummary && (
+              <>
+                <h4>Simulated</h4>
+                <dl className="inspector-sim-metrics">
+                  {netSimulationSummary.map((item) => (
+                    <span className="inspector-pair" key={item.label}>
+                      <dt>{item.label}</dt>
+                      <dd>{item.value}</dd>
+                    </span>
+                  ))}
+                </dl>
+              </>
+            )}
             <h4>Connected pins</h4>
             <div className="inspector-pin-list">{selectedNet.pins.map((pin) => <button key={`${pin.component}.${pin.pin}`} onClick={() => chooseComponent(pin.component, true)}><span>{pin.pin}</span><strong>{pin.component}</strong></button>)}</div>
           </div>}
 
           {selection?.type === 'group' && <div className="inspector-content">
-            <div className="inspector-heading"><strong>{selection.path.at(-1)}</strong><span>Reusable block</span></div>
+            <div className="inspector-heading">
+              <strong>{selection.path.at(-1)}</strong>
+              <span>Reusable block</span>
+              {onRevealSymbol && selection.path.at(-1) && (
+                <button
+                  type="button"
+                  className="inspector-source-link"
+                  title="Reveal block in Source editor"
+                  onClick={() => onRevealSymbol(selection.path.at(-1)!)}
+                >
+                  <Code2 size={11} /> Source
+                </button>
+              )}
+            </div>
             <small>{selection.path.join(' / ')}</small>
             <h4>Components</h4>
             <div className="navigator-results">{components.filter((component) => pathStartsWith(irComponents.get(component.id)?.instance_path ?? [], selection.path)).map(componentRow)}</div>

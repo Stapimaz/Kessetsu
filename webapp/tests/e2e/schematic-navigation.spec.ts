@@ -30,4 +30,6 @@ test('navigates reusable blocks, components, pins and complete nets', async ({ p
   const selectedWire = page.getByTestId('canonical-schematic').locator(`.wire[data-net="${selectedNet}"]`).first();
   await expect(selectedWire).toHaveClass(/is-net-active/);
   await expect(inspector).toContainText('Connected pins');
+  await expect(inspector.locator('.inspector-source-link')).toBeVisible();
+  await inspector.locator('.inspector-source-link').click();
 });

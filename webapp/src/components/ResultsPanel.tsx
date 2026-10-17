@@ -67,12 +67,15 @@ function partRatingLabel(rating: string) {
 }
 
 interface PlotProps {
+  title: string;
+  primaryLabel: string;
   axis: number[];
   values: number[];
   overlays?: OverlaySeries[];
   pinnedIndices?: number[];
   onTogglePinIndex?(index: number): void;
   onClearPins?(): void;
+  showMarkerBar?: boolean;
   axisName: string;
   axisUnit: string;
   valueUnit: string;
@@ -93,13 +96,20 @@ function pointerPositionInPlot(svg: SVGSVGElement, clientX: number, clientY: num
   return Math.max(0, Math.min(1, (local.x - PLOT_LEFT) / PLOT_WIDTH));
 }
 
+function isSupplyNet(name: string): boolean {
+  return /^(?:vcc|vee|vdd|vss|vpos|vneg|vp|vn)$/i.test(name);
+}
+
 function LinePlot({
+  title,
+  primaryLabel,
   axis,
   values,
   overlays = [],
   pinnedIndices = [],
   onTogglePinIndex,
   onClearPins,
+  showMarkerBar = true,
   axisName,
   axisUnit,
   valueUnit,
@@ -157,85 +167,127 @@ function LinePlot({
   const localIndex = cursor === null ? null : nearestSampleIndex(xValues, minX + cursor * (maxX - minX));
   const cursorIndex = localIndex === null ? null : visible[localIndex];
   const cursorX = cursorIndex === null ? null : x(coordinates[cursorIndex]);
+  const cursorPercent = cursorX === null ? 50 : Math.max(16, Math.min(84, (cursorX / 620) * 100));
   const physicalX = (value: number) => logX ? 10 ** value : value;
+  const midY = (minY + maxY) / 2;
 
   const validPins = pinnedIndices.filter((idx) => idx >= 0 && idx < axis.length);
 
   return (
-    <div className="plot-wrap">
-      <svg
-        ref={svgRef}
-        className="result-plot"
-        viewBox="0 0 620 205"
-        role="img"
-        aria-label={`${axisName} plot`}
-        onPointerMove={(event) => {
-          setCursor(pointerPositionInPlot(
-            event.currentTarget,
-            event.clientX,
-            event.clientY,
-          ));
-        }}
-        onPointerLeave={() => setCursor(null)}
-        onClick={(event) => {
-          if (!onTogglePinIndex || !xValues.length) return;
-          const fraction = pointerPositionInPlot(event.currentTarget, event.clientX, event.clientY);
-          if (fraction === null) return;
-          const nearestLocal = nearestSampleIndex(xValues, minX + fraction * (maxX - minX));
-          if (nearestLocal !== null) {
-            onTogglePinIndex(visible[nearestLocal]);
-          }
-        }}
-      >
-        <rect x={PLOT_LEFT} y="18" width={PLOT_WIDTH} height="156" className="plot-bg" />
-        {[0, 0.25, 0.5, 0.75, 1].map((ratio) => <line key={ratio} x1={PLOT_LEFT} x2={PLOT_RIGHT} y1={28 + ratio * 146} y2={28 + ratio * 146} className="grid-line" />)}
-        {overlayPolylines.map((overlay) => (
-          <polyline
-            key={overlay.label}
-            points={overlay.points}
-            className="signal-line overlay-signal-line"
-            style={{ stroke: overlay.color }}
-          />
-        ))}
-        <polyline points={points} className="signal-line" />
-        {!visible.length && <text x="310" y="96" textAnchor="middle" className="axis-label">No recorded samples in this zoom range</text>}
-        {validPins.map((pinIdx, markerNumber) => {
-          const coord = coordinates[pinIdx];
-          if (coord < minX || coord > maxX) return null;
-          const px = x(coord);
-          const py = y(values[pinIdx]);
-          const label = `M${markerNumber + 1}`;
-          return (
-            <g key={`pin-${pinIdx}-${markerNumber}`} className={`pinned-marker pinned-marker-${markerNumber + 1}`}>
-              <line x1={px} x2={px} y1="18" y2="174" className="pinned-marker-line" />
-              <circle cx={px} cy={py} r="4.5" className="pinned-marker-dot" />
-              <text x={Math.min(PLOT_RIGHT - 18, px + 5)} y="30" className="pinned-marker-tag">{label}</text>
-            </g>
-          );
-        })}
+    <div className="plot-card">
+      <div className="plot-card-header">
+        <span className="plot-title">{title}</span>
+        <div className="plot-legend" aria-label="Active traces">
+          <span className="plot-legend-item">
+            <i className="trace-dot" style={{ background: '#38dac2' }} />
+            {primaryLabel}
+          </span>
+          {overlays.map((ov) => (
+            <span key={ov.label} className="plot-legend-item" style={{ color: ov.color }}>
+              <i className="trace-dot" style={{ background: ov.color }} />
+              {ov.label}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="plot-wrap">
+        <svg
+          ref={svgRef}
+          className="result-plot"
+          viewBox="0 0 620 205"
+          role="img"
+          aria-label={`${axisName} plot`}
+          onPointerMove={(event) => {
+            setCursor(pointerPositionInPlot(
+              event.currentTarget,
+              event.clientX,
+              event.clientY,
+            ));
+          }}
+          onPointerLeave={() => setCursor(null)}
+          onClick={(event) => {
+            if (!onTogglePinIndex || !xValues.length) return;
+            const fraction = pointerPositionInPlot(event.currentTarget, event.clientX, event.clientY);
+            if (fraction === null) return;
+            const nearestLocal = nearestSampleIndex(xValues, minX + fraction * (maxX - minX));
+            if (nearestLocal !== null) {
+              onTogglePinIndex(visible[nearestLocal]);
+            }
+          }}
+        >
+          <rect x={PLOT_LEFT} y="18" width={PLOT_WIDTH} height="156" className="plot-bg" />
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio) => <line key={ratio} x1={PLOT_LEFT} x2={PLOT_RIGHT} y1={28 + ratio * 146} y2={28 + ratio * 146} className="grid-line" />)}
+          {overlayPolylines.map((overlay) => (
+            <polyline
+              key={overlay.label}
+              points={overlay.points}
+              className="signal-line overlay-signal-line"
+              style={{ stroke: overlay.color }}
+            />
+          ))}
+          <polyline points={points} className="signal-line" />
+          {!visible.length && <text x="310" y="96" textAnchor="middle" className="axis-label">No recorded samples in this zoom range</text>}
+          {validPins.map((pinIdx, markerNumber) => {
+            const coord = coordinates[pinIdx];
+            if (coord < minX || coord > maxX) return null;
+            const px = x(coord);
+            const py = y(values[pinIdx]);
+            const label = `M${markerNumber + 1}`;
+            return (
+              <g key={`pin-${pinIdx}-${markerNumber}`} className={`pinned-marker pinned-marker-${markerNumber + 1}`}>
+                <line x1={px} x2={px} y1="18" y2="174" className="pinned-marker-line" />
+                <circle cx={px} cy={py} r="4.5" className="pinned-marker-dot" />
+                <text x={Math.min(PLOT_RIGHT - 18, px + 5)} y="30" className="pinned-marker-tag">{label}</text>
+              </g>
+            );
+          })}
+          {cursorIndex !== null && (
+            <>
+              <line x1={cursorX!} x2={cursorX!} y1="18" y2="174" className="cursor-line" />
+              <circle cx={cursorX!} cy={y(values[cursorIndex])} r="4.5" className="cursor-dot" />
+              {overlays.map((ov) => (
+                <circle
+                  key={`cursor-ov-${ov.label}`}
+                  cx={cursorX!}
+                  cy={y(ov.values[cursorIndex])}
+                  r="3.5"
+                  fill={ov.color}
+                  stroke="#0b1019"
+                  strokeWidth="1.5"
+                />
+              ))}
+            </>
+          )}
+          <text x={PLOT_LEFT} y="195" className="axis-label">{engineering(physicalX(minX), axisUnit)}</text>
+          <text x={PLOT_RIGHT} y="195" textAnchor="end" className="axis-label">{engineering(physicalX(maxX), axisUnit)}</text>
+          <text x="48" y="100" className="axis-sublabel">{engineering(midY, valueUnit)}</text>
+          <text x="48" y="170" className="axis-sublabel">{engineering(minY, valueUnit)}</text>
+          <text x="48" y="14" className="axis-label">{engineering(maxY, valueUnit)}</text>
+        </svg>
         {cursorIndex !== null && (
-          <>
-            <line x1={cursorX!} x2={cursorX!} y1="18" y2="174" className="cursor-line" />
-            <circle cx={cursorX!} cy={y(values[cursorIndex])} r="4" className="cursor-dot" />
-          </>
+          <output
+            className="cursor-readout"
+            style={{ left: `${cursorPercent}%` }}
+            data-axis-value={axis[cursorIndex]}
+            data-signal-value={values[cursorIndex]}
+          >
+            <strong className="cursor-axis">{engineering(axis[cursorIndex], axisUnit)}</strong>
+            <span className="cursor-val-primary">{primaryLabel}: {engineering(values[cursorIndex], valueUnit)}</span>
+            {overlays.map((ov) => (
+              <span key={ov.label} className="cursor-val-overlay" style={{ color: ov.color }}>
+                {ov.label}: {engineering(ov.values[cursorIndex], valueUnit)}
+              </span>
+            ))}
+          </output>
         )}
-        <text x={PLOT_LEFT} y="195" className="axis-label">{engineering(physicalX(minX), axisUnit)}</text>
-        <text x={PLOT_RIGHT} y="195" textAnchor="end" className="axis-label">{engineering(physicalX(maxX), axisUnit)}</text>
-        <text x="48" y="14" className="axis-label">{engineering(maxY, valueUnit)}</text>
-      </svg>
-      {cursorIndex !== null && (
-        <output className="cursor-readout" data-axis-value={axis[cursorIndex]} data-signal-value={values[cursorIndex]}>
-          {engineering(axis[cursorIndex], axisUnit)} · {engineering(values[cursorIndex], valueUnit)}
-          {overlays.map((ov) => ` · ${ov.label}: ${engineering(ov.values[cursorIndex], valueUnit)}`).join('')}
-        </output>
-      )}
-      {zoom[1] - zoom[0] < 0.999 && <button className="plot-reset" onClick={() => setZoom([0, 1])}><RotateCcw size={12} /> Reset zoom</button>}
-      {validPins.length > 0 && (
+        {zoom[1] - zoom[0] < 0.999 && <button className="plot-reset" onClick={() => setZoom([0, 1])}><RotateCcw size={12} /> Reset zoom</button>}
+      </div>
+      {showMarkerBar && validPins.length > 0 && (
         <div className="pinned-markers-bar" role="region" aria-label={`${axisName} pinned markers`}>
           {validPins.map((pinIdx, idx) => (
             <span key={`readout-${pinIdx}-${idx}`} className={`pinned-marker-chip marker-chip-${idx + 1}`}>
               <b>M{idx + 1}</b>
-              <span>{engineering(axis[pinIdx], axisUnit)} · {engineering(values[pinIdx], valueUnit)}</span>
+              <span>{engineering(axis[pinIdx], axisUnit)} · <strong>{engineering(values[pinIdx], valueUnit)}</strong></span>
               {overlays.map((ov) => (
                 <small key={ov.label} style={{ color: ov.color }}>{ov.label}: {engineering(ov.values[pinIdx], valueUnit)}</small>
               ))}
@@ -279,7 +331,9 @@ function DatasetView({ dataset, analysis, assertions }: { dataset: Dataset; anal
   const selectedSignal = signalNames.includes(signal) ? signal : preferred;
   const primaryUnit = signalUnit(selectedSignal);
   const compatibleOverlays = useMemo(
-    () => signalNames.filter((name) => name !== selectedSignal && signalUnit(name) === primaryUnit),
+    () => signalNames
+      .filter((name) => name !== selectedSignal && !name.includes('.') && signalUnit(name) === primaryUnit)
+      .sort((a, b) => Number(isSupplyNet(a)) - Number(isSupplyNet(b)) || a.localeCompare(b)),
     [primaryUnit, selectedSignal, signalNames],
   );
   const activeOverlays = useMemo(
@@ -344,6 +398,8 @@ function DatasetView({ dataset, analysis, assertions }: { dataset: Dataset; anal
     return <div className="result-empty">No plottable signals in this analysis.</div>;
   }
 
+  const primarySignalLabel = signalLabel(selectedSignal);
+
   const signalToolbar = (
     <div className="signal-toolbar">
       <label className="signal-picker">Signal
@@ -374,6 +430,7 @@ function DatasetView({ dataset, analysis, assertions }: { dataset: Dataset; anal
                 style={isActive ? { borderColor: color, color } : undefined}
                 onClick={() => toggleOverlay(name)}
               >
+                {isActive && <i className="trace-dot" style={{ background: color }} />}
                 <span>{signalLabel(name)}</span>
               </button>
             );
@@ -388,6 +445,7 @@ function DatasetView({ dataset, analysis, assertions }: { dataset: Dataset; anal
     if (!ac) return null;
     const reference = primaryUnit === 'A' ? '1 A' : '1 V';
     const magnitudeUnit = primaryUnit === 'A' ? 'dB re 1 A' : 'dBV';
+    const validAcPins = pinnedIndices.filter((idx) => idx >= 0 && idx < dataset.frequency_hz.length);
     return (
       <>
         {signalToolbar}
@@ -417,7 +475,7 @@ function DatasetView({ dataset, analysis, assertions }: { dataset: Dataset; anal
             <div className="measurement-card">
               <span>{ac.summary.cutoffFrequencyHz !== null ? 'Phase @ -3 dB' : 'Phase @ Peak'}</span>
               <strong>{engineering(ac.summary.phaseAtCutoffOrPeakDeg, '°')}</strong>
-              <small>{signalLabel(selectedSignal)}</small>
+              <small>{primarySignalLabel}</small>
             </div>
             <button
               type="button"
@@ -431,39 +489,68 @@ function DatasetView({ dataset, analysis, assertions }: { dataset: Dataset; anal
             </button>
           </div>
         )}
-        <p className="plot-explanation">Magnitude is 20 log₁₀(|{signalLabel(selectedSignal)}| / {reference}), not output/input gain. Phase is the angle of this signal.</p>
+        <p className="plot-explanation">Magnitude is 20 log₁₀(|{primarySignalLabel}| / {reference}), not output/input gain. Phase is the angle of this signal.</p>
         <div className="bode-grid">
-          <div>
-            <span className="plot-title">Magnitude (re {reference})</span>
-            <LinePlot
-              axis={dataset.frequency_hz}
-              values={ac.magnitude}
-              overlays={ac.magOverlays}
-              pinnedIndices={pinnedIndices}
-              onTogglePinIndex={togglePinIndex}
-              onClearPins={() => setPinnedIndices([])}
-              axisName="Frequency"
-              axisUnit="Hz"
-              valueUnit={magnitudeUnit}
-              logX
-            />
-          </div>
-          <div>
-            <span className="plot-title">Phase</span>
-            <LinePlot
-              axis={dataset.frequency_hz}
-              values={ac.phase}
-              overlays={ac.phaseOverlays}
-              pinnedIndices={pinnedIndices}
-              onTogglePinIndex={togglePinIndex}
-              onClearPins={() => setPinnedIndices([])}
-              axisName="Frequency"
-              axisUnit="Hz"
-              valueUnit="°"
-              logX
-            />
-          </div>
+          <LinePlot
+            title={`Magnitude (re ${reference})`}
+            primaryLabel={primarySignalLabel}
+            axis={dataset.frequency_hz}
+            values={ac.magnitude}
+            overlays={ac.magOverlays}
+            pinnedIndices={pinnedIndices}
+            onTogglePinIndex={togglePinIndex}
+            showMarkerBar={false}
+            axisName="Frequency"
+            axisUnit="Hz"
+            valueUnit={magnitudeUnit}
+            logX
+          />
+          <LinePlot
+            title="Phase"
+            primaryLabel={primarySignalLabel}
+            axis={dataset.frequency_hz}
+            values={ac.phase}
+            overlays={ac.phaseOverlays}
+            pinnedIndices={pinnedIndices}
+            onTogglePinIndex={togglePinIndex}
+            showMarkerBar={false}
+            axisName="Frequency"
+            axisUnit="Hz"
+            valueUnit="°"
+            logX
+          />
         </div>
+        {validAcPins.length > 0 && (
+          <div className="pinned-markers-bar bode-markers-bar" role="region" aria-label="Frequency pinned markers">
+            {validAcPins.map((pinIdx, idx) => (
+              <span key={`bode-pin-${pinIdx}-${idx}`} className={`pinned-marker-chip marker-chip-${idx + 1}`}>
+                <b>M{idx + 1}</b>
+                <span>
+                  {engineering(dataset.frequency_hz[pinIdx], 'Hz')} · <strong>{engineering(ac.magnitude[pinIdx], magnitudeUnit)}</strong> · <strong>{engineering(ac.phase[pinIdx], '°')}</strong>
+                </span>
+                {ac.magOverlays.map((ov, ovIdx) => (
+                  <small key={ov.label} style={{ color: ov.color }}>
+                    {ov.label}: {engineering(ov.values[pinIdx], magnitudeUnit)} ({engineering(ac.phaseOverlays[ovIdx]?.values[pinIdx] ?? 0, '°')})
+                  </small>
+                ))}
+              </span>
+            ))}
+            {validAcPins.length === 2 && (() => {
+              const df = dataset.frequency_hz[validAcPins[1]] - dataset.frequency_hz[validAcPins[0]];
+              const dMag = ac.magnitude[validAcPins[1]] - ac.magnitude[validAcPins[0]];
+              const dPhase = ac.phase[validAcPins[1]] - ac.phase[validAcPins[0]];
+              return (
+                <span className="pinned-marker-delta" data-testid="marker-delta">
+                  <b>Δ (M2−M1)</b>
+                  <span>ΔF: {engineering(df, 'Hz')} · ΔMag: {engineering(dMag, magnitudeUnit)} · ΔPhase: {engineering(dPhase, '°')}</span>
+                </span>
+              );
+            })()}
+            <button type="button" className="clear-markers-button" aria-label="Clear pinned markers" onClick={() => setPinnedIndices([])}>
+              <X size={11} /> Clear
+            </button>
+          </div>
+        )}
       </>
     );
   }
@@ -510,7 +597,7 @@ function DatasetView({ dataset, analysis, assertions }: { dataset: Dataset; anal
           <div className="measurement-card">
             <span>Peak-to-Peak</span>
             <strong>{engineering(waveformSummary.peakToPeak, primaryUnit)}</strong>
-            <small>Δpp ({signalLabel(selectedSignal)})</small>
+            <small>Δpp ({primarySignalLabel})</small>
           </div>
           <div className="measurement-card">
             <span>RMS / Avg</span>
@@ -519,8 +606,9 @@ function DatasetView({ dataset, analysis, assertions }: { dataset: Dataset; anal
           </div>
         </div>
       )}
-      <span className="plot-title">{horizontal.label} ({horizontal.unit})</span>
       <LinePlot
+        title={`${horizontal.label} (${horizontal.unit})`}
+        primaryLabel={primarySignalLabel}
         axis={dataset.axis.values}
         values={values}
         overlays={waveformOverlays}

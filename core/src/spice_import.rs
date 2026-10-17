@@ -216,6 +216,8 @@ const OUTPUT_DIRECTIVES: &[&str] = &[
     ".option",
     ".temp",
     ".backanno",
+    ".nodeset",
+    ".ic",
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -928,7 +930,8 @@ fn parse_subcircuit(
     module_names: &BTreeMap<String, (String, usize)>,
     models: &InlineModels,
 ) -> Result<ImportedSubcircuit, (usize, String)> {
-    let fields = split_fields(block.header.text.trim());
+    let normalized_header = normalize_assignments(&block.header.text.replace(',', " "));
+    let fields = split_fields(normalized_header.trim());
     let name = fields
         .get(1)
         .ok_or_else(|| {
@@ -942,7 +945,12 @@ fn parse_subcircuit(
     let marker = fields
         .iter()
         .position(|field| matches!(field.to_ascii_lowercase().as_str(), "params:" | "param:"));
-    let port_end = marker.unwrap_or(fields.len());
+    let first_assignment = fields
+        .iter()
+        .skip(2)
+        .position(|field| field.contains('='))
+        .map(|index| index + 2);
+    let port_end = marker.or(first_assignment).unwrap_or(fields.len());
     if port_end <= 2 {
         return Err((
             block.header.number,
@@ -952,13 +960,7 @@ fn parse_subcircuit(
     if fields[2..port_end].iter().any(|field| field.contains('=')) {
         return Err((
             block.header.number,
-            format!("subcircuit '{name}' parameter defaults require an explicit PARAMS: marker"),
-        ));
-    }
-    if marker.is_none() && fields[2..].iter().any(|field| field.contains('=')) {
-        return Err((
-            block.header.number,
-            format!("subcircuit '{name}' parameter defaults require an explicit PARAMS: marker"),
+            format!("subcircuit '{name}' parameter defaults must appear after all interface nodes"),
         ));
     }
     let end_fields = split_fields(block.end.text.trim());
@@ -994,14 +996,53 @@ fn parse_subcircuit(
         });
     }
 
-    let assignments = marker.map(|index| &fields[index + 1..]).unwrap_or(&[]);
+    let assignments = if let Some(index) = marker {
+        &fields[index + 1..]
+    } else if let Some(index) = first_assignment {
+        &fields[index..]
+    } else {
+        &[]
+    };
     if marker.is_some() && assignments.is_empty() {
         return Err((
             block.header.number,
             format!("subcircuit '{name}' has PARAMS: without any defaults"),
         ));
     }
-    let parameters = parse_parameter_assignments(assignments, block.header.number, &mut used)?;
+    let mut parameters = parse_parameter_assignments(assignments, block.header.number, &mut used)?;
+    for line in &block.body {
+        let text = line.text.trim();
+        let first_token = text.split_whitespace().next();
+        if !first_token.is_some_and(|field| field.eq_ignore_ascii_case(".param")) {
+            continue;
+        }
+        let rest = text[".param".len()..].replace(',', " ");
+        let normalized = normalize_assignments(&rest);
+        let param_fields = split_fields(normalized.trim());
+        if param_fields.is_empty() {
+            return Err((
+                line.number,
+                ".param requires at least one NAME=literal assignment".into(),
+            ));
+        }
+        let extra = parse_parameter_assignments(&param_fields, line.number, &mut used)?;
+        for param in extra {
+            if let Some(existing) = parameters.iter().find(|existing| {
+                existing
+                    .original_name
+                    .eq_ignore_ascii_case(&param.original_name)
+            }) {
+                return Err((
+                    line.number,
+                    format!(
+                        "parameter '{}' duplicates '{}' in subcircuit '{name}'",
+                        param.original_name, existing.original_name
+                    ),
+                ));
+            }
+            parameters.push(param);
+        }
+    }
     let parameter_lookup = parameters
         .iter()
         .map(|parameter| (parameter.original_name.to_ascii_lowercase(), parameter))
@@ -1014,6 +1055,10 @@ fn parse_subcircuit(
             continue;
         }
         if text.starts_with('.') {
+            let directive = split_fields(text)[0].to_ascii_lowercase();
+            if directive == ".param" {
+                continue;
+            }
             return Err((
                 line.number,
                 format!(
@@ -1281,7 +1326,8 @@ fn parse_instance(
     root_parameters: &BTreeMap<String, &ImportedParameter>,
     root_parameter_units: &mut BTreeMap<String, ImportUnit>,
 ) -> Result<ImportedInstance, String> {
-    let fields = split_fields(text);
+    let normalized = normalize_assignments(&text.replace(',', " "));
+    let fields = split_fields(normalized.trim());
     if fields.len() < 4 {
         return Err("X expects an instance name, interface nodes and a subcircuit name".into());
     }
@@ -1583,18 +1629,29 @@ fn parse_component(
     let prefix = name.chars().next().unwrap().to_ascii_uppercase();
     let mut two_terminal =
         |kind: fn(String) -> ImportedKind, unit: ImportUnit| -> Result<ImportedComponent, String> {
-            if fields.len() != 4 {
+            let normalized = normalize_assignments(text);
+            let passive_fields = split_fields(normalized.trim());
+            if passive_fields.len() != 4 {
                 return Err(format!(
                     "{} expects name, two nodes and one literal value",
                     prefix
                 ));
             }
+            let raw_val = &passive_fields[3];
+            let stripped_val = raw_val
+                .split_once('=')
+                .filter(|(k, v)| {
+                    !v.is_empty()
+                        && k.len() == 1
+                        && k.chars().next().unwrap().eq_ignore_ascii_case(&prefix)
+                })
+                .map_or(raw_val.as_str(), |(_, v)| v);
             Ok(ImportedComponent {
                 original_name: name.clone(),
-                nodes: fields[1..3].to_vec(),
+                nodes: passive_fields[1..3].to_vec(),
                 pins: &["p1", "p2"],
                 kind: kind(translate_numeric(
-                    &fields[3],
+                    stripped_val,
                     unit,
                     parameters,
                     parameter_units,
@@ -2244,13 +2301,7 @@ fn allocate_names(
         let representative = spellings
             .first()
             .expect("a node group always contains a spelling");
-        let mapped = if folded == "0" {
-            if used.contains("GND") {
-                return Err((
-                    1,
-                    "the imported namespace reserves GND for SPICE node 0".into(),
-                ));
-            }
+        let mapped = if folded == "0" || folded == "gnd" {
             used.insert("GND".into());
             "GND".into()
         } else {

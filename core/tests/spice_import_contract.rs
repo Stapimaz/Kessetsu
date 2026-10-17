@@ -525,4 +525,34 @@ C1 out 0 {C_LOAD}
         single_tran_source.contains("simulate tran 1e-5 2e-3"),
         "{single_tran_source}"
     );
+
+    let subckt_and_gnd_aliases =
+        "* Subckt without PARAMS:, internal .param, R=/C= passives, GND node, .ic/.nodeset
+.subckt FILTER IN OUT REF RVAL = 2k
+.param CVAL = 100n
+R1 IN OUT R={RVAL}
+C1 OUT REF C={CVAL}
+.ends
+V1 in GND AC 1
+X1 in out GND FILTER RVAL = 1k
+.ic V(out)=0
+.nodeset V(out)=0
+.ac dec 20 10 100k
+.end
+";
+    let alias_report = import_spice(subckt_and_gnd_aliases);
+    assert!(!alias_report.has_errors(), "{:?}", alias_report.diagnostics);
+    let alias_source = alias_report.kess_source.expect("verified source");
+    assert!(
+        alias_source.contains("module FILTER(IN,OUT,REF)"),
+        "{alias_source}"
+    );
+    assert!(
+        alias_source.contains("use FILTER X1(RVAL=1e3)"),
+        "{alias_source}"
+    );
+    assert!(
+        alias_source.contains("connect V1.minus to GND"),
+        "{alias_source}"
+    );
 }

@@ -52,6 +52,7 @@ export function WorkspaceApp() {
   const [examplesOpen, setExamplesOpen] = useState(false);
   const [resetRequest, setResetRequest] = useState(0);
   const [sourceRevealRequest, setSourceRevealRequest] = useState(0);
+  const [symbolRevealRequest, setSymbolRevealRequest] = useState<{ id: number; symbol: string } | null>(null);
   const [circuitDetailsOpen, setCircuitDetailsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -602,10 +603,23 @@ export function WorkspaceApp() {
           compileSucceeded={state.compileSucceeded}
           compileState={state.compileState}
           revealRequest={sourceRevealRequest}
+          symbolRevealRequest={symbolRevealRequest}
           onCodeChange={setCode}
           panelControls={panelControls}
         />}
-        schematic={(panelControls) => <SchematicPanel schematic={state.schematic} circuitIr={state.circuitIr} svg={state.schematicSvg} panelControls={panelControls} sourceFeedback={sourceFeedback} onResolveSource={resolveSource} />}
+        schematic={(panelControls) => <SchematicPanel
+          schematic={state.schematic}
+          circuitIr={state.circuitIr}
+          svg={state.schematicSvg}
+          panelControls={panelControls}
+          sourceFeedback={sourceFeedback}
+          onResolveSource={resolveSource}
+          evaluation={state.evaluation}
+          onRevealSymbol={(symbol) => {
+            setSourceRevealRequest((current) => current + 1);
+            setSymbolRevealRequest((current) => ({ id: (current?.id ?? 0) + 1, symbol }));
+          }}
+        />}
         results={(panelControls) => <ResultsPanel
           state={state.simulationState}
           hasSimulationAttempt={state.hasSimulationAttempt}

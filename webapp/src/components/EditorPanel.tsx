@@ -6,14 +6,45 @@ import type { CompileDiagnostic, CompileState } from '../domain';
 import { monaco } from '../monaco';
 import { PanelHeader, type PanelWindowControls } from './PanelHeader';
 
+export interface SymbolRevealRequest {
+  id: number;
+  symbol: string;
+}
+
 interface Props {
   code: string;
   diagnostics: CompileDiagnostic[];
   compileSucceeded: boolean;
   compileState: CompileState;
   revealRequest: number;
+  symbolRevealRequest?: SymbolRevealRequest | null;
   onCodeChange(code: string): void;
   panelControls: PanelWindowControls;
+}
+
+function findSymbolLine(code: string, symbol: string): number | null {
+  const candidates = symbol.includes('_') ? [symbol, symbol.split('_')[0], symbol.split('_').slice(1).join('_')] : [symbol];
+  const lines = code.split(/\r?\n/);
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const escaped = candidate.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const declPattern = new RegExp(
+      `^\\s*(?:net|source|current_source|resistor|capacitor|inductor|diode|bjt|transistor|mosfet|opamp|subcircuit_instance|module)\\s+${escaped}\\b|\\buse\\s+\\S+\\s+(?:as\\s+)?${escaped}\\b`,
+      'i',
+    );
+    for (let i = 0; i < lines.length; i += 1) {
+      if (declPattern.test(lines[i])) return i + 1;
+    }
+  }
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const escaped = candidate.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const fallbackPattern = new RegExp(`\\b${escaped}\\b`, 'i');
+    for (let i = 0; i < lines.length; i += 1) {
+      if (fallbackPattern.test(lines[i])) return i + 1;
+    }
+  }
+  return null;
 }
 
 export function EditorPanel({
@@ -22,12 +53,14 @@ export function EditorPanel({
   compileSucceeded,
   compileState,
   revealRequest,
+  symbolRevealRequest = null,
   onCodeChange,
   panelControls,
 }: Props) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const modelRef = useRef<editor.ITextModel | null>(null);
   const previousRevealRequest = useRef(revealRequest);
+  const previousSymbolRevealId = useRef<number | null>(symbolRevealRequest?.id ?? null);
 
   const applyMarkers = useCallback(() => {
     const model = modelRef.current;
@@ -61,6 +94,25 @@ export function EditorPanel({
     }
     editorRef.current?.focus();
   }, [diagnostics, revealRequest, panelControls.visible]);
+
+  useEffect(() => {
+    if (!panelControls.visible || !symbolRevealRequest || previousSymbolRevealId.current === symbolRevealRequest.id) return;
+    previousSymbolRevealId.current = symbolRevealRequest.id;
+    const lineNumber = findSymbolLine(code, symbolRevealRequest.symbol);
+    const instance = editorRef.current;
+    const model = modelRef.current;
+    if (!instance || !lineNumber) return;
+    instance.layout();
+    instance.revealLineInCenter(lineNumber);
+    const maxCol = model ? model.getLineMaxColumn(lineNumber) : 1;
+    instance.setSelection({
+      startLineNumber: lineNumber,
+      startColumn: 1,
+      endLineNumber: lineNumber,
+      endColumn: maxCol,
+    });
+    instance.focus();
+  }, [code, panelControls.visible, symbolRevealRequest]);
 
   const onMount: OnMount = (instance) => {
     editorRef.current = instance;
