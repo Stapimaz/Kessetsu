@@ -1,4 +1,4 @@
-import { Activity, Crosshair, Plus, RotateCcw, Square, X, Zap } from 'lucide-react';
+import { Activity, RotateCcw, Square, X, Zap } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SimulationState, SourceFeedback } from '../domain';
 import type { Analysis, AssertionResult, BrowserEvaluation, Dataset } from '../simulation/types';
@@ -360,7 +360,7 @@ function DatasetView({ dataset, analysis, assertions }: { dataset: Dataset; anal
       </label>
       {compatibleOverlays.length > 0 && (
         <div className="trace-overlay-bar" role="group" aria-label="Compare traces">
-          <span className="trace-overlay-label">+ Trace:</span>
+          <span className="trace-overlay-label">Compare:</span>
           {compatibleOverlays.map((name) => {
             const activeIdx = activeOverlays.indexOf(name);
             const isActive = activeIdx >= 0;
@@ -374,14 +374,13 @@ function DatasetView({ dataset, analysis, assertions }: { dataset: Dataset; anal
                 style={isActive ? { borderColor: color, color } : undefined}
                 onClick={() => toggleOverlay(name)}
               >
-                <Plus size={10} />
                 <span>{signalLabel(name)}</span>
               </button>
             );
           })}
         </div>
       )}
-      <span className="plot-cursor-hint"><Crosshair size={11} /> Click plot to pin M1/M2 markers</span>
+      <span className="plot-cursor-hint">Click plot to pin M1/M2 markers</span>
     </div>
   );
 

@@ -1,6 +1,6 @@
 import Editor, { type OnMount } from '@monaco-editor/react';
 import { Code2 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { editor } from 'monaco-editor';
 import type { CompileDiagnostic, CompileState } from '../domain';
 import { monaco } from '../monaco';
@@ -16,15 +16,6 @@ interface Props {
   panelControls: PanelWindowControls;
 }
 
-function findAnalysisLine(code: string, kind: 'op' | 'ac' | 'tran'): number | null {
-  const pattern = new RegExp(`^\\s*simulate\\s+${kind}\\b`, 'i');
-  const lines = code.split(/\r?\n/);
-  for (let index = 0; index < lines.length; index += 1) {
-    if (pattern.test(lines[index])) return index + 1;
-  }
-  return null;
-}
-
 export function EditorPanel({
   code,
   diagnostics,
@@ -37,12 +28,6 @@ export function EditorPanel({
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const modelRef = useRef<editor.ITextModel | null>(null);
   const previousRevealRequest = useRef(revealRequest);
-
-  const existingAnalyses = useMemo(() => ({
-    op: findAnalysisLine(code, 'op'),
-    ac: findAnalysisLine(code, 'ac'),
-    tran: findAnalysisLine(code, 'tran'),
-  }), [code]);
 
   const applyMarkers = useCallback(() => {
     const model = modelRef.current;
@@ -83,21 +68,6 @@ export function EditorPanel({
     applyMarkers();
   };
 
-  const focusLine = (lineNumber: number) => {
-    const instance = editorRef.current;
-    const model = modelRef.current;
-    if (!instance) return;
-    instance.revealLineInCenter(lineNumber);
-    const maxCol = model ? model.getLineMaxColumn(lineNumber) : 1;
-    instance.setSelection({
-      startLineNumber: lineNumber,
-      startColumn: 1,
-      endLineNumber: lineNumber,
-      endColumn: maxCol,
-    });
-    instance.focus();
-  };
-
   const reveal = (diagnostic: CompileDiagnostic) => {
     if (!diagnostic.line) return;
     editorRef.current?.revealLineInCenter(diagnostic.line);
@@ -105,86 +75,9 @@ export function EditorPanel({
     editorRef.current?.focus();
   };
 
-  const insertOrFocusAnalysis = (kind: 'op' | 'ac' | 'tran', defaultSnippet: string) => {
-    const existingLine = existingAnalyses[kind];
-    if (existingLine !== null) {
-      focusLine(existingLine);
-      return;
-    }
-    const trimmed = code.replace(/\s+$/, '');
-    const nextCode = trimmed ? `${trimmed}\n${defaultSnippet}\n` : `${defaultSnippet}\n`;
-    onCodeChange(nextCode);
-    editorRef.current?.focus();
-  };
-
-  const insertSnippet = (snippet: string, placement: 'top' | 'bottom' = 'bottom') => {
-    const lines = code.split(/\r?\n/);
-    const existingIdx = lines.findIndex((line) => line.trim() === snippet.trim());
-    if (existingIdx >= 0) {
-      focusLine(existingIdx + 1);
-      return;
-    }
-    const trimmed = code.replace(/\s+$/, '');
-    let nextCode: string;
-    if (placement === 'top') {
-      const nextLines = trimmed ? trimmed.split(/\r?\n/) : [];
-      let insertIndex = 0;
-      while (insertIndex < nextLines.length && /^\s*(?:\/\/|net\b|param\b)/.test(nextLines[insertIndex])) {
-        insertIndex += 1;
-      }
-      nextLines.splice(insertIndex, 0, snippet);
-      nextCode = `${nextLines.join('\n')}\n`;
-    } else {
-      nextCode = trimmed ? `${trimmed}\n${snippet}\n` : `${snippet}\n`;
-    }
-    onCodeChange(nextCode);
-    editorRef.current?.focus();
-  };
-
   return (
     <section className="workspace-panel editor-panel" aria-label="Kessetsu source editor">
-      <PanelHeader controls={panelControls} icon={<Code2 size={15} />} title="Source">
-        <div className="editor-quick-snippets" aria-label="Quick insert statements">
-          <button
-            type="button"
-            className={existingAnalyses.op ? 'snippet-present' : undefined}
-            title={existingAnalyses.op ? `Focus existing .op analysis on line ${existingAnalyses.op}` : 'Insert DC operating point analysis'}
-            onClick={() => insertOrFocusAnalysis('op', 'simulate op')}
-          >
-            {existingAnalyses.op ? '.op' : '+ .op'}
-          </button>
-          <button
-            type="button"
-            className={existingAnalyses.ac ? 'snippet-present' : undefined}
-            title={existingAnalyses.ac ? `Focus existing .ac analysis on line ${existingAnalyses.ac}` : 'Insert AC frequency sweep analysis'}
-            onClick={() => insertOrFocusAnalysis('ac', 'simulate ac dec 40 10Hz 100kHz')}
-          >
-            {existingAnalyses.ac ? '.ac' : '+ .ac'}
-          </button>
-          <button
-            type="button"
-            className={existingAnalyses.tran ? 'snippet-present' : undefined}
-            title={existingAnalyses.tran ? `Focus existing .tran analysis on line ${existingAnalyses.tran}` : 'Insert transient time-domain analysis'}
-            onClick={() => insertOrFocusAnalysis('tran', 'simulate tran 10us 5ms')}
-          >
-            {existingAnalyses.tran ? '.tran' : '+ .tran'}
-          </button>
-          <button
-            type="button"
-            title="Insert sweepable circuit parameter for Parameter Study"
-            onClick={() => insertSnippet('param R_load: Ohm = 10kOhm', 'top')}
-          >
-            + param
-          </button>
-          <button
-            type="button"
-            title="Insert verifiable requirement assertion"
-            onClick={() => insertSnippet('assert value(V(OUT)) >= 0.5V')}
-          >
-            + assert
-          </button>
-        </div>
-      </PanelHeader>
+      <PanelHeader controls={panelControls} icon={<Code2 size={15} />} title="Source" />
       <div className="editor-container">
         <Editor
           height="100%"

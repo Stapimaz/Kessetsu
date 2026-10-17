@@ -1,8 +1,8 @@
-import { ArrowRightLeft, Check, Clipboard, Copy, FileUp, Sparkles, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { compile_kessetsu, import_spice_netlist, spice_import_schema_version } from 'kessetsu-core';
-import type { CompileReport, SpiceImportDiagnostic, SpiceImportReport } from '../domain';
-import { assertValidSpiceReport, importDiagnosticLabel, mergeConvertedKessIntoSource, SpiceImportError } from '../spiceImport';
+import { import_spice_netlist, spice_import_schema_version } from 'kessetsu-core';
+import type { SpiceImportDiagnostic, SpiceImportReport } from '../domain';
+import { assertValidSpiceReport, importDiagnosticLabel, SpiceImportError } from '../spiceImport';
 
 const SAMPLE_RC_SPICE = `* 1 kHz RC Low-Pass Filter
 V1 in 0 AC 1
@@ -22,26 +22,21 @@ XU1 in fb vcc vee out OPAMP
 .ac dec 30 10 1Meg
 .end`;
 
-export type ApplyMode = 'replace' | 'insert';
-
 interface Props {
   open: boolean;
-  currentSource: string;
   onClose: () => void;
   onChooseSpiceFile: () => void;
-  onApply: (nextSource: string, mode: ApplyMode, componentCount: number) => void;
+  onApply: (nextSource: string, componentCount: number) => void;
 }
 
 export function SpiceConverterDialog({
   open,
-  currentSource,
   onClose,
   onChooseSpiceFile,
   onApply,
 }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [spiceInput, setSpiceInput] = useState(SAMPLE_RC_SPICE);
-  const [applyMode, setApplyMode] = useState<ApplyMode>('replace');
   const [copied, setCopied] = useState(false);
   const [clipboardError, setClipboardError] = useState('');
 
@@ -91,24 +86,7 @@ export function SpiceConverterDialog({
     }
   }, [open, spiceInput]);
 
-  const previewSource = useMemo(() => {
-    const kess = conversion.report?.kess_source;
-    if (!kess) return '';
-    return applyMode === 'insert'
-      ? mergeConvertedKessIntoSource(currentSource, kess)
-      : kess;
-  }, [applyMode, conversion.report?.kess_source, currentSource]);
-
-  const mergedValidation = useMemo(() => {
-    if (applyMode !== 'insert' || !previewSource) return null;
-    try {
-      const report = compile_kessetsu(previewSource) as CompileReport;
-      const errors = report.diagnostics.filter((d) => d.severity === 'error');
-      return { valid: errors.length === 0, errors };
-    } catch {
-      return null;
-    }
-  }, [applyMode, previewSource]);
+  const previewSource = conversion.report?.kess_source ?? '';
 
   const pasteFromClipboard = async () => {
     setClipboardError('');
@@ -131,17 +109,15 @@ export function SpiceConverterDialog({
       setCopied(true);
       globalThis.setTimeout(() => setCopied(false), 2000);
     } catch {
-      setClipboardError('Could not copy automatically. Select the preview text and press Ctrl+C.');
+      setClipboardError('Could not copy automatically. Select the output text and press Ctrl+C.');
     }
   };
 
-  const applyToCircuit = () => {
+  const openInEditor = () => {
     if (!previewSource || !conversion.report) return;
-    onApply(previewSource, applyMode, conversion.report.summary.components);
+    onApply(previewSource, conversion.report.summary.components);
     dialogRef.current?.close();
   };
-
-  const canApply = Boolean(previewSource) && (applyMode === 'replace' || (mergedValidation?.valid ?? true));
 
   return (
     <dialog
@@ -152,8 +128,8 @@ export function SpiceConverterDialog({
     >
       <header>
         <div>
-          <h2 id="spice-converter-title">SPICE → Kessetsu Converter</h2>
-          <p>Convert an LTspice or Ngspice netlist into verified .kess source, inspect the live preview, and copy, insert, or replace your circuit.</p>
+          <h2 id="spice-converter-title">Convert SPICE Netlist</h2>
+          <p>Paste an LTspice or Ngspice netlist on the left to generate verified Kessetsu (.kess) source on the right.</p>
         </div>
         <button type="button" aria-label="Close SPICE converter" onClick={() => dialogRef.current?.close()}>
           <X size={18} />
@@ -163,16 +139,16 @@ export function SpiceConverterDialog({
       <div className="spice-dialog-grid">
         <section className="spice-dialog-pane" aria-label="SPICE netlist input pane">
           <div className="spice-pane-header">
-            <strong>1. SPICE Netlist (.cir / .sp)</strong>
+            <strong>SPICE Netlist</strong>
             <div className="spice-pane-actions">
               <button type="button" onClick={() => void pasteFromClipboard()}>
-                <Clipboard size={12} /> Paste
+                Paste
               </button>
               <button type="button" onClick={() => { setSpiceInput(SAMPLE_RC_SPICE); setClipboardError(''); }}>
                 RC example
               </button>
               <button type="button" onClick={() => { setSpiceInput(SAMPLE_OPAMP_SPICE); setClipboardError(''); }}>
-                <Sparkles size={12} /> Op-Amp example
+                Op-Amp example
               </button>
               <button
                 type="button"
@@ -181,7 +157,7 @@ export function SpiceConverterDialog({
                   onChooseSpiceFile();
                 }}
               >
-                <FileUp size={12} /> Open file…
+                Open file…
               </button>
             </div>
           </div>
@@ -206,7 +182,7 @@ export function SpiceConverterDialog({
 
           {conversion.error && (
             <div className="spice-dialog-alert spice-dialog-error" role="alert">
-              <strong>Conversion paused — fix reported SPICE lines:</strong>
+              <strong>Fix reported SPICE lines:</strong>
               <ul>
                 {(conversion.diagnostics.length > 0 ? conversion.diagnostics : []).slice(0, 6).map((diag, index) => (
                   <li key={index}>{importDiagnosticLabel(diag)}</li>
@@ -230,68 +206,22 @@ export function SpiceConverterDialog({
 
         <section className="spice-dialog-pane" aria-label="Converted Kessetsu preview pane">
           <div className="spice-pane-header">
-            <strong>2. Verified .kess Preview</strong>
-            <div className="spice-mode-switch" role="group" aria-label="Preview mode">
-              <button
-                type="button"
-                aria-pressed={applyMode === 'replace'}
-                onClick={() => setApplyMode('replace')}
-              >
-                Standalone / Replace
-              </button>
-              <button
-                type="button"
-                aria-pressed={applyMode === 'insert'}
-                onClick={() => setApplyMode('insert')}
-              >
-                Merge into current circuit
-              </button>
-            </div>
+            <strong>Kessetsu (.kess) Output</strong>
+            {conversion.report && (
+              <span className="spice-summary-badge">
+                {conversion.report.summary.components} components · {conversion.report.summary.nets} nets · {conversion.report.summary.analyses} analyses
+              </span>
+            )}
           </div>
 
           {conversion.report ? (
-            <>
-              <div className="spice-preview-summary">
-                <span className="spice-summary-badge">
-                  <Check size={12} />
-                  {conversion.report.summary.components} components · {conversion.report.summary.nets} nets · {conversion.report.summary.analyses} analyses
-                </span>
-                <button type="button" className="spice-copy-button" onClick={() => void copyPreview()}>
-                  {copied ? <><Check size={12} /> Copied .kess</> : <><Copy size={12} /> Copy .kess</>}
-                </button>
-              </div>
-              {applyMode === 'insert' && mergedValidation && !mergedValidation.valid && (
-                <div className="spice-dialog-alert spice-dialog-error" role="alert">
-                  <strong>Merge conflict with current circuit:</strong>
-                  <ul>
-                    {mergedValidation.errors.slice(0, 3).map((err, idx) => (
-                      <li key={idx}>[{err.code}] {err.message}</li>
-                    ))}
-                  </ul>
-                  <small>Switch to Standalone / Replace or rename conflicting components in your SPICE input.</small>
-                </div>
-              )}
-              <pre className="spice-preview-code" data-testid="spice-preview-code">{previewSource}</pre>
-              {conversion.report.names.length > 0 && (
-                <details className="spice-name-mappings">
-                  <summary>Identifier mappings ({conversion.report.names.length})</summary>
-                  <div className="spice-mapping-chips">
-                    {conversion.report.names.map((item, idx) => (
-                      <span key={idx}>
-                        <code>{item.original}</code> → <code>{item.kessetsu}</code> <small>({item.kind})</small>
-                      </span>
-                    ))}
-                  </div>
-                </details>
-              )}
-            </>
+            <pre className="spice-preview-code" data-testid="spice-preview-code">{previewSource}</pre>
           ) : (
             <div className="spice-preview-empty">
-              <ArrowRightLeft size={24} />
               <p>
                 {spiceInput.trim()
-                  ? 'Resolve the SPICE diagnostics on the left to preview the verified .kess circuit.'
-                  : 'Paste a SPICE netlist on the left or load an example to preview its .kess translation.'}
+                  ? 'Resolve the SPICE diagnostics on the left to generate the .kess output.'
+                  : 'Paste a SPICE netlist on the left or choose an example.'}
               </p>
             </div>
           )}
@@ -301,11 +231,7 @@ export function SpiceConverterDialog({
       <div className="dialog-footer">
         <span className="dialog-status" role="status">
           {conversion.report
-            ? applyMode === 'insert'
-              ? mergedValidation?.valid
-                ? 'Merged preview passes Kessetsu compiler & ERC checks.'
-                : 'Merged preview has naming conflicts with the current circuit.'
-              : 'Converted .kess source passes compiler & ERC checks.'
+            ? 'Converted .kess source passes compiler & ERC checks.'
             : 'Waiting for a valid SPICE netlist…'}
         </span>
         <button type="button" className="dialog-secondary" onClick={() => dialogRef.current?.close()}>
@@ -317,18 +243,18 @@ export function SpiceConverterDialog({
           disabled={!previewSource}
           onClick={() => void copyPreview()}
         >
-          <Copy size={14} /> {copied ? 'Copied' : 'Copy .kess'}
+          {copied ? 'Copied' : 'Copy .kess'}
         </button>
         <button
           type="button"
           className="dialog-primary"
-          disabled={!canApply}
-          onClick={applyToCircuit}
+          disabled={!previewSource}
+          onClick={openInEditor}
         >
-          <ArrowRightLeft size={14} />
-          {applyMode === 'insert' ? 'Insert into circuit' : 'Replace current circuit'}
+          Open in Editor
         </button>
       </div>
     </dialog>
   );
 }
+

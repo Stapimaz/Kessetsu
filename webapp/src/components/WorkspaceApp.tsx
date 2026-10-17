@@ -1,4 +1,4 @@
-import { ArrowRightLeft, CheckCircle2, ChevronRight, CircleAlert, LineChart, LoaderCircle, RotateCcw, Share2, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { CheckCircle2, ChevronRight, CircleAlert, LoaderCircle, Share2 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { applicationMenuKeyDown } from '../applicationMenuKeyboard';
 import { keepModalTabFocus } from '../modalKeyboard';
@@ -372,6 +372,7 @@ export function WorkspaceApp() {
               <button role="menuitem" onClick={chooseDocument}><span>Open .kess…</span></button>
               <button role="menuitem" onClick={chooseSpiceDocument}><span>Import SPICE netlist...</span></button>
               <button role="menuitem" disabled={!state.wasmLoaded} onClick={() => { setSpiceConverterOpen(true); setOpenMenu(null); }}><span>Convert SPICE netlist…</span></button>
+              <div className="menu-separator" role="separator" />
               <button role="menuitem" disabled={documentSaving || !state.wasmLoaded} aria-label={nativeFileSaving ? 'Save' : 'Save in browser'} onClick={() => void saveDocument()}>
                 <span>{nativeFileSaving ? 'Save' : 'Save in browser'}</span><kbd>Ctrl+S</kbd>
               </button>
@@ -379,13 +380,13 @@ export function WorkspaceApp() {
                 <span>{nativeFileSaving ? 'Save As...' : 'Download .kess…'}</span><kbd>Ctrl+Shift+S</kbd>
               </button>
               <button role="menuitem" onClick={() => { setRenameOpen(true); setOpenMenu(null); }}><span>Rename…</span></button>
-              {previousCircuitAvailable && <button role="menuitem" onClick={() => void restorePreviousCircuit()}>Restore previous circuit</button>}
+              {previousCircuitAvailable && <button role="menuitem" onClick={() => void restorePreviousCircuit()}><span>Restore previous circuit</span></button>}
+              {!nativeFileSaving && <p className="menu-note">Saved projects stay in this browser. Download a .kess copy to use elsewhere.</p>}
+              <div className="menu-separator" role="separator" />
               <a role="menuitem" href={`${import.meta.env.BASE_URL}tools/`} onClick={(event) => {
                 try { writeWorkspaceDraft(localStorage, state.circuitName, state.code, state.isDirty); }
                 catch { event.preventDefault(); setDocumentError('Browser storage is unavailable. Download this circuit before opening tools.'); }
-              }}>Circuit tools</a>
-              {!nativeFileSaving && <p className="menu-note">Saved projects stay in this browser. Download a .kess copy to use elsewhere.</p>}
-              <div className="menu-separator" role="separator" />
+              }}><span>Circuit tools</span></a>
               <div className="menu-submenu">
                 <button role="menuitem" aria-haspopup="menu" aria-expanded={examplesOpen} onClick={() => setExamplesOpen((current) => !current)}>
                   <span>Examples</span><ChevronRight size={14} />
@@ -437,45 +438,29 @@ export function WorkspaceApp() {
           </div>
           <div className="application-menu">
             <button aria-haspopup="menu" aria-expanded={openMenu === 'analyze'} onClick={() => toggleMenu('analyze')}>Analyze</button>
-            {openMenu === 'analyze' && <div className="menu-popover analyze-menu" role="menu" aria-label="Analyze menu">
-              <span className="menu-group-label">Design &amp; Verification</span>
-              <button role="menuitem" aria-label="Work with an AI agent…" disabled={!state.wasmLoaded} onClick={() => { setAgentProposalOpen(true); setOpenMenu(null); }}>
-                <Sparkles size={15} className="analyze-item-icon" />
-                <span className="analyze-item-body">
-                  <span className="analyze-item-title"><strong>Work with an AI agent…</strong><em className="analyze-item-badge">AI + .kessreq</em></span>
-                  <small>Pin electrical targets, verify AI replies locally, and diff before applying</small>
-                </span>
+            {openMenu === 'analyze' && <div className="menu-popover" role="menu" aria-label="Analyze menu">
+              <button
+                role="menuitem"
+                aria-label="Run simulation"
+                disabled={!state.compileSucceeded || !state.circuitIr?.analyses.length || state.simulationState === 'running'}
+                onClick={() => { setOpenMenu(null); void run(); }}
+              >
+                <span>Run simulation</span><kbd>Ctrl+Enter</kbd>
+              </button>
+              <div className="menu-separator" role="separator" />
+              <button role="menuitem" disabled={!state.wasmLoaded || state.simulationState === 'running'} onClick={() => { setStudyOpen(true); setOpenMenu(null); }}>
+                <span>Test parameter variations…</span>
+              </button>
+              <button role="menuitem" disabled={!state.wasmLoaded} onClick={() => { setResearchDataMounted(true); setResearchDataOpen(true); setOpenMenu(null); }}>
+                <span>Compare research data…</span>
+              </button>
+              <div className="menu-separator" role="separator" />
+              <button role="menuitem" disabled={!state.wasmLoaded} onClick={() => { setAgentProposalOpen(true); setOpenMenu(null); }}>
+                <span>Work with an AI agent…</span>
               </button>
               {acceptedProposal && state.code === acceptedProposal.after && <button role="menuitem" onClick={undoAgentProposal}>
-                <RotateCcw size={15} className="analyze-item-icon" />
-                <span className="analyze-item-body">
-                  <span className="analyze-item-title"><strong>Undo AI agent change</strong></span>
-                  <small>Restore the exact circuit from before the last accepted reply</small>
-                </span>
+                <span>Undo AI agent change</span>
               </button>}
-              <button role="menuitem" aria-label="Convert SPICE netlist…" disabled={!state.wasmLoaded} onClick={() => { setSpiceConverterOpen(true); setOpenMenu(null); }}>
-                <ArrowRightLeft size={15} className="analyze-item-icon" />
-                <span className="analyze-item-body">
-                  <span className="analyze-item-title"><strong>Convert SPICE netlist…</strong><em className="analyze-item-badge">SPICE → .kess</em></span>
-                  <small>Paste LTspice or Ngspice netlists, preview verified .kess, and copy, merge, or replace</small>
-                </span>
-              </button>
-              <span className="menu-group-label">Exploration &amp; Lab Data</span>
-              <button role="menuitem" aria-label="Test parameter variations…" disabled={!state.wasmLoaded || state.simulationState === 'running'} onClick={() => { setStudyOpen(true); setOpenMenu(null); }}>
-                <SlidersHorizontal size={15} className="analyze-item-icon" />
-                <span className="analyze-item-body">
-                  <span className="analyze-item-title"><strong>Test parameter variations…</strong><em className="analyze-item-badge">Sweep · Monte Carlo</em></span>
-                  <small>Sweep component values, tolerances, corners, and temperatures</small>
-                </span>
-              </button>
-              <button role="menuitem" aria-label="Compare research data…" disabled={!state.wasmLoaded} onClick={() => { setResearchDataMounted(true); setResearchDataOpen(true); setOpenMenu(null); }}>
-                <LineChart size={15} className="analyze-item-icon" />
-                <span className="analyze-item-body">
-                  <span className="analyze-item-title"><strong>Compare research data…</strong><em className="analyze-item-badge">CSV vs. SPICE</em></span>
-                  <small>Overlay bench CSV measurements or paper references against simulation</small>
-                </span>
-              </button>
-              <div className="analyze-menu-footer"><span>Run simulation anytime with <kbd>Ctrl+Enter</kbd></span></div>
             </div>}
           </div>
           <div className="application-menu">
@@ -608,17 +593,12 @@ export function WorkspaceApp() {
         onClose={() => { setAgentProposalOpen(false); focusAnalyzeMenu(); }} />}
       {state.wasmLoaded && <SpiceConverterDialog
         open={spiceConverterOpen}
-        currentSource={state.code}
         onClose={() => setSpiceConverterOpen(false)}
         onChooseSpiceFile={chooseSpiceDocument}
-        onApply={(nextSource, mode, components) => {
+        onApply={(nextSource, components) => {
           detachFileHandle();
           setCode(nextSource);
-          showDocumentNotice(
-            mode === 'insert'
-              ? `Merged ${components} SPICE components into current circuit`
-              : `Converted SPICE netlist (${components} components) to Kessetsu`,
-          );
+          showDocumentNotice(`Loaded converted SPICE circuit (${components} components)`);
         }}
       />}
       {state.wasmLoaded && researchDataMounted && <PageLoadBoundary page="research data" onDismiss={() => { setResearchDataOpen(false); setResearchDataMounted(false); focusAnalyzeMenu(); }}><Suspense fallback={<aside className="feature-loading" role="status">Opening research data…</aside>}><ResearchDataDialog open={researchDataOpen} evaluation={state.evaluation} circuitName={documentName} onClose={() => { setResearchDataOpen(false); focusAnalyzeMenu(); }} /></Suspense></PageLoadBoundary>}
