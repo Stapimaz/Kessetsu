@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('guides installation, copies commands, and opens direct installation URLs', async ({ page, context, request }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.goto('/');
-  await page.getByRole('link', { name: 'Install the CLI' }).click();
+  await page.locator('.landing-hero').getByRole('link', { name: 'Install CLI & MCP' }).click();
   await expect(page).toHaveURL(/\/install\/$/);
   await expect(page.getByRole('heading', { name: 'A few steps. Your first circuit.' })).toBeVisible();
   await page.getByRole('button', { name: 'Windows', exact: true }).click();

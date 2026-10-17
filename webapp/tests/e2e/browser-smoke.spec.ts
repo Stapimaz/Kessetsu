@@ -37,7 +37,7 @@ test('opens the landing page, enters Web Hub, initializes WASM and compiles the 
   // Chromium's platform font rasterizer can move the measured glyph midpoint by a subpixel.
   expect(nodeAlignmentError).toBeLessThanOrEqual(0.5);
   expect(await page.locator('.landing-hero .eyebrow').evaluate((element) => (element as HTMLElement).innerText))
-    .toBe('EXECUTABLE CIRCUIT ENGINEERING');
+    .toBe('SPICE SIMULATION · AUTO-SCHEMATIC · AI AGENT VERIFICATION');
   await expect(page.getByText('First-release scope:')).toHaveCount(0);
   await expect(page.locator('.preview-generated-schematic [data-component="VIN"].reference')).toBeVisible();
   await expect(page.getByRole('contentinfo')).toContainText(`Kessetsu ${productVersion}`);

@@ -85,9 +85,12 @@ export function InstallPage() {
       </header>
       <section className="install-content" aria-labelledby="install-title">
         <a className="text-link install-back" href={base}><ArrowLeft size={14} /> Back to Kessetsu</a>
-        <p className="eyebrow">CLI quickstart</p>
+        <p className="eyebrow">CLI &amp; MCP quickstart</p>
         <h1 id="install-title">A few steps. Your first circuit.</h1>
-        <p className="install-lead">Install Kessetsu once. Use <code>kess</code> from any folder, yourself or through your AI agent. Free, local, and no account required.</p>
+        <p className="install-lead">
+          Install Kessetsu once. The single <code>kess</code> binary includes both the <strong>local CLI</strong> for terminal workflows
+          and the <strong>built-in MCP server (<code>kess mcp</code>)</strong> for AI agents like Claude, Cursor, and Windsurf. Free, local, and no account required.
+        </p>
         <div className="install-platforms" role="group" aria-label="Choose your operating system">
           {(Object.keys(platforms) as Platform[]).map((key) => (
             <button key={key} type="button" aria-pressed={key === platform} onClick={() => setPlatform(key)}>{platforms[key].label}</button>
@@ -128,10 +131,24 @@ export function InstallPage() {
           </li>
         </ol>
         <section className="install-followup" aria-labelledby="install-next">
-          <h2 id="install-next"><Terminal size={20} /> Use it with your agent</h2>
-          <p>Connect your AI agent through Kessetsu’s built-in MCP server (<code>kess mcp</code>) or let it run the local CLI directly. Kessetsu requires no AI subscription or API key.</p>
-          <CopyCommand command="claude mcp add kessetsu -- kess mcp" label="MCP registration command" />
-          <p className="install-note">For Cursor, Windsurf, VS Code or other MCP clients, configure <code>{`{"command": "kess", "args": ["mcp"]}`}</code>; see the <a href={`${base}docs/guides/agent-workflow/`}>Agent design workflow</a>.</p>
+          <h2 id="install-next"><Terminal size={20} /> Connect to your AI agent (MCP vs. CLI)</h2>
+          <p>Once <code>kess</code> is installed, you can connect it to your AI workflow in two ways—no AI subscription or cloud API key required:</p>
+          <div className="install-agent-grid">
+            <div className="install-agent-card">
+              <span className="install-agent-badge">Recommended for AI Apps · MCP</span>
+              <h3>Built-in MCP Server (<code>kess mcp</code>)</h3>
+              <p>Exposes native circuit tools (<code>test_circuit</code>, <code>render_schematic</code>, <code>import_spice</code>, <code>compile_circuit</code>) directly to Claude Code, Claude Desktop, Cursor, or Windsurf.</p>
+              <CopyCommand command="claude mcp add kessetsu -- kess mcp" label="MCP registration command" />
+              <p className="install-note">For Cursor, Windsurf, Claude Desktop, or VS Code MCP settings, add <code>{`{"command": "kess", "args": ["mcp"]}`}</code>.</p>
+            </div>
+            <div className="install-agent-card">
+              <span className="install-agent-badge">For Terminal Agents &amp; CI · CLI</span>
+              <h3>Structured JSON CLI (<code>kess test</code>)</h3>
+              <p>Terminal-capable agents and CI scripts can run <code>.kess</code> or SPICE netlists (<code>.cir</code>, <code>.sp</code>) against locked <code>.kessreq</code> files and parse deterministic JSON output.</p>
+              <CopyCommand command="kess test my-circuit.kess --format json" label="JSON CLI test command" />
+              <p className="install-note">Run <code>kess capabilities --format json</code> to inspect all supported commands, models, and export targets.</p>
+            </div>
+          </div>
           <details><summary>Copy a complete first task for your agent</summary><p>A small, reproducible design task with fixed requirements and editable outputs. Replace the brief with your own requirements once this works.</p><CopyCommand command={agentTask} label="complete agent task" /></details>
           <p><a href={`${base}docs/guides/agent-workflow/`}>Read the agent design workflow</a> or <a href={`${base}docs/guides/cookbook/#give-an-external-agent-a-complete-task`}>walk through the complete task in the Cookbook</a>. Local manufacturer models need exact file bindings; see <a href={`${base}docs/reference/model-catalog/`}>device models</a>.</p>
           <details><summary>Next: try a transistor circuit</summary>
@@ -154,3 +171,4 @@ export function InstallPage() {
     </main>
   );
 }
+

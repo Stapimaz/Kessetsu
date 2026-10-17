@@ -24,7 +24,17 @@
 .install-prerequisite { padding: 20px; margin-top: 18px; border: 1px solid #304056; border-radius: 8px; }
 .install-followup { padding-top: 32px; border-top: 1px solid #2c3a4f; }
 .install-followup h2:not(:first-child) { margin-top: 28px; }
+.install-agent-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 18px 0 22px; }
+.install-agent-card { padding: 20px; border: 1px solid #2c3a4f; border-radius: 10px; background: #101722; }
+.install-agent-card:first-child { border-color: #28756c; background: #101c1e; }
+.install-agent-badge { display: inline-block; margin-bottom: 10px; padding: 3px 9px; border: 1px solid #29384c; border-radius: 999px; color: #55e1cc; background: #131e2c; font-size: 11px; font-weight: 700; }
+.install-agent-card:first-child .install-agent-badge { border-color: #28756c; background: #122724; }
+.install-agent-card h3 { margin: 0 0 8px; color: #eef4fc; font-size: 16px; }
+.install-agent-card p { margin: 8px 0 12px; font-size: 13px; line-height: 1.6; }
 .install-page button:focus-visible, .install-page a:focus-visible { outline: 2px solid #55e1cc; outline-offset: 4px; }
+@media (max-width: 720px) {
+  .install-agent-grid { grid-template-columns: 1fr; }
+}
 @media (max-width: 600px) {
   .install-page .landing-nav { display: flex; gap: 12px; }
   .install-content { width: calc(100% - 32px); margin-top: 30px; }
@@ -33,4 +43,6 @@
   .install-command { padding-left: 12px; gap: 6px; }
   .install-command code { font-size: 12px; }
   .install-prerequisite { padding: 14px; }
+  .install-agent-card { padding: 16px; }
 }
+

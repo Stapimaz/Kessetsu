@@ -99,11 +99,31 @@ for (const file of readdirSync(resolve(repo, 'examples'), { recursive: true })) 
   copyFileSync(resolve(repo, 'examples', relative), destination);
 }
 const navigationGroups = [
-  ['Getting started', ['docs/README.md', 'docs/guides/tutorial.md', 'docs/guides/agent-workflow.md', 'docs/guides/spice-import.md', 'docs/guides/web-editor.md', 'docs/guides/why-kessetsu.md', 'docs/guides/cookbook.md', 'docs/guides/parameter-studies.md', 'docs/guides/research-data.md', 'docs/guides/model-fitting.md', 'docs/guides/memristor-protocol.md', 'docs/guides/portable-research-packages.md', 'docs/guides/python-notebooks.md']],
+  ['Getting started', ['docs/README.md', 'docs/guides/tutorial.md', 'docs/guides/web-editor.md', 'docs/guides/spice-import.md', 'docs/guides/why-kessetsu.md']],
+  ['AI agents & workflows', ['docs/guides/agent-workflow.md', 'docs/guides/cookbook.md', 'docs/guides/parameter-studies.md']],
+  ['Research & data', ['docs/guides/research-data.md', 'docs/guides/model-fitting.md', 'docs/guides/portable-research-packages.md', 'docs/guides/python-notebooks.md', 'docs/guides/memristor-protocol.md']],
   ['Reference', documents.filter((file) => file.startsWith('docs/reference/'))],
   ['Help and updates', ['docs/guides/troubleshooting.md', 'CHANGELOG.md']],
 ];
-const shortTitles = { 'docs/README.md': 'Overview', 'docs/guides/agent-workflow.md': 'Agent workflow', 'docs/guides/spice-import.md': 'SPICE netlists', 'docs/reference/supported-domain.md': 'Components and limits', 'docs/reference/model-catalog.md': 'Device models', 'docs/reference/cli.md': 'CLI', 'docs/reference/language.md': 'Language', 'docs/reference/exports.md': 'Export formats', 'docs/reference/measurements.md': 'Measurements', 'docs/reference/simulation-and-assertions.md': 'Simulation and assertions' };
+const shortTitles = {
+  'docs/README.md': 'Overview',
+  'docs/guides/web-editor.md': 'Web Hub',
+  'docs/guides/spice-import.md': 'SPICE netlists',
+  'docs/guides/agent-workflow.md': 'Agent workflow (MCP & CLI)',
+  'docs/guides/cookbook.md': 'Cookbook',
+  'docs/guides/parameter-studies.md': 'Parameter studies',
+  'docs/guides/research-data.md': 'Research data',
+  'docs/guides/model-fitting.md': 'Model fitting',
+  'docs/guides/portable-research-packages.md': 'Portable packages',
+  'docs/guides/memristor-protocol.md': 'Memristor protocol',
+  'docs/reference/supported-domain.md': 'Components and limits',
+  'docs/reference/model-catalog.md': 'Device models',
+  'docs/reference/cli.md': 'CLI & MCP',
+  'docs/reference/language.md': 'Language',
+  'docs/reference/exports.md': 'Export formats',
+  'docs/reference/measurements.md': 'Measurements',
+  'docs/reference/simulation-and-assertions.md': 'Simulation and assertions',
+};
 const titleFor = (file) => readFileSync(resolve(repo, file), 'utf8').match(/^# (.+)$/m)?.[1].trim();
 function linkFor(source, href) {
   if (/^(?:https?:|mailto:|#)/i.test(href)) return href;
@@ -142,7 +162,7 @@ for (const source of documents) {
   const toc = sections.length ? `<details class="docs-toc" open><summary>On this page</summary><nav aria-label="On this page">${sections.map(([id, text]) => `<a href="#${escape(id)}">${escape(text)}</a>`).join('')}</nav></details>` : '';
   const article = content.replace(/(<h1\b[^>]*>[\s\S]*?<\/h1>)/, `$1${toc}`);
   const topics = `<nav aria-label="Documentation topics">${navigation}</nav>`;
-  const body = `<main class="landing-page docs-page"><header class="landing-header"><a class="landing-wordmark" href="${base}" aria-label="Kessetsu home">${surfaces.wordmark()}</a><nav class="landing-nav" aria-label="Documentation navigation"><a href="${base}docs/">Docs</a><a href="${base}changelog/">Changelog</a><a href="${base}install/">Install CLI</a><a href="${base}#editor">Web Hub</a></nav></header><a class="docs-skip" href="#doc-content">Skip to content</a><div class="docs-layout"><aside class="docs-sidebar"><div class="docs-desktop-topics">${topics}</div><details class="docs-mobile-topics"><summary>Browse documentation topics</summary>${topics}</details></aside><article class="docs-article" id="doc-content">${article}</article></div><footer class="landing-footer"><a href="${base}docs/">Documentation</a><a href="${base}changelog/">Changelog</a><a href="https://github.com/Stapimaz/Kessetsu/blob/main/${source}">Edit this page on GitHub</a></footer></main>`;
+  const body = `<main class="landing-page docs-page"><header class="landing-header"><a class="landing-wordmark" href="${base}" aria-label="Kessetsu home">${surfaces.wordmark()}</a><nav class="landing-nav" aria-label="Documentation navigation"><a href="${base}docs/">Docs</a><a href="${base}changelog/">Changelog</a><a href="${base}install/">Install CLI &amp; MCP</a><a href="${base}#editor">Web Hub</a></nav></header><a class="docs-skip" href="#doc-content">Skip to content</a><div class="docs-layout"><aside class="docs-sidebar"><div class="docs-desktop-topics">${topics}</div><details class="docs-mobile-topics"><summary>Browse documentation topics</summary>${topics}</details></aside><article class="docs-article" id="doc-content">${article}</article></div><footer class="landing-footer"><div><strong>Kessetsu Documentation</strong><span>Local SPICE simulation, automatic schematics &amp; AI verification</span></div><nav aria-label="Documentation footer navigation"><a href="${base}#editor">Web Hub</a><a href="${base}install/">Install CLI &amp; MCP</a><a href="${base}tools/">Calculators</a><a href="${base}changelog/">Changelog</a><a href="https://github.com/Stapimaz/Kessetsu">Source</a></nav></footer></main>`;
   mkdirSync(resolve(dist, route), { recursive: true });
   writeFileSync(resolve(dist, route, 'index.html'), page(
     `${title} — Kessetsu`, `${title}. Public Kessetsu documentation for circuit simulation, executable requirements and schematic exports.`, route, body,

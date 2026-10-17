@@ -4,6 +4,12 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-10-18
+
+Built-in Model Context Protocol (`kess mcp`) server, direct SPICE netlist verification,
+and a redesigned Web Hub workspace with high-readability simulation plots and a tabbed/split
+right canvas.
+
 ### Agent workflow and direct SPICE verification
 
 - Add `kess mcp`, a built-in stdio Model Context Protocol server exposing `kessetsu_guide`,
@@ -21,15 +27,25 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
   `.meas`, `.options` -> `KES-N011`) with warnings.
 - Allow `.kessreq` and inline assertions to reference original numeric SPICE node numbers
   such as `V(1)` and `V(2)` when testing imported SPICE netlists.
-- Add the [Agent design workflow](docs/guides/agent-workflow.md) guide, surface MCP setup
-  on the installation and documentation pages, and unwrap outer Markdown JSON fences in
-  browser AI proposal replies.
-- Redesign the web editor `Analyze` menu with icons, workflow badges, and section grouping;
-  add a `Source` panel `SPICE → .kess` converter drawer (`Paste & convert`, sample SPICE
-  loader, and automatic detection when SPICE is pasted into the editor) plus quick-insert
-  snippet buttons (`+ .op`, `+ .ac`, `+ .tran`, `+ param`, `+ assert`), 1-click requirement
-  starter chips and `Paste & check` in `Work with an AI agent`, and automatic SPICE import
-  when opening `.cir`, `.sp`, `.spice`, `.net`, `.ckt`, or `.cki` files.
+- Add the [Agent design workflow](docs/guides/agent-workflow.md) guide, surface MCP vs. CLI
+  setup on the landing, installation and documentation pages, and unwrap outer Markdown JSON
+  fences in browser AI proposal replies.
+
+### Web Hub workspace, plot readability and public documentation
+
+- Replace the three-column panel layout with a two-column workspace (`Source` on the left,
+  and a right-hand canvas with `Schematic | Simulation | Split` view modes defaulting to
+  `Schematic`). Move `Run` exclusively into the `Simulation` panel and replace the permanent
+  restored-draft banner with an auto-dismissing toast notification.
+- Upgrade multi-plot simulation cards with a top header bar showing live hovered/pinned trace
+  values (`13px` tabular monospace), a floating glassmorphic cursor readout badge inside the
+  active SVG plot, and per-plot `Focus` / `Show all` expansion.
+- Add a live `Convert SPICE Netlist` modal under the `File` menu with side-by-side `.kess`
+  preview, sample netlists, and 1-click opening in the editor, plus quick-insert snippet
+  buttons (`+ .op`, `+ .ac`, `+ .tran`, `+ param`, `+ assert`).
+- Reorganize documentation navigation into five focused sections (`Getting started`,
+  `AI agents & workflows`, `Research & data`, `Reference`, `Help and updates`) and remove
+  redundant repository edit links from the documentation footer.
 
 ## [1.3.1] — 2026-10-06
 
