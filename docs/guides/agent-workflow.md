@@ -123,8 +123,8 @@ constructs fail with line numbers instead of being dropped. See the
 
 ## Reading results
 
-- Exit/`status`: `success` means the command completed; a `test` with any FAIL reports
-  `status: "failure"`. Read `assertions.results[*].status` and `measured`.
+- Top-level `status`: `"success"` means compilation, simulation and all assertions passed (exit code `0`). When any requirement fails, `kess test` / `kessetsu_test` reports `status: "test_failed"` (exit code `4`); compile/ERC errors report `"compile_failed"` (exit code `2`), and simulator failures report `"simulation_failed"` (exit code `3`).
+- Assertion outcomes live in `assertions.assertions[*]`, where each entry carries `code`, `expression`, `status` (`"PASS" | "FAIL" | "ERROR" | "SKIPPED"`), `actual`, `expected` and `unit` (aggregate counts are in `summary.assertions`).
 - Diagnostics carry stable codes: `KES-E*` ERC, `KES-C*` semantic, `KES-S*` simulator,
   `KES-T*` assertions, `KES-N*` SPICE input. Fix the first error first.
 - `KES-S004` (convergence/timestep) usually means a floating node, an ideal source loop,

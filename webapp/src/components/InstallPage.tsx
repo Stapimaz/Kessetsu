@@ -132,12 +132,12 @@ export function InstallPage() {
         </ol>
         <section className="install-followup" aria-labelledby="install-next">
           <h2 id="install-next"><Terminal size={20} /> Connect to your AI agent (MCP vs. CLI)</h2>
-          <p>Once <code>kess</code> is installed, you can connect it to your AI workflow in two ways—no AI subscription or cloud API key required:</p>
+          <p>Once <code>kess</code> is installed, you can connect it to your AI workflow in two ways. Kessetsu itself requires no AI subscription or API key (your chosen AI client may use its own account):</p>
           <div className="install-agent-grid">
             <div className="install-agent-card">
               <span className="install-agent-badge">Recommended for AI Apps · MCP</span>
               <h3>Built-in MCP Server (<code>kess mcp</code>)</h3>
-              <p>Exposes native circuit tools (<code>test_circuit</code>, <code>render_schematic</code>, <code>import_spice</code>, <code>compile_circuit</code>) directly to Claude Code, Claude Desktop, Cursor, or Windsurf.</p>
+              <p>Exposes native circuit tools (<code>kessetsu_check</code>, <code>kessetsu_test</code>, <code>kessetsu_render_schematic</code>, <code>kessetsu_import_spice</code>, <code>kessetsu_export</code>) directly to Claude Code, Claude Desktop, Cursor, or Windsurf.</p>
               <CopyCommand command="claude mcp add kessetsu -- kess mcp" label="MCP registration command" />
               <p className="install-note">For Cursor, Windsurf, Claude Desktop, or VS Code MCP settings, add <code>{`{"command": "kess", "args": ["mcp"]}`}</code>.</p>
             </div>

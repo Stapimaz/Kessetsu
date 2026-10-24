@@ -135,7 +135,7 @@ export function WorkspaceApp() {
       return;
     }
     setDraftToastVisible(true);
-    const timer = globalThis.setTimeout(() => setDraftToastVisible(false), 3500);
+    const timer = globalThis.setTimeout(() => setDraftToastVisible(false), 4500);
     return () => globalThis.clearTimeout(timer);
   }, [state.draftRestored]);
 
@@ -144,7 +144,7 @@ export function WorkspaceApp() {
   const showDocumentNotice = useCallback((message: string) => {
     if (noticeTimeoutRef.current !== null) globalThis.clearTimeout(noticeTimeoutRef.current);
     setDocumentNotice(message);
-    noticeTimeoutRef.current = globalThis.setTimeout(() => setDocumentNotice(''), 2600);
+    noticeTimeoutRef.current = globalThis.setTimeout(() => setDocumentNotice(''), 4500);
   }, []);
 
   useEffect(() => {

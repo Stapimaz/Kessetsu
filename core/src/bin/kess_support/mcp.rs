@@ -11,7 +11,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-const PROTOCOL_VERSIONS: &[&str] = &["2025-06-18", "2025-03-26", "2024-11-05"];
+const PROTOCOL_VERSIONS: &[&str] = &["2025-11-25", "2025-06-18"];
+const DEFAULT_PROTOCOL_VERSION: &str = "2025-06-18";
 const GUIDE: &str = include_str!("../../../../docs/guides/agent-workflow.md");
 const INSTRUCTIONS: &str = "Kessetsu verifies analog circuits. Workflow: (1) write measurable requirements as .kessreq assertion lines before designing; (2) write readable .kess source (or a supported SPICE netlist) with named nets; (3) kessetsu_check and fix ERC errors; (4) kessetsu_test with the unchanged requirements and iterate on the design only; (5) kessetsu_render_schematic for human review; (6) kessetsu_export for handoff; (7) report the PASS table and assumptions honestly. Call kessetsu_guide once for syntax and metrics.";
 
@@ -72,11 +73,11 @@ fn initialize(params: &Value) -> Value {
     let requested = params
         .get("protocolVersion")
         .and_then(Value::as_str)
-        .unwrap_or(PROTOCOL_VERSIONS[0]);
+        .unwrap_or(DEFAULT_PROTOCOL_VERSION);
     let version = if PROTOCOL_VERSIONS.contains(&requested) {
         requested
     } else {
-        PROTOCOL_VERSIONS[0]
+        DEFAULT_PROTOCOL_VERSION
     };
     json!({
         "protocolVersion": version,
@@ -120,7 +121,12 @@ fn tool(name: &str, title: &str, description: &str, extra: Value, required: &[&s
         "name": name,
         "title": title,
         "description": description,
-        "inputSchema": { "type": "object", "properties": properties, "required": required },
+        "inputSchema": {
+            "type": "object",
+            "properties": properties,
+            "required": required,
+            "additionalProperties": false
+        },
     })
 }
 
@@ -130,13 +136,13 @@ fn tool_definitions() -> Vec<Value> {
             "name": "kessetsu_guide",
             "title": "Kessetsu design workflow and syntax",
             "description": "Returns the disciplined agent workflow, .kess syntax, .kessreq requirement syntax and metric list. Call once before designing.",
-            "inputSchema": { "type": "object", "properties": {} },
+            "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false },
         }),
         json!({
             "name": "kessetsu_capabilities",
             "title": "Installed Kessetsu capabilities",
             "description": "Versioned manifest of commands, contracts, metrics, exports and limits of this installed build.",
-            "inputSchema": { "type": "object", "properties": {} },
+            "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false },
         }),
         tool(
             "kessetsu_check",
@@ -212,7 +218,8 @@ fn tool_definitions() -> Vec<Value> {
                 "properties": {
                     "netlist": { "type": "string", "description": "SPICE netlist text." },
                     "path": { "type": "string", "description": "Path to a SPICE file instead of 'netlist'." }
-                }
+                },
+                "additionalProperties": false
             },
         }),
     ]
@@ -362,6 +369,11 @@ fn circuit_source(arguments: &Value) -> Result<(String, String), String> {
     if !matches!(input.as_str(), "auto" | "kess" | "spice") {
         return Err(format!("input must be auto, kess or spice, not '{input}'"));
     }
+    if arguments.get("source").and_then(Value::as_str).is_some()
+        && arguments.get("path").and_then(Value::as_str).is_some()
+    {
+        return Err("provide either 'source' or 'path', not both".into());
+    }
     if let Some(source) = arguments.get("source").and_then(Value::as_str) {
         return Ok((source.to_string(), input));
     }
@@ -437,6 +449,14 @@ impl Drop for TempDir {
 }
 
 fn test_command(arguments: &Value) -> Result<CliOutput, String> {
+    if arguments.get("requirements").and_then(Value::as_str).is_some()
+        && arguments
+            .get("requirements_path")
+            .and_then(Value::as_str)
+            .is_some()
+    {
+        return Err("provide either 'requirements' or 'requirements_path', not both".into());
+    }
     let temp = TempDir::new()?;
     let mut extra = Vec::new();
     let requirements_path = if let Some(text) =
@@ -575,6 +595,11 @@ fn export_command(arguments: &Value) -> Result<Value, (i64, String)> {
 }
 
 fn import_command(arguments: &Value) -> Result<CliOutput, String> {
+    if arguments.get("netlist").and_then(Value::as_str).is_some()
+        && arguments.get("path").and_then(Value::as_str).is_some()
+    {
+        return Err("provide either 'netlist' or 'path', not both".into());
+    }
     let netlist = if let Some(text) = arguments.get("netlist").and_then(Value::as_str) {
         text.to_string()
     } else if let Some(path) = arguments.get("path").and_then(Value::as_str) {
@@ -637,11 +662,25 @@ mod tests {
     fn initialize_negotiates_known_protocol() {
         let response = handle_message(&json!({
             "jsonrpc": "2.0", "id": 1, "method": "initialize",
+            "params": { "protocolVersion": "2025-06-18" }
+        }))
+        .unwrap();
+        assert_eq!(response["result"]["protocolVersion"], "2025-06-18");
+        assert_eq!(response["result"]["serverInfo"]["name"], "kessetsu");
+
+        let modern = handle_message(&json!({
+            "jsonrpc": "2.0", "id": 2, "method": "initialize",
+            "params": { "protocolVersion": "2025-11-25" }
+        }))
+        .unwrap();
+        assert_eq!(modern["result"]["protocolVersion"], "2025-11-25");
+
+        let legacy_fallback = handle_message(&json!({
+            "jsonrpc": "2.0", "id": 3, "method": "initialize",
             "params": { "protocolVersion": "2025-03-26" }
         }))
         .unwrap();
-        assert_eq!(response["result"]["protocolVersion"], "2025-03-26");
-        assert_eq!(response["result"]["serverInfo"]["name"], "kessetsu");
+        assert_eq!(legacy_fallback["result"]["protocolVersion"], "2025-06-18");
     }
 
     #[test]

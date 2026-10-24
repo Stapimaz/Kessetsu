@@ -210,7 +210,7 @@ fn mcp_stdio_serves_initialize_tools_and_circuit_verification() {
             "jsonrpc": "2.0",
             "id": 1,
             "method": "initialize",
-            "params": { "protocolVersion": "2025-03-26" }
+            "params": { "protocolVersion": "2025-06-18" }
         })
         .to_string(),
         serde_json::json!({

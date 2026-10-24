@@ -14,6 +14,7 @@ test('loaded amplifier AC gain and both cutoff edges match native measurements',
   const fragment = await encodeShareFragment(source, 'kessetsu.compile.v5', null, 'AC-coupled amplifier');
   await page.goto(`/${fragment}`);
   await expect(page.getByTestId('compile-success')).toBeVisible();
+  await page.getByRole('button', { name: 'Focus simulation view' }).click();
   await page.getByRole('button', { name: 'Run simulation', exact: true }).click();
   const summary = page.getByTestId('simulation-summary');
   await expect(summary).toHaveAttribute('data-state', 'succeeded', { timeout: 60_000 });
