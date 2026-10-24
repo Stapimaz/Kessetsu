@@ -79,10 +79,7 @@ pub fn parse_wrdata(analysis: &Analysis, input: &str) -> Result<Dataset, Simulat
     let Some((header_line, header)) = lines.next() else {
         return Err(parse_error_without_line("wrdata output is empty"));
     };
-    let headers = header
-        .split_whitespace()
-        .map(canonical_vector_name)
-        .collect::<Vec<_>>();
+    let headers = parse_wrdata_headers(header);
     if headers.len() < 2 {
         return Err(parse_error(
             header_line,
@@ -323,6 +320,32 @@ fn ensure_axis_order(
         )));
     }
     Ok(())
+}
+
+fn parse_wrdata_headers(header: &str) -> Vec<String> {
+    let raw_tokens = header
+        .split_whitespace()
+        .map(canonical_vector_name)
+        .collect::<Vec<_>>();
+    let mut headers = Vec::with_capacity(raw_tokens.len());
+    let mut index = 0;
+    while index < raw_tokens.len() {
+        // Ngspice < 43 names the VDMOS internal body-diode node `<device>#body diode`
+        // with a literal space in `wrdata` headers, whereas Ngspice >= 43 names it
+        // `<device>#body_diode`. Canonicalize both to `<device>#body_diode`.
+        if raw_tokens[index].ends_with("#body")
+            && raw_tokens
+                .get(index + 1)
+                .is_some_and(|next| next == "diode")
+        {
+            headers.push(format!("{}_diode", raw_tokens[index]));
+            index += 2;
+        } else {
+            headers.push(raw_tokens[index].clone());
+            index += 1;
+        }
+    }
+    headers
 }
 
 fn canonical_vector_name(name: &str) -> String {

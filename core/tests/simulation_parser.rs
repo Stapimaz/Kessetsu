@@ -162,3 +162,43 @@ fn simulator_log_classifier_separates_warning_convergence_and_fatal() {
     assert_eq!(diagnostics[2].kind, SimulatorDiagnosticKind::Fatal);
     assert_eq!(diagnostics[2].severity, SimulatorDiagnosticSeverity::Error);
 }
+
+#[test]
+fn wrdata_parser_canonicalizes_legacy_ngspice_vdmos_body_diode_headers() {
+    let legacy_op = "\
+ c @m_m1[id] @q_q1[ic] b c m_m1#body diode m_m1#gate v_vcc#branch v_vin#branch vcc vin
+ 6.026906e+00 1.956868e-30 5.973093e-03 7.013453e-01 6.026906e+00 8.026905e-14 7.013453e-01 -5.973093e-03 -2.986546e-05 1.200000e+01 1.000000e+00
+";
+    let modern_op = "\
+ c @m_m1[id] @q_q1[ic] b c m_m1#body_diode m_m1#gate v_vcc#branch v_vin#branch vcc vin
+ 6.026906e+00 1.956868e-30 5.973093e-03 7.013453e-01 6.026906e+00 8.026905e-14 7.013453e-01 -5.973093e-03 -2.986546e-05 1.200000e+01 1.000000e+00
+";
+    let parsed_legacy = parse_wrdata(&Analysis::OperatingPoint, legacy_op)
+        .expect("legacy Ngspice < 43 VDMOS OP wrdata should parse");
+    let parsed_modern = parse_wrdata(&Analysis::OperatingPoint, modern_op)
+        .expect("modern Ngspice >= 43 VDMOS OP wrdata should parse");
+    assert_eq!(parsed_legacy, parsed_modern);
+    let Dataset::OperatingPoint { values } = parsed_legacy else {
+        panic!("expected operating-point dataset");
+    };
+    assert_eq!(values["m_m1#body_diode"], 8.026905e-14);
+
+    let ac = Analysis::Ac {
+        scale: AcScale::Linear,
+        points: 2,
+        start: hertz(10.0),
+        stop: hertz(100.0),
+    };
+    let legacy_ac = "\
+ frequency m_m1#body diode m_m1#body diode out out
+ 10.0 1.0 -0.1 0.5 -0.05
+ 100.0 0.8 -0.2 0.4 -0.04
+";
+    let parsed_ac =
+        parse_wrdata(&ac, legacy_ac).expect("legacy Ngspice < 43 VDMOS AC wrdata should parse");
+    let Dataset::Ac(series) = parsed_ac else {
+        panic!("expected AC dataset");
+    };
+    assert_eq!(series.signals["m_m1#body_diode"].real, [1.0, 0.8]);
+    assert_eq!(series.signals["m_m1#body_diode"].imaginary, [-0.1, -0.2]);
+}
