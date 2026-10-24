@@ -11,7 +11,7 @@ parameter_expr = @{ (!NEWLINE ~ !"//" ~ ANY)+ }
 param_decl = { "param" ~ ident ~ ":" ~ ident ~ "=" ~ parameter_expr }
 
 // Components
-comp_type = { "resistor" | "capacitor" | "inductor" | "vcvs" | "vccs" | "ccvs" | "cccs" | "diode" | "mosfet" }
+comp_type = { "resistor" | "capacitor" | "inductor" | "vcvs" | "vccs" | "ccvs" | "cccs" | "diode" | "mosfet" | "switch" }
 polarity = { ^"npn" | ^"pnp" }
 transistor_decl = { "transistor" ~ ident ~ polarity? ~ comp_value? }
 standard_decl = { comp_type ~ ident ~ numeric_value? }
@@ -52,7 +52,7 @@ sim_cmd = { "simulate" ~ ident ~ numeric_value* }
 // Typed model/subcircuit declarations. Values are parsed and validated by semantic analysis;
 // they are never copied into SPICE as raw directives.
 named_value = { ident ~ "=" ~ comp_value }
-model_kind = { "diode" | "bjt" | "mosfet" }
+model_kind = { "diode" | "bjt" | "mosfet" | "switch" }
 model_polarity = { ^"npn" | ^"pnp" | ^"nmos" | ^"pmos" }
 model_decl = { "model" ~ model_kind ~ ident ~ model_polarity? ~ named_value+ }
 subcircuit_kind = { "opamp" }

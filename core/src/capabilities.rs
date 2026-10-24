@@ -148,6 +148,7 @@ pub fn capability_manifest(cli_schema_version: &str) -> CapabilityManifest {
                 "diode",
                 "transistor",
                 "mosfet",
+                "switch",
                 "opamp",
                 "device",
                 "source",

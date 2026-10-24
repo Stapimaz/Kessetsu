@@ -10,6 +10,7 @@ pub enum ComponentType {
     Diode,
     Transistor,
     Mosfet,
+    Switch,
     OpAmp,
     ExternalDevice,
     ModulePort,
@@ -153,6 +154,7 @@ pub enum ModelDeclKind {
     Diode,
     BJT,
     MOSFET,
+    Switch,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -100,6 +100,7 @@ pub enum ComponentKind {
     Diode,
     BJT(BJTPolarity),
     MOSFET(FETPolarity),
+    Switch,
     OpAmp,
     ExternalDevice(ExternalDeviceFamily),
     VoltageSource,
@@ -145,6 +146,7 @@ pub enum ComponentParams {
         polarity: FETPolarity,
     },
     DiodeParams,
+    SwitchParams,
     OpAmpParams,
     ExternalDeviceParams,
     VoltageSource {
@@ -458,7 +460,11 @@ fn split_number_and_suffix(input: &str) -> Result<(&str, &str), String> {
 }
 
 fn parse_unit_suffix(suffix: &str) -> Result<(f64, Option<SIUnit>), String> {
-    let (factor, unit_text) = if let Some(rest) = suffix.strip_prefix("meg") {
+    let (factor, unit_text) = if let Some(rest) = suffix
+        .strip_prefix("meg")
+        .or_else(|| suffix.strip_prefix("Meg"))
+        .or_else(|| suffix.strip_prefix("MEG"))
+    {
         (1e6, rest)
     } else if let Some(rest) = suffix.strip_prefix('T') {
         (1e12, rest)
@@ -1290,6 +1296,33 @@ pub fn ast_to_ir_with_resources(
                         }
                         model = Some(resolved);
                         (ComponentKind::Diode, ComponentParams::DiodeParams)
+                    }
+                    ComponentType::Switch => {
+                        let requested_model = if val_str.is_empty() {
+                            "KESSETSU_SW_V1"
+                        } else {
+                            val_str
+                        };
+                        let resolved = model_library.resolve(requested_model).ok_or_else(|| {
+                            semantic_error(
+                                "KES-C003",
+                                format!(
+                                    "unsupported switch model '{requested_model}'; declare it with 'model switch {requested_model} ...' or use 'KESSETSU_SW_V1'"
+                                ),
+                                Some(&decl.name),
+                                Some("model"),
+                            )
+                        })?;
+                        if resolved.kind != ComponentKind::Switch {
+                            return Err(semantic_error(
+                                "KES-C004",
+                                format!("model '{requested_model}' is not a switch model"),
+                                Some(&decl.name),
+                                Some("model"),
+                            ));
+                        }
+                        model = Some(resolved);
+                        (ComponentKind::Switch, ComponentParams::SwitchParams)
                     }
                     ComponentType::OpAmp => {
                         let requested_model = if val_str.is_empty() {

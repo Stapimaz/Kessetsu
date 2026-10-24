@@ -252,6 +252,9 @@ pub const MOSFET_MODEL_PARAMETERS: &[&str] = &[
     "af", "cgd", "cgs",
 ];
 
+/// SPICE voltage-controlled switch parameters accepted by typed user models.
+pub const SWITCH_MODEL_PARAMETERS: &[&str] = &["vt", "vh", "ron", "roff"];
+
 fn compile_user_model(declaration: &ModelDecl) -> Result<ModelRef, SemanticDiagnostic> {
     let (metadata, parameters) = split_metadata(&declaration.parameters, &declaration.name)?;
     let (kind, spice_kind, allowed): (ComponentKind, &str, &[&str]) = match declaration.kind {
@@ -326,6 +329,17 @@ fn compile_user_model(declaration: &ModelDecl) -> Result<ModelRef, SemanticDiagn
                 ));
             }
         }
+        ModelDeclKind::Switch => {
+            if declaration.polarity.is_some() {
+                return Err(error(
+                    "KES-C010",
+                    "switch models do not accept polarity",
+                    Some(&declaration.name),
+                    "polarity",
+                ));
+            }
+            (ComponentKind::Switch, "SW", SWITCH_MODEL_PARAMETERS)
+        }
     };
     let parameters = canonical_parameters(&parameters, allowed, &declaration.name)?;
     if parameters.is_empty() {
@@ -335,6 +349,18 @@ fn compile_user_model(declaration: &ModelDecl) -> Result<ModelRef, SemanticDiagn
             Some(&declaration.name),
             "parameters",
         ));
+    }
+    if kind == ComponentKind::Switch {
+        for (param_name, param_val) in &parameters {
+            if (param_name == "ron" || param_name == "roff") && *param_val <= 0.0 {
+                return Err(error(
+                    "KES-C010",
+                    "switch model ron and roff must be positive",
+                    Some(&declaration.name),
+                    param_name,
+                ));
+            }
+        }
     }
     let body = parameters
         .iter()
@@ -1105,6 +1131,12 @@ fn builtin_models() -> Vec<ModelRef> {
             ComponentKind::MOSFET(FETPolarity::PMOS),
             ".model KESSETSU_PMOS_V1 PMOS (Level=1 Vto=-4 Kp=8 Lambda=0.02 Rd=0.2 Rs=0.05)",
             "1.0.1",
+        ),
+        verified_device_model(
+            "KESSETSU_SW_V1",
+            ComponentKind::Switch,
+            ".model KESSETSU_SW_V1 SW (vt=0.5 vh=0 ron=1 roff=1000000)",
+            "1.0.0",
         ),
         subcircuit_model(
             "KESSETSU_OPAMP_V1",

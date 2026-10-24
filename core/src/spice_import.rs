@@ -89,6 +89,7 @@ enum ImportedKind {
         model: String,
     },
     Mosfet(String),
+    Switch(String),
     OpAmp(String),
     Vcvs(String),
     Vccs(String),
@@ -199,6 +200,7 @@ const BUILTIN_MODEL_NAMES: &[&str] = &[
     "KESSETSU_POWER_NPN_V1",
     "KESSETSU_POWER_PNP_V1",
     "KESSETSU_PMOS_V1",
+    "KESSETSU_SW_V1",
     "KESSETSU_OPAMP_V1",
     "KESSETSU_OPAMP_V2",
 ];
@@ -232,6 +234,7 @@ enum InlineModelKind {
     Diode,
     Bjt(&'static str),
     Mosfet(&'static str),
+    Switch,
 }
 
 #[derive(Debug, Clone)]
@@ -675,7 +678,8 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
         .filter_map(|component| match &component.kind {
             ImportedKind::Diode(model)
             | ImportedKind::Bjt { model, .. }
-            | ImportedKind::Mosfet(model) => Some(model.clone()),
+            | ImportedKind::Mosfet(model)
+            | ImportedKind::Switch(model) => Some(model.clone()),
             _ => None,
         })
         .collect::<BTreeSet<_>>();
@@ -1465,6 +1469,7 @@ fn render_component_declaration(component: &ImportedComponent, name: &str) -> St
             format!("transistor {name} {polarity} {model}")
         }
         ImportedKind::Mosfet(model) => format!("mosfet {name} {model}"),
+        ImportedKind::Switch(model) => format!("switch {name} {model}"),
         ImportedKind::OpAmp(model) => format!("opamp {name} {model}"),
         ImportedKind::Vcvs(value) => format!("vcvs {name} {value}"),
         ImportedKind::Vccs(value) => format!("vccs {name} {value}"),
@@ -1918,6 +1923,43 @@ fn parse_component(
                 } else {
                     ImportedKind::Ccvs(value)
                 },
+                line,
+            })
+        }
+        'S' => {
+            if fields.len() != 6
+                && !(fields.len() == 7
+                    && matches!(fields[6].to_ascii_uppercase().as_str(), "ON" | "OFF"))
+            {
+                return Err("S expects name, p1, p2, ctrl_p, ctrl_n and model".into());
+            }
+            let model = match models.get(&fields[5].to_ascii_lowercase()) {
+                Some(InlineModel {
+                    kind: InlineModelKind::Switch,
+                    mapped,
+                    ..
+                }) => mapped.clone(),
+                Some(inline) => {
+                    return Err(format!(
+                        "switch '{name}' references non-switch model '{}'",
+                        inline.original
+                    ));
+                }
+                None if fields[5].eq_ignore_ascii_case("KESSETSU_SW_V1") => {
+                    "KESSETSU_SW_V1".to_string()
+                }
+                None => {
+                    return Err(format!(
+                        "switch model '{}' is neither built in nor defined by an inline .model SW card",
+                        fields[5]
+                    ));
+                }
+            };
+            Ok(ImportedComponent {
+                original_name: name.clone(),
+                nodes: fields[1..5].to_vec(),
+                pins: &["p1", "p2", "ctrl_p", "ctrl_n"],
+                kind: ImportedKind::Switch(model),
                 line,
             })
         }
@@ -2770,10 +2812,11 @@ fn parse_inline_model(
         "PNP" => InlineModelKind::Bjt("pnp"),
         "NMOS" => InlineModelKind::Mosfet("nmos"),
         "PMOS" => InlineModelKind::Mosfet("pmos"),
+        "SW" => InlineModelKind::Switch,
         "" => return Err(format!("model '{original}' has no model type")),
         other => {
             return Err(format!(
-                "model '{original}' type '{other}' is outside the typed subset (D, NPN, PNP, NMOS, PMOS)"
+                "model '{original}' type '{other}' is outside the typed subset (D, NPN, PNP, NMOS, PMOS, SW)"
             ));
         }
     };
@@ -2788,6 +2831,7 @@ fn parse_inline_model(
         InlineModelKind::Diode => crate::models::DIODE_MODEL_PARAMETERS,
         InlineModelKind::Bjt(_) => crate::models::BJT_MODEL_PARAMETERS,
         InlineModelKind::Mosfet(_) => crate::models::MOSFET_MODEL_PARAMETERS,
+        InlineModelKind::Switch => crate::models::SWITCH_MODEL_PARAMETERS,
     };
     let mut parameters = Vec::new();
     let mut dropped = Vec::new();
@@ -2797,7 +2841,7 @@ fn parse_inline_model(
             format!("model '{original}' parameter '{assignment}' is not a NAME=value assignment")
         })?;
         let key = key.to_ascii_lowercase();
-        if DESCRIPTIVE_MODEL_FIELDS.contains(&key.as_str()) {
+        if !allowed.contains(&key.as_str()) && DESCRIPTIVE_MODEL_FIELDS.contains(&key.as_str()) {
             dropped.push(key);
             continue;
         }
@@ -2897,6 +2941,7 @@ fn render_inline_model(model: &InlineModel) -> String {
         InlineModelKind::Diode => ("diode", String::new()),
         InlineModelKind::Bjt(polarity) => ("bjt", format!(" {polarity}")),
         InlineModelKind::Mosfet(polarity) => ("mosfet", format!(" {polarity}")),
+        InlineModelKind::Switch => ("switch", String::new()),
     };
     let parameters = model
         .parameters

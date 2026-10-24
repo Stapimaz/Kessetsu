@@ -20,10 +20,16 @@ describe('Kessetsu editor language support', () => {
     const labels = topLevelCompletions.map((item) => item.label);
     expect(labels).toEqual(expect.arrayContaining([
       'param', 'net', 'source', 'current_source', 'resistor', 'capacitor', 'inductor',
-      'vcvs', 'vccs', 'ccvs', 'cccs',
+      'vcvs', 'vccs', 'ccvs', 'cccs', 'switch',
       'diode', 'transistor', 'mosfet', 'opamp', 'connect', 'simulate', 'assert',
       'model_include', 'model', 'subcircuit', 'external_subcircuit', 'module', 'use',
     ]));
+    expect(topLevelCompletions.find((item) => item.label === 'switch')?.insertText)
+      .toBe('switch ${1:S1} ${2:KESSETSU_SW_V1}');
+    expect(topLevelCompletions.find((item) => item.label === 'model')?.insertText)
+      .toBe('model ${1|diode,bjt,mosfet,switch|} ${2:ModelName} ${3:version=1.0.0} ${4:license=MIT}');
+    expect(topLevelCompletions.find((item) => item.label === 'model')?.detail)
+      .toBe('Declare an allowlisted typed diode, BJT, MOSFET, or switch model.');
     expect(topLevelCompletions.find((item) => item.label === 'mosfet')?.insertText)
       .toBe('mosfet ${1:M1} ${2:IRF540}');
     expect(topLevelCompletions.find((item) => item.label === 'vcvs')?.insertText)
@@ -147,6 +153,57 @@ describe('Kessetsu editor language support', () => {
       expect(numRegex.test('50uS')).toBe(true);
       expect(numRegex.test('2µS')).toBe(true);
       expect(numRegex.test('0.5S')).toBe(true);
+    });
+  });
+
+  describe('Voltage-controlled switch (switch)', () => {
+    it('defines COMPONENT_TYPES entry with expected details and documentation', () => {
+      expect(COMPONENT_TYPES.switch).toEqual(expect.objectContaining({
+        label: 'switch',
+        detail: 'switch <name> [model]',
+        documentation: 'Voltage-controlled switch (SPICE S). Pins: p1, p2, ctrl_p, ctrl_n.',
+        insertText: 'switch ${1:S1} ${2:KESSETSU_SW_V1}',
+      }));
+    });
+
+    it('defines 4-pin mapping in PIN_MAP for switch', () => {
+      expect(PIN_MAP.switch).toEqual(['p1', 'p2', 'ctrl_p', 'ctrl_n']);
+    });
+
+    it('extracts declarations for switch', () => {
+      const sourceCode = `
+        switch S1 KESSETSU_SW_V1
+        resistor R1 1k
+      `;
+      const decls = extractDeclarations(sourceCode);
+      expect(decls.get('S1')).toBe('switch');
+      expect(decls.get('R1')).toBe('resistor');
+    });
+
+    it('provides pin completions for connect statements with switch', () => {
+      const code = `
+        switch S1 KESSETSU_SW_V1
+        resistor R1 1k
+      `;
+      const decls = extractDeclarations(code);
+      const pins = getPinCompletions('S1', decls).map((c) => c.label);
+      expect(pins).toEqual(['p1', 'p2', 'ctrl_p', 'ctrl_n']);
+
+      const pinCompletions = completionsForLine('connect S1.', code);
+      expect(pinCompletions.map((c) => c.label)).toEqual(['p1', 'p2', 'ctrl_p', 'ctrl_n']);
+
+      const targetPinCompletions = completionsForLine('connect R1.p1 to S1.', code);
+      expect(targetPinCompletions.map((c) => c.label)).toEqual(['p1', 'p2', 'ctrl_p', 'ctrl_n']);
+    });
+
+    it('includes switch in componentTypes and monarch token provider', () => {
+      expect(componentTypes).toContain('switch');
+
+      const rootRules = kessetsuLanguageDefinition.tokenizer.root as Array<[RegExp, string]>;
+      const typeRule = rootRules.find((rule) => Array.isArray(rule) && rule[1] === 'type');
+      expect(typeRule).toBeDefined();
+      const typeRegex = typeRule![0];
+      expect(typeRegex.test('switch')).toBe(true);
     });
   });
 });

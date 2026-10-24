@@ -1065,6 +1065,10 @@ fn current_signal(
             "dependent current source terminal currents require an explicit measurement source; use a series 0 V source"
                 .to_string(),
         ),
+        ComponentKind::Switch => Err(
+            "switch terminal currents require an explicit measurement source; use a series 0 V source"
+                .to_string(),
+        ),
         ComponentKind::ExternalDevice(_) => Err("external subcircuit terminal currents require an explicit measurement source; use a series 0 V source".to_string()),
         ComponentKind::ModulePort => Err("module ports have no device current".to_string()),
     }
@@ -1090,7 +1094,8 @@ fn device_voltage_pins(component: &IRComponent) -> Result<(&'static str, &'stati
         ComponentKind::Resistor
         | ComponentKind::Capacitor
         | ComponentKind::Inductor
-        | ComponentKind::Diode => ("p1", "p2"),
+        | ComponentKind::Diode
+        | ComponentKind::Switch => ("p1", "p2"),
         ComponentKind::VoltageSource | ComponentKind::CurrentSource => ("plus", "minus"),
         ComponentKind::BJT(_) => ("c", "e"),
         ComponentKind::MOSFET(_) => ("d", "s"),
@@ -1278,6 +1283,7 @@ fn spice_instance_name(component: &IRComponent) -> String {
         ComponentKind::Capacitor => "c",
         ComponentKind::Inductor => "l",
         ComponentKind::Diode => "d",
+        ComponentKind::Switch => "s",
         ComponentKind::BJT(_) => "q",
         ComponentKind::MOSFET(_) => "m",
         ComponentKind::OpAmp | ComponentKind::ExternalDevice(_) => "x",

@@ -34,7 +34,8 @@ fn symbol_width(symbol: CatalogSymbol) -> f32 {
         | CatalogSymbol::Vcvs
         | CatalogSymbol::Vccs
         | CatalogSymbol::Ccvs
-        | CatalogSymbol::Cccs => 2.0,
+        | CatalogSymbol::Cccs
+        | CatalogSymbol::Switch => 2.0,
         CatalogSymbol::Bjt | CatalogSymbol::Mosfet | CatalogSymbol::OpAmp => 3.0,
     }
 }
@@ -308,6 +309,39 @@ fn symbol_markup(component: &SchematicComponent) -> String {
             };
 
             format!("{control_markup}{diamond}{inside_markup}")
+        }
+        CatalogSymbol::Switch => {
+            let two = local(2.0);
+            let c_x = local(0.35);
+            let c_top = local(0.55);
+            let c_bot = local(1.45);
+            let plus_y = local(0.72);
+            let minus_y = local(1.28);
+            let delta = local(0.08);
+            let control_path = format!(
+                "<path {stroke} d=\"M 0 0 H {c_x} V {c_top} M 0 {two} H {c_x} V {c_bot} M {} {plus_y} H {} M {c_x} {} V {} M {} {minus_y} H {}\"/>",
+                c_x - delta,
+                c_x + delta,
+                plus_y - delta,
+                plus_y + delta,
+                c_x - delta,
+                c_x + delta
+            );
+            let mid_y = local(1.0);
+            let blade_pivot_x = local(1.45);
+            let blade_pivot_y = local(1.45);
+            let blade_tip_x = local(1.18);
+            let blade_tip_y = local(0.62);
+            let sw_top = local(0.55);
+            let r_c = local(0.06);
+
+            let dash_link = format!(
+                "<path stroke=\"#172033\" stroke-width=\"1.5\" stroke-dasharray=\"2,2\" fill=\"none\" d=\"M {c_x} {mid_y} H {blade_tip_x}\"/>"
+            );
+            let contacts_and_blade = format!(
+                "<path {stroke} d=\"M {two} 0 H {blade_pivot_x} V {sw_top} M {two} {two} H {blade_pivot_x} V {blade_pivot_y} M {blade_pivot_x} {blade_pivot_y} L {blade_tip_x} {blade_tip_y}\"/><circle cx=\"{blade_pivot_x}\" cy=\"{sw_top}\" r=\"{r_c}\" fill=\"#ffffff\" stroke=\"#172033\" stroke-width=\"2\"/><circle cx=\"{blade_pivot_x}\" cy=\"{blade_pivot_y}\" r=\"{r_c}\" fill=\"#ffffff\" stroke=\"#172033\" stroke-width=\"2\"/>"
+            );
+            format!("{control_path}{dash_link}{contacts_and_blade}")
         }
     }
 }

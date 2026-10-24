@@ -474,6 +474,17 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
                     comp.id, nets[0], nets[1], nets[2], nets[2], value_str
                 ));
             }
+            ComponentKind::Switch => {
+                let model_name = comp
+                    .model
+                    .as_ref()
+                    .map(|model| model.name.as_str())
+                    .unwrap_or("KESSETSU_SW_V1");
+                spice.push_str(&format!(
+                    "S_{} {} {} {} {} {}\n",
+                    comp.id, nets[0], nets[1], nets[2], nets[3], model_name
+                ));
+            }
             ComponentKind::OpAmp => {
                 let prefix = if comp.model.as_ref().is_some_and(|model| {
                     matches!(model.definition, ModelDefinition::ExternalSubcircuit { .. })

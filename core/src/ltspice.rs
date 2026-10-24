@@ -34,6 +34,12 @@ const DEPENDENT_SOURCE: &[(&str, i32, i32)] = &[
     ("p_out", 0, 16),
     ("n_out", 0, 96),
 ];
+const SWITCH_PINS: &[(&str, i32, i32)] = &[
+    ("p1", 0, 16),
+    ("p2", 0, 96),
+    ("ctrl_p", -48, 16),
+    ("ctrl_n", -48, 96),
+];
 
 fn symbol(component: &SchematicComponent) -> Result<LtSymbol, ExportError> {
     let symbol = match component.symbol {
@@ -94,6 +100,10 @@ fn symbol(component: &SchematicComponent) -> Result<LtSymbol, ExportError> {
         CatalogSymbol::Vccs | CatalogSymbol::Cccs => LtSymbol {
             name: "g",
             pins: DEPENDENT_SOURCE,
+        },
+        CatalogSymbol::Switch => LtSymbol {
+            name: "sw",
+            pins: SWITCH_PINS,
         },
         CatalogSymbol::ModulePort => {
             return Err(ExportError {
@@ -599,6 +609,7 @@ pub fn generate_ltspice_asc(
             CatalogSymbol::Vccs => Some('G'),
             CatalogSymbol::Ccvs => Some('H'),
             CatalogSymbol::Cccs => Some('F'),
+            CatalogSymbol::Switch => Some('S'),
             _ => None,
         };
         let instance = match source_prefix {

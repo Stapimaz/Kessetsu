@@ -25,6 +25,7 @@ export const componentTypes = [
   'vccs',
   'ccvs',
   'cccs',
+  'switch',
 ] as const;
 
 export type ComponentType = (typeof componentTypes)[number];
@@ -45,12 +46,13 @@ export const topLevelCompletions: readonly KessetsuCompletion[] = [
   { label: 'transistor', detail: 'Declare a BJT; an optional polarity hint must match its model.', insertText: 'transistor ${1:Q1} ${2:npn} ${3:2N3904}' },
   { label: 'mosfet', detail: 'Declare a MOSFET; polarity is determined by its model.', insertText: 'mosfet ${1:M1} ${2:IRF540}' },
   { label: 'opamp', detail: 'Declare a five-pin typed op-amp.', insertText: 'opamp ${1:U1} ${2:KESSETSU_OPAMP_V1}' },
+  { label: 'switch', detail: 'Voltage-controlled switch (SPICE S). Pins: p1, p2, ctrl_p, ctrl_n.', documentation: 'Voltage-controlled switch (SPICE S). Pins: p1, p2, ctrl_p, ctrl_n.', insertText: 'switch ${1:S1} ${2:KESSETSU_SW_V1}' },
   { label: 'part', detail: 'Attach physical identity, handoff data and optional condition-qualified provided limits without changing the simulation model.', insertText: 'part ${1:R1} manufacturer="${2:manufacturer}" mpn="${3:part number}" ${4:average_dissipation_limit="0.1W" average_dissipation_conditions="Ambient and derating conditions"}' },
   { label: 'connect', detail: 'Connect one or more canonical pins to a pin or named net.', insertText: 'connect ${1:VIN.plus} to ${2:IN}' },
   { label: 'simulate', detail: 'Add an OP, transient, AC, or DC analysis.', insertText: 'simulate ${1|op,tran,ac,dc|}' },
   { label: 'assert', detail: 'Add a design-owned engineering check; threshold and supported numeric metric arguments accept {expression}. Independent .kessreq limits stay literal.', insertText: 'assert ${1:peak}(${2:V(OUT)}) ${3:<} ${4:5V}' },
   { label: 'model_include', detail: 'Resolve an exact Kessetsu model package version.', insertText: 'model_include ${1:kessetsu_analog} ${2:1.0.0}' },
-  { label: 'model', detail: 'Declare an allowlisted typed diode, BJT, or MOSFET model.', insertText: 'model ${1|diode,bjt,mosfet|} ${2:ModelName} ${3:version=1.0.0} ${4:license=MIT}' },
+  { label: 'model', detail: 'Declare an allowlisted typed diode, BJT, MOSFET, or switch model.', insertText: 'model ${1|diode,bjt,mosfet,switch|} ${2:ModelName} ${3:version=1.0.0} ${4:license=MIT}' },
   { label: 'subcircuit', detail: 'Declare a safe parameterized op-amp subcircuit.', insertText: 'subcircuit opamp ${1:SafeOp} (in_p,in_n,vcc,vee,out) version=${2:1.0.0} license=${3:MIT} gain=${4:100k} bandwidth=${5:2MHz}' },
   { label: 'external_subcircuit', detail: 'Bind an exact local subcircuit by hash; optionally expose existing header parameters through a typed allowlist.', insertText: 'external_subcircuit opamp ${1:OPA197} (in_p,in_n,vcc,vee,out) file="${2:models/model.lib}" entry=${3:OPA197} sha256=${4:64_hex_digest} version="${5:version}" license="${6:vendor terms}" source="${7:source URL}" simulator=${8|ngspice,ngspice_ps|} redistribution=${9|prohibited,permitted|}' },
   { label: 'module', detail: 'Define reusable topology that is flattened before Circuit IR.', insertText: 'module ${1:divider}(${2:input},${3:output}) {\n\t${4:// declarations and connections}\n}' },

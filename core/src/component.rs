@@ -24,6 +24,7 @@ pub enum CatalogSymbol {
     CurrentSource,
     ModulePort,
     ExternalTwoTerminal,
+    Switch,
     Vcvs,
     Vccs,
     Ccvs,
@@ -41,6 +42,7 @@ pub const fn symbol_ink_bounds_eighths(symbol: CatalogSymbol) -> (i32, i32, i32,
         CatalogSymbol::VoltageSource | CatalogSymbol::CurrentSource => (0, -5, 16, 5),
         CatalogSymbol::Bjt
         | CatalogSymbol::Mosfet
+        | CatalogSymbol::Switch
         | CatalogSymbol::Vcvs
         | CatalogSymbol::Vccs
         | CatalogSymbol::Ccvs
@@ -281,6 +283,41 @@ const DEPENDENT_SOURCE_PINS: &[PinDefinition] = &[
     },
 ];
 
+const SWITCH_PINS: &[PinDefinition] = &[
+    PinDefinition {
+        name: "p1",
+        x: 2,
+        y: 0,
+        is_signal: false,
+        flow: PinFlow::Conduction,
+        side: PinSide::Right,
+    },
+    PinDefinition {
+        name: "p2",
+        x: 2,
+        y: 2,
+        is_signal: false,
+        flow: PinFlow::Conduction,
+        side: PinSide::Right,
+    },
+    PinDefinition {
+        name: "ctrl_p",
+        x: 0,
+        y: 0,
+        is_signal: true,
+        flow: PinFlow::Input,
+        side: PinSide::Left,
+    },
+    PinDefinition {
+        name: "ctrl_n",
+        x: 0,
+        y: 2,
+        is_signal: false,
+        flow: PinFlow::Reference,
+        side: PinSide::Left,
+    },
+];
+
 pub fn component_definition(kind: &ComponentKind) -> ComponentDefinition {
     match kind {
         ComponentKind::Resistor => {
@@ -338,6 +375,9 @@ pub fn component_definition(kind: &ComponentKind) -> ComponentDefinition {
             height: 2,
             pins: MODULE_PORT_PINS,
         },
+        ComponentKind::Switch => {
+            definition(CatalogSymbol::Switch, "Switch", "S", 2, 2, SWITCH_PINS)
+        }
         ComponentKind::Vcvs => definition(
             CatalogSymbol::Vcvs,
             "Vcvs",
@@ -436,6 +476,13 @@ pub fn through_pin(kind: &ComponentKind, entry_pin: &str) -> Option<&'static str
                 _ => None,
             }
         }
+        ComponentKind::Switch => match entry_pin {
+            "p1" => Some("p2"),
+            "p2" => Some("p1"),
+            "ctrl_p" => Some("ctrl_n"),
+            "ctrl_n" => Some("ctrl_p"),
+            _ => None,
+        },
         ComponentKind::ModulePort => None,
     }
 }

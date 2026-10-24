@@ -159,6 +159,7 @@ fn parse_model_decl(pair: pest::iterators::Pair<Rule>) -> ModelDecl {
         "diode" => ModelDeclKind::Diode,
         "bjt" => ModelDeclKind::BJT,
         "mosfet" => ModelDeclKind::MOSFET,
+        "switch" => ModelDeclKind::Switch,
         _ => unreachable!(),
     };
     let name = fields.next().unwrap().as_str().to_string();
@@ -288,6 +289,7 @@ fn parse_statement(
                         "cccs" => ComponentType::Cccs,
                         "diode" => ComponentType::Diode,
                         "mosfet" => ComponentType::Mosfet,
+                        "switch" => ComponentType::Switch,
                         _ => unreachable!(),
                     };
                     let name = inner_rules.next().unwrap().as_str().to_string();
