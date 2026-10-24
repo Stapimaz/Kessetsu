@@ -163,6 +163,7 @@ pub fn parameter_unit(text: &str) -> Option<SIUnit> {
         "ratio" => SIUnit::Ratio,
         "percent" => SIUnit::Percent,
         "deg" => SIUnit::Degree,
+        "S" | "Siemens" | "siemens" | "mho" => SIUnit::Siemens,
         _ => return None,
     })
 }
@@ -359,6 +360,7 @@ fn dimension(unit: SIUnit) -> Dimension {
         SIUnit::Watt => [1, 1, 0, 0],
         SIUnit::Joule => [1, 1, 1, 0],
         SIUnit::Degree => [0, 0, 0, 1],
+        SIUnit::Siemens => [-1, 1, 0, 0],
         SIUnit::Ratio | SIUnit::Percent => [0; 4],
     })
 }
@@ -372,7 +374,9 @@ fn scale(unit: SIUnit) -> f64 {
 }
 
 fn describe(dimension_value: Dimension) -> String {
-    for text in ["Ohm", "F", "H", "V", "A", "Hz", "s", "W", "ratio", "deg"] {
+    for text in [
+        "Ohm", "F", "H", "V", "A", "Hz", "s", "W", "S", "ratio", "deg",
+    ] {
         if dimension(parameter_unit(text).unwrap()) == dimension_value {
             return text.into();
         }
@@ -409,6 +413,12 @@ impl Value {
 
     fn into_quantity(self, expected: SIUnit) -> Result<Quantity, ExpressionError> {
         if self.dimension != dimension(expected) {
+            if expected == SIUnit::Second && self.dimension == dimension(SIUnit::Siemens) {
+                return Ok(Quantity {
+                    value: range(self.number / scale(expected), self.number != 0.0)?,
+                    unit: expected,
+                });
+            }
             return Err(error(
                 format!("Expected {expected:?}, got {}", describe(self.dimension)),
                 0,
@@ -504,6 +514,9 @@ impl Expression {
         }
         let actual = visit(&self.root, units)?;
         if actual != dimension(expected) {
+            if expected == SIUnit::Second && actual == dimension(SIUnit::Siemens) {
+                return Ok(());
+            }
             return Err(error(
                 format!("Expected {expected:?}, got {}", describe(actual)),
                 0,

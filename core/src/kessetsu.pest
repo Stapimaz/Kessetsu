@@ -11,7 +11,7 @@ parameter_expr = @{ (!NEWLINE ~ !"//" ~ ANY)+ }
 param_decl = { "param" ~ ident ~ ":" ~ ident ~ "=" ~ parameter_expr }
 
 // Components
-comp_type = { "resistor" | "capacitor" | "inductor" | "diode" | "mosfet" }
+comp_type = { "resistor" | "capacitor" | "inductor" | "vcvs" | "vccs" | "ccvs" | "cccs" | "diode" | "mosfet" }
 polarity = { ^"npn" | ^"pnp" }
 transistor_decl = { "transistor" ~ ident ~ polarity? ~ comp_value? }
 standard_decl = { comp_type ~ ident ~ numeric_value? }

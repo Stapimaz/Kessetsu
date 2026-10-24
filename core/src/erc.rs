@@ -140,6 +140,38 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
                 });
             }
         }
+        if matches!(comp.kind, ComponentKind::Vcvs | ComponentKind::Ccvs) {
+            let p_out = graph.get_net(&comp.id, "p_out");
+            let n_out = graph.get_net(&comp.id, "n_out");
+            if p_out.is_some() && p_out == n_out {
+                errors.push(ErcDiagnostic {
+                    code: "KES-E004".to_string(),
+                    severity: Severity::Error,
+                    message: format!(
+                        "Controlled voltage source '{}' has its output pins (p_out, n_out) shorted together.",
+                        comp.id
+                    ),
+                    component: Some(comp.id.clone()),
+                    pin: None,
+                });
+            }
+        }
+        if matches!(comp.kind, ComponentKind::Ccvs | ComponentKind::Cccs) {
+            let ctrl_p = graph.get_net(&comp.id, "ctrl_p");
+            let ctrl_n = graph.get_net(&comp.id, "ctrl_n");
+            if ctrl_p.is_some() && ctrl_p == ctrl_n {
+                errors.push(ErcDiagnostic {
+                    code: "KES-E004".to_string(),
+                    severity: Severity::Error,
+                    message: format!(
+                        "Current-controlled source '{}' has its current-sense pins (ctrl_p, ctrl_n) shorted together.",
+                        comp.id
+                    ),
+                    component: Some(comp.id.clone()),
+                    pin: None,
+                });
+            }
+        }
     }
 
     // 6. A physical net may have at most one user-facing name (KES-E007).

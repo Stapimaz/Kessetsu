@@ -13,6 +13,10 @@ pub enum ComponentType {
     OpAmp,
     ExternalDevice,
     ModulePort,
+    Vcvs,
+    Vccs,
+    Ccvs,
+    Cccs,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

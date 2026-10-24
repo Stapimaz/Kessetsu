@@ -105,6 +105,10 @@ pub enum ComponentKind {
     VoltageSource,
     CurrentSource,
     ModulePort,
+    Vcvs,
+    Vccs,
+    Ccvs,
+    Cccs,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -129,6 +133,9 @@ pub enum FETPolarity {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ComponentParams {
     TwoPinPassive {
+        value: Quantity,
+    },
+    DependentSource {
         value: Quantity,
     },
     BJTParams {
@@ -205,6 +212,7 @@ pub enum SIUnit {
     Ratio,
     Percent,
     Degree,
+    Siemens,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -480,7 +488,8 @@ fn parse_unit_suffix(suffix: &str) -> Result<(f64, Option<SIUnit>), String> {
         "V" | "v" => Some(SIUnit::Volt),
         "A" | "a" => Some(SIUnit::Ampere),
         "Hz" | "hz" | "HZ" => Some(SIUnit::Hertz),
-        "s" | "S" => Some(SIUnit::Second),
+        "s" => Some(SIUnit::Second),
+        "S" | "siemens" | "Siemens" | "mho" => Some(SIUnit::Siemens),
         "W" | "w" => Some(SIUnit::Watt),
         "J" | "j" => Some(SIUnit::Joule),
         "%" => Some(SIUnit::Percent),
@@ -516,7 +525,11 @@ pub(crate) fn parse_value(input: &str) -> Result<(f64, Option<SIUnit>), String> 
 
 pub fn parse_quantity(input: &str, expected_unit: SIUnit) -> Result<Quantity, String> {
     let (value, explicit_unit) = parse_value(input)?;
-    if let Some(actual_unit) = explicit_unit
+    let actual_unit = match explicit_unit {
+        Some(SIUnit::Siemens) if expected_unit == SIUnit::Second => Some(SIUnit::Second),
+        other => other,
+    };
+    if let Some(actual_unit) = actual_unit
         && actual_unit != expected_unit
     {
         return Err(format!(
@@ -960,6 +973,10 @@ pub fn ast_to_ir_with_resources(
                             | ComponentType::Inductor
                             | ComponentType::Source
                             | ComponentType::CurrentSource
+                            | ComponentType::Vcvs
+                            | ComponentType::Vccs
+                            | ComponentType::Ccvs
+                            | ComponentType::Cccs
                     )
                 {
                     return Err(semantic_error(
@@ -1342,6 +1359,82 @@ pub fn ast_to_ir_with_resources(
                         model = Some(resolved);
                         (kind, ComponentParams::ExternalDeviceParams)
                     }
+                    ComponentType::Vcvs => (
+                        ComponentKind::Vcvs,
+                        ComponentParams::DependentSource {
+                            value: numeric_value(
+                                val_str,
+                                decl.value_expression.as_ref(),
+                                SIUnit::Ratio,
+                                "value",
+                            )
+                            .map_err(|error| {
+                                semantic_error(
+                                    "KES-C001",
+                                    format!("invalid vcvs gain: {error}"),
+                                    Some(&decl.name),
+                                    Some("value"),
+                                )
+                            })?,
+                        },
+                    ),
+                    ComponentType::Vccs => (
+                        ComponentKind::Vccs,
+                        ComponentParams::DependentSource {
+                            value: numeric_value(
+                                val_str,
+                                decl.value_expression.as_ref(),
+                                SIUnit::Siemens,
+                                "value",
+                            )
+                            .map_err(|error| {
+                                semantic_error(
+                                    "KES-C001",
+                                    format!("invalid vccs transconductance: {error}"),
+                                    Some(&decl.name),
+                                    Some("value"),
+                                )
+                            })?,
+                        },
+                    ),
+                    ComponentType::Ccvs => (
+                        ComponentKind::Ccvs,
+                        ComponentParams::DependentSource {
+                            value: numeric_value(
+                                val_str,
+                                decl.value_expression.as_ref(),
+                                SIUnit::Ohm,
+                                "value",
+                            )
+                            .map_err(|error| {
+                                semantic_error(
+                                    "KES-C001",
+                                    format!("invalid ccvs transresistance: {error}"),
+                                    Some(&decl.name),
+                                    Some("value"),
+                                )
+                            })?,
+                        },
+                    ),
+                    ComponentType::Cccs => (
+                        ComponentKind::Cccs,
+                        ComponentParams::DependentSource {
+                            value: numeric_value(
+                                val_str,
+                                decl.value_expression.as_ref(),
+                                SIUnit::Ratio,
+                                "value",
+                            )
+                            .map_err(|error| {
+                                semantic_error(
+                                    "KES-C001",
+                                    format!("invalid cccs gain: {error}"),
+                                    Some(&decl.name),
+                                    Some("value"),
+                                )
+                            })?,
+                        },
+                    ),
                 };
 
                 components.push(IRComponent {

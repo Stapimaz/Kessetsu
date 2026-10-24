@@ -258,7 +258,7 @@ fn parse_statement(
             let name = fields.next().unwrap().as_str().to_string();
             let type_pair = fields.next().unwrap();
             let unit = crate::expression::parameter_unit(type_pair.as_str()).ok_or_else(|| pest::error::Error::new_from_span(
-                pest::error::ErrorVariant::CustomError { message: format!("Unknown parameter type '{}'; use Ohm, F, H, V, A, Hz, s, W, ratio, percent or deg", type_pair.as_str()) },
+                pest::error::ErrorVariant::CustomError { message: format!("Unknown parameter type '{}'; use Ohm, F, H, V, A, Hz, s, W, S, ratio, percent or deg", type_pair.as_str()) },
                 type_pair.as_span(),
             ))?;
             let expression = expression_pair(&fields.next().unwrap(), false)?;
@@ -282,6 +282,10 @@ fn parse_statement(
                         "resistor" => ComponentType::Resistor,
                         "capacitor" => ComponentType::Capacitor,
                         "inductor" => ComponentType::Inductor,
+                        "vcvs" => ComponentType::Vcvs,
+                        "vccs" => ComponentType::Vccs,
+                        "ccvs" => ComponentType::Ccvs,
+                        "cccs" => ComponentType::Cccs,
                         "diode" => ComponentType::Diode,
                         "mosfet" => ComponentType::Mosfet,
                         _ => unreachable!(),

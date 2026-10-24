@@ -29,7 +29,7 @@ function findSymbolLine(code: string, symbol: string): number | null {
     if (!candidate) continue;
     const escaped = candidate.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const declPattern = new RegExp(
-      `^\\s*(?:net|source|current_source|resistor|capacitor|inductor|diode|bjt|transistor|mosfet|opamp|subcircuit_instance|module)\\s+${escaped}\\b|\\buse\\s+\\S+\\s+(?:as\\s+)?${escaped}\\b`,
+      `^\\s*(?:net|source|current_source|resistor|capacitor|inductor|diode|bjt|transistor|mosfet|opamp|vcvs|vccs|ccvs|cccs|subcircuit_instance|module)\\s+${escaped}\\b|\\buse\\s+\\S+\\s+(?:as\\s+)?${escaped}\\b`,
       'i',
     );
     for (let i = 0; i < lines.length; i += 1) {

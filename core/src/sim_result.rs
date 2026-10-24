@@ -237,6 +237,7 @@ pub fn format_quantity(value: f64, unit: SIUnit) -> String {
         SIUnit::Ratio => "",
         SIUnit::Percent => "%",
         SIUnit::Degree => "deg",
+        SIUnit::Siemens => "S",
     };
     format!("{scaled:.6}{prefix}{suffix}")
 }

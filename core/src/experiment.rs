@@ -232,6 +232,7 @@ pub fn unit_suffix(unit: SIUnit) -> &'static str {
         SIUnit::Ratio => "",
         SIUnit::Percent => "%",
         SIUnit::Degree => "deg",
+        SIUnit::Siemens => "S",
     }
 }
 fn literal(value: f64, unit: SIUnit) -> String {

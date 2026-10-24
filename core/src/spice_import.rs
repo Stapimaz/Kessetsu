@@ -90,6 +90,10 @@ enum ImportedKind {
     },
     Mosfet(String),
     OpAmp(String),
+    Vcvs(String),
+    Vccs(String),
+    Ccvs(String),
+    Cccs(String),
 }
 
 #[derive(Debug, Clone)]
@@ -161,6 +165,7 @@ enum ImportUnit {
     Hertz,
     Second,
     Ratio,
+    Siemens,
 }
 
 impl ImportUnit {
@@ -174,6 +179,7 @@ impl ImportUnit {
             Self::Hertz => "Hz",
             Self::Second => "s",
             Self::Ratio => "ratio",
+            Self::Siemens => "S",
         }
     }
 }
@@ -521,6 +527,24 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
         );
     }
     if report.has_errors() {
+        return report;
+    }
+
+    let dc_swept_sources = analyses
+        .iter()
+        .filter_map(|(_, fields)| {
+            if fields.len() == 5 && fields[0].eq_ignore_ascii_case(".dc") {
+                Some(fields[1].to_ascii_lowercase())
+            } else {
+                None
+            }
+        })
+        .collect::<BTreeSet<_>>();
+
+    if let Err((line, message)) =
+        resolve_current_controlled_sources(&mut components, &dc_swept_sources, Some(&mut report))
+    {
+        push_error(&mut report, "KES-N002", message, Some(line));
         return report;
     }
 
@@ -1105,6 +1129,7 @@ fn parse_subcircuit(
             .map_err(|message| (line.number, message))?,
         );
     }
+    resolve_current_controlled_sources(&mut components, &BTreeSet::new(), None)?;
     if components.is_empty() {
         return Err((
             block.header.number,
@@ -1441,6 +1466,10 @@ fn render_component_declaration(component: &ImportedComponent, name: &str) -> St
         }
         ImportedKind::Mosfet(model) => format!("mosfet {name} {model}"),
         ImportedKind::OpAmp(model) => format!("opamp {name} {model}"),
+        ImportedKind::Vcvs(value) => format!("vcvs {name} {value}"),
+        ImportedKind::Vccs(value) => format!("vccs {name} {value}"),
+        ImportedKind::Ccvs(value) => format!("ccvs {name} {value}"),
+        ImportedKind::Cccs(value) => format!("cccs {name} {value}"),
     }
 }
 
@@ -1812,9 +1841,87 @@ fn parse_component(
                 line,
             })
         }
-        'E' | 'F' | 'G' | 'H' | 'B' => Err(format!(
-            "controlled/behavioral source '{name}' is not supported"
-        )),
+        'E' | 'G' => {
+            if fields.len() >= 4 {
+                let field3_upper = fields[3].to_ascii_uppercase();
+                if matches!(
+                    field3_upper.as_str(),
+                    "VALUE" | "POLY" | "TABLE" | "LAPLACE" | "FREQ"
+                ) {
+                    return Err(format!(
+                        "behavioral source construct '{field3_upper}' is not supported"
+                    ));
+                }
+            }
+            if fields.len() != 6 {
+                return Err(format!(
+                    "{prefix} source expects name, two output nodes, two control nodes, and a gain"
+                ));
+            }
+            let value = translate_numeric(
+                &fields[5],
+                if prefix == 'E' {
+                    ImportUnit::Ratio
+                } else {
+                    ImportUnit::Siemens
+                },
+                parameters,
+                parameter_units,
+            )?;
+            Ok(ImportedComponent {
+                original_name: name.clone(),
+                nodes: vec![
+                    fields[1].clone(),
+                    fields[2].clone(),
+                    fields[3].clone(),
+                    fields[4].clone(),
+                ],
+                pins: &["p_out", "n_out", "ctrl_p", "ctrl_n"],
+                kind: if prefix == 'E' {
+                    ImportedKind::Vcvs(value)
+                } else {
+                    ImportedKind::Vccs(value)
+                },
+                line,
+            })
+        }
+        'F' | 'H' => {
+            if fields.len() >= 4 {
+                let field3_upper = fields[3].to_ascii_uppercase();
+                if matches!(field3_upper.as_str(), "POLY" | "VALUE") {
+                    return Err(format!(
+                        "polynomial or behavioral source '{field3_upper}' is not supported"
+                    ));
+                }
+            }
+            if fields.len() != 5 {
+                return Err(format!(
+                    "{prefix} source expects name, two output nodes, controlling voltage source, and a gain"
+                ));
+            }
+            let value = translate_numeric(
+                &fields[4],
+                if prefix == 'F' {
+                    ImportUnit::Ratio
+                } else {
+                    ImportUnit::Ohm
+                },
+                parameters,
+                parameter_units,
+            )?;
+            Ok(ImportedComponent {
+                original_name: name.clone(),
+                nodes: vec![fields[1].clone(), fields[2].clone(), fields[3].clone()],
+                pins: &["p_out", "n_out", "ctrl_p", "ctrl_n"],
+                kind: if prefix == 'F' {
+                    ImportedKind::Cccs(value)
+                } else {
+                    ImportedKind::Ccvs(value)
+                },
+                line,
+            })
+        }
+        'B' => Err(format!("behavioral source '{name}' is not supported")),
         'X' => Err(format!(
             "subcircuit instance '{name}' requires a typed model/resource binding"
         )),
@@ -1822,6 +1929,102 @@ fn parse_component(
             "component family '{prefix}' is not supported by the declared import subset"
         )),
     }
+}
+
+fn resolve_current_controlled_sources(
+    components: &mut Vec<ImportedComponent>,
+    dc_swept_sources: &BTreeSet<String>,
+    mut report: Option<&mut SpiceImportReport>,
+) -> Result<(), (usize, String)> {
+    let mut vnam_counts = BTreeMap::<String, usize>::new();
+    for c in components.iter() {
+        if matches!(c.kind, ImportedKind::Ccvs(_) | ImportedKind::Cccs(_)) && c.nodes.len() == 3 {
+            *vnam_counts
+                .entry(c.nodes[2].to_ascii_lowercase())
+                .or_default() += 1;
+        }
+    }
+
+    if vnam_counts.is_empty() {
+        return Ok(());
+    }
+
+    let mut absorbed_voltages = BTreeSet::<String>::new();
+
+    for i in 0..components.len() {
+        if !matches!(
+            components[i].kind,
+            ImportedKind::Ccvs(_) | ImportedKind::Cccs(_)
+        ) || components[i].nodes.len() != 3
+        {
+            continue;
+        }
+
+        let fh_line = components[i].line;
+        let fh_name = components[i].original_name.clone();
+        let vnam = components[i].nodes[2].clone();
+        let vnam_lower = vnam.to_ascii_lowercase();
+
+        let v_idx = components
+            .iter()
+            .position(|c| c.original_name.eq_ignore_ascii_case(&vnam));
+
+        let Some(v_idx) = v_idx else {
+            return Err((
+                fh_line,
+                format!(
+                    "controlled source '{fh_name}' references '{vnam}' which is not an independent voltage source in the same scope"
+                ),
+            ));
+        };
+
+        let v_comp = &components[v_idx];
+        let ImportedKind::VoltageSource(ref v_val) = v_comp.kind else {
+            return Err((
+                fh_line,
+                format!(
+                    "controlled source '{fh_name}' references '{vnam}' which is not an independent voltage source in the same scope"
+                ),
+            ));
+        };
+
+        let v_orig_name = v_comp.original_name.clone();
+        let v_nodes = v_comp.nodes.clone();
+        let count = *vnam_counts.get(&vnam_lower).unwrap_or(&0);
+        let is_swept = dc_swept_sources.contains(&vnam_lower);
+        let is_zero = v_val == "0";
+        let is_shorted = v_nodes.len() >= 2 && v_nodes[0] == v_nodes[1];
+
+        let p_out = components[i].nodes[0].clone();
+        let n_out = components[i].nodes[1].clone();
+
+        if is_zero && count == 1 && !is_swept && !is_shorted {
+            components[i].nodes = vec![p_out, n_out, v_nodes[0].clone(), v_nodes[1].clone()];
+            absorbed_voltages.insert(v_orig_name.to_ascii_lowercase());
+            if let Some(ref mut rep) = report {
+                rep.diagnostics.push(ImportDiagnostic {
+                    code: "KES-N012".into(),
+                    severity: ImportSeverity::Info,
+                    message: format!(
+                        "folded 0V current-sense source '{v_orig_name}' into controlled source '{fh_name}'"
+                    ),
+                    line: Some(fh_line),
+                    column: Some(1),
+                });
+            }
+        } else {
+            let orig_plus = components[v_idx].nodes[0].clone();
+            let sense_node = format!("sense_{}", fh_name);
+            components[i].nodes = vec![p_out, n_out, orig_plus, sense_node.clone()];
+            components[v_idx].nodes[0] = sense_node;
+        }
+    }
+
+    if !absorbed_voltages.is_empty() {
+        components.retain(|c| !absorbed_voltages.contains(&c.original_name.to_ascii_lowercase()));
+    }
+
+    Ok(())
 }
 
 fn translate_numeric(

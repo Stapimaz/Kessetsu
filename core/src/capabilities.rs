@@ -152,6 +152,10 @@ pub fn capability_manifest(cli_schema_version: &str) -> CapabilityManifest {
                 "device",
                 "source",
                 "current_source",
+                "vcvs",
+                "vccs",
+                "ccvs",
+                "cccs",
             ]
             .into_iter()
             .map(str::to_string)

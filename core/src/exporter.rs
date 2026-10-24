@@ -540,6 +540,10 @@ pub fn export_report(
                         crate::ir::ComponentKind::ModulePort
                             | crate::ir::ComponentKind::VoltageSource
                             | crate::ir::ComponentKind::CurrentSource
+                            | crate::ir::ComponentKind::Vcvs
+                            | crate::ir::ComponentKind::Vccs
+                            | crate::ir::ComponentKind::Ccvs
+                            | crate::ir::ComponentKind::Cccs
                     )
                 })
                 .filter(|component| {

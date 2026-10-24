@@ -1,7 +1,9 @@
 use crate::component::CatalogSymbol;
 use crate::exporter::ExportError;
 use crate::graph::{format_analysis, format_spice_number};
-use crate::ir::{Analysis, CircuitIR, ComponentParams, ModelDefinition, SourceValue, Waveform};
+use crate::ir::{
+    Analysis, CircuitIR, ComponentKind, ComponentParams, ModelDefinition, SourceValue, Waveform,
+};
 use crate::schematic::{Point, Rect, Schematic, SchematicComponent, TextAnchor};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -25,6 +27,12 @@ const OPAMP: &[(&str, i32, i32)] = &[
     ("vcc", 0, 32),
     ("vee", 0, 96),
     ("out", 32, 64),
+];
+const DEPENDENT_SOURCE: &[(&str, i32, i32)] = &[
+    ("ctrl_p", -48, 16),
+    ("ctrl_n", -48, 96),
+    ("p_out", 0, 16),
+    ("n_out", 0, 96),
 ];
 
 fn symbol(component: &SchematicComponent) -> Result<LtSymbol, ExportError> {
@@ -78,6 +86,14 @@ fn symbol(component: &SchematicComponent) -> Result<LtSymbol, ExportError> {
             // Prefix X is explicitly emitted below; pins retain subcircuit order.
             name: "Misc/EuropeanResistor",
             pins: TWO_PIN_80,
+        },
+        CatalogSymbol::Vcvs | CatalogSymbol::Ccvs => LtSymbol {
+            name: "e",
+            pins: DEPENDENT_SOURCE,
+        },
+        CatalogSymbol::Vccs | CatalogSymbol::Cccs => LtSymbol {
+            name: "g",
+            pins: DEPENDENT_SOURCE,
         },
         CatalogSymbol::ModulePort => {
             return Err(ExportError {
@@ -366,6 +382,15 @@ fn component_value(component: &SchematicComponent, circuit: &CircuitIR) -> Strin
     }
     match &ir.parameters {
         ComponentParams::TwoPinPassive { value } => format_spice_number(value.value),
+        ComponentParams::DependentSource { value } => {
+            if ir.kind == ComponentKind::Ccvs {
+                format!("KESSETSU_CCVS_{}", component.id)
+            } else if ir.kind == ComponentKind::Cccs {
+                format!("KESSETSU_CCCS_{}", component.id)
+            } else {
+                format_spice_number(value.value)
+            }
+        }
         ComponentParams::VoltageSource { value } | ComponentParams::CurrentSource { value } => {
             spice_source(value)
         }
@@ -570,6 +595,10 @@ pub fn generate_ltspice_asc(
         let source_prefix = match component.symbol {
             CatalogSymbol::VoltageSource => Some('V'),
             CatalogSymbol::CurrentSource => Some('I'),
+            CatalogSymbol::Vcvs => Some('E'),
+            CatalogSymbol::Vccs => Some('G'),
+            CatalogSymbol::Ccvs => Some('H'),
+            CatalogSymbol::Cccs => Some('F'),
             _ => None,
         };
         let instance = match source_prefix {
@@ -579,7 +608,10 @@ pub fn generate_ltspice_asc(
             _ => component.reference.clone(),
         };
         out.push_str(&format!("SYMATTR InstName {instance}\n"));
-        if component.symbol == CatalogSymbol::ExternalTwoTerminal {
+        if matches!(
+            component.symbol,
+            CatalogSymbol::ExternalTwoTerminal | CatalogSymbol::Ccvs | CatalogSymbol::Cccs
+        ) {
             out.push_str("SYMATTR Prefix X\n");
         }
         out.push_str(&format!(
@@ -621,6 +653,40 @@ pub fn generate_ltspice_asc(
                 out.push_str(&format!("TEXT 32 {directive_y} Left 2 !{line}\n"));
                 directive_y += 16;
             }
+        }
+    }
+    for component in &circuit.components {
+        if matches!(component.kind, ComponentKind::Ccvs | ComponentKind::Cccs)
+            && let ComponentParams::DependentSource { value } = &component.parameters
+        {
+            let name = if component.kind == ComponentKind::Ccvs {
+                format!("KESSETSU_CCVS_{}", component.id)
+            } else {
+                format!("KESSETSU_CCCS_{}", component.id)
+            };
+            let card = if component.kind == ComponentKind::Ccvs {
+                format!(
+                    "H1 p_out n_out V_SENSE {}",
+                    format_spice_number(value.value)
+                )
+            } else {
+                format!(
+                    "F1 p_out n_out V_SENSE {}",
+                    format_spice_number(value.value)
+                )
+            };
+            out.push_str(&format!(
+                "TEXT 32 {directive_y} Left 2 !.subckt {name} p_out n_out ctrl_p ctrl_n\n"
+            ));
+            directive_y += 16;
+            out.push_str(&format!(
+                "TEXT 32 {directive_y} Left 2 !V_SENSE ctrl_p ctrl_n 0\n"
+            ));
+            directive_y += 16;
+            out.push_str(&format!("TEXT 32 {directive_y} Left 2 !{card}\n"));
+            directive_y += 16;
+            out.push_str(&format!("TEXT 32 {directive_y} Left 2 !.ends\n"));
+            directive_y += 16;
         }
     }
     for (index, analysis) in circuit.analyses.iter().enumerate() {

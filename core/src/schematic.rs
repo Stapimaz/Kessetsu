@@ -340,6 +340,7 @@ fn unit_suffix(unit: SIUnit) -> &'static str {
         SIUnit::Ratio => "",
         SIUnit::Percent => "%",
         SIUnit::Degree => "°",
+        SIUnit::Siemens => "S",
     }
 }
 
@@ -424,7 +425,9 @@ fn waveform_label(waveform: &Waveform) -> String {
 
 fn component_labels(component: &IRComponent) -> (Option<String>, Option<String>, Option<String>) {
     let value = match &component.parameters {
-        ComponentParams::TwoPinPassive { value } => Some(quantity_label(value.value, value.unit)),
+        ComponentParams::TwoPinPassive { value } | ComponentParams::DependentSource { value } => {
+            Some(quantity_label(value.value, value.unit))
+        }
         ComponentParams::VoltageSource { value } | ComponentParams::CurrentSource { value } => {
             Some(match value {
                 SourceValue::Dc(quantity) => quantity_label(quantity.value, quantity.unit),

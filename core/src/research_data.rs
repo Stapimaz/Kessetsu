@@ -675,6 +675,7 @@ fn unit_suffix(unit: SIUnit) -> &'static str {
         SIUnit::Ratio => "",
         SIUnit::Percent => "%",
         SIUnit::Degree => "deg",
+        SIUnit::Siemens => "S",
     }
 }
 

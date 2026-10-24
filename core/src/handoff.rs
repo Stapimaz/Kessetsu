@@ -71,7 +71,13 @@ pub struct ModelDependency {
 fn included_in_bom(kind: &ComponentKind) -> bool {
     !matches!(
         kind,
-        ComponentKind::ModulePort | ComponentKind::VoltageSource | ComponentKind::CurrentSource
+        ComponentKind::ModulePort
+            | ComponentKind::VoltageSource
+            | ComponentKind::CurrentSource
+            | ComponentKind::Vcvs
+            | ComponentKind::Vccs
+            | ComponentKind::Ccvs
+            | ComponentKind::Cccs
     )
 }
 

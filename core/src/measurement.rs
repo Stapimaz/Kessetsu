@@ -1020,9 +1020,10 @@ fn current_signal(
         spice_instance_name(component).to_ascii_lowercase()
     );
     match component.kind {
-        ComponentKind::VoltageSource | ComponentKind::Inductor => {
-            direct_real_signal(dataset, &branch_key)
-        }
+        ComponentKind::VoltageSource
+        | ComponentKind::Inductor
+        | ComponentKind::Vcvs
+        | ComponentKind::Ccvs => direct_real_signal(dataset, &branch_key),
         ComponentKind::Resistor => {
             let voltage = component_voltage(dataset, component, circuit, "p1", "p2")?;
             let resistance = passive_value(component)?;
@@ -1060,6 +1061,10 @@ fn current_signal(
             "op-amp output branch current is not exposed by the safe subcircuit template"
                 .to_string(),
         ),
+        ComponentKind::Vccs | ComponentKind::Cccs => Err(
+            "dependent current source terminal currents require an explicit measurement source; use a series 0 V source"
+                .to_string(),
+        ),
         ComponentKind::ExternalDevice(_) => Err("external subcircuit terminal currents require an explicit measurement source; use a series 0 V source".to_string()),
         ComponentKind::ModulePort => Err("module ports have no device current".to_string()),
     }
@@ -1090,6 +1095,9 @@ fn device_voltage_pins(component: &IRComponent) -> Result<(&'static str, &'stati
         ComponentKind::BJT(_) => ("c", "e"),
         ComponentKind::MOSFET(_) => ("d", "s"),
         ComponentKind::OpAmp => ("out", "vee"),
+        ComponentKind::Vcvs | ComponentKind::Vccs | ComponentKind::Ccvs | ComponentKind::Cccs => {
+            ("p_out", "n_out")
+        }
         ComponentKind::ExternalDevice(_) => {
             return Err(
                 "external subcircuit power requires explicit terminal measurements".to_string(),
@@ -1275,6 +1283,10 @@ fn spice_instance_name(component: &IRComponent) -> String {
         ComponentKind::OpAmp | ComponentKind::ExternalDevice(_) => "x",
         ComponentKind::VoltageSource => "v",
         ComponentKind::CurrentSource => "i",
+        ComponentKind::Vcvs => "e",
+        ComponentKind::Vccs => "g",
+        ComponentKind::Ccvs => "h",
+        ComponentKind::Cccs => "f",
         ComponentKind::ModulePort => "",
     };
     format!("{prefix}_{}", component.id)

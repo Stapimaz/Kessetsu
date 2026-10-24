@@ -235,7 +235,9 @@ fn format_spice_value(comp: &IRComponent) -> String {
         return m.name.clone();
     }
     match &comp.parameters {
-        ComponentParams::TwoPinPassive { value } => format_spice_number(value.value),
+        ComponentParams::TwoPinPassive { value } | ComponentParams::DependentSource { value } => {
+            format_spice_number(value.value)
+        }
         ComponentParams::VoltageSource { value } | ComponentParams::CurrentSource { value } => {
             match value {
                 SourceValue::Dc(quantity) => format_spice_number(quantity.value),
@@ -504,6 +506,30 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
                 spice.push_str(&format!(
                     "{}_{} {} {} {}\n",
                     prefix, comp.id, nets[0], nets[1], value_str
+                ));
+            }
+            ComponentKind::Vcvs => {
+                spice.push_str(&format!(
+                    "E_{} {} {} {} {} {}\n",
+                    comp.id, nets[2], nets[3], nets[0], nets[1], value_str
+                ));
+            }
+            ComponentKind::Vccs => {
+                spice.push_str(&format!(
+                    "G_{} {} {} {} {} {}\n",
+                    comp.id, nets[2], nets[3], nets[0], nets[1], value_str
+                ));
+            }
+            ComponentKind::Ccvs => {
+                spice.push_str(&format!(
+                    "V_SENSE_{} {} {} 0\nH_{} {} {} V_SENSE_{} {}\n",
+                    comp.id, nets[0], nets[1], comp.id, nets[2], nets[3], comp.id, value_str
+                ));
+            }
+            ComponentKind::Cccs => {
+                spice.push_str(&format!(
+                    "V_SENSE_{} {} {} 0\nF_{} {} {} V_SENSE_{} {}\n",
+                    comp.id, nets[0], nets[1], comp.id, nets[2], nets[3], comp.id, value_str
                 ));
             }
             ComponentKind::ExternalDevice(_) => {

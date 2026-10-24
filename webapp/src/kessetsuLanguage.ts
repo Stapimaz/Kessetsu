@@ -1,17 +1,46 @@
-export type KessetsuCompletion = {
-  label: string;
-  detail: string;
-  insertText: string;
-};
+import type { languages } from 'monaco-editor';
+import {
+  COMPONENT_TYPES,
+  PIN_MAP,
+  extractDeclarations,
+  getConnectPinCompletions,
+  getPinCompletions,
+  type KessetsuCompletion,
+} from './CompletionEngine';
+
+export type { KessetsuCompletion };
+export { COMPONENT_TYPES, PIN_MAP, extractDeclarations, getConnectPinCompletions, getPinCompletions };
+
+export const componentTypes = [
+  'source',
+  'current_source',
+  'resistor',
+  'capacitor',
+  'inductor',
+  'diode',
+  'transistor',
+  'mosfet',
+  'opamp',
+  'vcvs',
+  'vccs',
+  'ccvs',
+  'cccs',
+] as const;
+
+export type ComponentType = (typeof componentTypes)[number];
 
 export const topLevelCompletions: readonly KessetsuCompletion[] = [
-  { label: 'param', detail: 'Declare a typed quantity in the root or module scope; use {name} in numeric component, waveform, analysis and inline-assertion fields.', insertText: 'param ${1:supply}: ${2|V,A,Ohm,F,H,Hz,s,W,ratio,percent,deg|} = ${3:12V}' },
+  { label: 'param', detail: 'Declare a typed quantity in the root or module scope; use {name} in numeric component, waveform, analysis and inline-assertion fields.', insertText: 'param ${1:supply}: ${2|V,A,Ohm,F,H,Hz,s,W,S,ratio,percent,deg|} = ${3:12V}' },
   { label: 'net', detail: 'Declare a named electrical net.', insertText: 'net ${1:GND}' },
   { label: 'source', detail: 'Declare an independent voltage source.', insertText: 'source ${1:VIN} ${2:5V}' },
   { label: 'current_source', detail: 'Declare an independent current source.', insertText: 'current_source ${1:I1} ${2:1mA}' },
   { label: 'resistor', detail: 'Declare a two-terminal resistor.', insertText: 'resistor ${1:R1} ${2:1k}' },
   { label: 'capacitor', detail: 'Declare a two-terminal capacitor.', insertText: 'capacitor ${1:C1} ${2:100nF}' },
   { label: 'inductor', detail: 'Declare a two-terminal inductor.', insertText: 'inductor ${1:L1} ${2:10mH}' },
+  { label: 'vcvs', detail: 'Voltage-controlled voltage source (SPICE E). Pins: p_out, n_out, ctrl_p, ctrl_n.', documentation: 'Voltage-controlled voltage source (SPICE E). Pins: p_out, n_out, ctrl_p, ctrl_n.', insertText: 'vcvs ${1:E1} ${2:1}' },
+  { label: 'vccs', detail: 'Voltage-controlled current source (SPICE G, in S/mS). Pins: p_out, n_out, ctrl_p, ctrl_n.', documentation: 'Voltage-controlled current source (SPICE G, in S/mS). Pins: p_out, n_out, ctrl_p, ctrl_n.', insertText: 'vccs ${1:G1} ${2:1mS}' },
+  { label: 'ccvs', detail: 'Current-controlled voltage source (SPICE H, in Ohm/kOhm). Pins: p_out, n_out, ctrl_p, ctrl_n.', documentation: 'Current-controlled voltage source (SPICE H, in Ohm/kOhm). Pins: p_out, n_out, ctrl_p, ctrl_n.', insertText: 'ccvs ${1:H1} ${2:1kOhm}' },
+  { label: 'cccs', detail: 'Current-controlled current source (SPICE F). Pins: p_out, n_out, ctrl_p, ctrl_n.', documentation: 'Current-controlled current source (SPICE F). Pins: p_out, n_out, ctrl_p, ctrl_n.', insertText: 'cccs ${1:F1} ${2:1}' },
   { label: 'diode', detail: 'Declare a diode with an optional typed model.', insertText: 'diode ${1:D1} ${2:1N4148}' },
   { label: 'transistor', detail: 'Declare a BJT; an optional polarity hint must match its model.', insertText: 'transistor ${1:Q1} ${2:npn} ${3:2N3904}' },
   { label: 'mosfet', detail: 'Declare a MOSFET; polarity is determined by its model.', insertText: 'mosfet ${1:M1} ${2:IRF540}' },
@@ -92,12 +121,32 @@ for (const item of hoverEntries) {
   hoverDocumentation.set(item.label, existing ? `${existing}\n\n${item.detail}` : item.detail);
 }
 
-export function completionsForLine(lineBeforeCursor: string): readonly KessetsuCompletion[] {
+export const kessetsuLanguageDefinition: languages.IMonarchLanguage = {
+  tokenizer: {
+    root: [
+      [/\/\/.*$/, 'comment'],
+      [/\b(param|net|connect|simulate|assert|model|model_include|subcircuit|external_subcircuit|module|use)\b/, 'keyword'],
+      [new RegExp(`\\b(${componentTypes.join('|')})\\b`), 'type'],
+      [/\b(op|tran|ac|dc|dec|oct|lin|sine|sine_ac|pulse|pwl)\b/, 'keyword.control'],
+      [/\b(value|min|max|peak|average|avg|rms|gain|gain_at|lower_cutoff|upper_cutoff|bandwidth|cutoff|frequency|phase|output_power|efficiency|thd|clipping|dissipation|rise_time|fall_time|settling_time|overshoot|energy)\b/, 'function'],
+      [/-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?(?:T|G|meg|M|k|m|u|µ|n|p)?(?:V|A|Ohm|F|H|Hz|s|S|W|J|deg|%)?\b/i, 'number'],
+      [/[A-Za-z_][A-Za-z0-9_]*/, 'identifier'],
+      [/[(){},.:]/, 'delimiter'],
+      [/(?:<=|>=|==|<|>|[=+*/-])/, 'operator'],
+    ],
+  },
+};
+
+export function completionsForLine(lineBeforeCursor: string, fullCode?: string): readonly KessetsuCompletion[] {
   const line = lineBeforeCursor.trimStart();
   if (/^simulate\s+[^\s]*$/i.test(line)) return analysisCompletions;
   if (/^assert\s+[A-Za-z_]*$/i.test(line)) return metricCompletions;
   if (/^(?:source|current_source)\s+[A-Za-z_][A-Za-z0-9_]*\s+[^\s]*$/i.test(line)) {
     return waveformCompletions;
+  }
+  if (fullCode) {
+    const pinCompletions = getConnectPinCompletions(lineBeforeCursor, fullCode);
+    if (pinCompletions) return pinCompletions;
   }
   return topLevelCompletions;
 }

@@ -30,7 +30,11 @@ fn symbol_width(symbol: CatalogSymbol) -> f32 {
         | CatalogSymbol::VoltageSource
         | CatalogSymbol::CurrentSource
         | CatalogSymbol::ModulePort
-        | CatalogSymbol::ExternalTwoTerminal => 2.0,
+        | CatalogSymbol::ExternalTwoTerminal
+        | CatalogSymbol::Vcvs
+        | CatalogSymbol::Vccs
+        | CatalogSymbol::Ccvs
+        | CatalogSymbol::Cccs => 2.0,
         CatalogSymbol::Bjt | CatalogSymbol::Mosfet | CatalogSymbol::OpAmp => 3.0,
     }
 }
@@ -230,6 +234,81 @@ fn symbol_markup(component: &SchematicComponent) -> String {
             local(1.0),
             local(0.3)
         ),
+        CatalogSymbol::Vcvs | CatalogSymbol::Vccs | CatalogSymbol::Ccvs | CatalogSymbol::Cccs => {
+            let two = local(2.0);
+            let c_x = local(0.35);
+            let c_top = local(0.55);
+            let c_bot = local(1.45);
+            let is_voltage_controlled =
+                matches!(component.symbol, CatalogSymbol::Vcvs | CatalogSymbol::Vccs);
+            let control_markup = if is_voltage_controlled {
+                let plus_y = local(0.72);
+                let minus_y = local(1.28);
+                let delta = local(0.08);
+                format!(
+                    "<path {stroke} d=\"M 0 0 H {c_x} V {c_top} M 0 {two} H {c_x} V {c_bot} M {} {plus_y} H {} M {c_x} {} V {} M {} {minus_y} H {}\"/>",
+                    c_x - delta,
+                    c_x + delta,
+                    plus_y - delta,
+                    plus_y + delta,
+                    c_x - delta,
+                    c_x + delta
+                )
+            } else {
+                let mid_y = local(1.0);
+                let arr_w = local(0.10);
+                let arr_h = local(0.12);
+                format!(
+                    "<path {stroke} d=\"M 0 0 H {c_x} V {two} H 0 M {} {} L {c_x} {mid_y} L {} {}\"/>",
+                    c_x - arr_w,
+                    mid_y - arr_h,
+                    c_x + arr_w,
+                    mid_y - arr_h
+                )
+            };
+
+            let d_cx = local(1.35);
+            let d_cy = local(1.0);
+            let d_top = local(0.45);
+            let d_bot = local(1.55);
+            let d_lx = local(0.85);
+            let d_rx = local(1.85);
+
+            let diamond = format!(
+                "<path {stroke} d=\"M {d_cx} 0 H {two} M {d_cx} 0 V {d_top} M {d_cx} {d_bot} V {two} H {two}\"/><path d=\"M {d_cx} {d_top} L {d_rx} {d_cy} L {d_cx} {d_bot} L {d_lx} {d_cy} Z\" fill=\"#ffffff\" stroke=\"#172033\" stroke-width=\"2\"/>"
+            );
+
+            let is_voltage_output =
+                matches!(component.symbol, CatalogSymbol::Vcvs | CatalogSymbol::Ccvs);
+            let inside_markup = if is_voltage_output {
+                let plus_y = local(0.75);
+                let minus_y = local(1.25);
+                let delta = local(0.08);
+                format!(
+                    "<path {stroke} d=\"M {} {plus_y} H {} M {d_cx} {} V {} M {} {minus_y} H {}\"/>",
+                    d_cx - delta,
+                    d_cx + delta,
+                    plus_y - delta,
+                    plus_y + delta,
+                    d_cx - delta,
+                    d_cx + delta
+                )
+            } else {
+                let top_y = local(0.72);
+                let bot_y = local(1.28);
+                let arr_w = local(0.10);
+                let arr_h = local(0.12);
+                format!(
+                    "<path {stroke} d=\"M {d_cx} {top_y} V {bot_y} M {} {} L {d_cx} {bot_y} L {} {}\"/>",
+                    d_cx - arr_w,
+                    bot_y - arr_h,
+                    d_cx + arr_w,
+                    bot_y - arr_h
+                )
+            };
+
+            format!("{control_markup}{diamond}{inside_markup}")
+        }
     }
 }
 

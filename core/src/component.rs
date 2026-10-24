@@ -24,6 +24,10 @@ pub enum CatalogSymbol {
     CurrentSource,
     ModulePort,
     ExternalTwoTerminal,
+    Vcvs,
+    Vccs,
+    Ccvs,
+    Cccs,
 }
 
 /// Conservative visible symbol extents in eighths of a schematic grid unit.
@@ -35,7 +39,12 @@ pub const fn symbol_ink_bounds_eighths(symbol: CatalogSymbol) -> (i32, i32, i32,
         CatalogSymbol::Capacitor | CatalogSymbol::Diode => (0, -4, 16, 4),
         CatalogSymbol::Inductor => (0, -4, 16, 0),
         CatalogSymbol::VoltageSource | CatalogSymbol::CurrentSource => (0, -5, 16, 5),
-        CatalogSymbol::Bjt | CatalogSymbol::Mosfet => (0, 0, 16, 16),
+        CatalogSymbol::Bjt
+        | CatalogSymbol::Mosfet
+        | CatalogSymbol::Vcvs
+        | CatalogSymbol::Vccs
+        | CatalogSymbol::Ccvs
+        | CatalogSymbol::Cccs => (0, 0, 16, 16),
         CatalogSymbol::OpAmp => (0, -8, 24, 24),
         CatalogSymbol::ModulePort => (5, -3, 11, 3),
         CatalogSymbol::ExternalTwoTerminal => (0, -4, 16, 4),
@@ -237,6 +246,41 @@ const OPAMP_PINS: &[PinDefinition] = &[
 
 const MODULE_PORT_PINS: &[PinDefinition] = &[];
 
+const DEPENDENT_SOURCE_PINS: &[PinDefinition] = &[
+    PinDefinition {
+        name: "ctrl_p",
+        x: 0,
+        y: 0,
+        is_signal: true,
+        flow: PinFlow::Input,
+        side: PinSide::Left,
+    },
+    PinDefinition {
+        name: "ctrl_n",
+        x: 0,
+        y: 2,
+        is_signal: false,
+        flow: PinFlow::Reference,
+        side: PinSide::Left,
+    },
+    PinDefinition {
+        name: "p_out",
+        x: 2,
+        y: 0,
+        is_signal: false,
+        flow: PinFlow::Output,
+        side: PinSide::Right,
+    },
+    PinDefinition {
+        name: "n_out",
+        x: 2,
+        y: 2,
+        is_signal: false,
+        flow: PinFlow::Reference,
+        side: PinSide::Right,
+    },
+];
+
 pub fn component_definition(kind: &ComponentKind) -> ComponentDefinition {
     match kind {
         ComponentKind::Resistor => {
@@ -294,6 +338,38 @@ pub fn component_definition(kind: &ComponentKind) -> ComponentDefinition {
             height: 2,
             pins: MODULE_PORT_PINS,
         },
+        ComponentKind::Vcvs => definition(
+            CatalogSymbol::Vcvs,
+            "Vcvs",
+            "E",
+            2,
+            2,
+            DEPENDENT_SOURCE_PINS,
+        ),
+        ComponentKind::Vccs => definition(
+            CatalogSymbol::Vccs,
+            "Vccs",
+            "G",
+            2,
+            2,
+            DEPENDENT_SOURCE_PINS,
+        ),
+        ComponentKind::Ccvs => definition(
+            CatalogSymbol::Ccvs,
+            "Ccvs",
+            "H",
+            2,
+            2,
+            DEPENDENT_SOURCE_PINS,
+        ),
+        ComponentKind::Cccs => definition(
+            CatalogSymbol::Cccs,
+            "Cccs",
+            "F",
+            2,
+            2,
+            DEPENDENT_SOURCE_PINS,
+        ),
     }
 }
 
@@ -348,6 +424,15 @@ pub fn through_pin(kind: &ComponentKind, entry_pin: &str) -> Option<&'static str
                 "vcc" => Some("vee"),
                 "vee" => Some("vcc"),
                 "in_p" | "in_n" | "out" => Some("out"),
+                _ => None,
+            }
+        }
+        ComponentKind::Vcvs | ComponentKind::Vccs | ComponentKind::Ccvs | ComponentKind::Cccs => {
+            match entry_pin {
+                "p_out" => Some("n_out"),
+                "n_out" => Some("p_out"),
+                "ctrl_p" => Some("ctrl_n"),
+                "ctrl_n" => Some("ctrl_p"),
                 _ => None,
             }
         }

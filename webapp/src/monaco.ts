@@ -1,7 +1,7 @@
 import { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/editor/editor.api';
 import EditorWorker from 'monaco-editor/editor/editor.worker?worker';
-import { completionsForLine, hoverDocumentation } from './kessetsuLanguage';
+import { completionsForLine, hoverDocumentation, kessetsuLanguageDefinition } from './kessetsuLanguage';
 
 type MonacoEnvironment = typeof globalThis & {
   MonacoEnvironment: {
@@ -31,32 +31,19 @@ monaco.editor.defineTheme('kessetsu-dark', {
   ],
   colors: { 'editor.background': '#111722', 'editorLineNumber.foreground': '#526078' },
 });
-monaco.languages.setMonarchTokensProvider('kessetsu', {
-  tokenizer: {
-    root: [
-      [/\/\/.*$/, 'comment'],
-      [/\b(param|net|connect|simulate|assert|model|model_include|subcircuit|external_subcircuit|module|use)\b/, 'keyword'],
-      [/\b(source|current_source|resistor|capacitor|inductor|diode|transistor|mosfet|opamp)\b/, 'type'],
-      [/\b(op|tran|ac|dc|dec|oct|lin|sine|sine_ac|pulse|pwl)\b/, 'keyword.control'],
-      [/\b(value|min|max|peak|average|avg|rms|gain|gain_at|lower_cutoff|upper_cutoff|bandwidth|cutoff|frequency|phase|output_power|efficiency|thd|clipping|dissipation|rise_time|fall_time|settling_time|overshoot|energy)\b/, 'function'],
-      [/-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?(?:T|G|meg|M|k|m|u|µ|n|p)?(?:V|A|Ohm|F|H|Hz|s|W|J|deg|%)?\b/i, 'number'],
-      [/[A-Za-z_][A-Za-z0-9_]*/, 'identifier'],
-      [/[(){},.:]/, 'delimiter'],
-      [/(?:<=|>=|==|<|>|[=+*/-])/, 'operator'],
-    ],
-  },
-});
+monaco.languages.setMonarchTokensProvider('kessetsu', kessetsuLanguageDefinition);
 
 monaco.languages.registerCompletionItemProvider('kessetsu', {
   provideCompletionItems(model, position) {
     const range = model.getWordUntilPosition(position);
     const lineBeforeCursor = model.getLineContent(position.lineNumber).slice(0, position.column - 1);
+    const fullCode = model.getValue();
     return {
-      suggestions: completionsForLine(lineBeforeCursor).map((item) => ({
+      suggestions: completionsForLine(lineBeforeCursor, fullCode).map((item) => ({
         label: item.label,
         kind: monaco.languages.CompletionItemKind.Snippet,
         detail: item.detail,
-        documentation: item.detail,
+        documentation: item.documentation ?? item.detail,
         insertText: item.insertText,
         insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
         range: {
