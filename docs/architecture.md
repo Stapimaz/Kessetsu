@@ -98,6 +98,12 @@ bytes, pins, license or redistribution policy. Non-linear behavioral sources (`V
 `TABLE`, `LAPLACE`, `FREQ`, `B`) and schematic-file import remain outside the declared subset
 and fail closed.
 
+Dialect compatibility, edge cases, and regression coverage are continuously enforced by the
+30-fixture clean-room SPICE compatibility corpus (`core/tests/spice_corpus_contract.rs`).
+Canonical 1.5 example circuits (`zener_shunt_regulator.kess`, `switched_sample_hold.kess`,
+`current_sense_amplifier.kess`) anchor real-world mixed-signal demonstration circuits across
+compilation, simulation, ERC, and schematic layout pipelines.
+
 ### Parameter-expression boundary
 
 `expression.rs` parses bounded engineering expressions into typed nodes and resolves

@@ -135,10 +135,18 @@ C1 out 0 CVAL
     assert!(conflict.kess_source.is_none());
 
     let expression = import_spice(".param RVAL=1k*2\nR1 a 0 RVAL\n.end\n");
-    assert!(expression.has_errors());
-    assert!(expression.diagnostics.iter().any(|diagnostic| {
-        diagnostic.line == Some(1) && diagnostic.message.contains("must be a literal value")
-    }));
+    assert!(!expression.has_errors(), "{:?}", expression.diagnostics);
+    let source = expression.kess_source.expect("source generated");
+    assert!(source.contains("param RVAL: Ohm = 2e3"), "{source}");
+
+    let invalid = import_spice(".param RVAL=V(a)*2\nR1 a 0 RVAL\n.end\n");
+    assert!(invalid.has_errors());
+    assert!(
+        invalid
+            .diagnostics
+            .iter()
+            .any(|d| { d.code == "KES-N006" && d.line == Some(1) })
+    );
 }
 
 #[test]
@@ -626,4 +634,151 @@ D1 0 out 1N4733A
         collision_spice.contains(".model SPICE_1N4733A D ("),
         "{collision_spice}"
     );
+}
+
+#[test]
+fn phase_4_dialect_and_ac_idioms_import_and_simulate() {
+    let runner = NgspiceRunner::discover();
+    let ngspice_available = runner.executable().exists();
+
+    // 1. Biased AC source (DC 5 AC 1 0)
+    let ac_input = "* Biased AC source
+V1 in 0 DC 5 AC 1 0
+R1 in out 1k
+R2 out 0 1k
+.op
+.ac dec 10 10 100k
+.end
+";
+    let ac_report = import_spice(ac_input);
+    assert!(!ac_report.has_errors(), "{:?}", ac_report.diagnostics);
+    let ac_kess = ac_report.kess_source.expect("emitted kess source");
+    assert!(
+        ac_kess.contains("source V1 ac(1,5)") || ac_kess.contains("source V1 ac(1, 5)"),
+        "{ac_kess}"
+    );
+    let ac_compiled = compile_source(&ac_kess, CompileOptions::default());
+    assert!(!ac_compiled.has_errors(), "{:?}", ac_compiled.diagnostics);
+    let ac_spice = ac_compiled.spice_netlist.expect("regenerated spice");
+    assert!(ac_spice.contains("DC 5 AC 1"), "{ac_spice}");
+    if ngspice_available {
+        let sim = runner
+            .run(
+                &SimulationRequest::new(
+                    &ac_spice,
+                    ac_compiled.ir.as_ref().unwrap().analyses.clone(),
+                ),
+                &CancellationToken::new(),
+            )
+            .expect("simulation launched");
+        assert!(sim.succeeded(), "{:?}", sim.errors);
+    }
+
+    // 2. .param arithmetic & math expressions
+    let param_input = "* Parameter expressions
+.param R1_VAL=10k
+.param R2_VAL={R1_VAL * 2}
+.param FC={1/(2*3.14159265*1k*100n)}
+V1 in 0 5
+R1 in mid {R1_VAL}
+R2 mid 0 {R2_VAL}
+R3 in out {R1_VAL * 2}
+R4 out 0 20k
+.op
+.end
+";
+    let param_report = import_spice(param_input);
+    assert!(!param_report.has_errors(), "{:?}", param_report.diagnostics);
+    assert!(
+        param_report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "KES-N012" && d.severity == ImportSeverity::Info),
+        "Expected KES-N012 info for unused FC parameter"
+    );
+    let param_kess = param_report.kess_source.expect("emitted kess source");
+    let param_compiled = compile_source(&param_kess, CompileOptions::default());
+    assert!(
+        !param_compiled.has_errors(),
+        "{:?}",
+        param_compiled.diagnostics
+    );
+    if ngspice_available {
+        let sim = runner
+            .run(
+                &SimulationRequest::new(
+                    param_compiled.spice_netlist.as_ref().unwrap(),
+                    param_compiled.ir.as_ref().unwrap().analyses.clone(),
+                ),
+                &CancellationToken::new(),
+            )
+            .expect("simulation launched");
+        assert!(sim.succeeded(), "{:?}", sim.errors);
+    }
+
+    // 3. RKM notation (4k7, 1u5, 2m2)
+    let rkm_input = "* RKM European notation
+V1 in 0 5
+R1 in n1 4k7
+C1 n1 n2 1u5
+L1 n2 0 2m2
+.op
+.end
+";
+    let rkm_report = import_spice(rkm_input);
+    assert!(!rkm_report.has_errors(), "{:?}", rkm_report.diagnostics);
+    let rkm_kess = rkm_report.kess_source.expect("emitted kess source");
+    assert!(rkm_kess.contains("4.7e3"), "{rkm_kess}");
+    assert!(rkm_kess.contains("1.5e-6"), "{rkm_kess}");
+    assert!(rkm_kess.contains("2.2e-3"), "{rkm_kess}");
+
+    // 4. 4-terminal BJT with grounded substrate and trailing passive/MOSFET parameters
+    let warning_input = "* 4-terminal BJT and trailing parameters
+Vcc vcc 0 12
+Vin vin 0 1
+Rb vin b 10k tc1=0.001
+Rc vcc c 1k
+Q1 c b 0 0 2N2222
+M1 c b 0 0 IRF540 W=10u L=1u
+.model 2N2222 NPN(IS=1e-14 BF=200)
+.op
+.end
+";
+    let warning_report = import_spice(warning_input);
+    assert!(
+        !warning_report.has_errors(),
+        "{:?}",
+        warning_report.diagnostics
+    );
+    let warning_codes: Vec<_> = warning_report
+        .diagnostics
+        .iter()
+        .filter(|d| d.severity == ImportSeverity::Warning)
+        .map(|d| d.code.as_str())
+        .collect();
+    assert_eq!(
+        warning_codes.iter().filter(|&&c| c == "KES-N011").count(),
+        3,
+        "Expected 3 KES-N011 warnings for Rb, Q1, and M1: {:?}",
+        warning_report.diagnostics
+    );
+    let warning_kess = warning_report.kess_source.expect("emitted kess source");
+    let warning_compiled = compile_source(&warning_kess, CompileOptions::default());
+    assert!(
+        !warning_compiled.has_errors(),
+        "{:?}",
+        warning_compiled.diagnostics
+    );
+    if ngspice_available {
+        let sim = runner
+            .run(
+                &SimulationRequest::new(
+                    warning_compiled.spice_netlist.as_ref().unwrap(),
+                    warning_compiled.ir.as_ref().unwrap().analyses.clone(),
+                ),
+                &CancellationToken::new(),
+            )
+            .expect("simulation launched");
+        assert!(sim.succeeded(), "{:?}", sim.errors);
+    }
 }

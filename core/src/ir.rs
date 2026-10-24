@@ -174,6 +174,8 @@ pub enum SourceValue {
 pub enum Waveform {
     Ac {
         amplitude: Quantity,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        offset: Option<Quantity>,
     },
     Sine {
         offset: Quantity,
@@ -582,12 +584,16 @@ fn make_waveform(
     mut numeric: impl FnMut(usize, SIUnit, &str) -> Result<Quantity, String>,
 ) -> Result<Waveform, String> {
     if name.eq_ignore_ascii_case("ac") {
-        if count != 1 {
-            return Err(format!("AC expects exactly 1 parameter, got {}", count));
+        if count != 1 && count != 2 {
+            return Err(format!("AC expects 1 or 2 parameters, got {}", count));
         }
-        return Ok(Waveform::Ac {
-            amplitude: numeric(0, value_unit, "waveform.amplitude")?,
-        });
+        let amplitude = numeric(0, value_unit, "waveform.amplitude")?;
+        let offset = if count == 2 {
+            Some(numeric(1, value_unit, "waveform.offset")?)
+        } else {
+            None
+        };
+        return Ok(Waveform::Ac { amplitude, offset });
     }
 
     if name.eq_ignore_ascii_case("sine") {

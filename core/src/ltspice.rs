@@ -315,9 +315,14 @@ fn plan_native_annotations(
 fn spice_source(value: &SourceValue) -> String {
     match value {
         SourceValue::Dc(value) => format_spice_number(value.value),
-        SourceValue::Waveform(Waveform::Ac { amplitude }) => {
-            format!("AC {}", format_spice_number(amplitude.value))
-        }
+        SourceValue::Waveform(Waveform::Ac { amplitude, offset }) => match offset {
+            Some(dc) if dc.value != 0.0 => format!(
+                "DC {} AC {}",
+                format_spice_number(dc.value),
+                format_spice_number(amplitude.value)
+            ),
+            _ => format!("AC {}", format_spice_number(amplitude.value)),
+        },
         SourceValue::Waveform(Waveform::Sine {
             offset,
             amplitude,

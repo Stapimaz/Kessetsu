@@ -4,6 +4,28 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### Canonical 1.5 showcase circuits and Web Hub presets
+
+- Add canonical 1.5 showcase circuits exercising new physical domains and verified subsystems:
+  - `examples/zener_shunt_regulator.kess`: 12 V to 5.1 V shunt regulator using the built-in `BZX84C5V1` Zener breakdown diode with `.op` and `.tran` regulation assertions.
+  - `examples/switched_sample_hold.kess`: Switched capacitor sample-and-hold circuit using `switch` (`model switch SW_SH`), pulsed clocking, and a 1 µF hold capacitor.
+  - `examples/current_sense_amplifier.kess`: Current-sense amplifier combining a linear `ccvs` sensor with the physical rail-clamped op-amp macromodel (`KESSETSU_OPAMP_V2`).
+- Register all showcase circuits into Web Hub preset examples with instant simulation and schematic inspection.
+
+### Biased small-signal AC sources
+
+- Add biased small-signal AC source support: `ac(amplitude, offset)` generates SPICE `DC <offset> AC <amplitude>`, enabling small-signal AC sweeps around explicit DC operating points.
+
+### Clean-room SPICE compatibility corpus and expanded dialect import
+
+- Add a 30-fixture clean-room SPICE compatibility corpus (`core/tests/spice_corpus_contract.rs`) validating dialect parsing, behavioral boundaries, and diagnostic fidelity.
+- Expand SPICE netlist import (`kess import`, CLI `--input auto|spice`, and MCP `kessetsu_import_spice`) for real-world netlists:
+  - Bounded constant arithmetic and math formula evaluation in `.param` and `{...}` expressions (`+`, `-`, `*`, `/`, `^`, `**`, `pi`, `e`, `sqrt`, `sin`, `cos`, `tan`, `exp`, `ln`, `log10`, `abs`, `min`, `max`, `pow`).
+  - European RKM value notation for resistors and capacitors (`4k7`, `1u5`, `2m2`, `4r7`).
+  - Combined DC bias + AC stimulus (`V1 in 0 DC 5 AC 1 0` -> `ac(1, 5)`).
+  - 4-terminal BJT substrate folding when substrate is grounded (`0`/`GND`) or tied to emitter (with `KES-N011` warning).
+  - Trailing SPICE instance parameter toleration on `R`/`L`/`C` (`tc1`, `tc2`, `tol`, `ic`, `m`, `temp`) and `M` (`W`, `L`, `AD`, `AS`, `PD`, `PS`, `M`) with `KES-N011` warnings.
+
 ### Linear SPICE dependent sources and conductance unit
 
 - Add linear SPICE dependent sources to Circuit IR, parser, SPICE generation, Schematic IR, and web editor:

@@ -14,13 +14,24 @@ Unsupported constructs produce diagnostics rather than silently approximate resu
 | Op-amp | Supported | `in_p`, `in_n`, `vcc`, `vee`, `out` | Safe canonical template or hash-bound external subcircuit; browser portable-profile restrictions apply; no arbitrary raw directives |
 | External comparator | Supported | `in_p`, `in_n`, `vcc`, `vee`, `out` | Exact local model; browser portable-profile restrictions apply |
 | External two-terminal device | Supported | `p1`, `p2` | Exact local subcircuit, e.g. the characterized memristor demonstration; no universal device fidelity |
-| Voltage/current source | Supported | `plus`, `minus` | Typed DC, `sine`, `pulse`, `pwl`, `ac`, and `sine_ac` waveforms |
+| Voltage/current source | Supported | `plus`, `minus` | Typed DC, `sine`, `pulse`, `pwl`, small-signal `ac(amplitude)`, biased small-signal `ac(amplitude, dc_offset)` (mapping to SPICE `DC <offset> AC <amplitude>`), and `sine_ac` waveforms |
 | VCVS (`vcvs`) | Supported | `p_out`, `n_out`, `ctrl_p`, `ctrl_n` | Linear voltage-controlled voltage source: `vcvs <id> <gain>` (SPICE `E`, dimensionless `ratio`) |
 | VCCS (`vccs`) | Supported | `p_out`, `n_out`, `ctrl_p`, `ctrl_n` | Linear voltage-controlled current source: `vccs <id> <gm>` (SPICE `G`, transconductance in Siemens `S`) |
 | CCVS (`ccvs`) | Supported | `p_out`, `n_out`, `ctrl_p`, `ctrl_n` | Linear current-controlled voltage source: `ccvs <id> <rm>` (SPICE `H`, transresistance in `Ohm`, internal 0 V sense branch) |
 | CCCS (`cccs`) | Supported | `p_out`, `n_out`, `ctrl_p`, `ctrl_n` | Linear current-controlled current source: `cccs <id> <gain>` (SPICE `F`, dimensionless `ratio`, internal 0 V sense branch) |
 | Switch (`switch`) | Supported | `p1`, `p2`, `ctrl_p`, `ctrl_n` | Voltage-controlled switch: `switch <id> [model]` (SPICE `S`), default model `KESSETSU_SW_V1` or typed user switch model |
 | Module port | Flattening-only element | Defined by the module | Not a public physical component |
+
+### Independent sources
+
+Independent voltage (`source`) and current (`current_source`) elements support typed waveforms:
+- DC scalar: `source VIN 5V`
+- Small-signal AC stimulus: `ac(amplitude)` (e.g. `source VIN ac(1V)`) for unforced AC frequency sweeps.
+- Biased small-signal AC stimulus: `ac(amplitude, dc_offset)` (e.g. `source VIN ac(1V, 5V)`), mapping to SPICE `DC <offset> AC <amplitude>` for small-signal AC analysis around an operating bias point.
+- Sine wave: `sine(offset, amplitude, frequency)`
+- Sine with AC: `sine_ac(offset, amplitude, frequency, ac_amplitude)` for combined transient and AC frequency-domain sweeps.
+- Pulse: `pulse(low, high, delay, rise, fall, width, period)`
+- Piecewise linear: `pwl(time, value, ...)` with non-negative, strictly increasing times.
 
 ## Model scope
 
@@ -52,12 +63,13 @@ arbitrary vendor, memristor or research-device support.
 ## SPICE netlist import subset
 
 The canonical SPICE importer (`kess import`, CLI `--input auto|spice`, and `kess mcp`) accepts a declared Ngspice-compatible subset:
-- Passive components: `R`, `C`, `L` with literal quantities.
-- Independent sources: DC, AC, SINE, PULSE, and PWL `V` and `I` sources.
+- Passive components: `R`, `C`, `L` with literal quantities and European RKM value notation (`4k7`, `1u5`, `2m2`, `4r7`). Trailing SPICE instance parameters (`tc1`, `tc2`, `tol`, `ic`, `m`, `temp`) are tolerated with advisory warning `KES-N011`.
+- Independent sources: DC, AC, SINE, PULSE, and PWL `V` and `I` sources, including combined DC bias + AC stimulus (`V1 in 0 DC 5 AC 1 0` -> `ac(1, 5)`).
 - Linear dependent sources: linear `E` (VCVS), `G` (VCCS), `F` (CCCS), and `H` (CCVS) sources; current-controlled sources fold 0 V sense branches into Kessetsu's canonical 4-pin dependent sources. Non-linear behavioral constructs (`VALUE`, `POLY`, `TABLE`, `LAPLACE`, `FREQ`, or `B` cards) fail closed.
 - Switches: `S` cards with `.model <name> SW` parameters (`vt`, `vh`, `ron`, `roff`) or default `KESSETSU_SW_V1`.
-- Diodes and transistors: `D`, `Q`, and three-terminal `M` (or four-terminal with bulk tied to source) cards, using built-in models (including Zener diodes `1N4733A`, `BZX84C3V3`, `BZX84C5V1`, `BZX84C12`) or typed inline `.model` definitions (including breakdown parameters `bv`, `ibv`, `nbv`, `ibvl`, `nbvl`).
+- Diodes and transistors: `D`, `Q`, and three-terminal `M` (or four-terminal with bulk tied to source) cards, using built-in models (including Zener diodes `1N4733A`, `BZX84C3V3`, `BZX84C5V1`, `BZX84C12`) or typed inline `.model` definitions (including breakdown parameters `bv`, `ibv`, `nbv`, `ibvl`, `nbvl`). Four-terminal BJT cards automatically fold the substrate terminal when tied to ground (`0`/`GND`) or emitter (emitting advisory warning `KES-N011`). Trailing MOSFET instance parameters (`W`, `L`, `AD`, `AS`, `PD`, `PS`, `M`) are tolerated with `KES-N011` warnings.
 - Operational amplifiers: 5-terminal `X` cards (`in_p in_n vcc vee out`) referencing `KESSETSU_OPAMP_V1`, `KESSETSU_OPAMP_V2`, or `OPAMP`.
+- Parameter evaluation: bounded `.param` assignments and `{...}` expressions evaluate constant arithmetic and math functions (`+`, `-`, `*`, `/`, `^`, `**`, `pi`, `e`, `sqrt`, `sin`, `cos`, `tan`, `exp`, `ln`, `log10`, `abs`, `min`, `max`, `pow`).
 - Direct node testing: `.kessreq` and inline assertions can reference imported numeric SPICE node numbers directly (such as `V(1)` and `V(2)`).
 
 ## Analysis, dataset, and measurement scope
@@ -88,6 +100,9 @@ separate holdout validation, see [research data](../guides/research-data.md) and
 - RC low-pass: the first vertical Web/CLI parity path.
 - Op-amp gain stage: feedback, AC bandwidth, and transient clipping.
 - Four-stage 8 Ω power amplifier: the primary product eval for gain, approximately 2 W output, THD, clipping, stress, and dissipation.
+- Zener shunt regulator (`zener_shunt_regulator.kess`): 12 V to 5.1 V shunt regulation with built-in `BZX84C5V1` Zener breakdown diode.
+- Switched sample-and-hold (`switched_sample_hold.kess`): pulsed clocking with `switch` (`model switch SW_SH`) and hold capacitor.
+- Current-sense amplifier (`current_sense_amplifier.kess`): load current sensing using `ccvs` and rail-clamped op-amp (`KESSETSU_OPAMP_V2`).
 - The schematic corpus also covers minimal, Wheatstone-bridge, and high-fan-out topologies.
 
 ## Deliberate physical boundaries

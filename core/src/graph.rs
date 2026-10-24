@@ -365,9 +365,14 @@ pub fn generate_browser_analysis_netlist(
 
 fn format_waveform(waveform: &Waveform) -> String {
     match waveform {
-        Waveform::Ac { amplitude } => {
-            format!("AC {}", format_spice_number(amplitude.value))
-        }
+        Waveform::Ac { amplitude, offset } => match offset {
+            Some(dc) if dc.value != 0.0 => format!(
+                "DC {} AC {}",
+                format_spice_number(dc.value),
+                format_spice_number(amplitude.value)
+            ),
+            _ => format!("AC {}", format_spice_number(amplitude.value)),
+        },
         Waveform::Sine {
             offset,
             amplitude,

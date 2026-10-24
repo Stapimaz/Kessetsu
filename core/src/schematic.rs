@@ -388,9 +388,14 @@ fn quantity_label(value: f64, unit: SIUnit) -> String {
 
 fn waveform_label(waveform: &Waveform) -> String {
     match waveform {
-        Waveform::Ac { amplitude } => {
-            format!("AC {}", quantity_label(amplitude.value, amplitude.unit))
-        }
+        Waveform::Ac { amplitude, offset } => match offset {
+            Some(dc) if dc.value.abs() >= f64::EPSILON => format!(
+                "{} + AC {}",
+                quantity_label(dc.value, dc.unit),
+                quantity_label(amplitude.value, amplitude.unit)
+            ),
+            _ => format!("AC {}", quantity_label(amplitude.value, amplitude.unit)),
+        },
         Waveform::Sine {
             offset,
             amplitude,

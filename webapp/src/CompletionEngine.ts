@@ -54,13 +54,13 @@ const componentList: readonly ComponentTypeDetail[] = [
   {
     label: 'source',
     detail: 'source <name> <value>',
-    documentation: 'Declare an independent voltage source.',
+    documentation: 'Declare an independent voltage source (DC scalar, ac(amplitude), biased ac(amplitude, dc_offset), sine, sine_ac, pulse, pwl).',
     insertText: 'source ${1:VIN} ${2:5V}',
   },
   {
     label: 'current_source',
     detail: 'current_source <name> <value>',
-    documentation: 'Declare an independent current source.',
+    documentation: 'Declare an independent current source (DC scalar, ac(amplitude), biased ac(amplitude, dc_offset), sine, sine_ac, pulse, pwl).',
     insertText: 'current_source ${1:I1} ${2:1mA}',
   },
   {
@@ -194,3 +194,24 @@ export function getConnectPinCompletions(
   const completions = getPinCompletions(componentName, declarations);
   return completions.length > 0 ? completions : null;
 }
+
+/**
+ * Standard waveform completions for independent sources, including small-signal AC
+ * and biased small-signal AC waveforms.
+ */
+export const waveformCompletions: readonly KessetsuCompletion[] = [
+  { label: 'DC value', detail: 'Constant source value.', insertText: '${1:5V}' },
+  {
+    label: 'ac',
+    detail: 'Small-signal AC amplitude: ac(amplitude) or biased ac(amplitude, dc_offset).',
+    documentation: 'Small-signal AC stimulus: ac(amplitude) or biased small-signal source ac(amplitude, dc_offset) mapping to SPICE `DC <offset> AC <amplitude>`.',
+    insertText: 'ac(${1:1V})',
+  },
+  { label: 'sine', detail: 'Sine offset, amplitude, and frequency.', insertText: 'sine(${1:0V},${2:1V},${3:1kHz})' },
+  { label: 'sine_ac', detail: 'Sine transient plus small-signal AC amplitude.', insertText: 'sine_ac(${1:0V},${2:1V},${3:1kHz},${4:1V})' },
+  { label: 'pulse', detail: 'Pulse low, high, delay, rise, fall, width, and period.', insertText: 'pulse(${1:0V},${2:5V},${3:0s},${4:1us},${5:1us},${6:500us},${7:1ms})' },
+  { label: 'pwl', detail: 'Piecewise-linear time/value pairs.', insertText: 'pwl(${1:0s},${2:0V},${3:1ms},${4:5V})' },
+];
+
+export const WAVEFORM_COMPLETIONS = waveformCompletions;
+

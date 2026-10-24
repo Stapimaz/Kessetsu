@@ -1167,7 +1167,9 @@ fn source_current(
 fn source_value_at(value: &SourceValue, time: f64) -> Result<f64, String> {
     match value {
         SourceValue::Dc(quantity) => Ok(quantity.value),
-        SourceValue::Waveform(Waveform::Ac { .. }) => Ok(0.0),
+        SourceValue::Waveform(Waveform::Ac { offset, .. }) => {
+            Ok(offset.as_ref().map_or(0.0, |q| q.value))
+        }
         SourceValue::Waveform(Waveform::Sine {
             offset,
             amplitude,

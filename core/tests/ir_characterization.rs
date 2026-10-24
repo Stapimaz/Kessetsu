@@ -214,7 +214,7 @@ fn waveform_arity_and_units_are_validated() {
     assert!(matches!(
         &circuit.components[1].parameters,
         ComponentParams::CurrentSource {
-            value: SourceValue::Waveform(Waveform::Ac { amplitude })
+            value: SourceValue::Waveform(Waveform::Ac { amplitude, .. })
         } if amplitude.unit == SIUnit::Ampere && amplitude.value == 0.001
     ));
 

@@ -117,6 +117,7 @@ struct ImportedParameter {
     original_name: String,
     mapped_name: String,
     value: String,
+    numeric_value: f64,
     line: usize,
 }
 
@@ -372,7 +373,7 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
     }
     let mut subcircuits = Vec::new();
     for block in &user_blocks {
-        match parse_subcircuit(block, &module_names, &models) {
+        match parse_subcircuit(block, &module_names, &models, &mut report.diagnostics) {
             Ok(subcircuit) => subcircuits.push(subcircuit),
             Err((line, message)) => push_error(&mut report, "KES-N007", message, Some(line)),
         }
@@ -510,6 +511,7 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
                 &parameter_lookup,
                 &mut parameter_units,
                 &models,
+                &mut report.diagnostics,
             ) {
                 Ok(component) => components.push(component),
                 Err(_) if is_first_line => push_title_info(&mut report),
@@ -717,37 +719,23 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
 
     for parameter in &parameters {
         let Some(unit) = parameter_units.get(&parameter.original_name.to_ascii_lowercase()) else {
-            push_error(
-                &mut report,
-                "KES-N006",
-                format!(
-                    "parameter '{}' is unused, so its electrical unit cannot be inferred",
+            report.diagnostics.push(ImportDiagnostic {
+                code: "KES-N012".into(),
+                severity: ImportSeverity::Info,
+                message: format!(
+                    "parameter '{}' is not directly referenced by an imported component and was omitted",
                     parameter.original_name
                 ),
-                Some(parameter.line),
-            );
+                line: Some(parameter.line),
+                column: None,
+            });
             continue;
-        };
-        let value = match canonical_number(&parameter.value) {
-            Ok(value) => value,
-            Err(message) => {
-                push_error(
-                    &mut report,
-                    "KES-N006",
-                    format!(
-                        "parameter '{}' must be a literal value in the supported subset: {message}",
-                        parameter.original_name
-                    ),
-                    Some(parameter.line),
-                );
-                continue;
-            }
         };
         generated.push_str(&format!(
             "param {}: {} = {}\n",
             parameter.mapped_name,
             unit.kessetsu_name(),
-            value
+            parameter.value
         ));
     }
     if report.has_errors() {
@@ -968,6 +956,7 @@ fn parse_subcircuit(
     block: &SubcircuitBlock,
     module_names: &BTreeMap<String, (String, usize)>,
     models: &InlineModels,
+    diagnostics: &mut Vec<ImportDiagnostic>,
 ) -> Result<ImportedSubcircuit, (usize, String)> {
     let normalized_header = normalize_assignments(&block.header.text.replace(',', " "));
     let fields = split_fields(normalized_header.trim());
@@ -1048,7 +1037,9 @@ fn parse_subcircuit(
             format!("subcircuit '{name}' has PARAMS: without any defaults"),
         ));
     }
-    let mut parameters = parse_parameter_assignments(assignments, block.header.number, &mut used)?;
+    let mut env = BTreeMap::<String, f64>::new();
+    let mut parameters =
+        parse_parameter_assignments(assignments, block.header.number, &mut used, &mut env)?;
     for line in &block.body {
         let text = line.text.trim();
         let first_token = text.split_whitespace().next();
@@ -1064,7 +1055,7 @@ fn parse_subcircuit(
                 ".param requires at least one NAME=literal assignment".into(),
             ));
         }
-        let extra = parse_parameter_assignments(&param_fields, line.number, &mut used)?;
+        let extra = parse_parameter_assignments(&param_fields, line.number, &mut used, &mut env)?;
         for param in extra {
             if let Some(existing) = parameters.iter().find(|existing| {
                 existing
@@ -1133,6 +1124,7 @@ fn parse_subcircuit(
                 &parameter_lookup,
                 &mut parameter_units,
                 models,
+                diagnostics,
             )
             .map_err(|message| (line.number, message))?,
         );
@@ -1257,6 +1249,7 @@ fn parse_parameter_assignments(
     assignments: &[String],
     line: usize,
     used: &mut BTreeSet<String>,
+    env: &mut BTreeMap<String, f64>,
 ) -> Result<Vec<ImportedParameter>, (usize, String)> {
     let mut parameters = Vec::new();
     let mut seen = BTreeMap::<String, String>::new();
@@ -1276,7 +1269,7 @@ fn parse_parameter_assignments(
             ));
         }
         let folded = name.to_ascii_lowercase();
-        if let Some(previous) = seen.insert(folded, name.into()) {
+        if let Some(previous) = seen.insert(folded.clone(), name.into()) {
             return Err((
                 line,
                 format!(
@@ -1284,10 +1277,27 @@ fn parse_parameter_assignments(
                 ),
             ));
         }
+        let evaluated = evaluate_spice_expr(value, env).map_err(|message| {
+            (
+                line,
+                format!(
+                    "parameter '{name}' must be a literal or constant arithmetic expression: {message}"
+                ),
+            )
+        })?;
+        env.insert(folded, evaluated);
+        let normalized_val = if let Ok(exact) = canonical_number(value) {
+            exact
+        } else if evaluated == 0.0 {
+            "0".into()
+        } else {
+            stable_scientific(evaluated)
+        };
         parameters.push(ImportedParameter {
             original_name: name.into(),
             mapped_name: unique_identifier(name, "P", used),
-            value: value.into(),
+            value: normalized_val,
+            numeric_value: evaluated,
             line,
         });
     }
@@ -1495,13 +1505,11 @@ fn render_subcircuit(module: &ImportedSubcircuit) -> String {
     );
     for parameter in &module.parameters {
         let unit = module.parameter_units[&parameter.original_name.to_ascii_lowercase()];
-        let value = canonical_number(&parameter.value)
-            .expect("subcircuit parameter literals are validated before rendering");
         generated.push_str(&format!(
             "  param {}: {} = {}\n",
             parameter.mapped_name,
             unit.kessetsu_name(),
-            value
+            parameter.value
         ));
     }
     for net in &module.internal_nets {
@@ -1584,6 +1592,7 @@ fn collect_parameters(
     let mut parameters = Vec::new();
     let mut seen = BTreeMap::<String, (String, usize)>::new();
     let mut used = BTreeSet::new();
+    let mut env = BTreeMap::<String, f64>::new();
     for line in lines {
         let trimmed = line.text.trim();
         let first_token = trimmed.split_whitespace().next();
@@ -1635,11 +1644,35 @@ fn collect_parameters(
                 );
                 continue;
             }
-            seen.insert(folded, (name.into(), line.number));
+            seen.insert(folded.clone(), (name.into(), line.number));
+
+            let evaluated = match evaluate_spice_expr(value, &env) {
+                Ok(val) => val,
+                Err(message) => {
+                    push_error(
+                        report,
+                        "KES-N006",
+                        format!(
+                            "parameter '{name}' must be a literal or constant arithmetic expression: {message}"
+                        ),
+                        Some(line.number),
+                    );
+                    continue;
+                }
+            };
+            env.insert(folded, evaluated);
+            let normalized_val = if let Ok(exact) = canonical_number(value) {
+                exact
+            } else if evaluated == 0.0 {
+                "0".into()
+            } else {
+                stable_scientific(evaluated)
+            };
             parameters.push(ImportedParameter {
                 original_name: name.into(),
                 mapped_name: unique_identifier(name, "P", &mut used),
-                value: value.into(),
+                value: normalized_val,
+                numeric_value: evaluated,
                 line: line.number,
             });
         }
@@ -1671,6 +1704,7 @@ fn parse_component(
     parameters: &BTreeMap<String, &ImportedParameter>,
     parameter_units: &mut BTreeMap<String, ImportUnit>,
     models: &InlineModels,
+    diagnostics: &mut Vec<ImportDiagnostic>,
 ) -> Result<ImportedComponent, String> {
     let fields = split_fields(text);
     let name = fields
@@ -1678,38 +1712,68 @@ fn parse_component(
         .filter(|name| !name.is_empty())
         .ok_or_else(|| "empty SPICE statement".to_string())?;
     let prefix = name.chars().next().unwrap().to_ascii_uppercase();
-    let mut two_terminal =
-        |kind: fn(String) -> ImportedKind, unit: ImportUnit| -> Result<ImportedComponent, String> {
-            let normalized = normalize_assignments(text);
-            let passive_fields = split_fields(normalized.trim());
-            if passive_fields.len() != 4 {
-                return Err(format!(
-                    "{} expects name, two nodes and one literal value",
-                    prefix
-                ));
+    let mut two_terminal = |kind: fn(String) -> ImportedKind,
+                            unit: ImportUnit|
+     -> Result<ImportedComponent, String> {
+        let normalized = normalize_assignments(text);
+        let passive_fields = split_fields(normalized.trim());
+        if passive_fields.len() < 4 {
+            return Err(format!(
+                "{} expects name, two nodes and one literal value",
+                prefix
+            ));
+        }
+        if passive_fields.len() > 4 {
+            let known_passive_params = [
+                "tc", "tc1", "tc2", "tce", "temp", "dtemp", "m", "scale", "tol", "pwr", "ic",
+            ];
+            for extra in &passive_fields[4..] {
+                let Some((k, v)) = extra.split_once('=') else {
+                    return Err(format!(
+                        "{} expects name, two nodes and one literal value",
+                        prefix
+                    ));
+                };
+                if v.is_empty() || !known_passive_params.contains(&k.to_ascii_lowercase().as_str())
+                {
+                    return Err(format!(
+                        "{} expects name, two nodes and one literal value",
+                        prefix
+                    ));
+                }
             }
-            let raw_val = &passive_fields[3];
-            let stripped_val = raw_val
-                .split_once('=')
-                .filter(|(k, v)| {
-                    !v.is_empty()
-                        && k.len() == 1
-                        && k.chars().next().unwrap().eq_ignore_ascii_case(&prefix)
-                })
-                .map_or(raw_val.as_str(), |(_, v)| v);
-            Ok(ImportedComponent {
-                original_name: name.clone(),
-                nodes: passive_fields[1..3].to_vec(),
-                pins: &["p1", "p2"],
-                kind: kind(translate_numeric(
-                    stripped_val,
-                    unit,
-                    parameters,
-                    parameter_units,
-                )?),
-                line,
+            push_warning_diag(
+                diagnostics,
+                "KES-N011",
+                format!(
+                    "component '{name}': trailing SPICE instance parameters ({}) were ignored",
+                    passive_fields[4..].join(", ")
+                ),
+                Some(line),
+            );
+        }
+        let raw_val = &passive_fields[3];
+        let stripped_val = raw_val
+            .split_once('=')
+            .filter(|(k, v)| {
+                !v.is_empty()
+                    && k.len() == 1
+                    && k.chars().next().unwrap().eq_ignore_ascii_case(&prefix)
             })
-        };
+            .map_or(raw_val.as_str(), |(_, v)| v);
+        Ok(ImportedComponent {
+            original_name: name.clone(),
+            nodes: passive_fields[1..3].to_vec(),
+            pins: &["p1", "p2"],
+            kind: kind(translate_numeric(
+                stripped_val,
+                unit,
+                parameters,
+                parameter_units,
+            )?),
+            line,
+        })
+    };
     match prefix {
         'R' => two_terminal(ImportedKind::Resistor, ImportUnit::Ohm),
         'C' => two_terminal(ImportedKind::Capacitor, ImportUnit::Farad),
@@ -1763,10 +1827,34 @@ fn parse_component(
             })
         }
         'Q' => {
-            if fields.len() != 5 {
-                return Err("Q expects name, collector, base, emitter and model; substrate nodes are not supported".into());
-            }
-            let (polarity, model) = match models.get(&fields[4].to_ascii_lowercase()) {
+            let (nodes, model_field) = if fields.len() == 6 {
+                let nsub = &fields[4];
+                let ne = &fields[3];
+                if nsub == "0" || nsub.eq_ignore_ascii_case("gnd") || nsub.eq_ignore_ascii_case(ne)
+                {
+                    push_warning_diag(
+                        diagnostics,
+                        "KES-N011",
+                        format!(
+                            "4-terminal BJT '{name}': substrate node '{nsub}' was folded into 3-terminal BJT"
+                        ),
+                        Some(line),
+                    );
+                    (fields[1..4].to_vec(), &fields[5])
+                } else {
+                    return Err(
+                        "4-terminal BJT requires substrate node to be grounded (0/GND) or tied to emitter".into(),
+                    );
+                }
+            } else if fields.len() == 5 {
+                (fields[1..4].to_vec(), &fields[4])
+            } else {
+                return Err(
+                    "Q expects name, collector, base, emitter and model; substrate nodes are not supported"
+                        .into(),
+                );
+            };
+            let (polarity, model) = match models.get(&model_field.to_ascii_lowercase()) {
                 Some(InlineModel {
                     kind: InlineModelKind::Bjt(polarity),
                     mapped,
@@ -1779,7 +1867,7 @@ fn parse_component(
                     ));
                 }
                 None => {
-                    let model = fields[4].clone();
+                    let model = model_field.clone();
                     let polarity = match model.to_ascii_uppercase().as_str() {
                         "2N3906" | "KESSETSU_POWER_PNP_V1" => "pnp",
                         "2N3904" | "2N2222" | "KESSETSU_POWER_NPN_V1" => "npn",
@@ -1794,17 +1882,26 @@ fn parse_component(
             };
             Ok(ImportedComponent {
                 original_name: name.clone(),
-                nodes: fields[1..4].to_vec(),
+                nodes,
                 pins: &["c", "b", "e"],
                 kind: ImportedKind::Bjt { polarity, model },
                 line,
             })
         }
         'M' => {
-            let (nodes, model) = match fields.len() {
-                5 => (fields[1..4].to_vec(), fields[4].clone()),
-                6 if fields[3].eq_ignore_ascii_case(&fields[4]) => {
-                    (fields[1..4].to_vec(), fields[5].clone())
+            let normalized = normalize_assignments(&text.replace(',', " "));
+            let fields = split_fields(normalized.trim());
+            let param_start = fields
+                .iter()
+                .skip(1)
+                .position(|f| f.contains('='))
+                .map(|i| i + 1)
+                .unwrap_or(fields.len());
+            let core_fields = &fields[..param_start];
+            let (nodes, model) = match core_fields.len() {
+                5 => (core_fields[1..4].to_vec(), core_fields[4].clone()),
+                6 if core_fields[3].eq_ignore_ascii_case(&core_fields[4]) => {
+                    (core_fields[1..4].to_vec(), core_fields[5].clone())
                 }
                 6 => {
                     return Err(
@@ -1817,6 +1914,33 @@ fn parse_component(
                     );
                 }
             };
+            if param_start < fields.len() {
+                let known_mosfet_params = [
+                    "w", "l", "ad", "as", "pd", "ps", "nrd", "nrs", "off", "ic", "temp", "dtemp",
+                    "m",
+                ];
+                for extra in &fields[param_start..] {
+                    let Some((k, v)) = extra.split_once('=') else {
+                        return Err(format!("MOSFET '{name}': invalid parameter '{extra}'"));
+                    };
+                    if v.is_empty()
+                        || !known_mosfet_params.contains(&k.to_ascii_lowercase().as_str())
+                    {
+                        return Err(format!(
+                            "MOSFET '{name}': unsupported instance parameter '{k}'"
+                        ));
+                    }
+                }
+                push_warning_diag(
+                    diagnostics,
+                    "KES-N011",
+                    format!(
+                        "MOSFET '{name}': instance geometry/multiplier parameters ({}) were ignored",
+                        fields[param_start..].join(", ")
+                    ),
+                    Some(line),
+                );
+            }
             let model = match models.get(&model.to_ascii_lowercase()) {
                 Some(InlineModel {
                     kind: InlineModelKind::Mosfet(_),
@@ -2101,9 +2225,17 @@ fn translate_numeric(
         return Ok(format!("{{{}}}", parameter.mapped_name));
     }
     if braced {
-        return Err(format!(
-            "SPICE expression '{{{candidate}}}' is outside the literal parameter subset"
-        ));
+        let env: BTreeMap<String, f64> = parameters
+            .iter()
+            .map(|(k, p)| (k.clone(), p.numeric_value))
+            .collect();
+        let val = evaluate_spice_expr(candidate, &env)
+            .map_err(|e| format!("SPICE expression '{{{candidate}}}': {e}"))?;
+        return Ok(if val == 0.0 {
+            "0".into()
+        } else {
+            stable_scientific(val)
+        });
     }
     canonical_number(input)
 }
@@ -2264,11 +2396,13 @@ fn translate_source(
 
     if let Some(mag) = ac_mag {
         if let Some(dc) = dc_field
-            && canonical_number(dc)? != "0"
+            && canonical_number(dc).ok().as_deref() != Some("0")
         {
-            return Err(
-                "combined non-zero DC bias and AC magnitude is not representable yet".into(),
-            );
+            return Ok(format!(
+                "ac({},{})",
+                translate_numeric(mag, value_unit, parameters, parameter_units)?,
+                translate_numeric(dc, value_unit, parameters, parameter_units)?
+            ));
         }
         return Ok(format!(
             "ac({})",
@@ -2604,18 +2738,27 @@ fn unique_identifier(original: &str, prefix: &str, used: &mut BTreeSet<String>) 
 fn split_fields(text: &str) -> Vec<String> {
     let mut fields = Vec::new();
     let mut current = String::new();
-    let mut depth = 0usize;
+    let mut paren_depth = 0usize;
+    let mut brace_depth = 0usize;
     for character in text.chars() {
         match character {
             '(' => {
-                depth += 1;
+                paren_depth += 1;
                 current.push(character);
             }
             ')' => {
-                depth = depth.saturating_sub(1);
+                paren_depth = paren_depth.saturating_sub(1);
                 current.push(character);
             }
-            ' ' | '\t' if depth == 0 => {
+            '{' => {
+                brace_depth += 1;
+                current.push(character);
+            }
+            '}' => {
+                brace_depth = brace_depth.saturating_sub(1);
+                current.push(character);
+            }
+            ' ' | '\t' if paren_depth == 0 && brace_depth == 0 => {
                 if !current.is_empty() {
                     fields.push(std::mem::take(&mut current));
                 }
@@ -2629,8 +2772,70 @@ fn split_fields(text: &str) -> Vec<String> {
     fields
 }
 
+fn convert_rkm_to_standard(input: &str) -> Option<String> {
+    let input = input.trim();
+    let bytes = input.as_bytes();
+    let mut i = 0;
+    if i < bytes.len() && (bytes[i] == b'+' || bytes[i] == b'-') {
+        i += 1;
+    }
+    let sign_end = i;
+    while i < bytes.len() && bytes[i].is_ascii_digit() {
+        i += 1;
+    }
+    let int_end = i;
+    if int_end == sign_end {
+        return None;
+    }
+
+    let rem = &input[int_end..];
+    let (multiplier_str, mult_len) = if rem.len() >= 3 && rem[..3].eq_ignore_ascii_case("meg") {
+        ("meg", 3)
+    } else if let Some(&c) = bytes.get(int_end) {
+        let lower = c.to_ascii_lowercase();
+        if lower == b'r' || lower == b'v' {
+            ("", 1)
+        } else if matches!(lower, b'k' | b'm' | b'u' | b'n' | b'p' | b'f' | b'g' | b't') {
+            (&input[int_end..int_end + 1], 1)
+        } else {
+            return None;
+        }
+    } else {
+        return None;
+    };
+
+    let fraction_start = int_end + mult_len;
+    i = fraction_start;
+    while i < bytes.len() && bytes[i].is_ascii_digit() {
+        i += 1;
+    }
+    let fraction_end = i;
+    if fraction_end == fraction_start {
+        return None;
+    }
+
+    let trailing = &input[fraction_end..];
+    if !trailing.chars().all(|c| c.is_ascii_alphabetic()) {
+        return None;
+    }
+
+    let sign = &input[..sign_end];
+    let integer = &input[sign_end..int_end];
+    let fraction = &input[fraction_start..fraction_end];
+    Some(format!(
+        "{sign}{integer}.{fraction}{multiplier_str}{trailing}"
+    ))
+}
+
 fn canonical_number(input: &str) -> Result<String, String> {
     let input = input.trim();
+    let rkm_converted;
+    let input = if let Some(standard) = convert_rkm_to_standard(input) {
+        rkm_converted = standard;
+        rkm_converted.as_str()
+    } else {
+        input
+    };
     let bytes = input.as_bytes();
     let mut index = usize::from(matches!(bytes.first(), Some(b'+') | Some(b'-')));
     let integer = index;
@@ -2716,6 +2921,311 @@ fn stable_scientific(value: f64) -> String {
     format!("{mantissa}e{exponent}")
 }
 
+#[derive(Debug, Clone, PartialEq)]
+enum ExprToken {
+    Number(f64),
+    Ident(String),
+    Plus,
+    Minus,
+    Star,
+    Slash,
+    Caret,
+    StarStar,
+    LParen,
+    RParen,
+    Comma,
+}
+
+fn tokenize_spice_expr(expr: &str) -> Result<Vec<ExprToken>, String> {
+    let expr = expr.trim();
+    let expr = expr
+        .strip_prefix('{')
+        .and_then(|s| s.strip_suffix('}'))
+        .unwrap_or(expr)
+        .trim();
+    let chars: Vec<char> = expr.chars().collect();
+    let mut i = 0;
+    let mut tokens = Vec::new();
+
+    while i < chars.len() {
+        let c = chars[i];
+        if c.is_whitespace() {
+            i += 1;
+            continue;
+        }
+        if c == '+' {
+            tokens.push(ExprToken::Plus);
+            i += 1;
+        } else if c == '-' {
+            tokens.push(ExprToken::Minus);
+            i += 1;
+        } else if c == '*' {
+            if i + 1 < chars.len() && chars[i + 1] == '*' {
+                tokens.push(ExprToken::StarStar);
+                i += 2;
+            } else {
+                tokens.push(ExprToken::Star);
+                i += 1;
+            }
+        } else if c == '/' {
+            tokens.push(ExprToken::Slash);
+            i += 1;
+        } else if c == '^' {
+            tokens.push(ExprToken::Caret);
+            i += 1;
+        } else if c == '(' {
+            tokens.push(ExprToken::LParen);
+            i += 1;
+        } else if c == ')' {
+            tokens.push(ExprToken::RParen);
+            i += 1;
+        } else if c == ',' {
+            tokens.push(ExprToken::Comma);
+            i += 1;
+        } else if c.is_ascii_digit()
+            || (c == '.' && i + 1 < chars.len() && chars[i + 1].is_ascii_digit())
+        {
+            let start = i;
+            while i < chars.len() {
+                let ch = chars[i];
+                if ch.is_ascii_alphanumeric()
+                    || ch == '.'
+                    || ((ch == '+' || ch == '-')
+                        && i > start
+                        && (chars[i - 1] == 'e' || chars[i - 1] == 'E'))
+                {
+                    i += 1;
+                } else {
+                    break;
+                }
+            }
+            let token_str: String = chars[start..i].iter().collect();
+            let canonical = canonical_number(&token_str)
+                .map_err(|e| format!("invalid number '{token_str}': {e}"))?;
+            let val: f64 = canonical
+                .parse()
+                .map_err(|_| format!("cannot parse number '{token_str}'"))?;
+            tokens.push(ExprToken::Number(val));
+        } else if c.is_ascii_alphabetic() || c == '_' {
+            let start = i;
+            while i < chars.len() && (chars[i].is_ascii_alphanumeric() || chars[i] == '_') {
+                i += 1;
+            }
+            let ident: String = chars[start..i].iter().collect();
+            tokens.push(ExprToken::Ident(ident));
+        } else {
+            return Err(format!("unexpected character '{c}' in SPICE expression"));
+        }
+    }
+    Ok(tokens)
+}
+
+struct ExprParser<'a> {
+    tokens: &'a [ExprToken],
+    pos: usize,
+    env: &'a BTreeMap<String, f64>,
+}
+
+impl<'a> ExprParser<'a> {
+    fn peek(&self) -> Option<&ExprToken> {
+        self.tokens.get(self.pos)
+    }
+
+    fn next(&mut self) -> Option<ExprToken> {
+        let tok = self.tokens.get(self.pos).cloned();
+        if tok.is_some() {
+            self.pos += 1;
+        }
+        tok
+    }
+
+    fn parse_expr(&mut self) -> Result<f64, String> {
+        let mut left = self.parse_term()?;
+        while let Some(tok) = self.peek() {
+            match tok {
+                ExprToken::Plus => {
+                    self.next();
+                    let right = self.parse_term()?;
+                    left += right;
+                }
+                ExprToken::Minus => {
+                    self.next();
+                    let right = self.parse_term()?;
+                    left -= right;
+                }
+                _ => break,
+            }
+        }
+        Ok(left)
+    }
+
+    fn parse_term(&mut self) -> Result<f64, String> {
+        let mut left = self.parse_power()?;
+        while let Some(tok) = self.peek() {
+            match tok {
+                ExprToken::Star => {
+                    self.next();
+                    let right = self.parse_power()?;
+                    left *= right;
+                }
+                ExprToken::Slash => {
+                    self.next();
+                    let right = self.parse_power()?;
+                    if right == 0.0 {
+                        return Err("division by zero in SPICE expression".into());
+                    }
+                    left /= right;
+                }
+                _ => break,
+            }
+        }
+        Ok(left)
+    }
+
+    fn parse_power(&mut self) -> Result<f64, String> {
+        let base = self.parse_unary()?;
+        if let Some(tok) = self.peek()
+            && matches!(tok, ExprToken::Caret | ExprToken::StarStar)
+        {
+            self.next();
+            let exp = self.parse_power()?;
+            return Ok(base.powf(exp));
+        }
+        Ok(base)
+    }
+
+    fn parse_unary(&mut self) -> Result<f64, String> {
+        if let Some(tok) = self.peek() {
+            if matches!(tok, ExprToken::Plus) {
+                self.next();
+                return self.parse_unary();
+            } else if matches!(tok, ExprToken::Minus) {
+                self.next();
+                return Ok(-self.parse_unary()?);
+            }
+        }
+        self.parse_primary()
+    }
+
+    fn parse_primary(&mut self) -> Result<f64, String> {
+        match self.next() {
+            Some(ExprToken::Number(val)) => Ok(val),
+            Some(ExprToken::LParen) => {
+                let inner = self.parse_expr()?;
+                match self.next().as_ref() {
+                    Some(ExprToken::RParen) => Ok(inner),
+                    _ => Err("unmatched '(' in SPICE expression".into()),
+                }
+            }
+            Some(ExprToken::Ident(ident)) => {
+                let ident_lower = ident.to_ascii_lowercase();
+                if self.peek() == Some(&ExprToken::LParen) {
+                    if ident_lower == "v" || ident_lower == "i" {
+                        return Err(
+                            "signal/time-dependent expression is not a constant SPICE parameter"
+                                .into(),
+                        );
+                    }
+                    self.next();
+                    let arg1 = self.parse_expr()?;
+                    if self.peek() == Some(&ExprToken::Comma) {
+                        self.next();
+                        let arg2 = self.parse_expr()?;
+                        if self.next().as_ref() != Some(&ExprToken::RParen) {
+                            return Err(format!("expected ')' closing call to '{ident}'"));
+                        }
+                        match ident_lower.as_str() {
+                            "min" => Ok(arg1.min(arg2)),
+                            "max" => Ok(arg1.max(arg2)),
+                            "pow" => Ok(arg1.powf(arg2)),
+                            _ => Err(format!(
+                                "unknown 2-argument function '{ident}' in SPICE expression"
+                            )),
+                        }
+                    } else {
+                        if self.next().as_ref() != Some(&ExprToken::RParen) {
+                            return Err(format!("expected ')' closing call to '{ident}'"));
+                        }
+                        match ident_lower.as_str() {
+                            "sqrt" => {
+                                if arg1 < 0.0 {
+                                    return Err("sqrt of negative number".into());
+                                }
+                                Ok(arg1.sqrt())
+                            }
+                            "sin" => Ok(arg1.sin()),
+                            "cos" => Ok(arg1.cos()),
+                            "tan" => Ok(arg1.tan()),
+                            "asin" => Ok(arg1.asin()),
+                            "acos" => Ok(arg1.acos()),
+                            "atan" => Ok(arg1.atan()),
+                            "exp" => Ok(arg1.exp()),
+                            "ln" | "log" => {
+                                if arg1 <= 0.0 {
+                                    return Err("log of non-positive number".into());
+                                }
+                                Ok(arg1.ln())
+                            }
+                            "log10" => {
+                                if arg1 <= 0.0 {
+                                    return Err("log10 of non-positive number".into());
+                                }
+                                Ok(arg1.log10())
+                            }
+                            "abs" => Ok(arg1.abs()),
+                            _ => Err(format!("unknown function '{ident}' in SPICE expression")),
+                        }
+                    }
+                } else {
+                    if ident_lower == "time" {
+                        return Err(
+                            "signal/time-dependent expression is not a constant SPICE parameter"
+                                .into(),
+                        );
+                    }
+                    if ident_lower == "pi" {
+                        return Ok(std::f64::consts::PI);
+                    }
+                    if ident_lower == "e" {
+                        return Ok(std::f64::consts::E);
+                    }
+                    if let Some(&val) = self.env.get(&ident_lower) {
+                        return Ok(val);
+                    }
+                    Err(format!(
+                        "unknown parameter or unsupported symbol '{ident}' in SPICE expression"
+                    ))
+                }
+            }
+            Some(tok) => Err(format!("unexpected token '{:?}' in SPICE expression", tok)),
+            None => Err("unexpected end of SPICE expression".into()),
+        }
+    }
+}
+
+pub fn evaluate_spice_expr(expr: &str, env: &BTreeMap<String, f64>) -> Result<f64, String> {
+    let tokens = tokenize_spice_expr(expr)?;
+    if tokens.is_empty() {
+        return Err("empty SPICE expression".into());
+    }
+    let mut parser = ExprParser {
+        tokens: &tokens,
+        pos: 0,
+        env,
+    };
+    let result = parser.parse_expr()?;
+    if parser.pos < tokens.len() {
+        return Err(format!(
+            "trailing tokens in SPICE expression starting at {:?}",
+            tokens[parser.pos]
+        ));
+    }
+    if !result.is_finite() {
+        return Err("SPICE expression result is not finite".into());
+    }
+    Ok(result)
+}
+
 fn push_unsupported(report: &mut SpiceImportReport, line: usize, message: &str) {
     push_error(
         report,
@@ -2735,19 +3245,28 @@ fn push_title_info(report: &mut SpiceImportReport) {
     });
 }
 
-fn push_warning(
-    report: &mut SpiceImportReport,
+fn push_warning_diag(
+    diagnostics: &mut Vec<ImportDiagnostic>,
     code: &str,
     message: impl Into<String>,
     line: Option<usize>,
 ) {
-    report.diagnostics.push(ImportDiagnostic {
+    diagnostics.push(ImportDiagnostic {
         code: code.into(),
         severity: ImportSeverity::Warning,
         message: message.into(),
         line,
         column: line.map(|_| 1),
     });
+}
+
+fn push_warning(
+    report: &mut SpiceImportReport,
+    code: &str,
+    message: impl Into<String>,
+    line: Option<usize>,
+) {
+    push_warning_diag(&mut report.diagnostics, code, message, line);
 }
 
 /// Collects root-level `.model` cards into typed inline models. Unsupported model families,
@@ -2919,12 +3438,22 @@ fn parse_inline_model(
     ))
 }
 
-/// Removes whitespace around `=` so `IS = 1e-14` and `IS=1e-14` tokenize identically.
+/// Removes whitespace around `=` so `IS = 1e-14` and `IS=1e-14` tokenize identically,
+/// while preserving expressions inside `{...}`.
 fn normalize_assignments(text: &str) -> String {
     let characters = text.chars().collect::<Vec<_>>();
     let mut normalized = String::with_capacity(text.len());
+    let mut brace_depth = 0usize;
     for (index, character) in characters.iter().enumerate() {
-        if character.is_whitespace() {
+        if *character == '{' {
+            brace_depth += 1;
+            normalized.push('{');
+        } else if *character == '}' {
+            brace_depth = brace_depth.saturating_sub(1);
+            normalized.push('}');
+        } else if brace_depth > 0 {
+            normalized.push(*character);
+        } else if character.is_whitespace() {
             let previous = normalized.chars().last();
             let next = characters[index + 1..]
                 .iter()

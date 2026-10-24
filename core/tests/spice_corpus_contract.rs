@@ -60,18 +60,14 @@ pub enum ExpectedOutcome {
     SupportedRoundTrip,
     /// Importer succeeds with 0 errors but emits an expected warning diagnostic code, and
     /// generated .kess compiles cleanly through IR & ERC.
-    SupportedWithWarning {
-        expected_warning_code: &'static str,
-    },
+    SupportedWithWarning { expected_warning_code: &'static str },
     /// Importer fails closed with an expected diagnostic error code (e.g. KES-N002, KES-N003).
     ExpectedUnsupportedImport {
         expected_error_code: &'static str,
         construct_gap: &'static str,
     },
     /// Importer produces .kess that fails downstream parse, IR compilation, or ERC.
-    ExpectedUnsupportedCompile {
-        construct_gap: &'static str,
-    },
+    ExpectedUnsupportedCompile { construct_gap: &'static str },
 }
 
 #[derive(Debug, Clone)]
@@ -122,10 +118,7 @@ R2 out 0 10k
 .op
 .end
 ",
-        expected: ExpectedOutcome::ExpectedUnsupportedImport {
-            expected_error_code: "KES-N002",
-            construct_gap: "RKM European notation (e.g. 4k7) rejected as non-literal numeric",
-        },
+        expected: ExpectedOutcome::SupportedRoundTrip,
     },
     SpiceCorpusFixture {
         id: "C03_PASSIVE_EXTRA_INSTANCE_TOKENS",
@@ -141,12 +134,10 @@ R2 out 0 10k
 .op
 .end
 ",
-        expected: ExpectedOutcome::ExpectedUnsupportedImport {
-            expected_error_code: "KES-N002",
-            construct_gap: "Passive element instance parameters (TC, IC) exceed 4-field limit",
+        expected: ExpectedOutcome::SupportedWithWarning {
+            expected_warning_code: "KES-N011",
         },
     },
-
     // =========================================================================
     // Category 2 — Independent Source Idioms (3 fixtures)
     // =========================================================================
@@ -164,10 +155,7 @@ R2 out 0 1k
 .ac dec 10 10 100k
 .end
 ",
-        expected: ExpectedOutcome::ExpectedUnsupportedImport {
-            expected_error_code: "KES-N002",
-            construct_gap: "Combined non-zero DC bias and AC magnitude is not representable in IR",
-        },
+        expected: ExpectedOutcome::SupportedRoundTrip,
     },
     SpiceCorpusFixture {
         id: "C05_SOURCE_SPACE_SEPARATED_WAVEFORM",
@@ -202,7 +190,6 @@ R1 in 0 1k
             construct_gap: "Exponential transient waveform (EXP) is unsupported",
         },
     },
-
     // =========================================================================
     // Category 3 — Semiconductor & .model Dialect Idioms (6 fixtures)
     // =========================================================================
@@ -241,9 +228,8 @@ Q1 c b 0 0 2N2222
 .op
 .end
 ",
-        expected: ExpectedOutcome::ExpectedUnsupportedImport {
-            expected_error_code: "KES-N002",
-            construct_gap: "4-terminal BJT with substrate node is unsupported",
+        expected: ExpectedOutcome::SupportedWithWarning {
+            expected_warning_code: "KES-N011",
         },
     },
     SpiceCorpusFixture {
@@ -302,9 +288,8 @@ M1 d vg 0 0 NMOS_MOD W=10u L=1u
 .op
 .end
 ",
-        expected: ExpectedOutcome::ExpectedUnsupportedImport {
-            expected_error_code: "KES-N002",
-            construct_gap: "MOSFET instance geometry parameters (W, L, AD) exceed expected token count",
+        expected: ExpectedOutcome::SupportedWithWarning {
+            expected_warning_code: "KES-N011",
         },
     },
     SpiceCorpusFixture {
@@ -328,7 +313,6 @@ J1 d vg 0 J2N5457
             construct_gap: "JFET component family 'J' and .model type 'NJF' outside supported subset",
         },
     },
-
     // =========================================================================
     // Category 4 — Controlled Sources & Switches (5 fixtures)
     // =========================================================================
@@ -438,7 +422,6 @@ Rload out 0 1k
             construct_gap: "Current-controlled switch 'W' and 'CSW' model are unsupported",
         },
     },
-
     // =========================================================================
     // Category 5 — Magnetic & Coupled Elements (2 fixtures)
     // =========================================================================
@@ -486,7 +469,6 @@ K1 L1 L2 L3 0.98
             construct_gap: "Multi-winding mutual coupling directive 'K' is unsupported",
         },
     },
-
     // =========================================================================
     // Category 6 — Parameterization & Expressions (3 fixtures)
     // =========================================================================
@@ -523,10 +505,7 @@ R2 out 0 {R2_VAL}
 .op
 .end
 ",
-        expected: ExpectedOutcome::ExpectedUnsupportedImport {
-            expected_error_code: "KES-N006",
-            construct_gap: "Evaluated parameter arithmetic expression is outside literal parameter subset",
-        },
+        expected: ExpectedOutcome::SupportedRoundTrip,
     },
     SpiceCorpusFixture {
         id: "C22_PARAM_BUILTIN_FUNCTIONS",
@@ -543,12 +522,8 @@ C1 out 0 100n
 .ac dec 10 10 100k
 .end
 ",
-        expected: ExpectedOutcome::ExpectedUnsupportedImport {
-            expected_error_code: "KES-N006",
-            construct_gap: "Formula/function evaluation in .param is outside literal parameter subset",
-        },
+        expected: ExpectedOutcome::SupportedRoundTrip,
     },
-
     // =========================================================================
     // Category 7 — Subcircuits, Hierarchy & Includes (3 fixtures)
     // =========================================================================
@@ -616,7 +591,6 @@ D1 out 0 1N4148
             construct_gap: "Model libraries and file inclusions (.include, .lib) require explicit resource binding",
         },
     },
-
     // =========================================================================
     // Category 8 — Analysis, Initial Conditions & Measurement Directives (5 fixtures)
     // =========================================================================
@@ -822,7 +796,33 @@ fn spice_corpus_all_fixtures_match_declared_disposition() {
                     fixture.id,
                     compiled.diagnostics
                 );
-                assert!(compiled.ir.is_some(), "[{}] CircuitIR was not produced", fixture.id);
+                assert!(
+                    compiled.ir.is_some(),
+                    "[{}] CircuitIR was not produced",
+                    fixture.id
+                );
+                assert!(
+                    compiled.spice_netlist.is_some(),
+                    "[{}] Regenerated SPICE netlist was not produced",
+                    fixture.id
+                );
+
+                if ngspice_available {
+                    let netlist = compiled.spice_netlist.as_ref().unwrap();
+                    let analyses = compiled.ir.as_ref().unwrap().analyses.clone();
+                    let sim_res = runner
+                        .run(
+                            &SimulationRequest::new(netlist, analyses),
+                            &CancellationToken::new(),
+                        )
+                        .expect("Ngspice run should launch");
+                    assert!(
+                        sim_res.succeeded(),
+                        "[{}] Ngspice simulation failed on regenerated netlist: {:?}",
+                        fixture.id,
+                        sim_res.errors
+                    );
+                }
 
                 supported_warning_count += 1;
                 println!(
@@ -898,8 +898,13 @@ fn spice_corpus_all_fixtures_match_declared_disposition() {
         }
     }
 
-    println!("\nCorpus Summary: 30 fixtures (RoundTrip: {}, Warning: {}, UnsupportedImport: {}, UnsupportedCompile: {})",
-        supported_roundtrip_count, supported_warning_count, unsupported_import_count, unsupported_compile_count);
+    println!(
+        "\nCorpus Summary: 30 fixtures (RoundTrip: {}, Warning: {}, UnsupportedImport: {}, UnsupportedCompile: {})",
+        supported_roundtrip_count,
+        supported_warning_count,
+        unsupported_import_count,
+        unsupported_compile_count
+    );
 }
 
 #[test]
@@ -915,10 +920,20 @@ fn spice_corpus_metadata_integrity_and_clean_room_coverage() {
             "Duplicate fixture ID discovered: {}",
             fixture.id
         );
-        assert!(!fixture.category.is_empty(), "Empty category on {}", fixture.id);
-        assert!(!fixture.construct.is_empty(), "Empty construct on {}", fixture.id);
         assert!(
-            fixture.spice_netlist.contains("* Clean-room synthetic fixture:"),
+            !fixture.category.is_empty(),
+            "Empty category on {}",
+            fixture.id
+        );
+        assert!(
+            !fixture.construct.is_empty(),
+            "Empty construct on {}",
+            fixture.id
+        );
+        assert!(
+            fixture
+                .spice_netlist
+                .contains("* Clean-room synthetic fixture:"),
             "Fixture {} must include clean-room provenance header comment",
             fixture.id
         );
@@ -937,4 +952,3 @@ fn spice_corpus_metadata_integrity_and_clean_room_coverage() {
         categories
     );
 }
-
