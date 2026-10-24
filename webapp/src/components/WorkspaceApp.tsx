@@ -409,12 +409,22 @@ export function WorkspaceApp() {
                   <button role="menuitem" aria-label={examples.rc.label} onClick={() => selectExample('rc')}>
                     <strong>{examples.rc.label}</strong><small>{examples.rc.description}</small>
                   </button>
-                  <span className="menu-group-label">Amplifiers</span>
+                  <button role="menuitem" aria-label={examples.zener.label} onClick={() => selectExample('zener')}>
+                    <strong>{examples.zener.label}</strong><small>{examples.zener.description}</small>
+                  </button>
+                  <span className="menu-group-label">Amplifiers & Sensors</span>
                   <button role="menuitem" aria-label={examples.gain.label} onClick={() => selectExample('gain')}>
                     <strong>{examples.gain.label}</strong><small>{examples.gain.description}</small>
                   </button>
+                  <button role="menuitem" aria-label={examples.current_sense.label} onClick={() => selectExample('current_sense')}>
+                    <strong>{examples.current_sense.label}</strong><small>{examples.current_sense.description}</small>
+                  </button>
                   <button role="menuitem" aria-label={examples.power.label} onClick={() => selectExample('power')}>
                     <strong>{examples.power.label}</strong><small>{examples.power.description}</small>
+                  </button>
+                  <span className="menu-group-label">Switched circuits</span>
+                  <button role="menuitem" aria-label={examples.sample_hold.label} onClick={() => selectExample('sample_hold')}>
+                    <strong>{examples.sample_hold.label}</strong><small>{examples.sample_hold.description}</small>
                   </button>
                   <span className="menu-group-label">Reusable blocks</span>
                   {(['filters', 'amplifiers'] as const).map((id) => (

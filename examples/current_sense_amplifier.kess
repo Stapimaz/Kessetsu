@@ -1,0 +1,68 @@
+// Canonical current-sense amplifier with physical rail-clamped op-amp macromodel.
+net GND
+net VCC
+net VEE
+net LOAD_NODE
+net SENSE
+net FB
+net OUT
+
+// Bipolar op-amp supply rails (+-12V).
+source VP 12V
+source VN 12V
+connect VP.minus to GND
+connect VP.plus to VCC
+connect VN.plus to GND
+connect VN.minus to VEE
+
+// Monitored load branch with pulsed overload to verify linear sensing and rail clamping.
+// Normal operation: 5V into 500 Ohm = 10mA load current.
+// Overload spike: 20V into 500 Ohm = 40mA (would command 20V output, clamped by rails).
+source VLOAD pulse(5V, 20V, 1ms, 10us, 10us, 1ms, 3ms)
+connect VLOAD.minus to GND
+
+// CCVS current sensor (H1): 100 V/A transresistance.
+// Current enters ctrl_p and leaves ctrl_n into load resistor RLOAD.
+ccvs H1 100
+connect VLOAD.plus to H1.ctrl_p
+connect H1.ctrl_n to LOAD_NODE
+
+resistor RLOAD 500
+connect RLOAD.p1 to LOAD_NODE
+connect RLOAD.p2 to GND
+
+// Pre-stage sense voltage output (100 V/A * 10mA = 1.0V nominal).
+connect H1.p_out to SENSE
+connect H1.n_out to GND
+
+// Non-inverting op-amp conditioning stage using KESSETSU_OPAMP_V2 (gain = 1 + 4k/1k = 5x).
+opamp U1 KESSETSU_OPAMP_V2
+connect U1.in_p to SENSE
+connect U1.in_n to FB
+connect U1.vcc to VCC
+connect U1.vee to VEE
+connect U1.out to OUT
+
+resistor RF 4k
+resistor RG 1k
+resistor RL 10k
+
+connect RF.p1 to OUT
+connect RF.p2 to FB
+connect RG.p1 to FB
+connect RG.p2 to GND
+connect RL.p1 to OUT
+connect RL.p2 to GND
+
+simulate op
+simulate tran 10us 3ms
+
+// Operating point assertions: 10mA sensed -> 1.0V at SENSE -> 5.0V at OUT.
+assert value(V(SENSE)) > 0.99V
+assert value(V(SENSE)) < 1.01V
+assert value(V(OUT)) > 4.95V
+assert value(V(OUT)) < 5.05V
+
+// Overload transient assertion: op-amp clamps cleanly near VCC - 1V headroom (~10.84V with 50 Ohm Rout).
+assert max(V(OUT)) > 10.7V
+assert max(V(OUT)) < 11.0V

@@ -20,6 +20,9 @@ import externalComparator from '../../../examples/external_comparator.kess?raw';
 import externalMemristor from '../../../examples/external_memristor.kess?raw';
 import loadedFilter from '../../../examples/loaded_filter.kess?raw';
 import transistorDriver from '../../../examples/transistor_driver.kess?raw';
+import zenerRegulator from '../../../examples/zener_shunt_regulator.kess?raw';
+import sampleHold from '../../../examples/switched_sample_hold.kess?raw';
+import currentSense from '../../../examples/current_sense_amplifier.kess?raw';
 import type { CompileReport, ExportArtifact, ExportFormat, SpiceImportReport, WorkspaceState } from '../domain';
 import { SpiceImportError } from '../spiceImport';
 import {
@@ -47,6 +50,9 @@ export const examples = {
   amplifiers: { label: 'Reusable Amplifiers', description: 'One op-amp block, gains 5 and 10', source: reusableAmplifiers },
   comparator: { label: 'External Comparator', description: 'Choose the local comparator.lib model file', source: externalComparator },
   memristor: { label: 'Threshold Memristor', description: 'Choose the local memristor.lib model file', source: externalMemristor },
+  zener: { label: 'Zener Regulator', description: '5.1 V shunt regulator with BZX84C5V1', source: zenerRegulator },
+  sample_hold: { label: 'Sample & Hold', description: 'Switched capacitor track and hold', source: sampleHold },
+  current_sense: { label: 'Current Sense Amp', description: 'CCVS sensor with rail-clamped op-amp', source: currentSense },
 } as const;
 
 export type ExampleId = keyof typeof examples;

@@ -1,0 +1,40 @@
+// Canonical switched sample-and-hold circuit using voltage-controlled switch.
+model switch SW_SH version=1.0.0 license=MIT vt=1.5 vh=0 ron=1 roff=10Meg
+
+net GND
+net IN
+net CLK
+net OUT
+
+// Input signal: 3.3V pulse that returns to 0V at 500us.
+source VIN pulse(3.3V, 0V, 500us, 10ns, 10ns, 1ms, 2ms)
+
+// Sampling clock: 5V sample gate for 500us, then 0V (hold mode) for 1ms.
+source VCLK pulse(5V, 0V, 500us, 10ns, 10ns, 1ms, 2ms)
+
+switch S1 SW_SH
+capacitor CHOLD 1uF
+resistor RLOAD 10Meg
+
+connect VIN.minus, VCLK.minus, CHOLD.p2, RLOAD.p2 to GND
+connect VIN.plus to IN
+connect VCLK.plus to CLK
+
+connect S1.p1 to IN
+connect S1.p2 to OUT
+connect S1.ctrl_p to CLK
+connect S1.ctrl_n to GND
+
+connect CHOLD.p1 to OUT
+connect RLOAD.p1 to OUT
+
+simulate tran 10us 1.5ms
+
+// Output tracks 3.3V during the sample window.
+assert max(V(OUT)) > 3.25V
+assert max(V(OUT)) < 3.35V
+
+// Output holds ~3.3V at the end of the 1ms hold window, even though VIN dropped to 0V.
+assert value(V(OUT)) > 3.25V
+assert value(V(OUT)) < 3.35V
+assert value(V(IN)) < 10mV

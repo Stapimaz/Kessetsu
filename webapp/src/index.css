@@ -52,7 +52,7 @@ button:focus-visible, select:focus-visible, a:focus-visible, [tabindex]:focus-vi
 .menu-note { margin: 4px 4px 2px; padding: 7px 8px; border: 1px solid #253348; border-radius: 4px; color: #8190a6; background: #0e1520; font-size: 9px; line-height: 1.45; }
 .menu-submenu { position: relative; }
 .menu-submenu > button { width: 100%; }
-.examples-menu { top: -6px; left: calc(100% + 7px); min-width: 285px; border-radius: 7px; }
+.examples-menu { top: -6px; left: calc(100% + 7px); min-width: 285px; border-radius: 7px; max-height: calc(100vh - 40px); overflow-y: auto; }
 .examples-menu button { align-items: flex-start; flex-direction: column; gap: 2px; }
 .examples-menu button small { color: var(--muted); font-size: 10px; }
 .examples-menu > .menu-group-label:first-child { border-top: 0; }

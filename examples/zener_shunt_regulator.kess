@@ -1,0 +1,26 @@
+// Canonical Zener shunt voltage regulator using built-in BZX84C5V1 diode.
+net GND
+net VIN
+net VREG
+
+source VS 12V
+resistor RS 470
+diode DZ BZX84C5V1
+resistor RL 1k
+
+connect VS.minus to GND
+connect VS.plus to VIN
+connect RS.p1 to VIN
+connect RS.p2 to VREG
+connect DZ.p2 to VREG
+connect DZ.p1 to GND
+connect RL.p1 to VREG
+connect RL.p2 to GND
+
+simulate op
+simulate tran 10us 2ms
+
+assert value(V(VREG)) > 4.9V
+assert value(V(VREG)) < 5.3V
+assert peak(V(VREG)) > 4.9V
+assert peak(V(VREG)) < 5.3V
