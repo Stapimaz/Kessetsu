@@ -28,7 +28,7 @@ After installing the CLI (`kess --version`), register Kessetsu's built-in stdio 
   }
   ```
 
-Agents with terminal access can also call `kess` directly (`kess check`, `kess test`, `kess render`, `kess export` with `--format json`).
+Agents with terminal access can also call `kess` directly (`kess check`, `kess test`, `kess tool`, `kess study`, `kess render`, `kess export` with `--format json`). The MCP server exposes native tools for every phase: `kessetsu_guide`, `kessetsu_capabilities`, `kessetsu_check`, `kessetsu_simulate`, `kessetsu_test`, `kessetsu_render_schematic`, `kessetsu_export`, `kessetsu_import_spice`, `kessetsu_tool`, `kessetsu_study_plan`, and `kessetsu_study_run`.
 
 ## The disciplined loop
 
@@ -37,13 +37,16 @@ Agents with terminal access can also call `kess` directly (`kess check`, `kess t
    limit to make a design pass; if a limit looks impossible, report it to the human.
 2. **Design in readable source.** Write `design.kess` with named nets for every signal that
    matters (`IN`, `OUT`, `VCC`...), a comment stating the target, and modules for repeated
-   blocks. SPICE netlists are accepted too (see below), but `.kess` is the reviewable format.
+   blocks. Initial component values can be sized using `kessetsu_tool` (voltage dividers and
+   RC low-pass filters with exact, E12, or E24 series). SPICE netlists are accepted too (see
+   below), but `.kess` is the reviewable format.
 3. **Check structure.** Call `kessetsu_check`. Fix every ERC error (floating pins, shorted
    sources, ambiguous ground) before simulating; these are the root cause of most cryptic
    simulator failures.
 4. **Test against the requirements.** Call `kessetsu_test` with the design and the
    unchanged requirements text. Iterate on the design only. Each assertion returns
-   PASS/FAIL/ERROR/SKIPPED with its measured value.
+   PASS/FAIL/ERROR/SKIPPED with its measured value. For parameter variations, corner
+   analysis, or Monte Carlo distributions, call `kessetsu_study_plan` and `kessetsu_study_run`.
 5. **Show the human.** Call `kessetsu_render_schematic` and save `schematic.svg` next to the
    design. A person can review a schematic; nobody reviews a netlist.
 6. **Hand off.** Export what the next step needs (`kicad`, `ltspice`, `bom-csv`, `spice`).

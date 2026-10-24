@@ -310,9 +310,10 @@ Ngspice integration uses a repository/release sidecar on Windows and the `KESSET
 | 1N4007 | Diode | Built in |
 | IRF540 | MOSFET NMOS | Built in |
 | KESSETSU_PMOS_V1 | Generic MOSFET PMOS | Verified built in |
-| KESSETSU_OPAMP_V1 | Generic op-amp subcircuit | Verified built in |
+| KESSETSU_OPAMP_V1 | Generic op-amp subcircuit (rail-clamped) | Verified built in |
+| KESSETSU_OPAMP_V2 | Physical op-amp subcircuit (rail headroom, slew, rout) | Verified built in |
 
-Default built-ins are `2N3904`/`2N3906` for BJTs, `IRF540` for MOSFETs, `1N4148` for diodes, and `KESSETSU_OPAMP_V1` for op-amps. Kessetsu 1.2.0 repairs the `1N4148`/`1N4007` diode directives with provenance version `1.0.1`; published CLI 1.1.0 remains affected by invalid descriptive fields in those models. Their legacy provenance is unchanged, and the repair does not establish manufacturer fidelity or enforce device ratings. Exact packaged models are unchanged. `KESSETSU_*` models are Kessetsu's own open-licensed generic verification models; they are not claimed to match a specific manufacturer's data sheet. `KESSETSU_PMOS_V1` has provenance version `1.0.1` and uses portable Ngspice `MOS1` parameters.
+Default built-ins are `2N3904`/`2N3906` for BJTs, `IRF540` for MOSFETs, `1N4148` for diodes, and `KESSETSU_OPAMP_V1` for op-amps. Kessetsu 1.2.0 repairs the `1N4148`/`1N4007` diode directives with provenance version `1.0.1`; published CLI 1.1.0 remains affected by invalid descriptive fields in those models. Their legacy provenance is unchanged, and the repair does not establish manufacturer fidelity or enforce device ratings. Exact packaged models are unchanged. `KESSETSU_*` models are Kessetsu's own open-licensed generic verification models; they are not claimed to match a specific manufacturer's data sheet. `KESSETSU_PMOS_V1` has provenance version `1.0.1` and uses portable Ngspice `MOS1` parameters. `KESSETSU_OPAMP_V1` has provenance version `1.1.0` and enforces supply-rail clamping to `vcc`/`vee`. `KESSETSU_OPAMP_V2` has provenance version `1.0.0` and models 1 V rail headroom, 0.5 V/µs slew rate, and 50 Ω linear output resistance.
 
 ### Typed User-Model and Subcircuit Boundary
 
@@ -321,12 +322,13 @@ Kessetsu does not accept raw `.include`, `.model`, `.subckt`, or control directi
 ```kessetsu
 model diode SafeD version=1.0.0 license=MIT Is=2e-9 Rs=0.5
 model mosfet SafeP pmos version=1.0.0 license=MIT Vto=-2 Kp=4
-subcircuit opamp SafeOp (in_p,in_n,vcc,vee,out) version=1.0.0 license=MIT gain=100k bandwidth=2MHz
+subcircuit opamp SafeOp (in_p,in_n,vcc,vee,out) version=1.0.0 license=MIT gain=100k bandwidth=2MHz rail_headroom=1 slew_rate=500k rout=50
 ```
 
 - Device model kinds are `diode`, `bjt`, and `mosfet`. The safe subcircuit template is currently limited to `opamp`.
 - BJTs require `npn|pnp`; MOSFETs require `nmos|pmos`. Component/model kind or polarity mismatch produces `KES-C004`.
 - User models and subcircuits carry required `version` and `license` metadata; `source` is optional. Electrical parameters come from a fixed allowlist for each kind. Unknown, duplicate, or non-finite parameters produce `KES-C010`.
+- Op-amp subcircuits require positive `gain` and `bandwidth`. Optional physical macromodel parameters include `rail_headroom` (non-negative, default `0.0`), `slew_rate` (positive, e.g. `500k` for 0.5 V/µs), and `rout` (positive linear output resistance in ohms). Invalid values produce `KES-C012`.
 - Op-amp pin order must match the shared component catalog byte for byte: `in_p,in_n,vcc,vee,out`. A mismatch is `KES-C012`. Backends do not own separate pin lists.
 - Built-in, packaged, user-model, and subcircuit names share one case-insensitive namespace. Collisions produce `KES-C013`.
 - Simulator capability is recorded as `ngspice-35+`. Unsupported package or simulator versions fail closed with `KES-C011`.

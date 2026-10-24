@@ -251,12 +251,156 @@ fn mcp_stdio_serves_initialize_tools_and_circuit_verification() {
     assert_eq!(lines[0]["id"], 1);
     assert_eq!(lines[0]["result"]["serverInfo"]["name"], "kessetsu");
     assert_eq!(lines[1]["id"], 2);
-    assert!(
-        lines[1]["result"]["tools"]
-            .as_array()
-            .is_some_and(|tools| tools.iter().any(|t| t["name"] == "kessetsu_test"))
-    );
+    assert!(lines[1]["result"]["tools"].as_array().is_some_and(|tools| {
+        tools.iter().any(|t| t["name"] == "kessetsu_test")
+            && tools.iter().any(|t| t["name"] == "kessetsu_tool")
+            && tools.iter().any(|t| t["name"] == "kessetsu_study_plan")
+            && tools.iter().any(|t| t["name"] == "kessetsu_study_run")
+    }));
     assert_eq!(lines[2]["id"], 3);
     assert_eq!(lines[2]["result"]["isError"], false);
     assert_eq!(lines[2]["result"]["structuredContent"]["status"], "success");
+}
+
+#[test]
+fn mcp_stdio_server_exposes_and_executes_verified_core_tools() {
+    let workspace = TestWorkspace::new("mcp-tools-and-studies");
+    let study_spec = serde_json::json!({
+        "schema_version": "kessetsu.experiment.v1",
+        "name": "DividerStudy",
+        "source": "param resistance: Ohm = 1kOhm\nnet GND\nnet IN\nnet OUT\nsource VIN 5V\nresistor R1 {resistance}\nresistor R2 10kOhm\nconnect VIN.plus, R1.p1 to IN\nconnect R1.p2, R2.p1 to OUT\nconnect VIN.minus, R2.p2 to GND\nsimulate op\nassert peak(V(OUT)) > 1V\n",
+        "axes": [
+            {
+                "parameter": "resistance",
+                "values": {
+                    "kind": "list",
+                    "values": ["1kOhm", "2kOhm"]
+                }
+            }
+        ],
+        "temperatures_c": [27.0]
+    });
+
+    let requests = [
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": { "protocolVersion": "2025-06-18" }
+        })
+        .to_string(),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized"
+        })
+        .to_string(),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/list"
+        })
+        .to_string(),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "tools/call",
+            "params": {
+                "name": "kessetsu_tool",
+                "arguments": {
+                    "tool": "divider",
+                    "vin": "12V",
+                    "target": "3V",
+                    "lower": "10k",
+                    "values": "e24"
+                }
+            }
+        })
+        .to_string(),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "tools/call",
+            "params": {
+                "name": "kessetsu_study_plan",
+                "arguments": {
+                    "spec": study_spec
+                }
+            }
+        })
+        .to_string(),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 5,
+            "method": "tools/call",
+            "params": {
+                "name": "kessetsu_study_run",
+                "arguments": {
+                    "spec": study_spec
+                }
+            }
+        })
+        .to_string(),
+    ]
+    .join("\n")
+        + "\n";
+
+    let output = workspace.run_cli_with_stdin(&["mcp"], &requests);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let lines: Vec<Value> = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| serde_json::from_str(line).expect("each MCP stdout line must be JSON"))
+        .collect();
+    assert_eq!(lines.len(), 5, "notification must not emit a response");
+
+    // id: 1 initialize
+    assert_eq!(lines[0]["id"], 1);
+    assert_eq!(lines[0]["result"]["serverInfo"]["name"], "kessetsu");
+
+    // id: 2 tools/list includes kessetsu_tool, kessetsu_study_plan, kessetsu_study_run
+    assert_eq!(lines[1]["id"], 2);
+    let tool_names = lines[1]["result"]["tools"]
+        .as_array()
+        .expect("tools list")
+        .iter()
+        .filter_map(|t| t["name"].as_str())
+        .collect::<Vec<_>>();
+    assert!(tool_names.contains(&"kessetsu_tool"));
+    assert!(tool_names.contains(&"kessetsu_study_plan"));
+    assert!(tool_names.contains(&"kessetsu_study_run"));
+
+    // id: 3 kessetsu_tool succeeds and returns calculation.source
+    assert_eq!(lines[2]["id"], 3);
+    assert_eq!(lines[2]["result"]["isError"], false);
+    assert_eq!(lines[2]["result"]["structuredContent"]["status"], "success");
+    assert!(
+        lines[2]["result"]["structuredContent"]["calculation"]["source"]
+            .as_str()
+            .is_some_and(|s| s.contains("resistor"))
+    );
+
+    // id: 4 kessetsu_study_plan succeeds and returns study cases
+    assert_eq!(lines[3]["id"], 4);
+    assert_eq!(lines[3]["result"]["isError"], false);
+    assert_eq!(lines[3]["result"]["structuredContent"]["status"], "success");
+    assert_eq!(
+        lines[3]["result"]["structuredContent"]["study"]["cases"]
+            .as_array()
+            .map(|cases| cases.len()),
+        Some(2)
+    );
+
+    // id: 5 kessetsu_study_run succeeds and returns report
+    assert_eq!(lines[4]["id"], 5);
+    assert_eq!(lines[4]["result"]["isError"], false);
+    assert_eq!(lines[4]["result"]["structuredContent"]["status"], "success");
+    assert_eq!(
+        lines[4]["result"]["structuredContent"]["study"]["summary"]["passed"],
+        2
+    );
 }

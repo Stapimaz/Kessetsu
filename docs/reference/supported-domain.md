@@ -25,17 +25,18 @@ profile. The [model catalog](model-catalog.md) defines the characterized compara
 threshold-memristor and native-only manufacturer op-amp cases. This does not imply
 arbitrary vendor, memristor or research-device support.
 
-- Built-ins: `2N3904`, `2N3906`, `2N2222`, `KESSETSU_POWER_NPN_V1`, `KESSETSU_POWER_PNP_V1`, `1N4148`, `1N4007`, `IRF540`, `KESSETSU_PMOS_V1`, and `KESSETSU_OPAMP_V1`.
+- Built-ins: `2N3904`, `2N3906`, `2N2222`, `KESSETSU_POWER_NPN_V1`, `KESSETSU_POWER_PNP_V1`, `1N4148`, `1N4007`, `IRF540`, `KESSETSU_PMOS_V1`, `KESSETSU_OPAMP_V1`, and `KESSETSU_OPAMP_V2`.
 - Builtin `1N4148`/`1N4007` use portable electrical directives in 1.2.0, repairing an
   issue in older downloads. Provenance version `1.0.1` records the repaired hashes without
   changing electrical coefficients. Descriptive ratings are not enforced device limits.
 - Verified generic PMOS: `KESSETSU_PMOS_V1@1.0.1`, a portable Ngspice `MOS1` DC model with no manufacturer, datasheet, or parasitic-model claim.
+- Verified generic op-amps: `KESSETSU_OPAMP_V1@1.1.0` (supply-rail clamping to `vcc`/`vee`) and `KESSETSU_OPAMP_V2@1.0.0` (1 V rail headroom, 0.5 V/µs slew rate, 50 Ω linear output resistance).
 - User models: typed diode/BJT/MOSFET parameter allowlists.
-- User subcircuits: the typed op-amp template and source-relative, exact-hash external references.
+- User subcircuits: the typed op-amp template (supporting required `gain` and `bandwidth`, with optional `rail_headroom`, `slew_rate`, and `rout`) and source-relative, exact-hash external references.
   Portable libraries can use explicit local browser bindings; compatibility modes such as the
   characterized manufacturer PSpice op-amp require the native CLI. External model bodies remain
   user-owned and are never embedded in Kessetsu source, manifests, or ordinary circuit exports.
-- Op-amp fidelity: the current generic template is a controlled voltage source with an RC pole. Its declared supply pins are unused internally; it does not model supply consumption, rail saturation, or a realistic output-current limit. Amplifier power, efficiency, and clipping assertions cover only the modeled circuit and supplied measurements, not those missing device effects.
+- Op-amp fidelity: `KESSETSU_OPAMP_V1` clamps output voltage to the `vcc`/`vee` rails, and `KESSETSU_OPAMP_V2` / parameterized `subcircuit opamp` declarations model rail headroom, slew rate, and linear output resistance. Quiescent supply-current consumption, thermal/SOA effects, and manufacturer-specific input stages remain unmodeled. Amplifier power, efficiency, and clipping assertions cover only the modeled circuit and supplied measurements, not those missing device effects.
 - Package/model records: `kessetsu.models.v3`/`kessetsu.lock.v3` with exact identity, content hash, license, simulator capability, typed external parameter interfaces, and dependency metadata where applicable.
 - Unsupported: raw directives in `.kess`, floating package versions, arbitrary vendor scripts,
   model uploads and compiled browser model plugins. Explicit local browser execution is limited

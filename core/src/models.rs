@@ -379,7 +379,11 @@ fn compile_user_subcircuit(declaration: &SubcircuitDecl) -> Result<ModelRef, Sem
         ));
     }
     let (metadata, parameters) = split_metadata(&declaration.parameters, &declaration.name)?;
-    let values = canonical_parameters(&parameters, &["gain", "bandwidth"], &declaration.name)?;
+    let values = canonical_parameters(
+        &parameters,
+        &["gain", "bandwidth", "rail_headroom", "slew_rate", "rout"],
+        &declaration.name,
+    )?;
     let gain = *values.get("gain").ok_or_else(|| {
         error(
             "KES-C012",
@@ -404,7 +408,49 @@ fn compile_user_subcircuit(declaration: &SubcircuitDecl) -> Result<ModelRef, Sem
             "parameters",
         ));
     }
-    Ok(subcircuit_model_with_metadata(
+    let rail_headroom = match values.get("rail_headroom") {
+        Some(&hr) => {
+            if hr < 0.0 {
+                return Err(error(
+                    "KES-C012",
+                    "opamp rail_headroom must be non-negative",
+                    Some(&declaration.name),
+                    "rail_headroom",
+                ));
+            }
+            hr
+        }
+        None => 0.0,
+    };
+    let slew_rate = match values.get("slew_rate") {
+        Some(&sr) => {
+            if sr <= 0.0 {
+                return Err(error(
+                    "KES-C012",
+                    "opamp slew_rate must be positive",
+                    Some(&declaration.name),
+                    "slew_rate",
+                ));
+            }
+            Some(sr)
+        }
+        None => None,
+    };
+    let rout = match values.get("rout") {
+        Some(&r) => {
+            if r <= 0.0 {
+                return Err(error(
+                    "KES-C012",
+                    "opamp rout must be positive",
+                    Some(&declaration.name),
+                    "rout",
+                ));
+            }
+            Some(r)
+        }
+        None => None,
+    };
+    Ok(opamp_subcircuit_model_with_options(
         &declaration.name,
         ModelSource::UserDefined,
         metadata.source,
@@ -412,6 +458,9 @@ fn compile_user_subcircuit(declaration: &SubcircuitDecl) -> Result<ModelRef, Sem
         metadata.version,
         gain,
         bandwidth,
+        rail_headroom,
+        slew_rate,
+        rout,
     ))
 }
 
@@ -1062,9 +1111,21 @@ fn builtin_models() -> Vec<ModelRef> {
             ModelSource::Builtin,
             "Kessetsu verified generic opamp",
             "Apache-2.0",
-            "1.0.0",
+            "1.1.0",
             200_000.0,
             1_000_000.0,
+        ),
+        opamp_subcircuit_model_with_options(
+            "KESSETSU_OPAMP_V2",
+            ModelSource::Builtin,
+            "Kessetsu verified rail-and-slew opamp".to_string(),
+            "Apache-2.0".to_string(),
+            "1.0.0".to_string(),
+            200_000.0,
+            1_000_000.0,
+            1.0,
+            Some(500_000.0),
+            Some(50.0),
         ),
     ]
 }
@@ -1142,12 +1203,76 @@ fn subcircuit_model_with_metadata(
     gain: f64,
     bandwidth: f64,
 ) -> ModelRef {
+    opamp_subcircuit_model_with_options(
+        name,
+        source_kind,
+        source,
+        license,
+        version,
+        gain,
+        bandwidth,
+        0.0,
+        None,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn opamp_subcircuit_model_with_options(
+    name: &str,
+    source_kind: ModelSource,
+    source: String,
+    license: String,
+    version: String,
+    gain: f64,
+    bandwidth: f64,
+    rail_headroom: f64,
+    slew_rate: Option<f64>,
+    rout: Option<f64>,
+) -> ModelRef {
     let pole_capacitance = gain / (std::f64::consts::TAU * bandwidth);
+    let pole_node = if rout.is_some() { "n_pole" } else { "out" };
+    let gain_str = format_spice_number(gain);
+    let pole_cap_str = format_spice_number(pole_capacitance);
+
+    let gain_stage = if let Some(sr) = slew_rate {
+        let imax = sr * pole_capacitance;
+        let imax_str = format_spice_number(imax);
+        format!(
+            "BGAIN n_int 0 V=v({pole_node})+{imax_str}*tanh(({gain_str}*(v(in_p)-v(in_n))-v({pole_node}))/{imax_str})"
+        )
+    } else {
+        format!("EGAIN n_int 0 in_p in_n {gain_str}")
+    };
+
+    let pole_stage = format!("RPOLE n_int {pole_node} 1\nCPOLE {pole_node} 0 {pole_cap_str}");
+
+    let clamp_stage = {
+        let rails = if rail_headroom > 0.0 {
+            let hr_str = format_spice_number(rail_headroom);
+            let min_span_str = format_spice_number(2.0 * rail_headroom);
+            format!(
+                "BRAIL_P vcc_lim 0 V=v(vcc)-v(vee)>{min_span_str}?v(vcc)-{hr_str}:0.5*(v(vcc)+v(vee))\nBRAIL_N vee_lim 0 V=v(vcc)-v(vee)>{min_span_str}?v(vee)+{hr_str}:0.5*(v(vcc)+v(vee))"
+            )
+        } else {
+            "BRAIL_P vcc_lim 0 V=v(vcc)>v(vee)?v(vcc):0.5*(v(vcc)+v(vee))\nBRAIL_N vee_lim 0 V=v(vcc)>v(vee)?v(vee):0.5*(v(vcc)+v(vee))".to_string()
+        };
+        format!(
+            "DCLP_P {pole_node} vcc_lim DCLAMP\nDCLP_N vee_lim {pole_node} DCLAMP\n{rails}\n.model DCLAMP D (Is=1e-15 N=0.001)"
+        )
+    };
+
+    let rout_stage = if let Some(r_out) = rout {
+        let rout_str = format_spice_number(r_out);
+        format!("\nEOUT out_int 0 n_pole 0 1\nROUT out_int out {rout_str}")
+    } else {
+        String::new()
+    };
+
     let directive = format!(
-        ".subckt {name} in_p in_n vcc vee out\nEGAIN n_int 0 in_p in_n {}\nRPOLE n_int out 1\nCPOLE out 0 {}\nRLOAD out 0 1e9\n.ends {name}",
-        format_spice_number(gain),
-        format_spice_number(pole_capacitance)
+        ".subckt {name} in_p in_n vcc vee out\n{gain_stage}\n{pole_stage}\n{clamp_stage}{rout_stage}\nRLOAD out 0 1e9\n.ends {name}"
     );
+
     model_ref(
         name,
         ComponentKind::OpAmp,

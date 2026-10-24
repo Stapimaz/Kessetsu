@@ -222,6 +222,150 @@ fn tool_definitions() -> Vec<Value> {
                 "additionalProperties": false
             },
         }),
+        json!({
+            "name": "kessetsu_tool",
+            "title": "Nominal circuit calculator",
+            "description": "Run Kessetsu's nominal analytical circuit calculators (divider for voltage dividers and rc_lowpass for passive RC low-pass filters) with exact, E12, or E24 preferred value selection, returning calculated component values and editable .kess source.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "tool": {
+                        "type": "string",
+                        "enum": ["divider", "rc_lowpass"],
+                        "description": "Calculator to run."
+                    },
+                    "vin": {
+                        "type": "string",
+                        "description": "Input voltage for divider (e.g. '12V')."
+                    },
+                    "target": {
+                        "type": "string",
+                        "description": "Target output voltage for divider (e.g. '3.3V')."
+                    },
+                    "lower": {
+                        "type": "string",
+                        "description": "Lower resistor value for divider (e.g. '10k')."
+                    },
+                    "load": {
+                        "type": "string",
+                        "description": "Optional load resistance for divider (e.g. '100k')."
+                    },
+                    "cutoff": {
+                        "type": "string",
+                        "description": "Target -3 dB cutoff frequency for rc_lowpass (e.g. '1kHz')."
+                    },
+                    "resistance": {
+                        "type": "string",
+                        "description": "Series resistor value for rc_lowpass (e.g. '10k')."
+                    },
+                    "values": {
+                        "type": "string",
+                        "enum": ["exact", "e12", "e24"],
+                        "default": "e24",
+                        "description": "Nominal standard value series."
+                    },
+                    "output_path": {
+                        "type": "string",
+                        "description": "Optional .kess file path to write the generated circuit."
+                    },
+                    "overwrite": {
+                        "type": "boolean",
+                        "description": "Allow overwriting output_path if it already exists."
+                    }
+                },
+                "required": ["tool"],
+                "additionalProperties": false
+            }
+        }),
+        json!({
+            "name": "kessetsu_study_plan",
+            "title": "Plan parameter or tolerance study",
+            "description": "Create or validate a deterministic Kessetsu parameter/tolerance/temperature study plan (kessetsu.experiment.v1) and return its case matrix and identity without running simulations.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "spec": {
+                        "type": ["object", "string"],
+                        "description": "Inline kessetsu.experiment.v1 study specification (JSON object or JSON string). Mutually exclusive with spec_path, source, and path."
+                    },
+                    "spec_path": {
+                        "type": "string",
+                        "description": "Path to an existing .kessstudy.json file on disk. Mutually exclusive with spec, source, and path."
+                    },
+                    "source": {
+                        "type": "string",
+                        "description": "Inline .kess circuit source for quick sweep plan creation. Mutually exclusive with path, spec, and spec_path."
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "Path to a .kess circuit file for quick sweep plan creation. Mutually exclusive with source, spec, and spec_path."
+                    },
+                    "sweep": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Parameter sweeps when creating a plan from source or path (e.g. ['R1=9k,10k,11k'])."
+                    },
+                    "output_path": {
+                        "type": "string",
+                        "description": "Optional path to save the generated .kessstudy.json specification."
+                    },
+                    "overwrite": {
+                        "type": "boolean",
+                        "description": "Allow overwriting output_path if it already exists."
+                    }
+                },
+                "additionalProperties": false
+            }
+        }),
+        json!({
+            "name": "kessetsu_study_run",
+            "title": "Run parameter or tolerance study",
+            "description": "Execute a deterministic Kessetsu parameter, tolerance-corner, Monte Carlo, or temperature study (kessetsu.experiment.v1) in Ngspice and return the structured kessetsu.experiment-results.v1 verification report.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "spec": {
+                        "type": ["object", "string"],
+                        "description": "Inline kessetsu.experiment.v1 study specification (JSON object or JSON string)."
+                    },
+                    "spec_path": {
+                        "type": "string",
+                        "description": "Path to an existing .kessstudy.json file on disk."
+                    },
+                    "source": {
+                        "type": "string",
+                        "description": "Inline .kess circuit source for a quick sweep study run."
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "Path to a .kess circuit file for a quick sweep study run."
+                    },
+                    "sweep": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Parameter sweeps when running from source or path (e.g. ['R1=9k,10k,11k'])."
+                    },
+                    "output_path": {
+                        "type": "string",
+                        "description": "Optional file path to save the study results JSON."
+                    },
+                    "resume": {
+                        "type": "boolean",
+                        "description": "Resume an interrupted study run from existing output_path."
+                    },
+                    "overwrite": {
+                        "type": "boolean",
+                        "description": "Allow overwriting output_path if it already exists."
+                    },
+                    "include": {
+                        "type": "array",
+                        "items": { "type": "string", "enum": ["datasets"] },
+                        "description": "Optional extra sections to include (only 'datasets' is supported)."
+                    }
+                },
+                "additionalProperties": false
+            }
+        }),
     ]
 }
 
@@ -281,6 +425,9 @@ fn call_tool(params: &Value) -> Result<Value, (i64, String)> {
         "kessetsu_render_schematic" => return render_command(arguments),
         "kessetsu_export" => return export_command(arguments),
         "kessetsu_import_spice" => import_command(arguments),
+        "kessetsu_tool" => tool_command(arguments),
+        "kessetsu_study_plan" => study_plan_command(arguments),
+        "kessetsu_study_run" => study_run_command(arguments),
         _ => return Err((-32602, format!("unknown tool '{name}'"))),
     };
     Ok(match outcome {
@@ -431,9 +578,9 @@ fn circuit_command(
 struct TempDir(PathBuf);
 
 impl TempDir {
-    fn new() -> Result<Self, String> {
+    fn new(tag: &str) -> Result<Self, String> {
         let path = std::env::temp_dir().join(format!(
-            "kessetsu-mcp-{}-{}",
+            "kessetsu-mcp-{tag}-{}-{}",
             std::process::id(),
             TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)
         ));
@@ -460,7 +607,7 @@ fn test_command(arguments: &Value) -> Result<CliOutput, String> {
     {
         return Err("provide either 'requirements' or 'requirements_path', not both".into());
     }
-    let temp = TempDir::new()?;
+    let temp = TempDir::new("test")?;
     let mut extra = Vec::new();
     let requirements_path = if let Some(text) =
         arguments.get("requirements").and_then(Value::as_str)
@@ -494,7 +641,7 @@ fn file_command(
     mut extra: Vec<String>,
 ) -> Result<FileCommandOutput, String> {
     let (source, input) = circuit_source(arguments)?;
-    let temp = TempDir::new()?;
+    let temp = TempDir::new("file")?;
     let staged = temp.0.join(format!("output.{extension}"));
     let mut args = base_arguments(command, arguments, &input);
     args.push("--output".into());
@@ -624,6 +771,384 @@ fn import_command(arguments: &Value) -> Result<CliOutput, String> {
     )
 }
 
+fn tool_command(arguments: &Value) -> Result<CliOutput, String> {
+    let tool = arguments
+        .get("tool")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "tool is required ('divider' or 'rc_lowpass')".to_string())?;
+
+    let values = arguments
+        .get("values")
+        .and_then(Value::as_str)
+        .unwrap_or("e24");
+    if !matches!(values, "exact" | "e12" | "e24") {
+        return Err(format!("values must be exact, e12, or e24, not '{values}'"));
+    }
+
+    let mut args = vec!["tool".to_string()];
+    match tool {
+        "divider" => {
+            if arguments.get("cutoff").is_some() || arguments.get("resistance").is_some() {
+                return Err("cutoff and resistance are not valid parameters for divider".into());
+            }
+            let vin = arguments
+                .get("vin")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "divider requires 'vin'".to_string())?;
+            let target = arguments
+                .get("target")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "divider requires 'target'".to_string())?;
+            let lower = arguments
+                .get("lower")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "divider requires 'lower'".to_string())?;
+
+            args.push("divider".to_string());
+            args.push("--vin".to_string());
+            args.push(vin.to_string());
+            args.push("--target".to_string());
+            args.push(target.to_string());
+            args.push("--lower".to_string());
+            args.push(lower.to_string());
+
+            if let Some(load) = arguments.get("load").and_then(Value::as_str) {
+                args.push("--load".to_string());
+                args.push(load.to_string());
+            }
+        }
+        "rc_lowpass" => {
+            if arguments.get("vin").is_some()
+                || arguments.get("target").is_some()
+                || arguments.get("lower").is_some()
+                || arguments.get("load").is_some()
+            {
+                return Err(
+                    "vin, target, lower, and load are not valid parameters for rc_lowpass".into(),
+                );
+            }
+            let cutoff = arguments
+                .get("cutoff")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "rc_lowpass requires 'cutoff'".to_string())?;
+            let resistance = arguments
+                .get("resistance")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "rc_lowpass requires 'resistance'".to_string())?;
+
+            args.push("rc-lowpass".to_string());
+            args.push("--cutoff".to_string());
+            args.push(cutoff.to_string());
+            args.push("--resistance".to_string());
+            args.push(resistance.to_string());
+        }
+        _ => {
+            return Err(format!(
+                "unknown tool '{tool}', expected divider or rc_lowpass"
+            ));
+        }
+    }
+
+    args.push("--values".to_string());
+    args.push(values.to_string());
+
+    if let Some(output_path) = arguments.get("output_path").and_then(Value::as_str) {
+        args.push("--output".to_string());
+        args.push(output_path.to_string());
+    }
+
+    if arguments
+        .get("overwrite")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        args.push("--force".to_string());
+    }
+
+    let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
+    run_cli(&refs, None)
+}
+
+fn study_plan_command(arguments: &Value) -> Result<CliOutput, String> {
+    let has_spec = arguments.get("spec").is_some() && !arguments["spec"].is_null();
+    let has_spec_path = arguments.get("spec_path").and_then(Value::as_str).is_some();
+    let has_source = arguments.get("source").and_then(Value::as_str).is_some();
+    let has_path = arguments.get("path").and_then(Value::as_str).is_some();
+
+    let count = [has_spec, has_spec_path, has_source, has_path]
+        .iter()
+        .filter(|&&b| b)
+        .count();
+    if count == 0 {
+        return Err("provide one of 'spec', 'spec_path', 'source', or 'path'".into());
+    }
+    if count > 1 {
+        return Err("provide only one of 'spec', 'spec_path', 'source', or 'path'".into());
+    }
+
+    if (has_spec || has_spec_path) && arguments.get("sweep").is_some() {
+        return Err("sweep is only supported with 'source' or 'path'".into());
+    }
+
+    let output_path = arguments.get("output_path").and_then(Value::as_str);
+    let overwrite = arguments
+        .get("overwrite")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+
+    let temp = TempDir::new("study-plan")?;
+
+    let spec_file = if has_source || has_path {
+        let circuit_path = if has_source {
+            let p = temp.0.join("circuit.kess");
+            let source_str = arguments["source"].as_str().unwrap();
+            fs::write(&p, source_str)
+                .map_err(|error| format!("cannot stage circuit source: {error}"))?;
+            p
+        } else {
+            PathBuf::from(arguments["path"].as_str().unwrap())
+        };
+
+        let spec_dest = if let Some(out) = output_path {
+            let p = PathBuf::from(out);
+            if p.exists() && !overwrite {
+                return Err(format!(
+                    "'{}' already exists; pass overwrite=true to replace it",
+                    p.display()
+                ));
+            }
+            p
+        } else {
+            temp.0.join("study.kessstudy.json")
+        };
+
+        let circuit_str = circuit_path.display().to_string();
+        let spec_dest_str = spec_dest.display().to_string();
+        let mut create_args = vec![
+            "study".to_string(),
+            "create".to_string(),
+            circuit_str,
+            "--output".to_string(),
+            spec_dest_str,
+        ];
+        if overwrite || output_path.is_none() {
+            create_args.push("--force".to_string());
+        }
+        if let Some(sweeps) = arguments.get("sweep").and_then(Value::as_array) {
+            for sweep in sweeps {
+                if let Some(s) = sweep.as_str() {
+                    create_args.push("--sweep".to_string());
+                    create_args.push(s.to_string());
+                }
+            }
+        }
+        let refs = create_args.iter().map(String::as_str).collect::<Vec<_>>();
+        let create_out = run_cli(&refs, None)?;
+        if create_out.exit_code != 0 {
+            return Ok(create_out);
+        }
+        spec_dest
+    } else if has_spec {
+        let spec_val = &arguments["spec"];
+        let spec_string = match spec_val {
+            Value::String(s) => s.clone(),
+            Value::Object(_) => serde_json::to_string_pretty(spec_val)
+                .map_err(|error| format!("cannot serialize spec: {error}"))?,
+            _ => return Err("spec must be a JSON object or JSON string".into()),
+        };
+
+        if let Some(out) = output_path {
+            let p = PathBuf::from(out);
+            if p.exists() && !overwrite {
+                return Err(format!(
+                    "'{}' already exists; pass overwrite=true to replace it",
+                    p.display()
+                ));
+            }
+            fs::write(&p, &spec_string)
+                .map_err(|error| format!("cannot save spec to '{}': {error}", p.display()))?;
+            p
+        } else {
+            let p = temp.0.join("study.kessstudy.json");
+            fs::write(&p, &spec_string).map_err(|error| format!("cannot stage spec: {error}"))?;
+            p
+        }
+    } else {
+        let p = PathBuf::from(arguments["spec_path"].as_str().unwrap());
+        if !p.exists() {
+            return Err(format!("spec_path '{}' does not exist", p.display()));
+        }
+        if let Some(out) = output_path {
+            let out_path = PathBuf::from(out);
+            if out_path.exists() && !overwrite {
+                return Err(format!(
+                    "'{}' already exists; pass overwrite=true to replace it",
+                    out_path.display()
+                ));
+            }
+            fs::copy(&p, &out_path).map_err(|error| {
+                format!("cannot copy spec to '{}': {error}", out_path.display())
+            })?;
+            out_path
+        } else {
+            p
+        }
+    };
+
+    let spec_str = spec_file.display().to_string();
+    let plan_args = ["study", "plan", &spec_str];
+    run_cli(&plan_args, None)
+}
+
+fn study_run_command(arguments: &Value) -> Result<CliOutput, String> {
+    let has_spec = arguments.get("spec").is_some() && !arguments["spec"].is_null();
+    let has_spec_path = arguments.get("spec_path").and_then(Value::as_str).is_some();
+    let has_source = arguments.get("source").and_then(Value::as_str).is_some();
+    let has_path = arguments.get("path").and_then(Value::as_str).is_some();
+
+    let count = [has_spec, has_spec_path, has_source, has_path]
+        .iter()
+        .filter(|&&b| b)
+        .count();
+    if count == 0 {
+        return Err("provide one of 'spec', 'spec_path', 'source', or 'path'".into());
+    }
+    if count > 1 {
+        return Err("provide only one of 'spec', 'spec_path', 'source', or 'path'".into());
+    }
+
+    if (has_spec || has_spec_path) && arguments.get("sweep").is_some() {
+        return Err("sweep is only supported with 'source' or 'path'".into());
+    }
+
+    let resume = arguments
+        .get("resume")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let overwrite = arguments
+        .get("overwrite")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let output_path = arguments.get("output_path").and_then(Value::as_str);
+
+    if resume && output_path.is_none() {
+        return Err("resume requires output_path".into());
+    }
+    if resume && overwrite {
+        return Err("choose resume or overwrite, not both".into());
+    }
+    if let Some(out) = output_path {
+        let out_path = PathBuf::from(out);
+        if out_path.exists() && !overwrite && !resume {
+            return Err(format!(
+                "'{}' already exists; pass overwrite=true to replace it or resume=true to resume",
+                out_path.display()
+            ));
+        }
+    }
+
+    let mut include_datasets = false;
+    if let Some(include) = arguments.get("include").and_then(Value::as_array) {
+        for item in include {
+            match item.as_str() {
+                Some("datasets") => include_datasets = true,
+                Some(other) => {
+                    return Err(format!(
+                        "unsupported include '{other}'; only 'datasets' is supported"
+                    ));
+                }
+                None => return Err("include items must be strings".into()),
+            }
+        }
+    }
+
+    let temp = TempDir::new("study-run")?;
+
+    let spec_file = if has_source || has_path {
+        let circuit_path = if has_source {
+            let p = temp.0.join("circuit.kess");
+            let source_str = arguments["source"].as_str().unwrap();
+            fs::write(&p, source_str)
+                .map_err(|error| format!("cannot stage circuit source: {error}"))?;
+            p
+        } else {
+            PathBuf::from(arguments["path"].as_str().unwrap())
+        };
+
+        let staged_spec = temp.0.join("study.kessstudy.json");
+        let circuit_str = circuit_path.display().to_string();
+        let staged_spec_str = staged_spec.display().to_string();
+        let mut create_args = vec![
+            "study".to_string(),
+            "create".to_string(),
+            circuit_str,
+            "--output".to_string(),
+            staged_spec_str,
+            "--force".to_string(),
+        ];
+        if let Some(sweeps) = arguments.get("sweep").and_then(Value::as_array) {
+            for sweep in sweeps {
+                if let Some(s) = sweep.as_str() {
+                    create_args.push("--sweep".to_string());
+                    create_args.push(s.to_string());
+                }
+            }
+        }
+        let refs = create_args.iter().map(String::as_str).collect::<Vec<_>>();
+        let create_out = run_cli(&refs, None)?;
+        if create_out.exit_code != 0 {
+            return Ok(create_out);
+        }
+        staged_spec
+    } else if has_spec {
+        let spec_val = &arguments["spec"];
+        let spec_string = match spec_val {
+            Value::String(s) => s.clone(),
+            Value::Object(_) => serde_json::to_string_pretty(spec_val)
+                .map_err(|error| format!("cannot serialize spec: {error}"))?,
+            _ => return Err("spec must be a JSON object or JSON string".into()),
+        };
+        let staged_spec = temp.0.join("study.kessstudy.json");
+        fs::write(&staged_spec, &spec_string)
+            .map_err(|error| format!("cannot stage spec: {error}"))?;
+        staged_spec
+    } else {
+        let p = PathBuf::from(arguments["spec_path"].as_str().unwrap());
+        if !p.exists() {
+            return Err(format!("spec_path '{}' does not exist", p.display()));
+        }
+        p
+    };
+
+    let results_path = if let Some(out) = output_path {
+        PathBuf::from(out)
+    } else {
+        temp.0.join("results.json")
+    };
+
+    let spec_str = spec_file.display().to_string();
+    let results_str = results_path.display().to_string();
+    let mut run_args = vec![
+        "study".to_string(),
+        "run".to_string(),
+        spec_str,
+        "--output".to_string(),
+        results_str,
+    ];
+    if resume {
+        run_args.push("--resume".to_string());
+    } else if overwrite || output_path.is_none() {
+        run_args.push("--force".to_string());
+    }
+    if include_datasets {
+        run_args.push("--include".to_string());
+        run_args.push("datasets".to_string());
+    }
+
+    let refs = run_args.iter().map(String::as_str).collect::<Vec<_>>();
+    run_cli(&refs, None)
+}
+
 fn base64(bytes: &[u8]) -> String {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut encoded = String::with_capacity(bytes.len().div_ceil(3) * 4);
@@ -698,6 +1223,9 @@ mod tests {
             "kessetsu_test",
             "kessetsu_render_schematic",
             "kessetsu_export",
+            "kessetsu_tool",
+            "kessetsu_study_plan",
+            "kessetsu_study_run",
         ] {
             assert!(names.iter().any(|name| name == expected), "{expected}");
         }

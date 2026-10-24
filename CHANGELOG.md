@@ -14,8 +14,13 @@ right canvas.
 
 - Add `kess mcp`, a built-in stdio Model Context Protocol server exposing `kessetsu_guide`,
   `kessetsu_capabilities`, `kessetsu_check`, `kessetsu_simulate`, `kessetsu_test`,
-  `kessetsu_render_schematic`, `kessetsu_export`, `kessetsu_import_spice` and the
-  `design_circuit` prompt over the canonical `kessetsu.cli.v1` JSON contract.
+  `kessetsu_render_schematic`, `kessetsu_export`, `kessetsu_import_spice`, `kessetsu_tool`,
+  `kessetsu_study_plan`, `kessetsu_study_run` and the `design_circuit` prompt over the
+  canonical `kessetsu.cli.v1` JSON contract.
+- Upgrade `KESSETSU_OPAMP_V1` (`1.1.0`) and `subcircuit opamp` to enforce physical supply-rail
+  saturation across `vcc` and `vee` (`DCLAMP` + `BRAIL_P`/`BRAIL_N`), add `KESSETSU_OPAMP_V2`
+  (`1.0.0`, 1 V rail headroom, 0.5 V/µs slew rate, 50 Ω output resistance), and accept optional
+  `rail_headroom`, `slew_rate` and `rout` parameters on `subcircuit opamp`.
 - Add global `--input auto|kess|spice` so `check`, `compile`, `simulate`, `test`, `render`
   and `export` accept supported SPICE netlists (`.cir`, `.sp`, `.spice`, `.net`, `.ckt`,
   `.cki` or dot-directive stdin) directly alongside `.kess` source and `.kessreq` files.

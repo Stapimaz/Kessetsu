@@ -22,7 +22,7 @@ You are an AI agent assigned to Kessetsu, or continuing an earlier session. Kess
 When working in Antigravity with subagent tools available, operate under a **Lead + Flash Worker** model to keep architectural decisions centralized while delegating bounded execution work:
 
 1. **Lead agent (Gemini 4 Argon High):** The primary conversation agent acts as the lead engineer and owns task planning, architecture, cross-cutting design decisions, complex debugging, multi-component integration, code review of subagent output, and final verification.
-2. **Worker subagents (`Model: "flash"` — Gemini 3.8 Flash High tier):** Override the default `Model: "inherit"` parameter on `invoke_subagent` and explicitly pass `Model: "flash"` when delegating suitable worker tasks:
+2. **Worker subagents (`Model: "flash"` — use the `flash` worker tier, currently intended as Gemini 3.8 Flash High):** Override the default `Model: "inherit"` parameter on `invoke_subagent` and explicitly pass `Model: "flash"` when delegating suitable worker tasks:
    - Use `TypeName: "research"` with `Model: "flash"` for broad codebase exploration, multi-file searches, and read-only analysis.
    - Use `TypeName: "self"` (or a session worker defined via `define_subagent` with `EnableWriteTools: true`) with `Model: "flash"` for focused implementation tasks, unit/integration test authoring, documentation updates, repetitive refactoring, and independent subtasks.
 3. **Delegation guardrails:**

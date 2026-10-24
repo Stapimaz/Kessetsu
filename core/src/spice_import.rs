@@ -194,6 +194,7 @@ const BUILTIN_MODEL_NAMES: &[&str] = &[
     "KESSETSU_POWER_PNP_V1",
     "KESSETSU_PMOS_V1",
     "KESSETSU_OPAMP_V1",
+    "KESSETSU_OPAMP_V2",
 ];
 
 /// Vendor/LTspice descriptive fields that carry no Ngspice electrical meaning.
@@ -311,16 +312,22 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
             );
             continue;
         }
-        if name.eq_ignore_ascii_case("KESSETSU_OPAMP_V1")
+        if (name.eq_ignore_ascii_case("KESSETSU_OPAMP_V1")
+            || name.eq_ignore_ascii_case("KESSETSU_OPAMP_V2"))
             && fields.len() == 7
             && !fields[2..]
                 .iter()
                 .any(|field| field.contains('=') || field.eq_ignore_ascii_case("params:"))
         {
+            let canonical_name = if name.eq_ignore_ascii_case("KESSETSU_OPAMP_V2") {
+                "KESSETSU_OPAMP_V2"
+            } else {
+                "KESSETSU_OPAMP_V1"
+            };
             report.diagnostics.push(ImportDiagnostic {
                 code: "KES-N012".into(),
                 severity: ImportSeverity::Info,
-                message: "recognized built-in op-amp subcircuit 'KESSETSU_OPAMP_V1'".into(),
+                message: format!("recognized built-in op-amp subcircuit '{canonical_name}'"),
                 line: Some(block.header.number),
                 column: Some(1),
             });
@@ -1276,9 +1283,10 @@ fn try_parse_builtin_opamp(
     if modules.contains_key(&requested_module.to_ascii_lowercase()) {
         return None;
     }
+    let upper_module = requested_module.to_ascii_uppercase();
     if !matches!(
-        requested_module.to_ascii_uppercase().as_str(),
-        "KESSETSU_OPAMP_V1" | "OPAMP"
+        upper_module.as_str(),
+        "KESSETSU_OPAMP_V1" | "KESSETSU_OPAMP_V2" | "OPAMP"
     ) {
         return None;
     }
@@ -1310,11 +1318,16 @@ fn try_parse_builtin_opamp(
             column: Some(1),
         });
     }
+    let resolved_opamp = if upper_module == "KESSETSU_OPAMP_V2" {
+        "KESSETSU_OPAMP_V2"
+    } else {
+        "KESSETSU_OPAMP_V1"
+    };
     Some(Ok(ImportedComponent {
         original_name: fields[0].clone(),
         nodes,
         pins: &["in_p", "in_n", "vcc", "vee", "out"],
-        kind: ImportedKind::OpAmp("KESSETSU_OPAMP_V1".into()),
+        kind: ImportedKind::OpAmp(resolved_opamp.into()),
         line,
     }))
 }

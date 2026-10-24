@@ -2,6 +2,11 @@
 EGAIN n_int 0 in_p in_n 200000
 RPOLE n_int out 1
 CPOLE out 0 0.03183098861837907
+DCLP_P out vcc_lim DCLAMP
+DCLP_N vee_lim out DCLAMP
+BRAIL_P vcc_lim 0 V=v(vcc)>v(vee)?v(vcc):0.5*(v(vcc)+v(vee))
+BRAIL_N vee_lim 0 V=v(vcc)>v(vee)?v(vee):0.5*(v(vcc)+v(vee))
+.model DCLAMP D (Is=1e-15 N=0.001)
 RLOAD out 0 1e9
 .ends KESSETSU_OPAMP_V1
 .model KESSETSU_POWER_NPN_V1 NPN (Is=1e-12 Bf=80 Vaf=60 Cje=300p Cjc=150p Tf=1u Tr=5u)

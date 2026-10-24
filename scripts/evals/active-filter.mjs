@@ -14,10 +14,15 @@ export const MODEL = `.subckt KESSETSU_OPAMP_V1 in_p in_n vcc vee out
 EGAIN n_int 0 in_p in_n 200000
 RPOLE n_int out 1
 CPOLE out 0 0.03183098861837907
+DCLP_P out vcc_lim DCLAMP
+DCLP_N vee_lim out DCLAMP
+BRAIL_P vcc_lim 0 V=v(vcc)>v(vee)?v(vcc):0.5*(v(vcc)+v(vee))
+BRAIL_N vee_lim 0 V=v(vcc)>v(vee)?v(vee):0.5*(v(vcc)+v(vee))
+.model DCLAMP D (Is=1e-15 N=0.001)
 RLOAD out 0 1e9
 .ends KESSETSU_OPAMP_V1`;
 const limitations = ['Generic linear model only; no manufacturer-part validation.',
-  'Supply pins do not impose rail saturation, current limits, or supply-current consumption.',
+  'Supply pins enforce rail saturation; output-current limits, slew rate, and supply-current consumption are not modeled in V1.',
   'Evaluator supports one/two-section input RC ladders with resistive non-inverting feedback and the linear op-amp template; other topologies/models remain unsupported.'];
 const normalize = (text) => text.trim().toLowerCase().split(/\s+/);
 const sameModel = (text) => {
@@ -30,13 +35,13 @@ const sameModel = (text) => {
 
 export function inspectModel(text) {
   const tokens = normalize(text);
-  if (tokens.length !== normalize(MODEL).length || !/^[a-z][a-z0-9_]*$/.test(tokens[1]) || tokens[26] !== tokens[1]) throw new Error('Unsupported model declaration');
+  if (tokens.length !== normalize(MODEL).length || !/^[a-z][a-z0-9_]*$/.test(tokens[1]) || tokens.at(-1) !== tokens[1]) throw new Error('Unsupported model declaration');
   const name = tokens[1], gain = spiceNumber(tokens[12]), capacitance = spiceNumber(tokens[20]);
   if (!(gain > 0) || !(capacitance > 0)) throw new Error('Invalid model gain/pole');
   // Built-in identity is immutable. Custom declarations may choose gain/bandwidth,
   // but cannot add devices, change pins, or disguise a manufacturer model.
   if (name === 'kessetsu_opamp_v1' && !sameModel(text)) throw new Error('Altered built-in model');
-  tokens[1] = tokens[26] = 'kessetsu_opamp_v1'; tokens[12] = '200000'; tokens[20] = '0.03183098861837907';
+  tokens[1] = tokens[tokens.length - 1] = 'kessetsu_opamp_v1'; tokens[12] = '200000'; tokens[20] = '0.03183098861837907';
   if (!sameModel(tokens.join(' '))) throw new Error('Unsupported model structure');
   const canonical = MODEL.replaceAll('KESSETSU_OPAMP_V1', name).replace('200000', String(gain)).replace('0.03183098861837907', String(capacitance));
   return { name, gain, capacitance, canonical };

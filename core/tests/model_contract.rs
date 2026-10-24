@@ -579,3 +579,198 @@ fn builtin_diodes_and_default_model_run_with_versioned_legacy_provenance() {
     assert_eq!(assertions.summary.total, 6);
     assert_eq!(assertions.summary.passed, 6, "{:?}", assertions);
 }
+
+#[test]
+fn opamp_v1_clamps_output_to_rails_in_real_ngspice() {
+    let source = "net GND\nnet VCC\nnet VEE\nnet IN\nnet FB\nnet OUT\n\
+source VP 12V\nsource VN 12V\nsource VIN sine(0V, 2V, 1kHz)\n\
+opamp U1 KESSETSU_OPAMP_V1\nresistor RF 90k\nresistor RG 10k\nresistor RL 10k\n\
+connect VP.minus to GND\nconnect VP.plus to VCC\nconnect VN.plus to GND\nconnect VN.minus to VEE\n\
+connect VIN.minus to GND\nconnect VIN.plus to IN\n\
+connect U1.in_p to IN\nconnect U1.in_n to FB\nconnect U1.vcc to VCC\nconnect U1.vee to VEE\nconnect U1.out to OUT\n\
+connect RF.p1 to OUT\nconnect RF.p2 to FB\nconnect RG.p1 to FB\nconnect RG.p2 to GND\nconnect RL.p1 to OUT\nconnect RL.p2 to GND\n\
+simulate tran 5us 5ms\n\
+assert peak(V(OUT)) < 13V\n\
+assert peak(V(OUT)) > 11.5V\n\
+assert clipping(V(OUT), -12V, 12V) > 20%\n";
+    let report = compile_source(source, CompileOptions::default());
+    assert!(
+        !report.has_errors(),
+        "compile diagnostics: {:?}",
+        report.diagnostics
+    );
+    let circuit = report.ir.expect("IR should exist");
+    let opamp = circuit
+        .model_manifest
+        .models
+        .iter()
+        .find(|model| model.name == "KESSETSU_OPAMP_V1")
+        .expect("KESSETSU_OPAMP_V1 should be in model manifest");
+    assert_eq!(opamp.provenance.version, "1.1.0");
+    let netlist = report.spice_netlist.expect("SPICE netlist should exist");
+    assert!(netlist.contains("DCLP_P out vcc_lim DCLAMP"));
+    assert!(netlist.contains("BRAIL_P vcc_lim 0"));
+    let request = SimulationRequest::new(netlist, circuit.analyses.clone());
+    let result = NgspiceRunner::discover()
+        .run(&request, &CancellationToken::new())
+        .expect("Ngspice should launch");
+    assert!(
+        result.succeeded(),
+        "simulation failed: {:?}; raw_log: {:?}",
+        result.errors,
+        result.raw_log
+    );
+    let assertions = kessetsu_core::sim_result::evaluate_assertions(&circuit, &result);
+    assert_eq!(assertions.summary.total, 3);
+    assert_eq!(
+        assertions.summary.passed, 3,
+        "assertions failed: {:?}",
+        assertions
+    );
+}
+
+#[test]
+fn parameterized_opamp_subcircuit_validates_parameter_bounds() {
+    let base = "subcircuit opamp Op (in_p,in_n,vcc,vee,out) version=1.0.0 license=MIT gain=100k bandwidth=1MHz";
+
+    // Negative rail_headroom fails with KES-C012
+    let report = compile_source(
+        &format!("{base} rail_headroom=-0.5\nopamp U1 Op\n"),
+        CompileOptions::default(),
+    );
+    assert_eq!(report.diagnostics[0].code, "KES-C012");
+    assert_eq!(
+        report.diagnostics[0].field.as_deref(),
+        Some("rail_headroom")
+    );
+    assert!(
+        report.diagnostics[0]
+            .message
+            .contains("opamp rail_headroom must be non-negative")
+    );
+
+    // Non-positive slew_rate fails with KES-C012
+    let report = compile_source(
+        &format!("{base} slew_rate=0\nopamp U1 Op\n"),
+        CompileOptions::default(),
+    );
+    assert_eq!(report.diagnostics[0].code, "KES-C012");
+    assert_eq!(report.diagnostics[0].field.as_deref(), Some("slew_rate"));
+    assert!(
+        report.diagnostics[0]
+            .message
+            .contains("opamp slew_rate must be positive")
+    );
+
+    let report = compile_source(
+        &format!("{base} slew_rate=-100k\nopamp U1 Op\n"),
+        CompileOptions::default(),
+    );
+    assert_eq!(report.diagnostics[0].code, "KES-C012");
+    assert_eq!(report.diagnostics[0].field.as_deref(), Some("slew_rate"));
+    assert!(
+        report.diagnostics[0]
+            .message
+            .contains("opamp slew_rate must be positive")
+    );
+
+    // Non-positive rout fails with KES-C012
+    let report = compile_source(
+        &format!("{base} rout=0\nopamp U1 Op\n"),
+        CompileOptions::default(),
+    );
+    assert_eq!(report.diagnostics[0].code, "KES-C012");
+    assert_eq!(report.diagnostics[0].field.as_deref(), Some("rout"));
+    assert!(
+        report.diagnostics[0]
+            .message
+            .contains("opamp rout must be positive")
+    );
+
+    let report = compile_source(
+        &format!("{base} rout=-50\nopamp U1 Op\n"),
+        CompileOptions::default(),
+    );
+    assert_eq!(report.diagnostics[0].code, "KES-C012");
+    assert_eq!(report.diagnostics[0].field.as_deref(), Some("rout"));
+    assert!(
+        report.diagnostics[0]
+            .message
+            .contains("opamp rout must be positive")
+    );
+}
+
+#[test]
+fn opamp_v2_and_parameterized_subcircuit_simulate_cleanly_in_real_ngspice() {
+    // 1. KESSETSU_OPAMP_V2
+    let v2_source = "net GND\nnet VCC\nnet VEE\nnet IN\nnet FB\nnet OUT\n\
+source VP 12V\nsource VN 12V\nsource VIN sine(0V, 1V, 1kHz)\n\
+opamp U1 KESSETSU_OPAMP_V2\nresistor RF 10k\nresistor RG 10k\nresistor RL 1k\n\
+connect VP.minus to GND\nconnect VP.plus to VCC\nconnect VN.plus to GND\nconnect VN.minus to VEE\n\
+connect VIN.minus to GND\nconnect VIN.plus to IN\n\
+connect U1.in_p to IN\nconnect U1.in_n to FB\nconnect U1.vcc to VCC\nconnect U1.vee to VEE\nconnect U1.out to OUT\n\
+connect RF.p1 to OUT\nconnect RF.p2 to FB\nconnect RG.p1 to FB\nconnect RG.p2 to GND\nconnect RL.p1 to OUT\nconnect RL.p2 to GND\n\
+simulate tran 5us 5ms\n";
+
+    let report = compile_source(v2_source, CompileOptions::default());
+    assert!(
+        !report.has_errors(),
+        "compile diagnostics: {:?}",
+        report.diagnostics
+    );
+    let circuit = report.ir.expect("IR should exist");
+    let opamp = circuit
+        .model_manifest
+        .models
+        .iter()
+        .find(|model| model.name == "KESSETSU_OPAMP_V2")
+        .expect("KESSETSU_OPAMP_V2 should be in model manifest");
+    assert_eq!(opamp.provenance.version, "1.0.0");
+    let netlist = report.spice_netlist.expect("SPICE netlist should exist");
+    assert!(netlist.contains("BGAIN"));
+    assert!(netlist.contains("ROUT out_int out 50"));
+    assert!(netlist.contains("v(vcc)-v(vee)>2?v(vcc)-1:0.5*(v(vcc)+v(vee))"));
+    let request = SimulationRequest::new(netlist, circuit.analyses.clone());
+    let result = NgspiceRunner::discover()
+        .run(&request, &CancellationToken::new())
+        .expect("Ngspice should launch");
+    assert!(
+        result.succeeded(),
+        "KESSETSU_OPAMP_V2 simulation failed: {:?}; raw_log: {:?}",
+        result.errors,
+        result.raw_log
+    );
+
+    // 2. Parameterized user subcircuit opamp
+    let param_source = "subcircuit opamp PhysicalOp (in_p,in_n,vcc,vee,out) version=1.0.0 license=MIT gain=100k bandwidth=1MHz rail_headroom=1 slew_rate=500k rout=50\n\
+net GND\nnet VCC\nnet VEE\nnet IN\nnet FB\nnet OUT\n\
+source VP 12V\nsource VN 12V\nsource VIN sine(0V, 1V, 1kHz)\n\
+opamp U1 PhysicalOp\nresistor RF 10k\nresistor RG 10k\nresistor RL 1k\n\
+connect VP.minus to GND\nconnect VP.plus to VCC\nconnect VN.plus to GND\nconnect VN.minus to VEE\n\
+connect VIN.minus to GND\nconnect VIN.plus to IN\n\
+connect U1.in_p to IN\nconnect U1.in_n to FB\nconnect U1.vcc to VCC\nconnect U1.vee to VEE\nconnect U1.out to OUT\n\
+connect RF.p1 to OUT\nconnect RF.p2 to FB\nconnect RG.p1 to FB\nconnect RG.p2 to GND\nconnect RL.p1 to OUT\nconnect RL.p2 to GND\n\
+simulate tran 5us 5ms\n";
+
+    let report = compile_source(param_source, CompileOptions::default());
+    assert!(
+        !report.has_errors(),
+        "compile diagnostics: {:?}",
+        report.diagnostics
+    );
+    let circuit = report.ir.expect("IR should exist");
+    let netlist = report.spice_netlist.expect("SPICE netlist should exist");
+    assert!(netlist.contains(".subckt PhysicalOp"));
+    assert!(netlist.contains("BGAIN"));
+    assert!(netlist.contains("ROUT out_int out 50"));
+    let request = SimulationRequest::new(netlist, circuit.analyses.clone());
+    let result = NgspiceRunner::discover()
+        .run(&request, &CancellationToken::new())
+        .expect("Ngspice should launch");
+    assert!(
+        result.succeeded(),
+        "parameterized opamp simulation failed: {:?}; raw_log: {:?}",
+        result.errors,
+        result.raw_log
+    );
+}

@@ -275,7 +275,7 @@ warnings, and known losses. See the [export matrix](exports.md) for format bound
 
 ### `mcp`
 
-Starts a stdio Model Context Protocol (MCP) server exposing Kessetsu's verification, simulation, schematic and export tools (`kessetsu_guide`, `kessetsu_capabilities`, `kessetsu_check`, `kessetsu_simulate`, `kessetsu_test`, `kessetsu_render_schematic`, `kessetsu_export`, `kessetsu_import_spice`) and the `design_circuit` prompt:
+Starts a stdio Model Context Protocol (MCP) server exposing Kessetsu's verification, simulation, schematic, calculation, study, and export tools (`kessetsu_guide`, `kessetsu_capabilities`, `kessetsu_check`, `kessetsu_simulate`, `kessetsu_test`, `kessetsu_render_schematic`, `kessetsu_export`, `kessetsu_import_spice`, `kessetsu_tool`, `kessetsu_study_plan`, `kessetsu_study_run`) and the `design_circuit` prompt:
 
 ```bash
 kess mcp
@@ -439,6 +439,6 @@ Agents can connect through `kess mcp` (see the [agent design workflow](../guides
 4. Run `simulate - --format json` to read typed measurements and the analysis summary.
 5. Run `test - --requirements frozen.kessreq --format json` when the supervising process, rather than the design source, owns acceptance criteria. Optionally pin `--requirements-sha256`; record `requirements.sha256` from the response.
 6. Read `assertions.assertions[].status`, `actual`, `threshold`, and summary fields to determine the remaining target difference.
-7. Revise only the design source (`.kess` or SPICE) and repeat the same call, then render the schematic (`render`) and export handoff artifacts (`export`).
+7. Revise only the design source (`.kess` or SPICE) and repeat the same call, then render the schematic (`render`) and export handoff artifacts (`export`). Sizing and studies can be driven via `kessetsu_tool` (`tool`), `kessetsu_study_plan` (`study plan`), and `kessetsu_study_run` (`study run`).
 
 The repository contract suite verifies this flow with a cross-platform fixture: it reads the measured 200 mA result from a failing 10 Ω candidate, revises the resistor to 100 Ω, and passes the assertion at 20 mA. The test never parses human terminal text.
