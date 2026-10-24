@@ -449,7 +449,10 @@ impl Drop for TempDir {
 }
 
 fn test_command(arguments: &Value) -> Result<CliOutput, String> {
-    if arguments.get("requirements").and_then(Value::as_str).is_some()
+    if arguments
+        .get("requirements")
+        .and_then(Value::as_str)
+        .is_some()
         && arguments
             .get("requirements_path")
             .and_then(Value::as_str)
