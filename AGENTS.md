@@ -17,6 +17,20 @@ You are an AI agent assigned to Kessetsu, or continuing an earlier session. Kess
 5. **Proportionate verification:** select checks according to the changed behavior and risk. Documentation-only or deployment-setting changes need focused validation, not the entire test suite or a wait for remote CI. Run `powershell -ExecutionPolicy Bypass -File scripts/verify.ps1` from the repository root for substantial cross-cutting changes and release candidates; reuse green evidence when the verified source is unchanged. Use `-SkipNpmInstall` only when appropriate during iteration; a required final canonical run uses the full command. Record exactly what was checked, without implying unrun tests passed.
 6. **Backward compatibility:** new syntax must not break existing `examples/*.kess` files.
 
+## Multi-agent delegation workflow
+
+When working in Antigravity with subagent tools available, operate under a **Lead + Flash Worker** model to keep architectural decisions centralized while delegating bounded execution work:
+
+1. **Lead agent (Gemini 4 Argon High):** The primary conversation agent acts as the lead engineer and owns task planning, architecture, cross-cutting design decisions, complex debugging, multi-component integration, code review of subagent output, and final verification.
+2. **Worker subagents (`Model: "flash"` — Gemini 3.8 Flash High tier):** Override the default `Model: "inherit"` parameter on `invoke_subagent` and explicitly pass `Model: "flash"` when delegating suitable worker tasks:
+   - Use `TypeName: "research"` with `Model: "flash"` for broad codebase exploration, multi-file searches, and read-only analysis.
+   - Use `TypeName: "self"` (or a session worker defined via `define_subagent` with `EnableWriteTools: true`) with `Model: "flash"` for focused implementation tasks, unit/integration test authoring, documentation updates, repetitive refactoring, and independent subtasks.
+3. **Delegation guardrails:**
+   - **No trivial delegation:** Do not spawn subagents for tiny one-file edits, quick lookups, or trivial fixes that are faster to execute directly.
+   - **Parallelize independent work safely:** For larger tasks, split independent work across multiple `Model: "flash"` subagents when useful, assigning strictly disjoint file scopes so parallel subagents never edit the same files or make competing architectural decisions.
+   - **Mandatory lead review:** Always inspect and review subagent diffs, test results, and outputs directly in the lead agent before treating any delegated subtask as complete.
+   - **Lead owns final sign-off:** Keep final verification (`scripts/verify.ps1`, focused test suites, release/doc audits) and completion decisions with the lead Argon agent.
+
 ## Work tracking
 
 After each completed change, update the configured local execution plan and mark only proven checkboxes as `[x]`. Keep public guides and the changelog aligned with delivered behavior. Keep plans outside the repository; do not include them in commits, release archives, logs or public issue text.
