@@ -4,6 +4,38 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+### Linear SPICE dependent sources and conductance unit
+
+- Add linear SPICE dependent sources to Circuit IR, parser, SPICE generation, Schematic IR, and web editor:
+  - `vcvs <id> <gain>`: voltage-controlled voltage source (SPICE `E`, dimensionless `ratio`, pins: `p_out`, `n_out`, `ctrl_p`, `ctrl_n`).
+  - `vccs <id> <gm>`: voltage-controlled current source (SPICE `G`, transconductance in Siemens `S`, pins: `p_out`, `n_out`, `ctrl_p`, `ctrl_n`).
+  - `ccvs <id> <rm>`: current-controlled voltage source (SPICE `H`, transresistance in `Ohm`, pins: `p_out`, `n_out`, `ctrl_p`, `ctrl_n`, with internal 0 V sense branch `V_SENSE_<id>`).
+  - `cccs <id> <gain>`: current-controlled current source (SPICE `F`, dimensionless `ratio`, pins: `p_out`, `n_out`, `ctrl_p`, `ctrl_n`, with internal 0 V sense branch `V_SENSE_<id>`).
+- Add `SIUnit::Siemens` (`S`, `siemens`, `mho`) for conductance and transconductance quantities.
+- Expand SPICE netlist import to parse linear `E`, `G`, `F`, and `H` cards, automatically folding independent 0 V sense sources into controlled sources.
+
+### Voltage-controlled switch
+
+- Add native voltage-controlled switch `switch <id> [model]` (SPICE `S`, pins: `p1`, `p2`, `ctrl_p`, `ctrl_n`).
+- Add verified built-in switch model `KESSETSU_SW_V1` (`1.0.0`) with threshold voltage `vt=0.5`, hysteresis `vh=0`, on-resistance `ron=1`, and off-resistance `roff=1Meg`.
+- Support typed user switch model declarations: `model switch <name> version=... license=... vt=... vh=... ron=... roff=...` (mapping to SPICE `.model ... SW`).
+- Expand SPICE netlist import to parse `S` switch cards and inline `.model ... SW` definitions.
+
+### Zener breakdown diodes and model parameters
+
+- Add built-in Zener breakdown diode models: `1N4733A` (5.1 V), `BZX84C3V3` (3.3 V), `BZX84C5V1` (5.1 V), and `BZX84C12` (12 V).
+- Add junction breakdown parameters `bv`, `ibv`, `nbv`, `ibvl`, and `nbvl` to the typed `model diode` parameter allowlist and SPICE import.
+
+### Op-amp supply-rail clamping and macromodels
+
+- Upgrade `KESSETSU_OPAMP_V1` (`1.1.0`) and `subcircuit opamp` to connect to `vcc` and `vee` and enforce anti-windup supply-rail output clamping (with safe symmetric clamping when `V(vcc) <= V(vee)`).
+- Add physical op-amp macromodel `KESSETSU_OPAMP_V2` (`1.0.0`, `gain=200k`, `bandwidth=1MHz`, `rail_headroom=1V`, `slew_rate=500k` V/s, `rout=50` Ω) and optional `rail_headroom`, `slew_rate`, and `rout` parameters on `subcircuit opamp`.
+
+### MCP engineering and study tools
+
+- Expose nominal engineering design calculators via `kessetsu_tool` on the `kess mcp` server (`loaded-divider` for resistive dividers under load, `rc-lowpass` for first-order filters) with exact and preferred E12/E24 values.
+- Expose deterministic multi-condition parameter studies via `kessetsu_study_plan` and `kessetsu_study_run` on the `kess mcp` server for parameter sweeps, tolerance corners, temperature grids, and seeded Monte Carlo verification.
+
 ## [1.4.0] — 2026-10-18
 
 Built-in Model Context Protocol (`kess mcp`) server, direct SPICE netlist verification,

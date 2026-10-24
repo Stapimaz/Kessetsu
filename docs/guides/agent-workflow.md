@@ -28,7 +28,18 @@ After installing the CLI (`kess --version`), register Kessetsu's built-in stdio 
   }
   ```
 
-Agents with terminal access can also call `kess` directly (`kess check`, `kess test`, `kess tool`, `kess study`, `kess render`, `kess export` with `--format json`). The MCP server exposes native tools for every phase: `kessetsu_guide`, `kessetsu_capabilities`, `kessetsu_check`, `kessetsu_simulate`, `kessetsu_test`, `kessetsu_render_schematic`, `kessetsu_export`, `kessetsu_import_spice`, `kessetsu_tool`, `kessetsu_study_plan`, and `kessetsu_study_run`.
+Agents with terminal access can also call `kess` directly (`kess check`, `kess test`, `kess tool`, `kess study`, `kess render`, `kess export` with `--format json`). The MCP server exposes native tools for every phase:
+- `kessetsu_guide`: Returns this workflow guide and engineering constraints.
+- `kessetsu_capabilities`: Introspects installed CLI capabilities, supported metrics, commands, and limits.
+- `kessetsu_check`: Runs fast static ERC (floating pins, shorts, naming) and semantic validation without launching a simulator.
+- `kessetsu_simulate`: Runs Ngspice simulation (OP, TRAN, AC, DC) and returns dataset vectors and measurements.
+- `kessetsu_test`: Verifies circuit performance against human-locked `.kessreq` requirement contracts.
+- `kessetsu_render_schematic`: Generates a connectivity-proven SVG schematic for visual inspection.
+- `kessetsu_export`: Exports circuits to external EDA targets (`kicad`, `ltspice`, `bom-csv`, `spice`, `json`, `pdf`).
+- `kessetsu_import_spice`: Converts supported SPICE netlists into editable, reviewable `.kess` source.
+- `kessetsu_tool`: Nominal engineering calculators (`loaded-divider` for resistive dividers under load, `rc-lowpass` for first-order filters) with exact, E12, or E24 standard component selection.
+- `kessetsu_study_plan`: Plans deterministic multi-condition parameter studies (parameter sweeps, tolerance corners, temperature grids, seeded Monte Carlo draws) without side effects.
+- `kessetsu_study_run`: Executes multi-condition parameter studies sequentially, evaluating assertions across all cases to verify yield, corners, and feasible design points.
 
 ## The disciplined loop
 
@@ -85,7 +96,10 @@ simulate ac dec 40 10Hz 100kHz   // also: op | tran 10us 5ms | dc VIN 0V 5V 100m
 
 - Components and pins: `resistor|capacitor|inductor|diode` (`p1`,`p2`),
   `transistor Q1 npn 2N3904` (`c`,`b`,`e`), `mosfet M1 IRF540` (`d`,`g`,`s`),
-  `opamp U1` (`in_p`,`in_n`,`vcc`,`vee`,`out`), `source` / `current_source` (`plus`,`minus`).
+  `switch S1 [model]` (`p1`,`p2`,`ctrl_p`,`ctrl_n`),
+  `opamp U1` (`in_p`,`in_n`,`vcc`,`vee`,`out`),
+  `vcvs E1 2.0` / `vccs G1 10mS` / `ccvs H1 1k` / `cccs F1 50.0` (`p_out`,`n_out`,`ctrl_p`,`ctrl_n`),
+  `source` / `current_source` (`plus`,`minus`).
 - `net GND` is always SPICE node `0`. Name every net you will measure.
 - Parameters: `param fc: Hz = 1kHz`, then `capacitor C1 {1 / (2 * pi * 1k * fc)}`.
 - Reusable blocks: `module LowPass(input,output,gnd) { ... }` and `use LowPass F1(fc=2kHz)`.

@@ -556,3 +556,74 @@ X1 in out GND FILTER RVAL = 1k
         "{alias_source}"
     );
 }
+
+#[test]
+fn zener_diode_spice_import_builtin_and_inline_models() {
+    let input = "* Built-in 1N4733A and inline ZMOD
+V1 in 0 12
+R1 in out1 1k
+D1 0 out1 1N4733A
+R2 in out2 1k
+D2 0 out2 ZMOD
+.model ZMOD D(Is=1e-14 Rs=1 Bv=5.1 Ibv=5m)
+.op
+.end
+";
+    let report = import_spice(input);
+    assert!(!report.has_errors(), "{:?}", report.diagnostics);
+    let source = report.kess_source.expect("verified source");
+    assert!(source.contains("diode D1 1N4733A"), "{source}");
+    assert!(source.contains("diode D2 ZMOD"), "{source}");
+    assert!(source.contains("model diode ZMOD"), "{source}");
+    assert!(source.contains("bv=5.1"), "{source}");
+
+    let compiled = compile_source(&source, CompileOptions::default());
+    assert!(!compiled.has_errors(), "{:?}", compiled.diagnostics);
+    let spice = compiled.spice_netlist.expect("compiled netlist");
+    assert!(spice.contains("D_D1 0 out1 1N4733A"), "{spice}");
+    assert!(spice.contains("D_D2 0 out2 ZMOD"), "{spice}");
+    assert!(spice.contains(".model 1N4733A D ("), "{spice}");
+    assert!(spice.contains(".model ZMOD D ("), "{spice}");
+
+    // Test collision: inline .model 1N4733A must be renamed to SPICE_1N4733A
+    // so user parameters are never overwritten by the built-in model.
+    let collision_input = "* User-defined 1N4733A override
+V1 in 0 12
+R1 in out 1k
+D1 0 out 1N4733A
+.model 1N4733A D(Is=2e-14 Rs=1.2 Bv=5.1 Ibv=10m)
+.op
+.end
+";
+    let collision_report = import_spice(collision_input);
+    assert!(
+        !collision_report.has_errors(),
+        "{:?}",
+        collision_report.diagnostics
+    );
+    let collision_source = collision_report.kess_source.expect("verified source");
+    assert!(
+        collision_source.contains("model diode SPICE_1N4733A"),
+        "{collision_source}"
+    );
+    assert!(
+        collision_source.contains("diode D1 SPICE_1N4733A"),
+        "{collision_source}"
+    );
+
+    let collision_compiled = compile_source(&collision_source, CompileOptions::default());
+    assert!(
+        !collision_compiled.has_errors(),
+        "{:?}",
+        collision_compiled.diagnostics
+    );
+    let collision_spice = collision_compiled.spice_netlist.expect("compiled netlist");
+    assert!(
+        collision_spice.contains("D_D1 0 out SPICE_1N4733A"),
+        "{collision_spice}"
+    );
+    assert!(
+        collision_spice.contains(".model SPICE_1N4733A D ("),
+        "{collision_spice}"
+    );
+}

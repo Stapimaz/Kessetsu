@@ -774,3 +774,123 @@ simulate tran 5us 5ms\n";
         result.raw_log
     );
 }
+
+#[test]
+fn zener_breakdown_voltage_regulation_and_clipping_in_real_ngspice() {
+    let op_source = "\
+model diode CustomZener version=1.0.0 license=MIT is=1e-14 rs=1 bv=6.8 ibv=10m
+net GND
+net SUPPLY
+net SUPPLY2
+net OUT_1N4733A
+net OUT_BZX3V3
+net OUT_BZX5V1
+net OUT_BZX12
+net OUT_CUSTOM
+source VS 12V
+source VS2 24V
+resistor R1 1k
+resistor R2 1k
+resistor R3 1k
+resistor R4 1k
+resistor R5 1k
+diode DZ1 1N4733A
+diode DZ2 BZX84C3V3
+diode DZ3 BZX84C5V1
+diode DZ4 BZX84C12
+diode DZC CustomZener
+connect VS.plus, R1.p1, R2.p1, R3.p1, R5.p1 to SUPPLY
+connect VS2.plus, R4.p1 to SUPPLY2
+connect VS.minus, VS2.minus to GND
+connect DZ1.p1, DZ2.p1, DZ3.p1, DZ4.p1, DZC.p1 to GND
+connect R1.p2, DZ1.p2 to OUT_1N4733A
+connect R2.p2, DZ2.p2 to OUT_BZX3V3
+connect R3.p2, DZ3.p2 to OUT_BZX5V1
+connect R4.p2, DZ4.p2 to OUT_BZX12
+connect R5.p2, DZC.p2 to OUT_CUSTOM
+simulate op
+assert value(V(OUT_1N4733A)) > 5.0V
+assert value(V(OUT_1N4733A)) < 5.2V
+assert value(V(OUT_BZX3V3)) > 3.2V
+assert value(V(OUT_BZX3V3)) < 3.4V
+assert value(V(OUT_BZX5V1)) > 5.0V
+assert value(V(OUT_BZX5V1)) < 5.2V
+assert value(V(OUT_BZX12)) > 11.8V
+assert value(V(OUT_BZX12)) < 12.2V
+assert value(V(OUT_CUSTOM)) > 6.7V
+assert value(V(OUT_CUSTOM)) < 6.9V
+";
+    let report = compile_source(op_source, CompileOptions::default());
+    assert!(
+        !report.has_errors(),
+        "compile diagnostics: {:?}",
+        report.diagnostics
+    );
+    let circuit = report.ir.expect("IR should exist");
+    assert_eq!(circuit.model_manifest.models.len(), 5);
+    let netlist = report.spice_netlist.expect("SPICE netlist should exist");
+    assert!(netlist.contains("Bv=5.1"));
+    assert!(netlist.contains("Bv=3.3"));
+    assert!(netlist.contains("Bv=12"));
+    assert!(netlist.contains("bv=6.8"));
+    let request = SimulationRequest::new(netlist, circuit.analyses.clone());
+    let result = NgspiceRunner::discover()
+        .run(&request, &CancellationToken::new())
+        .expect("Ngspice should launch");
+    assert!(
+        result.succeeded(),
+        "Zener .op simulation failed: {:?}; raw_log: {:?}",
+        result.errors,
+        result.raw_log
+    );
+    let assertions = kessetsu_core::sim_result::evaluate_assertions(&circuit, &result);
+    assert_eq!(assertions.summary.total, 10);
+    assert_eq!(
+        assertions.summary.passed, assertions.summary.total,
+        "{:?}",
+        assertions
+    );
+
+    // 2. Transient bidirectional clipping (+5.1V in breakdown, -0.7V in forward conduction)
+    let tran_source = "\
+net GND
+net IN
+net OUT
+source VIN sine(0V, 10V, 1kHz)
+resistor R1 1k
+diode DZ 1N4733A
+connect VIN.plus, R1.p1 to IN
+connect R1.p2, DZ.p2 to OUT
+connect VIN.minus, DZ.p1 to GND
+simulate tran 5us 5ms
+assert max(V(OUT)) > 5.0V
+assert max(V(OUT)) < 5.2V
+assert min(V(OUT)) > -0.8V
+assert min(V(OUT)) < -0.6V
+";
+    let report = compile_source(tran_source, CompileOptions::default());
+    assert!(
+        !report.has_errors(),
+        "compile diagnostics: {:?}",
+        report.diagnostics
+    );
+    let circuit = report.ir.expect("IR should exist");
+    let netlist = report.spice_netlist.expect("SPICE netlist should exist");
+    let request = SimulationRequest::new(netlist, circuit.analyses.clone());
+    let result = NgspiceRunner::discover()
+        .run(&request, &CancellationToken::new())
+        .expect("Ngspice should launch");
+    assert!(
+        result.succeeded(),
+        "Zener .tran simulation failed: {:?}; raw_log: {:?}",
+        result.errors,
+        result.raw_log
+    );
+    let assertions = kessetsu_core::sim_result::evaluate_assertions(&circuit, &result);
+    assert_eq!(assertions.summary.total, 4);
+    assert_eq!(
+        assertions.summary.passed, assertions.summary.total,
+        "{:?}",
+        assertions
+    );
+}

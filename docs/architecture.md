@@ -72,9 +72,15 @@ It parses only a declared Ngspice-compatible subset into typed import records, e
 It never sends imported text directly to a backend or simulator. CLI circuit commands (`check`,
 `compile`, `simulate`, `test`, `render`, `export`) accept SPICE netlists directly through
 `--input auto|spice`, routing them through `import_spice` before canonical compilation; `kess mcp`
-exposes the same CLI JSON contracts over stdio without owning separate circuit semantics.
-Source supports literal R/C/L, independent V/I sources, built-in and inline `.model` D/Q/M cards
-(converting D/NPN/PNP/NMOS/PMOS parameters into typed `model` declarations and warning on
+exposes the same CLI JSON contracts over stdio via dedicated MCP tools (`kessetsu_guide`,
+`kessetsu_capabilities`, `kessetsu_check`, `kessetsu_simulate`, `kessetsu_test`,
+`kessetsu_render_schematic`, `kessetsu_export`, `kessetsu_import_spice`, `kessetsu_tool`,
+`kessetsu_study_plan`, and `kessetsu_study_run`) without owning separate circuit semantics.
+Source supports literal R/C/L, independent V/I sources, linear dependent sources (VCVS `E`,
+VCCS `G`, CCVS `H`, CCCS `F` with 0 V current-sense folding), voltage-controlled switches `S`
+with `.model ... SW`, built-in and inline `.model` D/Q/M/SW cards (converting D/NPN/PNP/NMOS/PMOS/SW
+parameters into typed `model` declarations, including breakdown parameters `bv`, `ibv`, `nbv`, `ibvl`,
+`nbvl`, built-in Zener diodes `1N4733A`, `BZX84C3V3`, `BZX84C5V1`, `BZX84C12`, and warning on
 descriptive vendor fields), OP/TRAN/AC/DC analyses and literal `.param` assignments whose single
 electrical unit is inferred from supported uses. First-line plain titles, `.control ... .endc`
 blocks and output/simulator-option directives (`.print`, `.plot`, `.save`, `.meas`, `.options`)
@@ -88,8 +94,9 @@ instead of being silently flattened. Nested instances, implicit subcircuit globa
 directives remain fail-closed. Ambiguous/unused parameters and SPICE parameter expressions also
 fail closed. External model libraries remain outside automatic conversion: callers must use the
 existing contained, exact-hash, typed resource contract because a path alone cannot establish
-bytes, pins, license or redistribution policy. Controlled/behavioral sources and schematic-file
-import remain outside the declared subset until typed semantics exist.
+bytes, pins, license or redistribution policy. Non-linear behavioral sources (`VALUE`, `POLY`,
+`TABLE`, `LAPLACE`, `FREQ`, `B`) and schematic-file import remain outside the declared subset
+and fail closed.
 
 ### Parameter-expression boundary
 
@@ -231,7 +238,12 @@ See the [study guide](guides/parameter-studies.md).
 | `diode` | Semiconductor | p1, p2 | D_ |
 | `transistor` | BJT (NPN/PNP) | c, b, e | Q_ |
 | `mosfet` | MOSFET (NMOS/PMOS) | d, g, s | M_ |
+| `switch` | Voltage-controlled switch | p1, p2, ctrl_p, ctrl_n | S_ |
 | `opamp` | Operational amplifier | in_p, in_n, vcc, vee, out | X_ |
+| `vcvs` | Voltage-controlled voltage source | p_out, n_out, ctrl_p, ctrl_n | E_ |
+| `vccs` | Voltage-controlled current source | p_out, n_out, ctrl_p, ctrl_n | G_ |
+| `ccvs` | Current-controlled voltage source | p_out, n_out, ctrl_p, ctrl_n | H_ (with V_SENSE_) |
+| `cccs` | Current-controlled current source | p_out, n_out, ctrl_p, ctrl_n | F_ (with V_SENSE_) |
 | `device` | Catalog-backed external comparator/two-terminal | Model family pins | X |
 | `source` | Voltage source | plus, minus | V_ |
 | `current_source` | Current source | plus, minus | I_ |
@@ -239,6 +251,12 @@ See the [study guide](guides/parameter-studies.md).
 ### Fundamental Rules
 
 - `source` is the canonical component type for DC and waveform voltage sources; generated SPICE uses the `V_` prefix.
+- `switch` represents a voltage-controlled switch with conduction pins `p1`, `p2` and control terminals `ctrl_p`, `ctrl_n`, defaulted to `KESSETSU_SW_V1` or configured with a typed `model switch`.
+- Linear dependent sources:
+  - `vcvs <id> <gain>`: voltage-controlled voltage source (SPICE `E`), with dimensionless gain `ratio` (`SIUnit::Ratio`).
+  - `vccs <id> <gm>`: voltage-controlled current source (SPICE `G`), with transconductance in Siemens `S` (`SIUnit::Siemens`, also accepting `siemens` or `mho`).
+  - `ccvs <id> <rm>`: current-controlled voltage source (SPICE `H`), with transresistance in `Ohm` (`SIUnit::Ohm`); generates an internal 0 V sense branch `V_SENSE_<id>` across control pins.
+  - `cccs <id> <gain>`: current-controlled current source (SPICE `F`), with dimensionless gain `ratio` (`SIUnit::Ratio`); generates an internal 0 V sense branch `V_SENSE_<id>` across control pins.
 - **Values:** Component values are parsed into typed quantities. SI prefixes are supported:
   - `resistor R1 10k` → 10000 Ω
   - `capacitor C1 100uF` → 100 µF
@@ -308,25 +326,31 @@ Ngspice integration uses a repository/release sidecar on Windows and the `KESSET
 | KESSETSU_POWER_PNP_V1 | Generic power BJT PNP | Verified built in |
 | 1N4148 | Diode | Built in |
 | 1N4007 | Diode | Built in |
+| 1N4733A | Zener diode (5.1 V breakdown) | Built in |
+| BZX84C3V3 | Zener diode (3.3 V breakdown) | Built in |
+| BZX84C5V1 | Zener diode (5.1 V breakdown) | Built in |
+| BZX84C12 | Zener diode (12 V breakdown) | Built in |
 | IRF540 | MOSFET NMOS | Built in |
 | KESSETSU_PMOS_V1 | Generic MOSFET PMOS | Verified built in |
+| KESSETSU_SW_V1 | Generic voltage-controlled switch | Verified built in |
 | KESSETSU_OPAMP_V1 | Generic op-amp subcircuit (rail-clamped) | Verified built in |
 | KESSETSU_OPAMP_V2 | Physical op-amp subcircuit (rail headroom, slew, rout) | Verified built in |
 
-Default built-ins are `2N3904`/`2N3906` for BJTs, `IRF540` for MOSFETs, `1N4148` for diodes, and `KESSETSU_OPAMP_V1` for op-amps. Kessetsu 1.2.0 repairs the `1N4148`/`1N4007` diode directives with provenance version `1.0.1`; published CLI 1.1.0 remains affected by invalid descriptive fields in those models. Their legacy provenance is unchanged, and the repair does not establish manufacturer fidelity or enforce device ratings. Exact packaged models are unchanged. `KESSETSU_*` models are Kessetsu's own open-licensed generic verification models; they are not claimed to match a specific manufacturer's data sheet. `KESSETSU_PMOS_V1` has provenance version `1.0.1` and uses portable Ngspice `MOS1` parameters. `KESSETSU_OPAMP_V1` has provenance version `1.1.0` and enforces supply-rail clamping to `vcc`/`vee`. `KESSETSU_OPAMP_V2` has provenance version `1.0.0` and models 1 V rail headroom, 0.5 V/µs slew rate, and 50 Ω linear output resistance.
+Default built-ins are `2N3904`/`2N3906` for BJTs, `IRF540` for MOSFETs, `1N4148` for diodes, `KESSETSU_SW_V1` for switches, and `KESSETSU_OPAMP_V1` for op-amps. Built-in Zener breakdown diodes (`1N4733A`, `BZX84C3V3`, `BZX84C5V1`, `BZX84C12`) provide characterized breakdown behavior. Kessetsu 1.2.0 repairs the `1N4148`/`1N4007` diode directives with provenance version `1.0.1`; published CLI 1.1.0 remains affected by invalid descriptive fields in those models. Their legacy provenance is unchanged, and the repair does not establish manufacturer fidelity or enforce device ratings. Exact packaged models are unchanged. `KESSETSU_*` models are Kessetsu's own open-licensed generic verification models; they are not claimed to match a specific manufacturer's data sheet. `KESSETSU_PMOS_V1` has provenance version `1.0.1` and uses portable Ngspice `MOS1` parameters. `KESSETSU_SW_V1` has provenance version `1.0.0` and implements a voltage-controlled switch with `vt=0.5 vh=0 ron=1 roff=1Meg`. `KESSETSU_OPAMP_V1` has provenance version `1.1.0` and connects to `vcc` and `vee` to enforce anti-windup supply-rail output clamping (with safe symmetric clamping when `V(vcc) <= V(vee)`). `KESSETSU_OPAMP_V2` has provenance version `1.0.0` and models `gain=200k`, `bandwidth=1MHz`, 1 V rail headroom, 0.5 V/µs slew rate (`500k` V/s), and 50 Ω linear output resistance.
 
 ### Typed User-Model and Subcircuit Boundary
 
 Kessetsu does not accept raw `.include`, `.model`, `.subckt`, or control directives. Users provide typed declarations only. Parameter allowlists, numeric values, model kind/polarity, and metadata are validated during semantic conversion before Core produces a canonical directive:
 
 ```kessetsu
-model diode SafeD version=1.0.0 license=MIT Is=2e-9 Rs=0.5
+model diode SafeD version=1.0.0 license=MIT Is=2e-9 Rs=0.5 bv=10 ibv=1m
+model switch FastSW version=1.0.0 license=MIT vt=1.0 vh=0.1 ron=0.1 roff=10Meg
 model mosfet SafeP pmos version=1.0.0 license=MIT Vto=-2 Kp=4
 subcircuit opamp SafeOp (in_p,in_n,vcc,vee,out) version=1.0.0 license=MIT gain=100k bandwidth=2MHz rail_headroom=1 slew_rate=500k rout=50
 ```
 
-- Device model kinds are `diode`, `bjt`, and `mosfet`. The safe subcircuit template is currently limited to `opamp`.
-- BJTs require `npn|pnp`; MOSFETs require `nmos|pmos`. Component/model kind or polarity mismatch produces `KES-C004`.
+- Device model kinds are `diode`, `bjt`, `mosfet`, and `switch`. The safe subcircuit template is currently limited to `opamp`.
+- BJTs require `npn|pnp`; MOSFETs require `nmos|pmos`. Switches accept `vt`, `vh`, `ron`, and `roff` parameters. Diodes accept standard junction parameters plus breakdown parameters `bv`, `ibv`, `nbv`, `ibvl`, and `nbvl`. Component/model kind or polarity mismatch produces `KES-C004`.
 - User models and subcircuits carry required `version` and `license` metadata; `source` is optional. Electrical parameters come from a fixed allowlist for each kind. Unknown, duplicate, or non-finite parameters produce `KES-C010`.
 - Op-amp subcircuits require positive `gain` and `bandwidth`. Optional physical macromodel parameters include `rail_headroom` (non-negative, default `0.0`), `slew_rate` (positive, e.g. `500k` for 0.5 V/µs), and `rout` (positive linear output resistance in ohms). Invalid values produce `KES-C012`.
 - Op-amp pin order must match the shared component catalog byte for byte: `in_p,in_n,vcc,vee,out`. A mismatch is `KES-C012`. Backends do not own separate pin lists.

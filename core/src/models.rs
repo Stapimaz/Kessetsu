@@ -1121,6 +1121,30 @@ fn builtin_models() -> Vec<ModelRef> {
             ".model 1N4007 D (Is=7.02767n Rs=0.0341512 N=1.80803 Cjo=10p M=0.3333 VJ=0.75)",
             "1.0.1",
         ),
+        verified_device_model(
+            "1N4733A",
+            ComponentKind::Diode,
+            ".model 1N4733A D (Is=1e-14 Rs=1 N=1 Cjo=50p Tt=20n Bv=5.1 Ibv=20m)",
+            "1.0.0",
+        ),
+        verified_device_model(
+            "BZX84C3V3",
+            ComponentKind::Diode,
+            ".model BZX84C3V3 D (Is=1e-14 Rs=2 N=1 Cjo=60p Tt=20n Bv=3.3 Ibv=5m)",
+            "1.0.0",
+        ),
+        verified_device_model(
+            "BZX84C5V1",
+            ComponentKind::Diode,
+            ".model BZX84C5V1 D (Is=1e-14 Rs=1.5 N=1 Cjo=50p Tt=20n Bv=5.1 Ibv=5m)",
+            "1.0.0",
+        ),
+        verified_device_model(
+            "BZX84C12",
+            ComponentKind::Diode,
+            ".model BZX84C12 D (Is=1e-14 Rs=2 N=1 Cjo=35p Tt=20n Bv=12 Ibv=5m)",
+            "1.0.0",
+        ),
         device_model(
             "IRF540",
             ComponentKind::MOSFET(FETPolarity::NMOS),
