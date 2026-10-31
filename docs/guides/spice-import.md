@@ -1,6 +1,6 @@
 # Importing SPICE netlists
 
-Kessetsu 1.3.0 can convert the supported Ngspice-compatible netlist subset into editable
+Kessetsu 1.5.0 can convert the supported Ngspice-compatible netlist subset into editable
 Kessetsu source. For a complete first example, save this as `filter.cir`:
 
 ```spice
@@ -53,13 +53,16 @@ engineering requirements: pass `--requirements limits.kessreq` in the CLI/MCP wo
 
 | SPICE form | Kessetsu result |
 |---|---|
-| `R`, `C`, `L` with literal values | resistor, capacitor, inductor |
-| Independent `V` and `I` | DC, AC, three-field SINE, seven-field PULSE or PWL source |
-| `D`, `Q`, three-terminal `M` (or four-terminal with bulk tied to source) | built-in models (`1N4148`, `1N4007`, `2N3904`, `2N3906`, `2N2222`, `IRF540`, `KESSETSU_*`) or inline `.model` |
-| 5-terminal `X` op-amp (`in_p in_n vcc vee out` with `KESSETSU_OPAMP_V1` or `OPAMP`) | native `opamp` component using built-in `KESSETSU_OPAMP_V1` (with op-amp ERC and schematic symbol) |
-| Inline `.model NAME D|NPN|PNP|NMOS|PMOS(...)` | typed `model` declaration with validated Ngspice parameters (descriptive vendor fields such as `MFG` or `VCEO` are ignored with a warning) |
+| `R`, `C`, `L` with literal quantities and European RKM notation (`4k7`, `1u5`) | `resistor`, `capacitor`, `inductor` (trailing parameters like `tc1`, `tol`, `ic` tolerated with `KES-N011`) |
+| `K` coupled inductors (`K1 L1 L2 0.99`, `K1 L1 L2 L3 0.98`) | `couple` statements (two-winding and multi-winding with uniform coupling) |
+| Independent `V` and `I` | DC, AC, three-field SINE, seven-field PULSE, six-field EXP (`exp(...)`), or PWL source, plus combined DC bias + AC (`V1 in 0 DC 5 AC 1 0` -> `ac(1, 5)`) |
+| Linear dependent sources: `E` (VCVS), `G` (VCCS), `F` (CCCS), `H` (CCVS) | `vcvs`, `vccs`, `cccs`, `ccvs` (folds independent 0 V sense branches into Kessetsu's canonical 4-pin controlled sources) |
+| Voltage-controlled switch `S` with `.model ... SW` | `switch` component and `model switch` declaration (or default `KESSETSU_SW_V1`) |
+| `D`, `Q`, `J` (JFET), three-terminal `M`, and four-terminal `M` (MOSFET) | built-in models (`1N4148`, `1N4007`, Zener diodes `1N4733A`, `BZX84C*`, `2N3904`, `2N3906`, `2N2222`, `2N5457`, `J2N5457`, `2N5460`, `IRF540`, `KESSETSU_*`) or inline `.model`. Four-terminal MOSFETs (`M1 d g s b model`) with bulk tied to source fold to 3-pin `mosfet`, while explicit separate bulk nodes (`b != s`) import with all 4 pins (`d`, `g`, `s`, `b`) connected. Four-terminal BJTs fold grounded substrate (`0`/`GND`) or emitter with `KES-N011` warning |
+| 5-terminal `X` op-amp (`in_p in_n vcc vee out` with `KESSETSU_OPAMP_V1`, `KESSETSU_OPAMP_V2`, or `OPAMP`) | native `opamp` component (with op-amp ERC and schematic symbol) |
+| Inline `.model NAME D|NPN|PNP|NJF|PJF|NMOS|PMOS|SW(...)` | typed `model` declaration with validated Ngspice parameters, including diode breakdown (`bv`, `ibv`), full JFET parameters, and switch parameters (descriptive vendor fields such as `MFG` or `VCEO` are ignored with `KES-N011` warning) |
 | `.op`, bounded `.tran`, `.ac`, single-source `.dc` | typed `simulate` statements |
-| `.param NAME=literal` | typed editable parameter, with unit inferred from its supported uses |
+| `.param NAME=literal` or evaluated arithmetic/math `{...}` | typed editable parameter, evaluating arithmetic and math functions (`+ - * / ^ **`, `pi`, `e`, `sin`, `cos`, `tan`, `sqrt`, `ln`, `log10`, `exp`, `abs`, `min`, `max`, `pow`) with unit inferred from supported uses |
 | Source-embedded `.SUBCKT` plus root `X` instances | editable `module`/`use`, preserving ports, local topology and literal typed overrides |
 | First-line plain title, `.control ... .endc`, `.print`, `.plot`, `.probe`, `.save`, `.meas`, `.options` | tolerated and skipped with informational/warning diagnostics (`KES-N010`..`KES-N012`) because Kessetsu owns simulation runner control and measurement evaluation |
 
@@ -77,11 +80,13 @@ normalized number and canonical recompilation confirms the resolved value.
 
 The importer rejects electrical constructs that cannot be represented truthfully in Circuit IR instead of guessing or silently removing components:
 
-- arbitrary `.include`/`.lib` paths;
+- non-linear arbitrary behavioral sources (`B` cards produce `KES-N002`, as do `VALUE`, `POLY`, `TABLE`, `LAPLACE`, `FREQ`);
+- arbitrary external `.include`/`.lib` file paths (`KES-N003`);
+- simulator control directives such as `.step` parameter sweeps (`KES-N003`);
+- transmission lines (`T`, `TX`) and unsupported component families;
 - unknown `.model` families or unsupported model parameters;
-- parameter expressions, unused parameters or one parameter used across conflicting electrical units;
-- controlled or behavioral sources (`E`, `F`, `G`, `H`, `B`) and unsupported component families;
-- unknown semiconductor models without an inline `.model`, untied MOSFET bulk nodes, non-zero AC source phase, or analysis
+- parameter expressions with conflicting units or unresolved circular definitions;
+- unknown semiconductor models without an inline `.model`, non-zero AC source phase, or analysis
   options that the typed Kessetsu IR cannot represent.
 
 Embedded subcircuits are intentionally structural, not raw simulator text. A `.SUBCKT` must have

@@ -1,6 +1,6 @@
 # Kessetsu Language Reference
 
-This document describes Kessetsu 1.3.0. Kessetsu is line-oriented,
+This document describes Kessetsu 1.5.0. Kessetsu is line-oriented,
 case-sensitive except for documented device polarities, and uses `//` comments. Backends
 never consume syntax directly: source is parsed, flattened and validated into typed Circuit IR first.
 
@@ -18,17 +18,66 @@ net OUT
 resistor R1 1k
 capacitor C1 159.154943nF
 inductor L1 10mH
+inductor L2 10mH
+couple K1 L1 L2 0.99
+
 diode D1 1N4148
 transistor Q1 npn 2N3904
+jfet J1 2N5457
 mosfet M1 IRF540
+switch S1 KESSETSU_SW_V1
 opamp U1 KESSETSU_OPAMP_V1
+
+vcvs E1 10
+vccs G1 5mS
+ccvs H1 1kOhm
+cccs F1 50
 
 source VDC 5V
 source VIN sine_ac(0V,100mV,1kHz,1V)
+source VBIAS ac(1V,2.5V)
+source VEXP exp(0V,5V,1ms,0.5ms,5ms,1ms)
 current_source IBIAS 1mA
 ```
 
-Source waveforms are typed: scalar DC, `sine(offset,amplitude,frequency)`, `pulse(low,high,delay,rise,fall,width,period)`, `pwl(time,value,...)`, `ac(amplitude)` and `sine_ac(offset,amplitude,frequency,ac_amplitude)`. PWL requires at least two time/value pairs with non-negative, strictly increasing times. See [supported domain](supported-domain.md) for component and model limits.
+Source waveforms are typed:
+- Scalar DC: `5V` or `source VDC 5V`
+- Unforced small-signal AC: `ac(amplitude)` (e.g. `ac(1V)`)
+- Biased small-signal AC: `ac(amplitude, offset)` (e.g. `ac(1V, 2.5V)` generating SPICE `DC 2.5 AC 1`)
+- Sine wave: `sine(offset, amplitude, frequency)`
+- Sine with AC: `sine_ac(offset, amplitude, frequency, ac_amplitude)`
+- Pulse: `pulse(low, high, delay, rise, fall, width, period)`
+- Exponential transient: `exp(v1, v2, td1, tau1, td2, tau2)` where `v1` is initial value, `v2` is pulsed value, `td1` is rise delay, `tau1` is rise time constant, `td2` is fall delay, and `tau2` is fall time constant.
+- Piecewise linear: `pwl(time, value, ...)` with non-negative, strictly increasing times.
+
+See [supported domain](supported-domain.md) for component and model limits.
+
+### Magnetically coupled inductors (transformers)
+
+The `couple` statement defines mutual magnetic coupling between two or more inductors:
+
+```kessetsu
+couple <name> <ind1> <ind2> [<ind3> ...] <coefficient>
+```
+
+For a two-winding transformer:
+
+```kessetsu
+inductor L1 10mH
+inductor L2 10mH
+couple K1 L1 L2 0.99
+```
+
+For multi-winding coupling with uniform coefficient:
+
+```kessetsu
+inductor L1 10mH
+inductor L2 5mH
+inductor L3 5mH
+couple K1 L1 L2 L3 0.98
+```
+
+Coupling coefficients must satisfy `0 < coefficient <= 1` and accept braced parameter expressions (e.g. `couple K1 L1 L2 {coupling_factor}`). In SPICE netlist generation, this maps directly to `K<name> <ind1> <ind2> ... <coefficient>`.
 
 ## Named quantities and arithmetic
 
@@ -36,15 +85,13 @@ Source waveforms are typed: scalar DC, `sine(offset,amplitude,frequency)`, `puls
 param supply: V = 12V
 param resistance: Ohm = 10k
 param target_gain: ratio = 20
+param gm: S = 5mS
 source VCC {supply}
 resistor RG {resistance}
 resistor RF {(target_gain - 1) * resistance}
 ```
 
-Parameters are optional, declared at the top level or inside modules, and explicitly typed: `Ohm`, `F`, `H`, `V`, `A`, `Hz`,
-`s`, `W`, `J`, `ratio`, `percent` or `deg`. Forward references are allowed; duplicate/unknown
-names and dependency cycles produce errors. `pi` is read-only. Expressions support finite
-SI literals, names, parentheses, unary signs and `+ - * /`, with ordinary precedence.
+Parameters are optional, declared at the top level or inside modules, and explicitly typed: `Ohm`, `F`, `H`, `S` (Siemens/mho for conductance/transconductance), `V`, `A`, `Hz`, `s`, `W`, `J`, `ratio`, `percent` or `deg`. Forward references are allowed; duplicate/unknown names and dependency cycles produce errors. Constants `pi` and `e` are read-only. Expressions support finite SI literals, names, parentheses, unary signs, arithmetic operators (`+ - * /`), power/exponentiation (`^` and `**`), and mathematical functions: `sqrt`, `sin`, `cos`, `tan`, `ln`, `log10`, `exp`, `abs`, `min`, `max`, and `pow`. European RKM value notation (e.g. `4k7`, `1u5`, `2m2`, `4r7`) is also supported in value literals.
 
 Braces are accepted in resistor, capacitor, inductor and scalar DC voltage/current-source
 values. A whole literal keeps contextual units (`10k` in an Ohm declaration); bare literals
@@ -129,9 +176,28 @@ connect VIN.plus to IN
 connect VIN.minus, C1.p2 to GND
 connect R1.p1 to IN
 connect R1.p2, C1.p1 to OUT
+connect M1.d to OUT
+connect M1.g to IN
+connect M1.s to GND
+// Optional 4th bulk terminal on MOSFETs:
+connect M1.b to GND
 ```
 
-Canonical pins are `p1/p2` for two-terminal passives and diodes, `plus/minus` for sources, `c/b/e` for BJTs, `d/g/s` for MOSFETs and `in_p/in_n/vcc/vee/out` for op-amps. Every required pin must be connected. `GND` is the reference net; ambiguous or missing reference topology fails ERC.
+Canonical pins by component family:
+- Two-terminal passives (`resistor`, `capacitor`, `inductor`) and `diode`: `p1`, `p2`
+- Independent sources (`source`, `current_source`): `plus`, `minus`
+- BJTs (`transistor`): `c` (collector), `b` (base), `e` (emitter)
+- JFETs (`jfet`): `d` (drain), `g` (gate), `s` (source)
+- MOSFETs (`mosfet`): `d` (drain), `g` (gate), `s` (source), and optional `b` (bulk). When `b` is left unconnected in `.kess`, it defaults to the source terminal `s` in SPICE netlist generation (`M... d g s s model`) and is omitted from 3-pin schematic symbols. When `b` is explicitly connected (`connect M1.b to ...`), all 4 terminals are emitted in SPICE (`M... d g s b model`) and rendered on 4-terminal schematic symbols.
+- Voltage-controlled switches (`switch`): `p1`, `p2` (switched path), `ctrl_p`, `ctrl_n` (controlling voltage terminals)
+- Dependent sources:
+  - `vcvs`: `p_out`, `n_out` (output voltage), `ctrl_p`, `ctrl_n` (controlling voltage)
+  - `vccs`: `p_out`, `n_out` (output current), `ctrl_p`, `ctrl_n` (controlling voltage)
+  - `ccvs`: `p_out`, `n_out` (output voltage), `ctrl_p`, `ctrl_n` (controlling current sense branch)
+  - `cccs`: `p_out`, `n_out` (output current), `ctrl_p`, `ctrl_n` (controlling current sense branch)
+- Operational amplifiers (`opamp`): `in_p`, `in_n`, `vcc`, `vee`, `out`
+
+Every required pin must be connected. `GND` is the reference net; ambiguous or missing reference topology fails ERC.
 
 ## Analyses and assertions
 
@@ -276,12 +342,21 @@ device through an appropriate typed component.
 
 ```kessetsu
 model diode SafeD version=1.0.0 license=MIT Is=2e-9 Rs=0.5
+model diode 1N4733A version=1.0.0 license=MIT Is=2e-9 Rs=0.5 Bv=5.1 Ibv=10mA
 model bjt SafeN npn version=1.0.0 license=MIT Is=1e-12 Bf=100
+model jfet 2N5457 njf version=1.0.0 license=MIT vto=-3.0 beta=1.5m lambda=0.01
+model switch SW_FAST version=1.0.0 license=MIT vt=0.5 vh=0 ron=0.1 roff=10Meg
 model_include kessetsu_analog 1.0.0
 external_subcircuit opamp OPA197 (in_p,in_n,vcc,vee,out) file="models/OPAx197.LIB" entry=OPAx197 sha256=<64-hex-digest> version="Final 1.3" license="vendor terms" source="vendor URL" simulator=ngspice_ps redistribution=prohibited
 ```
 
-Raw `.include`, `.model`, `.subckt` and `.control` injection is intentionally rejected. Model kinds have parameter allowlists; package imports require an exact version and produce a provenance-bearing `kessetsu.lock`. External declarations bind a user-owned source-relative file by exact SHA-256, entry name, canonical pin order, provenance, simulator mode, and redistribution policy. Ordinary reports/exports never embed its body. Native stdin cannot bind files; native file commands resolve contained local files. The [model cookbook](../guides/cookbook.md#choose-and-verify-a-component-model) shows the complete directory, hash and command workflow.
+Raw `.include`, `.model`, `.subckt` and `.control` injection is intentionally rejected. Model kinds have parameter allowlists:
+- **`model diode <name>`**: parameters include `is`, `rs`, `n`, `tt`, `cjo`, `vj`, `m`, `eg`, `xti`, `fc`, plus breakdown parameters `bv` (reverse breakdown voltage), `ibv` (current at breakdown voltage), `nbv` (breakdown emission coefficient), `ibvl` (low-level reverse breakdown knee current), and `nbvl` (low-level breakdown emission coefficient). Built-in Zener diodes: `1N4733A` (5.1 V), `BZX84C3V3` (3.3 V), `BZX84C5V1` (5.1 V), and `BZX84C12` (12 V).
+- **`model bjt <name> npn|pnp`**: standard Gummel-Poon BJT parameters (`is`, `bf`, `nf`, `vaf`, `ikf`, `ise`, `ne`, `br`, `nr`, `var`, `ikr`, `isc`, `nc`, `rb`, `rc`, `re`, `cje`, `vje`, `mje`, `tf`, `cjc`, `vjc`, `mjc`, `tr`, `xtb`, `xti`, `eg`).
+- **`model jfet <name> njf|pjf`**: junction field-effect transistor models (`njf` for N-channel, `pjf` for P-channel). Parameters include `vto` (pinch-off/threshold voltage), `beta` (transconductance parameter in A/V²), `lambda` (channel-length modulation in 1/V), `rd` (drain resistance in Ω), `rs` (source resistance in Ω), `cgs` (zero-bias G-S capacitance in F), `cgd` (zero-bias G-D capacitance in F), `pb` (gate junction potential in V), `is` (gate saturation current in A), `fc` (forward-bias depletion capacitance coefficient), `b` (doping tail parameter), `kf` (flicker noise coefficient), `af` (flicker noise exponent), and `tnom` (parameter measurement temperature in °C). Built-in models: `2N5457` (and `J2N5457`) `njf`, and `2N5460` `pjf`.
+- **`model switch <name>`**: voltage-controlled switch model mapping to SPICE `SW`. Parameters: `vt` (threshold voltage in V), `vh` (hysteresis voltage in V), `ron` (on-state resistance in Ω), and `roff` (off-state resistance in Ω). Default generic model: `KESSETSU_SW_V1` (`vt=0.5`, `vh=0`, `ron=1`, `roff=1Meg`).
+
+Package imports require an exact version and produce a provenance-bearing `kessetsu.lock`. External declarations bind a user-owned source-relative file by exact SHA-256, entry name, canonical pin order, provenance, simulator mode, and redistribution policy. Ordinary reports/exports never embed its body. Native stdin cannot bind files; native file commands resolve contained local files. The [model cookbook](../guides/cookbook.md#choose-and-verify-a-component-model) shows the complete directory, hash and command workflow.
 
 ### Additional external interfaces
 

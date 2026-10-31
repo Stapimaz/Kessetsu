@@ -1,8 +1,10 @@
-# External model catalog
+# Device and External Model Catalog
 
 Local external-model workflows require Kessetsu 1.2.0; typed instance parameters require
-Kessetsu 1.3.0. This is a small characterized catalog, not a universal model
-marketplace. Model identity, simulation evidence and physical-device accuracy are distinct.
+Kessetsu 1.3.0. In Kessetsu 1.5.0, the built-in device catalog covers generic diodes,
+Zener breakdown diodes, BJTs, JFETs, MOSFETs, switches, and multi-stage op-amp macromodels.
+This reference documents both built-in models and characterized external models.
+Model identity, simulation evidence, and physical-device accuracy remain distinct.
 
 ## Supported interfaces
 
@@ -52,7 +54,59 @@ without reading the filesystem implicitly. Limits: 16 MiB per UTF-8 file, 64 bou
 resources, 32 MiB combined browser bytes, 32 KiB per logical library statement and bounded
 statement/nesting counts. These are resource ceilings, not a hard aggregate memory guarantee.
 
-## Characterized models
+## Built-in device models and macromodels
+
+### Kessetsu generic op-amp v2 (`KESSETSU_OPAMP_V2`)
+
+- **Interface:** Five terminals (`in_p`, `in_n`, `vcc`, `vee`, `out`).
+- **Version:** `1.0.0`.
+- **Modeled physical behavior:**
+  - High-impedance differential input stage with open-loop gain `gain = 200k` (106 dB).
+  - Dominant-pole gain-bandwidth product compensation (`gbw = 1MHz`).
+  - Slew-rate limiting stage (`slew_rate = 500k` V/s or `0.5 V/µs`).
+  - Supply-rail saturation headroom (`vdrop = 1V` / `rail_headroom` relative to `vcc` and `vee`).
+  - Linear output resistance (`rout = 50 Ω`).
+- **Boundary note:** `KESSETSU_OPAMP_V2` accurately models rail headroom, dominant pole, slew rate, and linear output resistance (`rout = 50 Ω`). It does **not** model a hard nonlinear output-current limit, quiescent supply bias currents, or thermal/SOA shutdown.
+
+### Built-in generic JFET models
+
+Kessetsu provides built-in generic JFET models for N-channel and P-channel junction field-effect transistors:
+- **`2N5457`** (alias **`J2N5457`**): Generic N-channel JFET (`NJF`, version `1.0.0`). Characterized with pinch-off voltage `vto = -1.5V`, transconductance parameter `beta = 1.125mA/V²`, channel-length modulation `lambda = 2.25m 1/V`, ohmic resistances `rd = 10 Ω`, `rs = 10 Ω`, and gate capacitances `cgs = 4pF`, `cgd = 1.5pF`.
+- **`2N5460`**: Generic P-channel JFET (`PJF`, version `1.0.0`). Characterized with pinch-off voltage `vto = -2.5V`, transconductance parameter `beta = 1.0mA/V²`, channel-length modulation `lambda = 3.0m 1/V`, ohmic resistances `rd = 15 Ω`, `rs = 15 Ω`, and gate capacitances `cgs = 5pF`, `cgd = 2pF`.
+
+### `model jfet` parameter reference
+
+Typed user JFET models use `model jfet <name> njf|pjf version=... license=... [params...]`. Supported parameters:
+
+| Parameter | SPICE name | Description | Default | Unit |
+|---|---|---|---|---|
+| `vto` | `VTO` | Threshold / pinch-off voltage | -2.0 V (NJF) / -2.0 V (PJF) | V |
+| `beta` | `BETA` | Transconductance parameter | 1.0e-4 A/V² | A/V² |
+| `lambda` | `LAMBDA` | Channel-length modulation | 0.0 1/V | 1/V |
+| `rd` | `RD` | Drain ohmic resistance | 0.0 Ω | Ω |
+| `rs` | `RS` | Source ohmic resistance | 0.0 Ω | Ω |
+| `cgs` | `CGS` | Zero-bias gate-source junction capacitance | 0.0 F | F |
+| `cgd` | `CGD` | Zero-bias gate-drain junction capacitance | 0.0 F | F |
+| `pb` | `PB` | Gate junction potential | 1.0 V | V |
+| `is` | `IS` | Gate junction saturation current | 1.0e-14 A | A |
+| `fc` | `FC` | Forward-bias depletion capacitance coefficient | 0.5 | ratio |
+| `b` | `B` | Doping tail parameter | 1.0 | ratio |
+| `kf` | `KF` | Flicker noise coefficient | 0.0 | - |
+| `af` | `AF` | Flicker noise exponent | 1.0 | - |
+| `tnom` | `TNOM` | Parameter measurement temperature | 27.0 °C | °C |
+
+### Built-in Zener breakdown diodes
+
+- `1N4733A`: 5.1 V nominal Zener breakdown diode (`bv=5.1`, `ibv=20mA`).
+- `BZX84C3V3`: 3.3 V nominal Zener breakdown diode (`bv=3.3`, `ibv=5mA`).
+- `BZX84C5V1`: 5.1 V nominal Zener breakdown diode (`bv=5.1`, `ibv=5mA`).
+- `BZX84C12`: 12.0 V nominal Zener breakdown diode (`bv=12.0`, `ibv=5mA`).
+
+### Built-in switch model (`KESSETSU_SW_V1`)
+
+- `KESSETSU_SW_V1`: Generic voltage-controlled switch model mapping to SPICE `SW`. Threshold `vt = 0.5V`, hysteresis `vh = 0V`, on-resistance `ron = 1 Ω`, and off-resistance `roff = 1 MΩ`.
+
+## Characterized external models
 
 ### Kessetsu generic comparator v1
 

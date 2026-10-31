@@ -4,59 +4,76 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
-### Canonical 1.5 showcase circuits and Web Hub presets
+### SPICE and device domain expansion
 
+- **Linear SPICE dependent sources:**
+  - Add native linear SPICE dependent sources to Circuit IR, parser, SPICE netlist generation, Schematic IR, and Web Hub:
+    - `vcvs <id> <gain>`: voltage-controlled voltage source (SPICE `E`, dimensionless `ratio`, pins: `p_out`, `n_out`, `ctrl_p`, `ctrl_n`).
+    - `vccs <id> <gm>`: voltage-controlled current source (SPICE `G`, transconductance in Siemens `S`, pins: `p_out`, `n_out`, `ctrl_p`, `ctrl_n`).
+    - `ccvs <id> <rm>`: current-controlled voltage source (SPICE `H`, transresistance in `Ohm`, pins: `p_out`, `n_out`, `ctrl_p`, `ctrl_n`, with internal 0 V sense branch `V_SENSE_<id>`).
+    - `cccs <id> <gain>`: current-controlled current source (SPICE `F`, dimensionless `ratio`, pins: `p_out`, `n_out`, `ctrl_p`, `ctrl_n`, with internal 0 V sense branch `V_SENSE_<id>`).
+  - Add `SIUnit::Siemens` (`S`, `siemens`, `mho`) for conductance and transconductance quantities.
+  - Expand SPICE netlist import to parse linear `E`, `G`, `F`, and `H` cards, automatically folding independent 0 V sense sources into controlled sources.
+- **Voltage-controlled switch:**
+  - Add native voltage-controlled switch `switch <id> [model]` (SPICE `S`, pins: `p1`, `p2`, `ctrl_p`, `ctrl_n`).
+  - Add verified built-in switch model `KESSETSU_SW_V1` (`1.0.0`) with threshold voltage `vt=0.5`, hysteresis `vh=0`, on-resistance `ron=1`, and off-resistance `roff=1Meg`.
+  - Support typed user switch model declarations: `model switch <name> version=... license=... vt=... vh=... ron=... roff=...` (mapping to SPICE `.model ... SW`).
+  - Expand SPICE netlist import to parse `S` switch cards and inline `.model ... SW` definitions.
+- **Zener breakdown diodes and model parameters:**
+  - Add built-in Zener breakdown diode models: `1N4733A` (5.1 V), `BZX84C3V3` (3.3 V), `BZX84C5V1` (5.1 V), and `BZX84C12` (12 V).
+  - Add junction breakdown parameters `bv`, `ibv`, `nbv`, `ibvl`, and `nbvl` to the typed `model diode` parameter allowlist and SPICE import.
+- **JFET device family:**
+  - Add native JFET component family: `jfet <id> [model]` (SPICE `J`, pins: `d`, `g`, `s`, default generic model `2N5457`).
+  - Add verified built-in generic JFET models: `2N5457` (alias `J2N5457`, N-channel `NJF`, version `1.0.0`) and `2N5460` (P-channel `PJF`, version `1.0.0`).
+  - Add typed `model jfet <name> njf|pjf` allowlisting all 14 standard SPICE JFET parameters: `vto`, `beta`, `lambda`, `rd`, `rs`, `cgs`, `cgd`, `pb`, `is`, `fc`, `b`, `kf`, `af`, and `tnom`.
+  - Expand SPICE netlist import to parse `J` JFET element cards and inline `.model ... NJF|PJF` definitions.
+- **Coupled inductors and transformers:**
+  - Add `couple <name> <ind1> <ind2> [<ind3> ...] <coefficient>` statement for two-winding and uniform multi-winding mutual magnetic coupling (SPICE `K` cards), supporting coupling coefficients `0 < coefficient <= 1` and braced `{...}` parameter expressions.
+  - Expand SPICE netlist import to parse `K` cards into canonical `couple` statements.
+- **Explicit 4-terminal MOSFET bulk terminal:**
+  - Add optional 4th bulk terminal `b` to `mosfet` (`d`, `g`, `s`, optional `b`). When omitted in `.kess`, bulk defaults to source `s` in SPICE netlist generation (`M... d g s s model`) and 3-pin schematic symbols; when explicitly connected, all 4 pins are emitted (`M... d g s b model`) and rendered on 4-pin schematic symbols.
+  - On SPICE import, 4-terminal MOSFET cards (`M... d g s b model`) with bulk tied to source fold to 3-pin `mosfet`, while explicit separate bulk nodes (`b != s`) preserve all 4 connected pins.
+- **Exponential transient source waveform:**
+  - Add `exp(v1, v2, td1, tau1, td2, tau2)` exponential rise/fall transient waveform (SPICE `EXP(...)`) to typed independent source waveforms and SPICE import.
+- **Biased small-signal AC sources:**
+  - Add biased small-signal AC source support: `ac(amplitude, offset)` generates SPICE `DC <offset> AC <amplitude>`, enabling small-signal AC sweeps around explicit DC operating points.
+- **SPICE dialect ergonomics and clean-room compatibility corpus:**
+  - Add a 30-fixture clean-room SPICE compatibility corpus (`core/tests/spice_corpus_contract.rs`) validating dialect parsing, behavioral boundaries, and diagnostic fidelity.
+  - Expand SPICE netlist import (`kess import`, CLI `--input auto|spice`, and MCP `kessetsu_import_spice`) for real-world netlists:
+    - Bounded constant arithmetic and math formula evaluation in `.param` and `{...}` expressions (`+`, `-`, `*`, `/`, `^`, `**`, `pi`, `e`, `sqrt`, `sin`, `cos`, `tan`, `exp`, `ln`, `log10`, `abs`, `min`, `max`, `pow`).
+    - European RKM value notation for resistors and capacitors (`4k7`, `1u5`, `2m2`, `4r7`).
+    - Combined DC bias + AC stimulus (`V1 in 0 DC 5 AC 1 0` -> `ac(1, 5)`).
+    - 4-terminal BJT grounded-substrate folding when substrate is grounded (`0`/`GND`) or tied to emitter (with `KES-N010` / `KES-N011` warning).
+    - Trailing SPICE instance parameter toleration on `R`/`L`/`C` (`tc1`, `tc2`, `tol`, `ic`, `m`, `temp`) and `M` (`W`, `L`, `AD`, `AS`, `PD`, `PS`, `M`) with `KES-N011` warnings.
+
+### Op-Amp physical macromodel (KESSETSU_OPAMP_V2)
+
+- Upgrade `KESSETSU_OPAMP_V1` (`1.1.0`) and `subcircuit opamp` to connect to `vcc` and `vee` and enforce anti-windup supply-rail output clamping (with safe symmetric clamping when `V(vcc) <= V(vee)`).
+- Add physical op-amp macromodel `KESSETSU_OPAMP_V2` (`1.0.0`) modeling:
+  - High-impedance differential input stage with open-loop gain `gain=200k` (106 dB),
+  - Dominant-pole gain-bandwidth product (`gbw=1MHz`),
+  - Slew-rate limiting (`slew_rate=500k` V/s or `0.5 V/µs`),
+  - Supply-rail output saturation headroom (`vdrop=1V` / `rail_headroom` relative to `vcc` and `vee`),
+  - Linear output resistance (`rout=50 Ω`).
+  - *Physical boundary note:* Accurately models rail headroom, dominant pole, slew rate, and linear output resistance (`rout = 50 Ω`); does **not** claim or model a hard nonlinear output-current limit, quiescent supply bias currents, or thermal/SOA shutdown.
+- Support optional `rail_headroom`, `slew_rate`, and `rout` parameters on `subcircuit opamp`.
+
+### Engineering study and design tools
+
+- Expose nominal engineering design calculators via `kessetsu_tool` MCP tool and `kess tool` CLI (`rc_cutoff`, `rl_cutoff`, `rlc_resonance`, `voltage_divider`, `led_resistor`, `decibels`) with exact analytical values, standard E12/E24 preferred selections, design equations, and ready-to-run `.kess` circuits.
+- Expose deterministic multi-condition parameter studies via `kessetsu_study` MCP tool (`kessetsu_study_plan` and `kessetsu_study_run`) and `kess study` CLI (`sweep`, `monte_carlo`, `corners`) for parameter sweeps, tolerance corners, temperature grids, and seeded Monte Carlo verification.
 - Add canonical 1.5 showcase circuits exercising new physical domains and verified subsystems:
   - `examples/zener_shunt_regulator.kess`: 12 V to 5.1 V shunt regulator using the built-in `BZX84C5V1` Zener breakdown diode with `.op` and `.tran` regulation assertions.
   - `examples/switched_sample_hold.kess`: Switched capacitor sample-and-hold circuit using `switch` (`model switch SW_SH`), pulsed clocking, and a 1 µF hold capacitor.
   - `examples/current_sense_amplifier.kess`: Current-sense amplifier combining a linear `ccvs` sensor with the physical rail-clamped op-amp macromodel (`KESSETSU_OPAMP_V2`).
 - Register all showcase circuits into Web Hub preset examples with instant simulation and schematic inspection.
 
-### Biased small-signal AC sources
+### Public website, install, and onboarding UX
 
-- Add biased small-signal AC source support: `ac(amplitude, offset)` generates SPICE `DC <offset> AC <amplitude>`, enabling small-signal AC sweeps around explicit DC operating points.
-
-### Clean-room SPICE compatibility corpus and expanded dialect import
-
-- Add a 30-fixture clean-room SPICE compatibility corpus (`core/tests/spice_corpus_contract.rs`) validating dialect parsing, behavioral boundaries, and diagnostic fidelity.
-- Expand SPICE netlist import (`kess import`, CLI `--input auto|spice`, and MCP `kessetsu_import_spice`) for real-world netlists:
-  - Bounded constant arithmetic and math formula evaluation in `.param` and `{...}` expressions (`+`, `-`, `*`, `/`, `^`, `**`, `pi`, `e`, `sqrt`, `sin`, `cos`, `tan`, `exp`, `ln`, `log10`, `abs`, `min`, `max`, `pow`).
-  - European RKM value notation for resistors and capacitors (`4k7`, `1u5`, `2m2`, `4r7`).
-  - Combined DC bias + AC stimulus (`V1 in 0 DC 5 AC 1 0` -> `ac(1, 5)`).
-  - 4-terminal BJT substrate folding when substrate is grounded (`0`/`GND`) or tied to emitter (with `KES-N011` warning).
-  - Trailing SPICE instance parameter toleration on `R`/`L`/`C` (`tc1`, `tc2`, `tol`, `ic`, `m`, `temp`) and `M` (`W`, `L`, `AD`, `AS`, `PD`, `PS`, `M`) with `KES-N011` warnings.
-
-### Linear SPICE dependent sources and conductance unit
-
-- Add linear SPICE dependent sources to Circuit IR, parser, SPICE generation, Schematic IR, and web editor:
-  - `vcvs <id> <gain>`: voltage-controlled voltage source (SPICE `E`, dimensionless `ratio`, pins: `p_out`, `n_out`, `ctrl_p`, `ctrl_n`).
-  - `vccs <id> <gm>`: voltage-controlled current source (SPICE `G`, transconductance in Siemens `S`, pins: `p_out`, `n_out`, `ctrl_p`, `ctrl_n`).
-  - `ccvs <id> <rm>`: current-controlled voltage source (SPICE `H`, transresistance in `Ohm`, pins: `p_out`, `n_out`, `ctrl_p`, `ctrl_n`, with internal 0 V sense branch `V_SENSE_<id>`).
-  - `cccs <id> <gain>`: current-controlled current source (SPICE `F`, dimensionless `ratio`, pins: `p_out`, `n_out`, `ctrl_p`, `ctrl_n`, with internal 0 V sense branch `V_SENSE_<id>`).
-- Add `SIUnit::Siemens` (`S`, `siemens`, `mho`) for conductance and transconductance quantities.
-- Expand SPICE netlist import to parse linear `E`, `G`, `F`, and `H` cards, automatically folding independent 0 V sense sources into controlled sources.
-
-### Voltage-controlled switch
-
-- Add native voltage-controlled switch `switch <id> [model]` (SPICE `S`, pins: `p1`, `p2`, `ctrl_p`, `ctrl_n`).
-- Add verified built-in switch model `KESSETSU_SW_V1` (`1.0.0`) with threshold voltage `vt=0.5`, hysteresis `vh=0`, on-resistance `ron=1`, and off-resistance `roff=1Meg`.
-- Support typed user switch model declarations: `model switch <name> version=... license=... vt=... vh=... ron=... roff=...` (mapping to SPICE `.model ... SW`).
-- Expand SPICE netlist import to parse `S` switch cards and inline `.model ... SW` definitions.
-
-### Zener breakdown diodes and model parameters
-
-- Add built-in Zener breakdown diode models: `1N4733A` (5.1 V), `BZX84C3V3` (3.3 V), `BZX84C5V1` (5.1 V), and `BZX84C12` (12 V).
-- Add junction breakdown parameters `bv`, `ibv`, `nbv`, `ibvl`, and `nbvl` to the typed `model diode` parameter allowlist and SPICE import.
-
-### Op-amp supply-rail clamping and macromodels
-
-- Upgrade `KESSETSU_OPAMP_V1` (`1.1.0`) and `subcircuit opamp` to connect to `vcc` and `vee` and enforce anti-windup supply-rail output clamping (with safe symmetric clamping when `V(vcc) <= V(vee)`).
-- Add physical op-amp macromodel `KESSETSU_OPAMP_V2` (`1.0.0`, `gain=200k`, `bandwidth=1MHz`, `rail_headroom=1V`, `slew_rate=500k` V/s, `rout=50` Ω) and optional `rail_headroom`, `slew_rate`, and `rout` parameters on `subcircuit opamp`.
-
-### MCP engineering and study tools
-
-- Expose nominal engineering design calculators via `kessetsu_tool` on the `kess mcp` server (`loaded-divider` for resistive dividers under load, `rc-lowpass` for first-order filters) with exact and preferred E12/E24 values.
-- Expose deterministic multi-condition parameter studies via `kessetsu_study_plan` and `kessetsu_study_run` on the `kess mcp` server for parameter sweeps, tolerance corners, temperature grids, and seeded Monte Carlo verification.
+- Redesign the landing page with high-signal progressive disclosure, moving from core verification and schematic visualization into practical agent workflows and real device models.
+- Implement an intent-first `/install/` page with interactive AI client configuration generator for Claude Code, Claude Desktop, Cursor, and Windsurf, surfacing exact CLI and MCP setup commands.
+- Streamline getting-started documentation with beginner-friendly browser-first tutorial routing, clear path selection for netlist import versus AI coding agents, and cross-linked references.
+- Add Web Hub first-use onboarding banner and interactive empty-state canvas guidance to facilitate immediate exploration of presets and quick syntax references.
 
 ## [1.4.0] — 2026-10-18
 
