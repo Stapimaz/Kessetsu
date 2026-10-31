@@ -1,12 +1,21 @@
 # Kessetsu Documentation
 
-Simulate analog and mixed-mode circuits with real Ngspice, verify locked electrical requirements (`.kessreq`), and generate connectivity-verified schematics from standard **SPICE netlists** (`.cir`, `.sp`) or readable **`.kess`** source.
+Simulate analog and mixed-mode circuits with real Ngspice, check engineering requirements with clear PASS/FAIL results, and generate connectivity-verified schematics from standard SPICE netlists or readable `.kess` circuits.
 
 You can use Kessetsu in three ways, all powered by the same deterministic Rust Core:
 
 - **Interactive Web Hub:** Open the [browser workspace](https://kessetsu.com/#editor) with zero installation or account.
 - **AI Agents via MCP (`kess mcp`):** [Install `kess`](https://kessetsu.com/install/) and register `kess mcp` in Claude Code, Claude Desktop, Cursor, or Windsurf so your AI agent can compile, simulate, verify requirements, and render schematics through native tools.
 - **Local CLI (`kess test`):** Run ERC, simulations, parameter studies, and exports directly from your terminal or CI pipeline.
+
+## Choose where to start
+
+| What brings you here? | Recommended path |
+| :--- | :--- |
+| **New to Kessetsu?** | Follow the [5-minute first circuit tutorial](guides/tutorial.md) in your browser—no installation or account required. |
+| **Already have a SPICE netlist (`.cir`, `.sp`)?** | Use [SPICE netlist import and direct use](guides/spice-import.md) to simulate, render a schematic, or convert an existing netlist. |
+| **Connecting an AI coding agent (Claude, Cursor, VS Code)?** | [Install `kess`](https://kessetsu.com/install/) and read the [Agent design workflow (MCP & CLI)](guides/agent-workflow.md). |
+| **Looking for syntax, components, or CLI commands?** | Jump to the [Language reference](reference/language.md), [Supported components and limits](reference/supported-domain.md), or [CLI & MCP reference](reference/cli.md). |
 
 ## Getting started
 

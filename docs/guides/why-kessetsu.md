@@ -4,6 +4,15 @@ Kessetsu connects jobs that are often separate: describe a circuit, validate con
 simulate, check engineering requirements, draw a schematic and export editable artifacts.
 It uses Ngspice for simulation, not a replacement physics engine.
 
+## Without Kessetsu vs. With Kessetsu
+
+| Task | Typical ad-hoc workflow | With Kessetsu |
+| :--- | :--- | :--- |
+| **Verifying an AI-suggested circuit** | Copy netlist by hand, run simulator manually, eyeball waveforms, or trust unverified prose | AI calls `kess mcp` or `kess test`; Ngspice runs automatically against locked `.kessreq` limits and returns exact `PASS / FAIL` measurements |
+| **Turning a netlist into a schematic** | Redraw the circuit manually in a desktop schematic editor | Automatic, connectivity-verified schematic generated from `.kess` or imported SPICE, ready for SVG, PNG, PDF, KiCad, or LTspice |
+| **Checking for wiring mistakes** | Debug silent SPICE convergence or floating-node failures | Structural Electrical Rules Check (ERC) catches floating pins and shorted sources before Ngspice starts |
+| **Sharing a reproducible design** | Screenshots and disconnected files | Single readable `.kess` or SPICE source that runs identically in the browser Web Hub, AI agent loop, and terminal CLI |
+
 ## What it adds to a SPICE workflow
 
 - A compact circuit language with units, named parameters and reusable modules.
