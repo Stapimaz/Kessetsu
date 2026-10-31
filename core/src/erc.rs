@@ -37,6 +37,40 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
         }
     }
 
+    let mut coupling_names = HashSet::new();
+    for coupling in &circuit.couplings {
+        if declared.contains(&coupling.name) || !coupling_names.insert(coupling.name.clone()) {
+            errors.push(ErcDiagnostic {
+                code: "KES-E001".to_string(),
+                severity: Severity::Error,
+                message: format!("Duplicate component or coupling declaration: {}", coupling.name),
+                component: Some(coupling.name.clone()),
+                pin: None,
+            });
+        }
+        for ind in &coupling.inductors {
+            if !declared.contains(ind) {
+                errors.push(ErcDiagnostic {
+                    code: "KES-E002".to_string(),
+                    severity: Severity::Error,
+                    message: format!("Coupling refers to undeclared inductor: {ind}"),
+                    component: Some(coupling.name.clone()),
+                    pin: Some(ind.clone()),
+                });
+            } else if let Some(comp) = circuit.components.iter().find(|c| &c.id == ind) {
+                if !matches!(comp.kind, ComponentKind::Inductor) {
+                    errors.push(ErcDiagnostic {
+                        code: "KES-C001".to_string(),
+                        severity: Severity::Error,
+                        message: format!("Coupling refers to component '{ind}' which is not an inductor"),
+                        component: Some(coupling.name.clone()),
+                        pin: Some(ind.clone()),
+                    });
+                }
+            }
+        }
+    }
+
     let mut declared_nets = HashSet::new();
     for net in &circuit.nets {
         if !declared_nets.insert(net) {
@@ -106,6 +140,12 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
     // 4. Floating Pin Check (KES-E003)
     for comp in &circuit.components {
         for pin in component_definition(&comp.kind).pins {
+            if matches!(comp.kind, ComponentKind::MOSFET(_))
+                && pin.name == "b"
+                && graph.get_net(&comp.id, "b").is_none()
+            {
+                continue;
+            }
             if graph.get_net(&comp.id, pin.name).is_none() {
                 errors.push(ErcDiagnostic {
                     code: "KES-E003".to_string(),

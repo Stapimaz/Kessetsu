@@ -49,6 +49,7 @@ export const topLevelCompletions: readonly KessetsuCompletion[] = [
   { label: 'switch', detail: 'Voltage-controlled switch (SPICE S). Pins: p1, p2, ctrl_p, ctrl_n.', documentation: 'Voltage-controlled switch (SPICE S). Pins: p1, p2, ctrl_p, ctrl_n.', insertText: 'switch ${1:S1} ${2:KESSETSU_SW_V1}' },
   { label: 'part', detail: 'Attach physical identity, handoff data and optional condition-qualified provided limits without changing the simulation model.', insertText: 'part ${1:R1} manufacturer="${2:manufacturer}" mpn="${3:part number}" ${4:average_dissipation_limit="0.1W" average_dissipation_conditions="Ambient and derating conditions"}' },
   { label: 'connect', detail: 'Connect one or more canonical pins to a pin or named net.', insertText: 'connect ${1:VIN.plus} to ${2:IN}' },
+  { label: 'couple', detail: 'Mutual coupling between two or more inductors: couple <name> <L1> <L2> ... <factor>.', insertText: 'couple ${1:K1} ${2:L1} ${3:L2} ${4:0.99}' },
   { label: 'simulate', detail: 'Add an OP, transient, AC, or DC analysis.', insertText: 'simulate ${1|op,tran,ac,dc|}' },
   { label: 'assert', detail: 'Add a design-owned engineering check; threshold and supported numeric metric arguments accept {expression}. Independent .kessreq limits stay literal.', insertText: 'assert ${1:peak}(${2:V(OUT)}) ${3:<} ${4:5V}' },
   { label: 'model_include', detail: 'Resolve an exact Kessetsu model package version.', insertText: 'model_include ${1:kessetsu_analog} ${2:1.0.0}' },
@@ -100,6 +101,7 @@ export const waveformCompletions: readonly KessetsuCompletion[] = [
   { label: 'sine', detail: 'Sine offset, amplitude, and frequency.', insertText: 'sine(${1:0V},${2:1V},${3:1kHz})' },
   { label: 'sine_ac', detail: 'Sine transient plus small-signal AC amplitude.', insertText: 'sine_ac(${1:0V},${2:1V},${3:1kHz},${4:1V})' },
   { label: 'pulse', detail: 'Pulse low, high, delay, rise, fall, width, and period.', insertText: 'pulse(${1:0V},${2:5V},${3:0s},${4:1us},${5:1us},${6:500us},${7:1ms})' },
+  { label: 'exp', detail: 'Exponential waveform: exp(v1, v2, td1, tau1, td2, tau2).', insertText: 'exp(${1:0V},${2:5V},${3:0s},${4:1ms},${5:5ms},${6:2ms})' },
   { label: 'pwl', detail: 'Piecewise-linear time/value pairs.', insertText: 'pwl(${1:0s},${2:0V},${3:1ms},${4:5V})' },
 ] as const;
 
@@ -127,9 +129,9 @@ export const kessetsuLanguageDefinition: languages.IMonarchLanguage = {
   tokenizer: {
     root: [
       [/\/\/.*$/, 'comment'],
-      [/\b(param|net|connect|simulate|assert|model|model_include|subcircuit|external_subcircuit|module|use)\b/, 'keyword'],
+      [/\b(param|net|connect|couple|simulate|assert|model|model_include|subcircuit|external_subcircuit|module|use)\b/, 'keyword'],
       [new RegExp(`\\b(${componentTypes.join('|')})\\b`), 'type'],
-      [/\b(op|tran|ac|dc|dec|oct|lin|sine|sine_ac|pulse|pwl)\b/, 'keyword.control'],
+      [/\b(op|tran|ac|dc|dec|oct|lin|sine|sine_ac|pulse|exp|pwl)\b/, 'keyword.control'],
       [/\b(value|min|max|peak|average|avg|rms|gain|gain_at|lower_cutoff|upper_cutoff|bandwidth|cutoff|frequency|phase|output_power|efficiency|thd|clipping|dissipation|rise_time|fall_time|settling_time|overshoot|energy)\b/, 'function'],
       [/-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?(?:T|G|meg|M|k|m|u|µ|n|p)?(?:V|A|Ohm|F|H|Hz|s|S|W|J|deg|%)?\b/i, 'number'],
       [/[A-Za-z_][A-Za-z0-9_]*/, 'identifier'],

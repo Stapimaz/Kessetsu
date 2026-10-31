@@ -413,6 +413,22 @@ fn format_waveform(waveform: &Waveform) -> String {
             format_spice_number(width.value),
             format_spice_number(period.value)
         ),
+        Waveform::Exp {
+            v1,
+            v2,
+            td1,
+            tau1,
+            td2,
+            tau2,
+        } => format!(
+            "EXP({} {} {} {} {} {})",
+            format_spice_number(v1.value),
+            format_spice_number(v2.value),
+            format_spice_number(td1.value),
+            format_spice_number(tau1.value),
+            format_spice_number(td2.value),
+            format_spice_number(tau2.value)
+        ),
         Waveform::PWL { points } => {
             let values = points
                 .iter()
@@ -474,9 +490,14 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
                 ));
             }
             ComponentKind::MOSFET(_) => {
+                let bulk_net = if graph.get_net(&comp.id, "b").is_some() {
+                    &nets[3]
+                } else {
+                    &nets[2]
+                };
                 spice.push_str(&format!(
                     "M_{} {} {} {} {} {}\n",
-                    comp.id, nets[0], nets[1], nets[2], nets[2], value_str
+                    comp.id, nets[0], nets[1], nets[2], bulk_net, value_str
                 ));
             }
             ComponentKind::Switch => {
@@ -510,9 +531,28 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
                     instance_parameters
                 ));
             }
+            ComponentKind::Inductor => {
+                // If the inductor is connected directly across an independent voltage source
+                // (sharing both terminal nets), ideal MNA has a singular matrix at DC.
+                // Insert a tiny (1 uOhm) series damping resistor to guarantee convergence.
+                let shares_nodes_with_vsource = circuit.components.iter().any(|other| {
+                    matches!(other.kind, ComponentKind::VoltageSource) && {
+                        let other_nets = component_net_names(graph, other);
+                        other_nets.len() == 2
+                            && ((other_nets[0] == nets[0] && other_nets[1] == nets[1])
+                                || (other_nets[0] == nets[1] && other_nets[1] == nets[0]))
+                    }
+                });
+                if shares_nodes_with_vsource {
+                    let int_node = format!("int_{}", comp.id);
+                    spice.push_str(&format!("R_ser_{} {} {} 1e-6\n", comp.id, nets[0], int_node));
+                    spice.push_str(&format!("L_{} {} {} {}\n", comp.id, int_node, nets[1], value_str));
+                } else {
+                    spice.push_str(&format!("L_{} {} {} {}\n", comp.id, nets[0], nets[1], value_str));
+                }
+            }
             ComponentKind::Resistor
             | ComponentKind::Capacitor
-            | ComponentKind::Inductor
             | ComponentKind::Diode
             | ComponentKind::VoltageSource
             | ComponentKind::CurrentSource => {
@@ -567,6 +607,32 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
                 }
                 ModelDefinition::ExternalSubcircuit { metadata } => {
                     used_models.insert(format!(".include \"{}\"", metadata.resource));
+                }
+            }
+        }
+    }
+
+    let mut couplings = circuit.couplings.clone();
+    couplings.sort_by(|a, b| a.name.cmp(&b.name));
+    for coupling in couplings {
+        let coeff = format_spice_number(coupling.coefficient.value);
+        if coupling.inductors.len() == 2 {
+            spice.push_str(&format!(
+                "K_{} L_{} L_{} {}\n",
+                coupling.name, coupling.inductors[0], coupling.inductors[1], coeff
+            ));
+        } else if coupling.inductors.len() > 2 {
+            for i in 0..coupling.inductors.len() {
+                for j in (i + 1)..coupling.inductors.len() {
+                    spice.push_str(&format!(
+                        "K_{}_{}_{} L_{} L_{} {}\n",
+                        coupling.name,
+                        i + 1,
+                        j + 1,
+                        coupling.inductors[i],
+                        coupling.inductors[j],
+                        coeff
+                    ));
                 }
             }
         }

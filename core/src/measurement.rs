@@ -1187,6 +1187,25 @@ fn source_value_at(value: &SourceValue, time: f64) -> Result<f64, String> {
             Ok(offset.value
                 + amplitude.value * (std::f64::consts::TAU * frequency.value * time).sin())
         }
+        SourceValue::Waveform(Waveform::Exp {
+            v1,
+            v2,
+            td1,
+            tau1,
+            td2,
+            tau2,
+        }) => {
+            let val = if time <= td1.value {
+                v1.value
+            } else if time <= td2.value {
+                v1.value + (v2.value - v1.value) * (1.0 - (-(time - td1.value) / tau1.value).exp())
+            } else {
+                v1.value
+                    + (v2.value - v1.value) * (1.0 - (-(time - td1.value) / tau1.value).exp())
+                    + (v1.value - v2.value) * (1.0 - (-(time - td2.value) / tau2.value).exp())
+            };
+            Ok(val)
+        }
         SourceValue::Waveform(Waveform::Pulse { .. } | Waveform::PWL { .. }) => {
             Err("typed current measurement for pulse/PWL source is not implemented".to_string())
         }

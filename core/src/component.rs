@@ -201,6 +201,14 @@ const MOSFET_PINS: &[PinDefinition] = &[
         flow: PinFlow::Conduction,
         side: PinSide::Bottom,
     },
+    PinDefinition {
+        name: "b",
+        x: 2,
+        y: 1,
+        is_signal: false,
+        flow: PinFlow::Conduction,
+        side: PinSide::Right,
+    },
 ];
 
 const OPAMP_PINS: &[PinDefinition] = &[

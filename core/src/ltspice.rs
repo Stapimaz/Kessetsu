@@ -21,6 +21,7 @@ const VOLTAGE: &[(&str, i32, i32)] = &[("plus", 0, 16), ("minus", 0, 96)];
 const CURRENT: &[(&str, i32, i32)] = &[("plus", 0, 0), ("minus", 0, 80)];
 const BJT: &[(&str, i32, i32)] = &[("c", 64, 0), ("b", 0, 48), ("e", 64, 96)];
 const MOSFET: &[(&str, i32, i32)] = &[("d", 48, 0), ("g", 0, 80), ("s", 48, 96)];
+const MOSFET4: &[(&str, i32, i32)] = &[("d", 48, 0), ("g", 0, 80), ("s", 48, 96), ("b", 48, 48)];
 const OPAMP: &[(&str, i32, i32)] = &[
     ("in_p", -32, 80),
     ("in_n", -32, 48),
@@ -75,13 +76,16 @@ fn symbol(component: &SchematicComponent) -> Result<LtSymbol, ExportError> {
             },
             pins: BJT,
         },
-        CatalogSymbol::Mosfet => LtSymbol {
-            name: if component.variant.as_deref() == Some("pmos") {
-                "pmos"
-            } else {
-                "nmos"
-            },
-            pins: MOSFET,
+        CatalogSymbol::Mosfet => {
+            let has_bulk = component.pins.iter().any(|p| p.name == "b");
+            let is_pmos = component.variant.as_deref() == Some("pmos");
+            let (name, pins) = match (is_pmos, has_bulk) {
+                (true, true) => ("pmos4", MOSFET4),
+                (true, false) => ("pmos", MOSFET),
+                (false, true) => ("nmos4", MOSFET4),
+                (false, false) => ("nmos", MOSFET),
+            };
+            LtSymbol { name, pins }
         },
         CatalogSymbol::OpAmp => LtSymbol {
             name: "OpAmps/opamp2",
@@ -362,6 +366,22 @@ fn spice_source(value: &SourceValue) -> String {
             format_spice_number(fall.value),
             format_spice_number(width.value),
             format_spice_number(period.value)
+        ),
+        SourceValue::Waveform(Waveform::Exp {
+            v1,
+            v2,
+            td1,
+            tau1,
+            td2,
+            tau2,
+        }) => format!(
+            "EXP({} {} {} {} {} {})",
+            format_spice_number(v1.value),
+            format_spice_number(v2.value),
+            format_spice_number(td1.value),
+            format_spice_number(tau1.value),
+            format_spice_number(td2.value),
+            format_spice_number(tau2.value)
         ),
         SourceValue::Waveform(Waveform::PWL { points }) => format!(
             "PWL({})",
@@ -704,6 +724,15 @@ pub fn generate_ltspice_asc(
             out.push_str(&format!("TEXT 32 {directive_y} Left 2 !.ends\n"));
             directive_y += 16;
         }
+    }
+    for coupling in &circuit.couplings {
+        let coeff = format_spice_number(coupling.coefficient.value);
+        let inductors = coupling.inductors.join(" ");
+        out.push_str(&format!(
+            "TEXT 32 {directive_y} Left 2 !K{} {} {}\n",
+            coupling.name, inductors, coeff
+        ));
+        directive_y += 16;
     }
     for (index, analysis) in circuit.analyses.iter().enumerate() {
         let mut command = format_analysis(analysis, circuit);

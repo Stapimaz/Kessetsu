@@ -35,6 +35,7 @@ net_stmt = { "net" ~ ident }
 part_stmt = { "part" ~ ident ~ named_value+ }
 pin_ref = { ident ~ ("." ~ ident)? }
 connect = { "connect" ~ pin_ref ~ ("," ~ pin_ref)* ~ "to" ~ pin_ref }
+couple_stmt = { "couple" ~ ident ~ ident ~ ident+ ~ numeric_value }
 
 // Assertions
 signal_target = @{ pin_ref | ASCII_DIGIT+ }
@@ -61,7 +62,7 @@ external_kind = { "opamp" | "comparator" | "two_terminal" }
 external_subcircuit_decl = { "external_subcircuit" ~ external_kind ~ ident ~ "(" ~ pin_list ~ ")" ~ named_value+ }
 model_include = { "model_include" ~ ident ~ comp_value }
 
-statement = { (param_decl | decl | net_stmt | part_stmt | use_stmt | connect | assert_stmt | sim_cmd) }
+statement = { (param_decl | decl | net_stmt | part_stmt | use_stmt | connect | couple_stmt | assert_stmt | sim_cmd) }
 
 pin_list = { ident ~ ("," ~ ident)* }
 module_decl = { "module" ~ ident ~ "(" ~ pin_list? ~ ")" ~ "{" ~ NEWLINE* ~ (statement ~ NEWLINE+)* ~ "}" }

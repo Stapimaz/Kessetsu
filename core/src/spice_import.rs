@@ -157,6 +157,16 @@ struct ImportedInstance {
     line: usize,
 }
 
+#[derive(Debug, Clone)]
+struct ImportedCoupling {
+    original_name: String,
+    name: String,
+    inductors: Vec<String>,
+    factor: String,
+    #[allow(dead_code)]
+    line: usize,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ImportUnit {
     Ohm,
@@ -389,6 +399,7 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
     let mut parameter_units = BTreeMap::<String, ImportUnit>::new();
     let mut components = Vec::new();
     let mut instances = Vec::new();
+    let mut couplings = Vec::<ImportedCoupling>::new();
     let mut analyses = Vec::<(usize, Vec<String>)>::new();
     let mut ended = false;
     let mut control_start = None;
@@ -504,6 +515,21 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
                     Err(message) => push_error(&mut report, "KES-N007", message, Some(line.number)),
                 }
             }
+        } else if text
+            .chars()
+            .next()
+            .is_some_and(|character| character.eq_ignore_ascii_case(&'k'))
+        {
+            match parse_coupling(
+                text,
+                line.number,
+                &parameter_lookup,
+                &mut parameter_units,
+            ) {
+                Ok(coupling) => couplings.push(coupling),
+                Err(_) if is_first_line => push_title_info(&mut report),
+                Err(message) => push_error(&mut report, "KES-N002", message, Some(line.number)),
+            }
         } else {
             match parse_component(
                 text,
@@ -591,6 +617,13 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
                 original: original.clone(),
                 kessetsu: mapped.clone(),
             }),
+    );
+    report.names.extend(
+        couplings.iter().map(|coupling| ImportNameMapping {
+            kind: ImportNameKind::Component,
+            original: coupling.original_name.clone(),
+            kessetsu: coupling.name.clone(),
+        }),
     );
     for module in &subcircuits {
         report.names.push(ImportNameMapping {
@@ -768,6 +801,24 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
             generated.push(')');
         }
         generated.push('\n');
+    }
+    for coupling in &couplings {
+        let mapped_inductors = coupling
+            .inductors
+            .iter()
+            .map(|ind| {
+                component_names
+                    .iter()
+                    .find(|(orig, _)| orig.eq_ignore_ascii_case(ind))
+                    .map(|(_, mapped)| mapped.clone())
+                    .unwrap_or_else(|| ind.clone())
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+        generated.push_str(&format!(
+            "couple {} {} {}\n",
+            coupling.name, mapped_inductors, coupling.factor
+        ));
     }
     generated.push('\n');
     for component in &components {
@@ -1898,19 +1949,17 @@ fn parse_component(
                 .map(|i| i + 1)
                 .unwrap_or(fields.len());
             let core_fields = &fields[..param_start];
-            let (nodes, model) = match core_fields.len() {
-                5 => (core_fields[1..4].to_vec(), core_fields[4].clone()),
+            let (nodes, model, pins): (Vec<String>, String, &'static [&'static str]) = match core_fields.len() {
+                5 => (core_fields[1..4].to_vec(), core_fields[4].clone(), &["d", "g", "s"]),
                 6 if core_fields[3].eq_ignore_ascii_case(&core_fields[4]) => {
-                    (core_fields[1..4].to_vec(), core_fields[5].clone())
+                    (core_fields[1..4].to_vec(), core_fields[5].clone(), &["d", "g", "s"])
                 }
                 6 => {
-                    return Err(
-                        "four-terminal MOSFET import requires bulk to be tied to source".into(),
-                    );
+                    (core_fields[1..5].to_vec(), core_fields[5].clone(), &["d", "g", "s", "b"])
                 }
                 _ => {
                     return Err(
-                        "M expects drain, gate, source, optional tied bulk, and model".into(),
+                        "M expects drain, gate, source, optional bulk, and model".into(),
                     );
                 }
             };
@@ -1969,7 +2018,7 @@ fn parse_component(
             Ok(ImportedComponent {
                 original_name: name.clone(),
                 nodes,
-                pins: &["d", "g", "s"],
+                pins,
                 kind: ImportedKind::Mosfet(model),
                 line,
             })
@@ -2099,6 +2148,40 @@ fn parse_component(
             "component family '{prefix}' is not supported by the declared import subset"
         )),
     }
+}
+
+fn parse_coupling(
+    text: &str,
+    line: usize,
+    parameters: &BTreeMap<String, &ImportedParameter>,
+    parameter_units: &mut BTreeMap<String, ImportUnit>,
+) -> Result<ImportedCoupling, String> {
+    let fields = split_fields(text);
+    if fields.len() < 4 {
+        return Err("coupling statement 'K' requires name, at least 2 inductors, and a coupling factor".into());
+    }
+    let original_name = fields[0].clone();
+    let name = original_name.clone();
+    let inductors = fields[1..fields.len() - 1].to_vec();
+    for ind in &inductors {
+        if !ind.starts_with(['L', 'l']) {
+            return Err(format!("coupling element '{ind}' is not an inductor"));
+        }
+    }
+    let factor_raw = &fields[fields.len() - 1];
+    let factor = translate_numeric(factor_raw, ImportUnit::Ratio, parameters, parameter_units)?;
+    if let Ok(val) = factor.parse::<f64>() {
+        if !(0.0 < val && val <= 1.0) {
+            return Err(format!("coupling factor must be in (0, 1], got {val}"));
+        }
+    }
+    Ok(ImportedCoupling {
+        original_name,
+        name,
+        inductors,
+        factor,
+        line,
+    })
 }
 
 fn resolve_current_controlled_sources(
@@ -2260,7 +2343,7 @@ fn normalize_source_fields(fields: &[String]) -> Vec<String> {
     while index < expanded.len() {
         let token = &expanded[index];
         let lower = token.to_ascii_lowercase();
-        if matches!(lower.as_str(), "sin" | "sine" | "pulse" | "pwl") {
+        if matches!(lower.as_str(), "sin" | "sine" | "pulse" | "exp" | "pwl") {
             if index + 1 < expanded.len() && expanded[index + 1].starts_with('(') {
                 normalized.push(format!("{token}{}", expanded[index + 1]));
                 index += 2;
@@ -2357,7 +2440,7 @@ fn translate_source(
             return Err(if dc_field.is_some() && ac_mag.is_none() {
                 "source has unsupported DC/AC field combination".into()
             } else {
-                "source value must be a literal, AC, SINE, PULSE or PWL form".into()
+                "source value must be a literal, AC, SINE, PULSE, EXP or PWL form".into()
             });
         }
     }
@@ -2414,7 +2497,7 @@ fn translate_source(
         return translate_numeric(dc, value_unit, parameters, parameter_units);
     }
 
-    Err("source value must be a literal, AC, SINE, PULSE or PWL form".into())
+    Err("source value must be a literal, AC, SINE, PULSE, EXP or PWL form".into())
 }
 
 fn parse_call(field: &str) -> Result<Option<(&str, Vec<&str>)>, String> {
@@ -2461,11 +2544,15 @@ fn translate_waveform(
     let expected = match waveform.as_str() {
         "sin" | "sine" => 3,
         "pulse" => 7,
+        "exp" => 6,
         "pwl" if args.len() >= 4 && args.len().is_multiple_of(2) => args.len(),
         "pwl" => return Err("PWL requires at least two time/value pairs".into()),
         _ => return Err(format!("unsupported source waveform '{name}'")),
     };
     if args.len() != expected {
+        if waveform == "exp" {
+            return Err("EXP source requires 6 arguments: v1, v2, td1, tau1, td2, tau2".into());
+        }
         return Err(format!(
             "{} requires {expected} numeric fields, found {}",
             name.to_ascii_uppercase(),
@@ -2479,6 +2566,7 @@ fn translate_waveform(
             let unit = match waveform.as_str() {
                 "sin" | "sine" if index == 2 => ImportUnit::Hertz,
                 "pulse" if index >= 2 => ImportUnit::Second,
+                "exp" if index >= 2 => ImportUnit::Second,
                 "pwl" if index.is_multiple_of(2) => ImportUnit::Second,
                 _ => value_unit,
             };
@@ -2489,6 +2577,7 @@ fn translate_waveform(
         "sin" | "sine" if ac.is_some() => "sine_ac",
         "sin" | "sine" => "sine",
         "pulse" => "pulse",
+        "exp" => "exp",
         "pwl" => "pwl",
         _ => unreachable!(),
     };

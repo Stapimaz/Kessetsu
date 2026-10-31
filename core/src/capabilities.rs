@@ -165,6 +165,7 @@ pub fn capability_manifest(cli_schema_version: &str) -> CapabilityManifest {
                 "net",
                 "param",
                 "connect",
+                "couple",
                 "module",
                 "use",
                 "part",
@@ -186,7 +187,7 @@ pub fn capability_manifest(cli_schema_version: &str) -> CapabilityManifest {
                 .iter()
                 .map(|metric| (*metric).to_string())
                 .collect(),
-            source_waveforms: ["dc_literal", "ac", "sine", "sine_ac", "pulse", "pwl"]
+            source_waveforms: ["dc_literal", "ac", "sine", "sine_ac", "pulse", "exp", "pwl"]
                 .into_iter()
                 .map(str::to_string)
                 .collect(),

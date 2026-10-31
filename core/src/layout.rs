@@ -208,14 +208,14 @@ pub fn generate_layout(circuit: &CircuitIR) -> LayoutResult {
             .map_or_else(String::new, |pin| pin.name.to_string());
         for pin in definition.pins {
             let net = graph.get_net(&name, pin.name);
-            if net == gnd_net {
+            if net.is_some() && net == gnd_net {
                 entry = through_pin(kind, pin.name).unwrap_or(pin.name).to_string();
                 break;
             }
         }
         for pin in definition.pins {
             let net = graph.get_net(&name, pin.name);
-            if net == vcc_net {
+            if net.is_some() && net == vcc_net {
                 entry = pin.name.to_string();
                 break;
             }

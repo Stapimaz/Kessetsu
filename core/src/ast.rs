@@ -188,10 +188,20 @@ pub struct ModelInclude {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CouplingDecl {
+    pub name: String,
+    pub inductors: Vec<String>,
+    pub factor: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub factor_expression: Option<crate::expression::Expression>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Statement {
     Param(crate::expression::ParameterDecl),
     Decl(ComponentDecl),
     Connect(Connection),
+    Couple(CouplingDecl),
     Net(NetDecl),
     Part(PartAssignmentDecl),
     Assert(AssertStmt),
@@ -203,6 +213,7 @@ impl Statement {
     pub(crate) fn expression_nodes(&self) -> usize {
         match self {
             Self::Param(parameter) => parameter.expression.node_count(),
+            Self::Couple(couple) => couple.factor_expression.as_ref().map_or(0, |e| e.node_count()),
             Self::Decl(decl) => {
                 decl.value_expression.as_ref().map_or(0, |e| e.node_count())
                     + decl.waveform_expression.as_ref().map_or(0, |call| {

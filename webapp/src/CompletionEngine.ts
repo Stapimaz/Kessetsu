@@ -22,7 +22,7 @@ export const PIN_MAP: Record<string, readonly string[]> = {
   device: ['p1', 'p2'],
   transistor: ['b', 'c', 'e'],
   bjt: ['b', 'c', 'e'],
-  mosfet: ['g', 'd', 's'],
+  mosfet: ['d', 'g', 's', 'b'],
   opamp: ['in_p', 'in_n', 'vcc', 'vee', 'out'],
   comparator: ['in_p', 'in_n', 'vcc', 'vee', 'out'],
   vcvs: ['p_out', 'n_out', 'ctrl_p', 'ctrl_n'],
@@ -210,8 +210,10 @@ export const waveformCompletions: readonly KessetsuCompletion[] = [
   { label: 'sine', detail: 'Sine offset, amplitude, and frequency.', insertText: 'sine(${1:0V},${2:1V},${3:1kHz})' },
   { label: 'sine_ac', detail: 'Sine transient plus small-signal AC amplitude.', insertText: 'sine_ac(${1:0V},${2:1V},${3:1kHz},${4:1V})' },
   { label: 'pulse', detail: 'Pulse low, high, delay, rise, fall, width, and period.', insertText: 'pulse(${1:0V},${2:5V},${3:0s},${4:1us},${5:1us},${6:500us},${7:1ms})' },
+  { label: 'exp', detail: 'Exponential waveform: exp(v1, v2, td1, tau1, td2, tau2).', insertText: 'exp(${1:0V},${2:5V},${3:0s},${4:1ms},${5:5ms},${6:2ms})' },
   { label: 'pwl', detail: 'Piecewise-linear time/value pairs.', insertText: 'pwl(${1:0s},${2:0V},${3:1ms},${4:5V})' },
 ];
 
 export const WAVEFORM_COMPLETIONS = waveformCompletions;
+export const COMPONENT_PINS = PIN_MAP;
 

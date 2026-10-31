@@ -196,7 +196,7 @@ fn shared_component_catalog_defines_canonical_backend_pin_order() {
         (ComponentKind::BJT(BJTPolarity::NPN), vec!["c", "b", "e"]),
         (
             ComponentKind::MOSFET(FETPolarity::NMOS),
-            vec!["d", "g", "s"],
+            vec!["d", "g", "s", "b"],
         ),
         (
             ComponentKind::OpAmp,

@@ -185,10 +185,7 @@ R1 in 0 1k
 .tran 100n 50u
 .end
 ",
-        expected: ExpectedOutcome::ExpectedUnsupportedImport {
-            expected_error_code: "KES-N002",
-            construct_gap: "Exponential transient waveform (EXP) is unsupported",
-        },
+        expected: ExpectedOutcome::SupportedRoundTrip,
     },
     // =========================================================================
     // Category 3 — Semiconductor & .model Dialect Idioms (6 fixtures)
@@ -267,10 +264,7 @@ Rload vdd d 1k
 .op
 .end
 ",
-        expected: ExpectedOutcome::ExpectedUnsupportedImport {
-            expected_error_code: "KES-N002",
-            construct_gap: "4-terminal MOSFET with bulk tied to separate rail/substrate is unsupported",
-        },
+        expected: ExpectedOutcome::SupportedRoundTrip,
     },
     SpiceCorpusFixture {
         id: "C11_MOSFET_INLINE_GEOMETRY_PARAMS",
@@ -441,10 +435,7 @@ K1 L1 L2 0.99
 .ac dec 10 100 100k
 .end
 ",
-        expected: ExpectedOutcome::ExpectedUnsupportedImport {
-            expected_error_code: "KES-N002",
-            construct_gap: "Coupled inductors mutual coupling directive 'K' is unsupported",
-        },
+        expected: ExpectedOutcome::SupportedRoundTrip,
     },
     SpiceCorpusFixture {
         id: "C19_MAGNETIC_MULTI_WINDING_COUPLING",
@@ -464,10 +455,7 @@ K1 L1 L2 L3 0.98
 .ac dec 10 100 100k
 .end
 ",
-        expected: ExpectedOutcome::ExpectedUnsupportedImport {
-            expected_error_code: "KES-N002",
-            construct_gap: "Multi-winding mutual coupling directive 'K' is unsupported",
-        },
+        expected: ExpectedOutcome::SupportedRoundTrip,
     },
     // =========================================================================
     // Category 6 — Parameterization & Expressions (3 fixtures)
@@ -905,6 +893,69 @@ fn spice_corpus_all_fixtures_match_declared_disposition() {
         unsupported_import_count,
         unsupported_compile_count
     );
+
+    assert_eq!(supported_roundtrip_count, 19);
+    assert_eq!(supported_warning_count, 5);
+    assert_eq!(supported_roundtrip_count + supported_warning_count, 24);
+    assert_eq!(unsupported_import_count, 6);
+    assert_eq!(unsupported_compile_count, 0);
+}
+
+#[test]
+fn wave5_corpus_fixtures_simulate_cleanly_through_ngspice() {
+    let runner = NgspiceRunner::discover();
+    if !runner.executable().exists() {
+        eprintln!("ngspice not available on system PATH; skipping simulation test");
+        return;
+    }
+
+    let target_ids = [
+        "C06_SOURCE_EXP_WAVEFORM",
+        "C10_MOSFET_BULK_TIED_RAIL",
+        "C18_MAGNETIC_COUPLED_INDUCTORS_TWO_WINDING",
+        "C19_MAGNETIC_MULTI_WINDING_COUPLING",
+    ];
+
+    for fixture in CORPUS_FIXTURES {
+        if !target_ids.contains(&fixture.id) {
+            continue;
+        }
+        let report = import_spice(fixture.spice_netlist);
+        assert!(
+            !report.has_errors(),
+            "[{}] Import failed with errors: {:?}",
+            fixture.id,
+            report.diagnostics
+        );
+        let kess_source = report
+            .kess_source
+            .as_deref()
+            .expect("kess source should be emitted");
+        let compiled = compile_source(kess_source, CompileOptions::default());
+        assert!(
+            !compiled.has_errors(),
+            "[{}] Downstream compile failed: {:?}",
+            fixture.id,
+            compiled.diagnostics
+        );
+        let netlist = compiled
+            .spice_netlist
+            .as_ref()
+            .expect("spice netlist should be regenerated");
+        let analyses = compiled.ir.as_ref().unwrap().analyses.clone();
+        let sim_res = runner
+            .run(
+                &SimulationRequest::new(netlist, analyses),
+                &CancellationToken::new(),
+            )
+            .expect("Ngspice run should launch");
+        assert!(
+            sim_res.succeeded(),
+            "[{}] Ngspice simulation failed on regenerated netlist: {:?}",
+            fixture.id,
+            sim_res.errors
+        );
+    }
 }
 
 #[test]

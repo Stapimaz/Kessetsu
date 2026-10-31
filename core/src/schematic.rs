@@ -424,6 +424,22 @@ fn waveform_label(waveform: &Waveform) -> String {
             quantity_label(v2.value, v2.unit),
             quantity_label(period.value, period.unit)
         ),
+        Waveform::Exp {
+            v1,
+            v2,
+            td1,
+            tau1,
+            td2,
+            tau2,
+        } => format!(
+            "exp({}, {}, {}, {}, {}, {})",
+            quantity_label(v1.value, v1.unit),
+            quantity_label(v2.value, v2.unit),
+            quantity_label(td1.value, td1.unit),
+            quantity_label(tau1.value, tau1.unit),
+            quantity_label(td2.value, td2.unit),
+            quantity_label(tau2.value, tau2.unit)
+        ),
         Waveform::PWL { points } => format!("PWL {} points", points.len()),
     }
 }
@@ -995,6 +1011,11 @@ fn placed_component_mirrored(
     let pins = definition
         .pins
         .iter()
+        .filter(|pin| {
+            !(matches!(component.kind, ComponentKind::MOSFET(_))
+                && pin.name == "b"
+                && graph.get_net(&component.id, "b").is_none())
+        })
         .map(|pin| {
             let point = transform_local_point(
                 Point::new(pin.x, pin.y),

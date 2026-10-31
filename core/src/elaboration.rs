@@ -109,6 +109,7 @@ impl Elaborator<'_> {
         let name = match &statement {
             Statement::Decl(decl) => Some(&decl.name),
             Statement::Net(net) => Some(&net.name),
+            Statement::Couple(couple) => Some(&couple.name),
             _ => None,
         };
         if let Some(name) = name {
@@ -216,6 +217,19 @@ impl Elaborator<'_> {
                         });
                     }
                     self.emit(Statement::Connect(Connection { pins }), scope)?;
+                }
+                Statement::Couple(couple) => {
+                    let mut couple = couple.clone();
+                    couple.name = format!("{prefix}{}", couple.name);
+                    couple.inductors = couple
+                        .inductors
+                        .into_iter()
+                        .map(|ind| format!("{prefix}{ind}"))
+                        .collect();
+                    if let Some(expression) = &couple.factor_expression {
+                        couple.factor_expression = Some(expression.qualify(&parameter_prefix));
+                    }
+                    self.emit(Statement::Couple(couple), scope)?;
                 }
                 Statement::Use(instance) => {
                     let module = *self

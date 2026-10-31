@@ -6,10 +6,19 @@ use std::str::FromStr;
 pub const PHYSICAL_PART_SCHEMA_VERSION: &str = "kessetsu.physical-parts.v2";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct InductorCoupling {
+    pub name: String,
+    pub inductors: Vec<String>,
+    pub coefficient: Quantity,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CircuitIR {
     pub components: Vec<IRComponent>,
     pub connections: Vec<Connection>, // Preserved from AST for graph generation
     pub nets: Vec<String>,            // User-named nets
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub couplings: Vec<InductorCoupling>,
     pub analyses: Vec<Analysis>,
     pub assertions: Vec<Assertion>,
     pub model_manifest: ModelManifest,
@@ -196,6 +205,14 @@ pub enum Waveform {
         fall: Quantity,
         width: Quantity,
         period: Quantity,
+    },
+    Exp {
+        v1: Quantity,
+        v2: Quantity,
+        td1: Quantity,
+        tau1: Quantity,
+        td2: Quantity,
+        tau2: Quantity,
     },
     PWL {
         points: Vec<(Quantity, Quantity)>,
@@ -596,7 +613,7 @@ fn make_waveform(
         return Ok(Waveform::Ac { amplitude, offset });
     }
 
-    if name.eq_ignore_ascii_case("sine") {
+    if name.eq_ignore_ascii_case("sine") || name.eq_ignore_ascii_case("sin") {
         if count != 3 {
             return Err(format!("SINE expects exactly 3 parameters, got {}", count));
         }
@@ -637,6 +654,29 @@ fn make_waveform(
         });
     }
 
+    if name.eq_ignore_ascii_case("exp") {
+        if count != 6 {
+            return Err("exp() expects 6 arguments: v1, v2, td1, tau1, td2, tau2".to_string());
+        }
+        let v1 = numeric(0, value_unit, "waveform.v1")?;
+        let v2 = numeric(1, value_unit, "waveform.v2")?;
+        let td1 = numeric(2, SIUnit::Second, "waveform.td1")?;
+        let tau1 = numeric(3, SIUnit::Second, "waveform.tau1")?;
+        let td2 = numeric(4, SIUnit::Second, "waveform.td2")?;
+        let tau2 = numeric(5, SIUnit::Second, "waveform.tau2")?;
+        if td1.value < 0.0 || td2.value < 0.0 || tau1.value <= 0.0 || tau2.value <= 0.0 {
+            return Err("exp() time constants tau1 and tau2 must be positive and delays must be non-negative".to_string());
+        }
+        return Ok(Waveform::Exp {
+            v1,
+            v2,
+            td1,
+            tau1,
+            td2,
+            tau2,
+        });
+    }
+
     if name.eq_ignore_ascii_case("pwl") {
         if count < 4 || !count.is_multiple_of(2) {
             return Err(format!(
@@ -670,7 +710,9 @@ fn make_waveform(
         return Ok(Waveform::PWL { points });
     }
 
-    Err(format!("unsupported waveform '{name}'"))
+    Err(format!(
+        "unsupported waveform '{name}'; expected dc, ac, sine, sin, pulse, exp or pwl"
+    ))
 }
 
 fn evaluate_numeric(
@@ -968,6 +1010,8 @@ pub fn ast_to_ir_with_resources(
     let mut components = Vec::new();
     let mut connections = Vec::new();
     let mut nets = Vec::new();
+    let mut raw_couplings = Vec::new();
+    let mut raw_coupling_names = std::collections::HashSet::new();
     let mut analysis_statements = Vec::new();
     let mut assertions = Vec::new();
     let mut part_assignments = Vec::new();
@@ -1610,6 +1654,17 @@ pub fn ast_to_ir_with_resources(
                     numeric_arguments,
                 });
             }
+            Statement::Couple(couple) => {
+                if !raw_coupling_names.insert(couple.name.clone()) {
+                    return Err(semantic_error(
+                        "KES-C001",
+                        format!("duplicate coupling name '{}'", couple.name),
+                        Some(&couple.name),
+                        None,
+                    ));
+                }
+                raw_couplings.push(couple);
+            }
             Statement::Simulate(sim) => {
                 analysis_statements.push(sim.clone());
             }
@@ -1622,6 +1677,105 @@ pub fn ast_to_ir_with_resources(
                 ));
             }
         }
+    }
+
+    let mut couplings = Vec::new();
+    for couple in raw_couplings {
+        if components.iter().any(|c| c.id == couple.name) {
+            return Err(semantic_error(
+                "KES-C001",
+                format!("coupling name '{}' collides with component name", couple.name),
+                Some(&couple.name),
+                None,
+            ));
+        }
+        if couple.inductors.len() < 2 {
+            return Err(semantic_error(
+                "KES-C001",
+                format!("coupling '{}' must specify at least 2 inductors", couple.name),
+                Some(&couple.name),
+                Some("inductors"),
+            ));
+        }
+        let mut seen_ind = std::collections::HashSet::new();
+        for ind in &couple.inductors {
+            if !seen_ind.insert(ind) {
+                return Err(semantic_error(
+                    "KES-C001",
+                    format!("coupling '{}' specifies duplicate inductor '{ind}'", couple.name),
+                    Some(&couple.name),
+                    Some("inductors"),
+                ));
+            }
+            let comp = components.iter().find(|c| &c.id == ind);
+            match comp {
+                None => {
+                    return Err(semantic_error(
+                        "KES-C001",
+                        format!("coupling '{}' references unknown inductor '{ind}'", couple.name),
+                        Some(&couple.name),
+                        Some("inductors"),
+                    ));
+                }
+                Some(c) if !matches!(c.kind, ComponentKind::Inductor) => {
+                    return Err(semantic_error(
+                        "KES-C001",
+                        format!("coupling '{}' references component '{ind}' which is not an inductor", couple.name),
+                        Some(&couple.name),
+                        Some("inductors"),
+                    ));
+                }
+                _ => {}
+            }
+        }
+        let coefficient = if let Some(expression) = &couple.factor_expression {
+            let resolved = evaluate_numeric(
+                expression,
+                SIUnit::Ratio,
+                &parameter_values,
+                &mut expression_work,
+            ).map_err(|error| {
+                semantic_error(
+                    "KES-C001",
+                    format!("invalid coupling factor: {error}"),
+                    Some(&couple.name),
+                    Some("coefficient"),
+                )
+            })?;
+            parameter_manifest.bindings.push(crate::expression::ParameterBinding {
+                component: couple.name.clone(),
+                field: "coefficient".into(),
+                expression: expression.source.clone(),
+                dependencies: expression.dependencies().into_iter().collect(),
+                resolved: resolved.clone(),
+            });
+            resolved
+        } else {
+            parse_quantity(&couple.factor, SIUnit::Ratio).map_err(|error| {
+                semantic_error(
+                    "KES-C001",
+                    format!("invalid coupling factor: {error}"),
+                    Some(&couple.name),
+                    Some("coefficient"),
+                )
+            })?
+        };
+        if !(0.0 < coefficient.value && coefficient.value <= 1.0) {
+            return Err(semantic_error(
+                "KES-C001",
+                format!(
+                    "coupling '{}' coefficient must be in (0, 1], got {}",
+                    couple.name, coefficient.value
+                ),
+                Some(&couple.name),
+                Some("coefficient"),
+            ));
+        }
+        couplings.push(InductorCoupling {
+            name: couple.name.clone(),
+            inductors: couple.inductors.clone(),
+            coefficient,
+        });
     }
 
     let analyses = analysis_statements
@@ -1689,11 +1843,12 @@ pub fn ast_to_ir_with_resources(
     parameter_manifest
         .assertion_bindings
         .sort_by(|a, b| (a.assertion_index, &a.field).cmp(&(b.assertion_index, &b.field)));
-    let physical_parts = compile_physical_parts(&part_assignments, &components)?;
+    let physical_parts = compile_physical_parts(&part_assignments, &components, &connections)?;
     Ok(CircuitIR {
         components,
         connections,
         nets,
+        couplings,
         analyses,
         assertions,
         model_manifest,
@@ -1705,6 +1860,7 @@ pub fn ast_to_ir_with_resources(
 fn compile_physical_parts(
     declarations: &[crate::ast::PartAssignmentDecl],
     components: &[IRComponent],
+    connections: &[Connection],
 ) -> Result<PhysicalPartManifest, SemanticDiagnostic> {
     let mut assignments = Vec::new();
     let mut assigned = BTreeMap::<String, &crate::ast::PartAssignmentDecl>::new();
@@ -1821,7 +1977,7 @@ fn compile_physical_parts(
                     Some("pin_map"),
                 ));
             }
-            parse_physical_pin_map(&declaration.component, mapping, component)?
+            parse_physical_pin_map(&declaration.component, mapping, component, connections)?
         } else {
             BTreeMap::new()
         };
@@ -1920,6 +2076,7 @@ fn parse_physical_pin_map(
     component_id: &str,
     input: &str,
     component: &IRComponent,
+    connections: &[Connection],
 ) -> Result<BTreeMap<String, String>, SemanticDiagnostic> {
     let expected = crate::component::component_definition(&component.kind)
         .pins
@@ -1982,9 +2139,19 @@ fn parse_physical_pin_map(
             ));
         }
     }
+    let b_connected = connections.iter().any(|conn| {
+        conn.pins
+            .iter()
+            .any(|pin| pin.component == component.id && pin.pin == "b")
+    });
     let missing = expected
         .iter()
-        .filter(|pin| !mapping.contains_key(**pin))
+        .filter(|pin| {
+            if matches!(component.kind, ComponentKind::MOSFET(_)) && **pin == "b" && !b_connected {
+                return false;
+            }
+            !mapping.contains_key(**pin)
+        })
         .copied()
         .collect::<Vec<_>>();
     if !missing.is_empty() {

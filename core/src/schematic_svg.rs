@@ -172,27 +172,40 @@ fn symbol_markup(component: &SchematicComponent) -> String {
                 bottom = local(1.55),
             )
         }
-        CatalogSymbol::Mosfet => format!(
-            "<path {stroke} d=\"M 0 {one} H {gate} M {gate} {top} V {bottom} M {channel} {upper} V {lower} M {channel} {upper} L {two} 0 M {channel} {lower} L {two} {two}\"/>{gate_mark}",
-            one = local(1.0),
-            gate = local(0.65),
-            top = local(0.35),
-            bottom = local(1.65),
-            channel = local(1.05),
-            upper = local(0.48),
-            lower = local(1.52),
-            two = local(2.0),
-            gate_mark = if component.variant.as_deref() == Some("pmos") {
+        CatalogSymbol::Mosfet => {
+            let has_bulk = component.pins.iter().any(|p| p.name == "b");
+            let bulk_path = if has_bulk {
                 format!(
-                    "<circle cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"#fff\" stroke=\"#172033\" stroke-width=\"2\"/>",
-                    local(0.82),
-                    local(1.0),
-                    local(0.12)
+                    " M {channel} {one} H {two}",
+                    channel = local(1.05),
+                    one = local(1.0),
+                    two = local(2.0)
                 )
             } else {
                 String::new()
-            }
-        ),
+            };
+            format!(
+                "<path {stroke} d=\"M 0 {one} H {gate} M {gate} {top} V {bottom} M {channel} {upper} V {lower} M {channel} {upper} L {two} 0 M {channel} {lower} L {two} {two}{bulk_path}\"/>{gate_mark}",
+                one = local(1.0),
+                gate = local(0.65),
+                top = local(0.35),
+                bottom = local(1.65),
+                channel = local(1.05),
+                upper = local(0.48),
+                lower = local(1.52),
+                two = local(2.0),
+                gate_mark = if component.variant.as_deref() == Some("pmos") {
+                    format!(
+                        "<circle cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"#fff\" stroke=\"#172033\" stroke-width=\"2\"/>",
+                        local(0.82),
+                        local(1.0),
+                        local(0.12)
+                    )
+                } else {
+                    String::new()
+                }
+            )
+        }
         CatalogSymbol::OpAmp => format!(
             "<path {stroke} d=\"M 0 0 H {lead} M 0 {two} H {lead} M {one} -{one} V -{tip} M {one} {three} V {bottom} M {right} {one} H {three}\"/><path d=\"M {lead} -{half} L {lead} {mid} L {right} {one} Z\" fill=\"#ffffff\" stroke=\"#172033\" stroke-width=\"2\"/><path d=\"M {sign_left} {plus_y} H {sign_right} M {sign_mid} {plus_top} V {plus_bottom} M {sign_left} {minus_y} H {sign_right}\" fill=\"none\" stroke=\"#172033\" stroke-width=\"1.25\"/>",
             lead = local(0.4),

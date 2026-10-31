@@ -465,6 +465,31 @@ fn parse_statement(
             }
             Some(Statement::Connect(Connection { pins }))
         }
+        Rule::couple_stmt => {
+            let mut inner_rules = inner.into_inner();
+            let name = inner_rules.next().unwrap().as_str().to_string();
+            let mut inductors = Vec::new();
+            let mut factor_pair = None;
+            for pair in inner_rules {
+                match pair.as_rule() {
+                    Rule::ident => inductors.push(pair.as_str().to_string()),
+                    Rule::numeric_value => factor_pair = Some(pair),
+                    _ => unreachable!(),
+                }
+            }
+            let factor_pair = factor_pair.expect("couple_stmt must have numeric_value");
+            let factor_expression = numeric_expression(&factor_pair)?;
+            let mut factor = factor_pair.as_str().to_string();
+            if factor.starts_with('"') && factor.ends_with('"') {
+                factor = factor[1..factor.len() - 1].to_string();
+            }
+            Some(Statement::Couple(CouplingDecl {
+                name,
+                inductors,
+                factor,
+                factor_expression,
+            }))
+        }
         Rule::assert_stmt => {
             let mut inner_rules = inner.into_inner();
             let metric_call = inner_rules.next().unwrap();
