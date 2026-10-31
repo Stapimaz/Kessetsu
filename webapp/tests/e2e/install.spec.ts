@@ -21,6 +21,13 @@ test('guides installation, copies commands, and opens direct installation URLs',
   await expect(page.getByText('ngspice --version', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Linux', exact: true }).click();
   await expect(page.getByText('sudo apt-get update && sudo apt-get install ngspice', { exact: true })).toBeVisible();
+  const aiGroup = page.getByRole('group', { name: 'Choose your AI application' });
+  await expect(aiGroup).toBeVisible();
+  await aiGroup.getByRole('button', { name: 'Cursor', exact: true }).click();
+  await expect(aiGroup.getByRole('button', { name: 'Cursor', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('.cursor/mcp.json', { exact: true })).toBeVisible();
+  await aiGroup.getByRole('button', { name: 'Claude Code', exact: true }).click();
+  await expect(page.getByText('claude mcp add kessetsu -- kess mcp', { exact: true })).toBeVisible();
   await page.getByText('Copy a complete first task for your agent', { exact: true }).click();
   await page.getByRole('button', { name: 'Copy complete agent task' }).click();
   const task = await page.evaluate(() => navigator.clipboard.readText());
