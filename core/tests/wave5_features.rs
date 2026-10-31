@@ -1,9 +1,8 @@
 use kessetsu_core::{
-    compile_source,
-    ir::{parse_waveform, SIUnit, SourceValue, Waveform},
+    CompileOptions, compile_source,
+    ir::{SIUnit, SourceValue, Waveform, parse_waveform},
     ltspice::generate_ltspice_asc,
     schematic_svg::render_svg,
-    CompileOptions,
 };
 
 #[test]
@@ -21,12 +20,27 @@ connect R1.p2 to gnd
 simulate tran 100ns 50us
 "#;
     let compiled = compile_source(src, CompileOptions::all_outputs());
-    assert!(!compiled.has_errors(), "Expected valid exp waveform to compile: {:?}", compiled.diagnostics);
+    assert!(
+        !compiled.has_errors(),
+        "Expected valid exp waveform to compile: {:?}",
+        compiled.diagnostics
+    );
     let ir = compiled.ir.expect("IR should exist");
-    let v1 = ir.components.iter().find(|c| c.id == "V1").expect("V1 should exist");
+    let v1 = ir
+        .components
+        .iter()
+        .find(|c| c.id == "V1")
+        .expect("V1 should exist");
     match &v1.parameters {
         kessetsu_core::ir::ComponentParams::VoltageSource { value } => match value {
-            SourceValue::Waveform(Waveform::Exp { v1, v2, td1, tau1, td2, tau2 }) => {
+            SourceValue::Waveform(Waveform::Exp {
+                v1,
+                v2,
+                td1,
+                tau1,
+                td2,
+                tau2,
+            }) => {
                 assert_eq!(v1.value, 0.0);
                 assert_eq!(v2.value, 5.0);
                 assert!((td1.value - 1e-6).abs() < 1e-12);
@@ -40,7 +54,9 @@ simulate tran 100ns 50us
     }
 
     // SPICE netlist output
-    let spice = compiled.spice_netlist.expect("SPICE netlist should be produced");
+    let spice = compiled
+        .spice_netlist
+        .expect("SPICE netlist should be produced");
     assert!(
         spice.contains("V_V1 in 0 EXP(0 5 1e-6 5e-6 1e-5 2e-5)"),
         "SPICE netlist did not contain expected EXP card: {spice}"
@@ -48,8 +64,15 @@ simulate tran 100ns 50us
 
     // Schematic label
     let schematic = compiled.schematic.expect("Schematic should exist");
-    let comp_v1 = schematic.components.iter().find(|c| c.id == "V1").expect("V1 in schematic");
-    assert_eq!(comp_v1.value.as_deref(), Some("exp(0 V, 5 V, 1 µs, 5 µs, 10 µs, 20 µs)"));
+    let comp_v1 = schematic
+        .components
+        .iter()
+        .find(|c| c.id == "V1")
+        .expect("V1 in schematic");
+    assert_eq!(
+        comp_v1.value.as_deref(),
+        Some("exp(0 V, 5 V, 1 µs, 5 µs, 10 µs, 20 µs)")
+    );
 
     // Invalid: negative delay
     let invalid_delay = r#"
@@ -82,7 +105,14 @@ fn test_exp_waveform_evaluation() {
     let val = SourceValue::Waveform(wf);
     let eval = |t: f64| -> f64 {
         match &val {
-            SourceValue::Waveform(Waveform::Exp { v1, v2, td1, tau1, td2, tau2 }) => {
+            SourceValue::Waveform(Waveform::Exp {
+                v1,
+                v2,
+                td1,
+                tau1,
+                td2,
+                tau2,
+            }) => {
                 if t <= td1.value {
                     v1.value
                 } else if t <= td2.value {
@@ -134,14 +164,29 @@ connect RL.p2 to gnd
 simulate op
 "#;
     let compiled = compile_source(valid_2w, CompileOptions::all_outputs());
-    assert!(!compiled.has_errors(), "Valid 2-winding couple should compile: {:?}", compiled.diagnostics);
-    let spice = compiled.spice_netlist.expect("SPICE netlist should be generated");
-    assert!(spice.contains("K_K1 L_L1 L_L2 0.99"), "SPICE should contain K_K1 card: {spice}");
+    assert!(
+        !compiled.has_errors(),
+        "Valid 2-winding couple should compile: {:?}",
+        compiled.diagnostics
+    );
+    let spice = compiled
+        .spice_netlist
+        .expect("SPICE netlist should be generated");
+    assert!(
+        spice.contains("K_K1 L_L1 L_L2 0.99"),
+        "SPICE should contain K_K1 card: {spice}"
+    );
 
     // LTspice export includes directive
-    let ltspice = generate_ltspice_asc(compiled.schematic.as_ref().unwrap(), compiled.ir.as_ref().unwrap())
-        .expect("LTspice export should succeed");
-    assert!(ltspice.contains("!KK1 L1 L2 0.99"), "LTspice ASC should contain !KK1 directive: {ltspice}");
+    let ltspice = generate_ltspice_asc(
+        compiled.schematic.as_ref().unwrap(),
+        compiled.ir.as_ref().unwrap(),
+    )
+    .expect("LTspice export should succeed");
+    assert!(
+        ltspice.contains("!KK1 L1 L2 0.99"),
+        "LTspice ASC should contain !KK1 directive: {ltspice}"
+    );
 
     // Valid 3-winding transformer (multi-winding expansion)
     let valid_3w = r#"
@@ -171,11 +216,26 @@ connect R2.p2 to gnd
 simulate op
 "#;
     let compiled3 = compile_source(valid_3w, CompileOptions::default());
-    assert!(!compiled3.has_errors(), "Valid 3-winding couple should compile: {:?}", compiled3.diagnostics);
-    let spice3 = compiled3.spice_netlist.expect("SPICE netlist should be generated");
-    assert!(spice3.contains("K_K1_1_2 L_L1 L_L2 0.98"), "Should contain K_K1_1_2: {spice3}");
-    assert!(spice3.contains("K_K1_1_3 L_L1 L_L3 0.98"), "Should contain K_K1_1_3: {spice3}");
-    assert!(spice3.contains("K_K1_2_3 L_L2 L_L3 0.98"), "Should contain K_K1_2_3: {spice3}");
+    assert!(
+        !compiled3.has_errors(),
+        "Valid 3-winding couple should compile: {:?}",
+        compiled3.diagnostics
+    );
+    let spice3 = compiled3
+        .spice_netlist
+        .expect("SPICE netlist should be generated");
+    assert!(
+        spice3.contains("K_K1_1_2 L_L1 L_L2 0.98"),
+        "Should contain K_K1_1_2: {spice3}"
+    );
+    assert!(
+        spice3.contains("K_K1_1_3 L_L1 L_L3 0.98"),
+        "Should contain K_K1_1_3: {spice3}"
+    );
+    assert!(
+        spice3.contains("K_K1_2_3 L_L2 L_L3 0.98"),
+        "Should contain K_K1_2_3: {spice3}"
+    );
 
     // Invalid: coefficient > 1.0
     let invalid_coeff_high = r#"
@@ -218,7 +278,10 @@ inductor L1 1m
 couple K1 L1 L1 0.95
 "#;
     let res = compile_source(invalid_dup, CompileOptions::default());
-    assert!(res.has_errors(), "Duplicate inductor in same statement must be rejected");
+    assert!(
+        res.has_errors(),
+        "Duplicate inductor in same statement must be rejected"
+    );
 }
 
 #[test]
@@ -245,16 +308,31 @@ connect RS.p2 to gnd
 simulate op
 "#;
     let compiled_3p = compile_source(mosfet_3pin, CompileOptions::all_outputs());
-    assert!(!compiled_3p.has_errors(), "3-pin MOSFET must compile cleanly: {:?}", compiled_3p.diagnostics);
-    
+    assert!(
+        !compiled_3p.has_errors(),
+        "3-pin MOSFET must compile cleanly: {:?}",
+        compiled_3p.diagnostics
+    );
+
     // ERC: unconnected b must not produce floating pin error
-    let erc_3p = compiled_3p.diagnostics.iter().filter(|d| d.code == "KES-E003").count();
-    assert_eq!(erc_3p, 0, "Unconnected b pin must not produce floating pin diagnostic");
+    let erc_3p = compiled_3p
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == "KES-E003")
+        .count();
+    assert_eq!(
+        erc_3p, 0,
+        "Unconnected b pin must not produce floating pin diagnostic"
+    );
 
     // Schematic pins: only d, g, s anchors
     let sch_3p = compiled_3p.schematic.as_ref().unwrap();
     let m1_3p = sch_3p.components.iter().find(|c| c.id == "M1").unwrap();
-    assert_eq!(m1_3p.pins.len(), 3, "3-pin MOSFET should have exactly 3 anchors");
+    assert_eq!(
+        m1_3p.pins.len(),
+        3,
+        "3-pin MOSFET should have exactly 3 anchors"
+    );
     assert!(!m1_3p.pins.iter().any(|p| p.name == "b"));
 
     // SPICE output: bulk folded to source
@@ -266,7 +344,10 @@ simulate op
 
     // LTspice export: uses nmos (not nmos4)
     let ltspice_3p = generate_ltspice_asc(sch_3p, compiled_3p.ir.as_ref().unwrap()).unwrap();
-    assert!(ltspice_3p.contains("SYMBOL nmos"), "3-pin MOSFET should export as standard nmos: {ltspice_3p}");
+    assert!(
+        ltspice_3p.contains("SYMBOL nmos"),
+        "3-pin MOSFET should export as standard nmos: {ltspice_3p}"
+    );
 
     // 4-terminal MOSFET (explicit bulk pin b connected to separate rail / ground)
     let mosfet_4pin = r#"
@@ -291,13 +372,24 @@ connect RS.p2 to gnd
 simulate op
 "#;
     let compiled_4p = compile_source(mosfet_4pin, CompileOptions::all_outputs());
-    assert!(!compiled_4p.has_errors(), "4-pin MOSFET must compile cleanly: {:?}", compiled_4p.diagnostics);
+    assert!(
+        !compiled_4p.has_errors(),
+        "4-pin MOSFET must compile cleanly: {:?}",
+        compiled_4p.diagnostics
+    );
 
     // Schematic pins: all 4 anchors (d, g, s, b)
     let sch_4p = compiled_4p.schematic.as_ref().unwrap();
     let m1_4p = sch_4p.components.iter().find(|c| c.id == "M1").unwrap();
-    assert_eq!(m1_4p.pins.len(), 4, "4-pin MOSFET should have exactly 4 anchors");
-    assert!(m1_4p.pins.iter().any(|p| p.name == "b"), "4-pin MOSFET must have anchor for b");
+    assert_eq!(
+        m1_4p.pins.len(),
+        4,
+        "4-pin MOSFET should have exactly 4 anchors"
+    );
+    assert!(
+        m1_4p.pins.iter().any(|p| p.name == "b"),
+        "4-pin MOSFET must have anchor for b"
+    );
 
     // SVG export includes bulk lead
     let svg = render_svg(sch_4p);
@@ -312,7 +404,10 @@ simulate op
 
     // LTspice export: uses nmos4
     let ltspice_4p = generate_ltspice_asc(sch_4p, compiled_4p.ir.as_ref().unwrap()).unwrap();
-    assert!(ltspice_4p.contains("SYMBOL nmos4"), "4-pin MOSFET should export as nmos4: {ltspice_4p}");
+    assert!(
+        ltspice_4p.contains("SYMBOL nmos4"),
+        "4-pin MOSFET should export as nmos4: {ltspice_4p}"
+    );
 }
 
 #[test]
@@ -359,17 +454,30 @@ connect J2.s to gnd
 simulate op
 "#;
     let compiled = compile_source(kess, CompileOptions::all_outputs());
-    assert!(!compiled.has_errors(), "JFET program must compile: {:?}", compiled.diagnostics);
+    assert!(
+        !compiled.has_errors(),
+        "JFET program must compile: {:?}",
+        compiled.diagnostics
+    );
 
     let ir = compiled.ir.as_ref().unwrap();
     let j1 = ir.components.iter().find(|c| c.id == "J1").unwrap();
-    assert!(matches!(j1.kind, kessetsu_core::ir::ComponentKind::JFET(kessetsu_core::ir::JFETPolarity::NJF)));
+    assert!(matches!(
+        j1.kind,
+        kessetsu_core::ir::ComponentKind::JFET(kessetsu_core::ir::JFETPolarity::NJF)
+    ));
     let j2 = ir.components.iter().find(|c| c.id == "J2").unwrap();
-    assert!(matches!(j2.kind, kessetsu_core::ir::ComponentKind::JFET(kessetsu_core::ir::JFETPolarity::PJF)));
+    assert!(matches!(
+        j2.kind,
+        kessetsu_core::ir::ComponentKind::JFET(kessetsu_core::ir::JFETPolarity::PJF)
+    ));
 
     // SPICE generation check
     let spice = compiled.spice_netlist.as_ref().unwrap();
-    assert!(spice.contains("J_J1 d vg s 2N5457"), "Generated SPICE netlist must contain J_J1 card: {spice}");
+    assert!(
+        spice.contains("J_J1 d vg s 2N5457"),
+        "Generated SPICE netlist must contain J_J1 card: {spice}"
+    );
 
     // Schematic & SVG check
     let sch = compiled.schematic.as_ref().unwrap();
@@ -380,12 +488,21 @@ simulate op
 
     let svg = render_svg(sch);
     assert!(!svg.is_empty(), "SVG rendering should succeed");
-    assert!(svg.contains("gate-arrow"), "SVG should render gate arrow for JFET");
+    assert!(
+        svg.contains("gate-arrow"),
+        "SVG should render gate arrow for JFET"
+    );
 
     // LTspice export check
     let ltspice = generate_ltspice_asc(sch, ir).unwrap();
-    assert!(ltspice.contains("SYMBOL njf"), "LTspice export should contain SYMBOL njf: {ltspice}");
-    assert!(ltspice.contains("SYMBOL pjf"), "LTspice export should contain SYMBOL pjf: {ltspice}");
+    assert!(
+        ltspice.contains("SYMBOL njf"),
+        "LTspice export should contain SYMBOL njf: {ltspice}"
+    );
+    assert!(
+        ltspice.contains("SYMBOL pjf"),
+        "LTspice export should contain SYMBOL pjf: {ltspice}"
+    );
 
     // SPICE import round-trip check
     let spice_input = r#"* Clean-room JFET test
@@ -398,11 +515,27 @@ J1 d vg 0 J2N5457
 .end
 "#;
     let report = kessetsu_core::spice_import::import_spice(spice_input);
-    assert!(!report.has_errors(), "SPICE import of JFET netlist must succeed: {:?}", report.diagnostics);
-    let imported_kess = report.kess_source.expect("imported kess source should be emitted");
-    assert!(imported_kess.contains("jfet J1"), "Imported kess source should declare jfet J1: {imported_kess}");
-    assert!(imported_kess.contains("model jfet"), "Imported kess source should declare model jfet: {imported_kess}");
+    assert!(
+        !report.has_errors(),
+        "SPICE import of JFET netlist must succeed: {:?}",
+        report.diagnostics
+    );
+    let imported_kess = report
+        .kess_source
+        .expect("imported kess source should be emitted");
+    assert!(
+        imported_kess.contains("jfet J1"),
+        "Imported kess source should declare jfet J1: {imported_kess}"
+    );
+    assert!(
+        imported_kess.contains("model jfet"),
+        "Imported kess source should declare model jfet: {imported_kess}"
+    );
 
     let recompiled = compile_source(&imported_kess, CompileOptions::default());
-    assert!(!recompiled.has_errors(), "Recompiling imported JFET kess source must succeed: {:?}", recompiled.diagnostics);
+    assert!(
+        !recompiled.has_errors(),
+        "Recompiling imported JFET kess source must succeed: {:?}",
+        recompiled.diagnostics
+    );
 }

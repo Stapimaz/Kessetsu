@@ -525,12 +525,7 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
             .next()
             .is_some_and(|character| character.eq_ignore_ascii_case(&'k'))
         {
-            match parse_coupling(
-                text,
-                line.number,
-                &parameter_lookup,
-                &mut parameter_units,
-            ) {
+            match parse_coupling(text, line.number, &parameter_lookup, &mut parameter_units) {
                 Ok(coupling) => couplings.push(coupling),
                 Err(_) if is_first_line => push_title_info(&mut report),
                 Err(message) => push_error(&mut report, "KES-N002", message, Some(line.number)),
@@ -623,13 +618,13 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
                 kessetsu: mapped.clone(),
             }),
     );
-    report.names.extend(
-        couplings.iter().map(|coupling| ImportNameMapping {
+    report
+        .names
+        .extend(couplings.iter().map(|coupling| ImportNameMapping {
             kind: ImportNameKind::Component,
             original: coupling.original_name.clone(),
             kessetsu: coupling.name.clone(),
-        }),
-    );
+        }));
     for module in &subcircuits {
         report.names.push(ImportNameMapping {
             kind: ImportNameKind::Module,
@@ -1956,20 +1951,29 @@ fn parse_component(
                 .map(|i| i + 1)
                 .unwrap_or(fields.len());
             let core_fields = &fields[..param_start];
-            let (nodes, model, pins): (Vec<String>, String, &'static [&'static str]) = match core_fields.len() {
-                5 => (core_fields[1..4].to_vec(), core_fields[4].clone(), &["d", "g", "s"]),
-                6 if core_fields[3].eq_ignore_ascii_case(&core_fields[4]) => {
-                    (core_fields[1..4].to_vec(), core_fields[5].clone(), &["d", "g", "s"])
-                }
-                6 => {
-                    (core_fields[1..5].to_vec(), core_fields[5].clone(), &["d", "g", "s", "b"])
-                }
-                _ => {
-                    return Err(
-                        "M expects drain, gate, source, optional bulk, and model".into(),
-                    );
-                }
-            };
+            let (nodes, model, pins): (Vec<String>, String, &'static [&'static str]) =
+                match core_fields.len() {
+                    5 => (
+                        core_fields[1..4].to_vec(),
+                        core_fields[4].clone(),
+                        &["d", "g", "s"],
+                    ),
+                    6 if core_fields[3].eq_ignore_ascii_case(&core_fields[4]) => (
+                        core_fields[1..4].to_vec(),
+                        core_fields[5].clone(),
+                        &["d", "g", "s"],
+                    ),
+                    6 => (
+                        core_fields[1..5].to_vec(),
+                        core_fields[5].clone(),
+                        &["d", "g", "s", "b"],
+                    ),
+                    _ => {
+                        return Err(
+                            "M expects drain, gate, source, optional bulk, and model".into()
+                        );
+                    }
+                };
             if param_start < fields.len() {
                 let known_mosfet_params = [
                     "w", "l", "ad", "as", "pd", "ps", "nrd", "nrs", "off", "ic", "temp", "dtemp",
@@ -2040,24 +2044,24 @@ fn parse_component(
                 .map(|i| i + 1)
                 .unwrap_or(fields.len());
             let core_fields = &fields[..param_start];
-            let (nodes, model, pins): (Vec<String>, String, &'static [&'static str]) = match core_fields.len() {
-                5 => (core_fields[1..4].to_vec(), core_fields[4].clone(), &["d", "g", "s"]),
-                _ => {
-                    return Err(
-                        "J expects drain, gate, source, and model".into(),
-                    );
-                }
-            };
+            let (nodes, model, pins): (Vec<String>, String, &'static [&'static str]) =
+                match core_fields.len() {
+                    5 => (
+                        core_fields[1..4].to_vec(),
+                        core_fields[4].clone(),
+                        &["d", "g", "s"],
+                    ),
+                    _ => {
+                        return Err("J expects drain, gate, source, and model".into());
+                    }
+                };
             if param_start < fields.len() {
-                let known_jfet_params = [
-                    "area", "off", "ic", "temp", "m",
-                ];
+                let known_jfet_params = ["area", "off", "ic", "temp", "m"];
                 for extra in &fields[param_start..] {
                     let Some((k, v)) = extra.split_once('=') else {
                         return Err(format!("JFET '{name}': invalid parameter '{extra}'"));
                     };
-                    if v.is_empty()
-                        || !known_jfet_params.contains(&k.to_ascii_lowercase().as_str())
+                    if v.is_empty() || !known_jfet_params.contains(&k.to_ascii_lowercase().as_str())
                     {
                         return Err(format!(
                             "JFET '{name}': unsupported instance parameter '{k}'"
@@ -2242,7 +2246,10 @@ fn parse_coupling(
 ) -> Result<ImportedCoupling, String> {
     let fields = split_fields(text);
     if fields.len() < 4 {
-        return Err("coupling statement 'K' requires name, at least 2 inductors, and a coupling factor".into());
+        return Err(
+            "coupling statement 'K' requires name, at least 2 inductors, and a coupling factor"
+                .into(),
+        );
     }
     let original_name = fields[0].clone();
     let name = original_name.clone();
@@ -2254,10 +2261,10 @@ fn parse_coupling(
     }
     let factor_raw = &fields[fields.len() - 1];
     let factor = translate_numeric(factor_raw, ImportUnit::Ratio, parameters, parameter_units)?;
-    if let Ok(val) = factor.parse::<f64>() {
-        if !(0.0 < val && val <= 1.0) {
-            return Err(format!("coupling factor must be in (0, 1], got {val}"));
-        }
+    if let Ok(val) = factor.parse::<f64>()
+        && !(0.0 < val && val <= 1.0)
+    {
+        return Err(format!("coupling factor must be in (0, 1], got {val}"));
     }
     Ok(ImportedCoupling {
         original_name,

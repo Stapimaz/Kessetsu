@@ -43,7 +43,10 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
             errors.push(ErcDiagnostic {
                 code: "KES-E001".to_string(),
                 severity: Severity::Error,
-                message: format!("Duplicate component or coupling declaration: {}", coupling.name),
+                message: format!(
+                    "Duplicate component or coupling declaration: {}",
+                    coupling.name
+                ),
                 component: Some(coupling.name.clone()),
                 pin: None,
             });
@@ -57,16 +60,18 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
                     component: Some(coupling.name.clone()),
                     pin: Some(ind.clone()),
                 });
-            } else if let Some(comp) = circuit.components.iter().find(|c| &c.id == ind) {
-                if !matches!(comp.kind, ComponentKind::Inductor) {
-                    errors.push(ErcDiagnostic {
-                        code: "KES-C001".to_string(),
-                        severity: Severity::Error,
-                        message: format!("Coupling refers to component '{ind}' which is not an inductor"),
-                        component: Some(coupling.name.clone()),
-                        pin: Some(ind.clone()),
-                    });
-                }
+            } else if let Some(comp) = circuit.components.iter().find(|c| &c.id == ind)
+                && !matches!(comp.kind, ComponentKind::Inductor)
+            {
+                errors.push(ErcDiagnostic {
+                    code: "KES-C001".to_string(),
+                    severity: Severity::Error,
+                    message: format!(
+                        "Coupling refers to component '{ind}' which is not an inductor"
+                    ),
+                    component: Some(coupling.name.clone()),
+                    pin: Some(ind.clone()),
+                });
             }
         }
     }

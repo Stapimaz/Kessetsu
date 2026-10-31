@@ -1,8 +1,8 @@
 use crate::component::{CatalogSymbol, PinFlow, PinSide, component_definition, through_pin};
 use crate::graph::{NetId, NetlistGraph, format_spice_number};
 use crate::ir::{
-    BJTPolarity, CircuitIR, ComponentKind, ComponentParams, FETPolarity, IRComponent,
-    JFETPolarity, ModelDefinition, SIUnit, SourceValue, Waveform,
+    BJTPolarity, CircuitIR, ComponentKind, ComponentParams, FETPolarity, IRComponent, JFETPolarity,
+    ModelDefinition, SIUnit, SourceValue, Waveform,
 };
 use serde::{Deserialize, Serialize};
 use std::cmp::Reverse;
@@ -2958,7 +2958,9 @@ fn place_components(
                     };
                     let y = match component.kind {
                         ComponentKind::OpAmp => MAIN_Y - 2 + row_offset,
-                        ComponentKind::BJT(_) | ComponentKind::MOSFET(_) | ComponentKind::JFET(_) => MAIN_Y - 1 + row_offset,
+                        ComponentKind::BJT(_)
+                        | ComponentKind::MOSFET(_)
+                        | ComponentKind::JFET(_) => MAIN_Y - 1 + row_offset,
                         _ => MAIN_Y + row_offset,
                     };
                     Point::new(rank_x, y)

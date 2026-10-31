@@ -3,8 +3,8 @@ use crate::component::component_definition;
 use crate::graph::format_spice_number;
 use crate::ir::{
     BJTPolarity, ComponentKind, ExternalModelMetadata, ExternalParameterDefinition, FETPolarity,
-    IRComponent, JFETPolarity, ModelDefinition, ModelManifest, ModelManifestEntry, ModelProvenance, ModelRef,
-    ModelSource, RedistributionPolicy, ResolvedModelPackage, SemanticDiagnostic,
+    IRComponent, JFETPolarity, ModelDefinition, ModelManifest, ModelManifestEntry, ModelProvenance,
+    ModelRef, ModelSource, RedistributionPolicy, ResolvedModelPackage, SemanticDiagnostic,
     SimulatorCompatibility, parse_si_value,
 };
 use sha2::{Digest, Sha256};

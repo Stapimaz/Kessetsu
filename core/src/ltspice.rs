@@ -87,7 +87,7 @@ fn symbol(component: &SchematicComponent) -> Result<LtSymbol, ExportError> {
                 (false, false) => ("nmos", MOSFET),
             };
             LtSymbol { name, pins }
-        },
+        }
         CatalogSymbol::Jfet { polarity } => LtSymbol {
             name: if matches!(polarity, crate::ir::JFETPolarity::PJF)
                 || component.variant.as_deref() == Some("pjf")

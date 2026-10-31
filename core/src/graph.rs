@@ -553,10 +553,19 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
                 });
                 if shares_nodes_with_vsource {
                     let int_node = format!("int_{}", comp.id);
-                    spice.push_str(&format!("R_ser_{} {} {} 1e-6\n", comp.id, nets[0], int_node));
-                    spice.push_str(&format!("L_{} {} {} {}\n", comp.id, int_node, nets[1], value_str));
+                    spice.push_str(&format!(
+                        "R_ser_{} {} {} 1e-6\n",
+                        comp.id, nets[0], int_node
+                    ));
+                    spice.push_str(&format!(
+                        "L_{} {} {} {}\n",
+                        comp.id, int_node, nets[1], value_str
+                    ));
                 } else {
-                    spice.push_str(&format!("L_{} {} {} {}\n", comp.id, nets[0], nets[1], value_str));
+                    spice.push_str(&format!(
+                        "L_{} {} {} {}\n",
+                        comp.id, nets[0], nets[1], value_str
+                    ));
                 }
             }
             ComponentKind::Resistor

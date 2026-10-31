@@ -1741,7 +1741,10 @@ pub fn ast_to_ir_with_resources(
         if components.iter().any(|c| c.id == couple.name) {
             return Err(semantic_error(
                 "KES-C001",
-                format!("coupling name '{}' collides with component name", couple.name),
+                format!(
+                    "coupling name '{}' collides with component name",
+                    couple.name
+                ),
                 Some(&couple.name),
                 None,
             ));
@@ -1749,7 +1752,10 @@ pub fn ast_to_ir_with_resources(
         if couple.inductors.len() < 2 {
             return Err(semantic_error(
                 "KES-C001",
-                format!("coupling '{}' must specify at least 2 inductors", couple.name),
+                format!(
+                    "coupling '{}' must specify at least 2 inductors",
+                    couple.name
+                ),
                 Some(&couple.name),
                 Some("inductors"),
             ));
@@ -1759,7 +1765,10 @@ pub fn ast_to_ir_with_resources(
             if !seen_ind.insert(ind) {
                 return Err(semantic_error(
                     "KES-C001",
-                    format!("coupling '{}' specifies duplicate inductor '{ind}'", couple.name),
+                    format!(
+                        "coupling '{}' specifies duplicate inductor '{ind}'",
+                        couple.name
+                    ),
                     Some(&couple.name),
                     Some("inductors"),
                 ));
@@ -1769,7 +1778,10 @@ pub fn ast_to_ir_with_resources(
                 None => {
                     return Err(semantic_error(
                         "KES-C001",
-                        format!("coupling '{}' references unknown inductor '{ind}'", couple.name),
+                        format!(
+                            "coupling '{}' references unknown inductor '{ind}'",
+                            couple.name
+                        ),
                         Some(&couple.name),
                         Some("inductors"),
                     ));
@@ -1777,7 +1789,10 @@ pub fn ast_to_ir_with_resources(
                 Some(c) if !matches!(c.kind, ComponentKind::Inductor) => {
                     return Err(semantic_error(
                         "KES-C001",
-                        format!("coupling '{}' references component '{ind}' which is not an inductor", couple.name),
+                        format!(
+                            "coupling '{}' references component '{ind}' which is not an inductor",
+                            couple.name
+                        ),
                         Some(&couple.name),
                         Some("inductors"),
                     ));
@@ -1791,7 +1806,8 @@ pub fn ast_to_ir_with_resources(
                 SIUnit::Ratio,
                 &parameter_values,
                 &mut expression_work,
-            ).map_err(|error| {
+            )
+            .map_err(|error| {
                 semantic_error(
                     "KES-C001",
                     format!("invalid coupling factor: {error}"),
@@ -1799,13 +1815,15 @@ pub fn ast_to_ir_with_resources(
                     Some("coefficient"),
                 )
             })?;
-            parameter_manifest.bindings.push(crate::expression::ParameterBinding {
-                component: couple.name.clone(),
-                field: "coefficient".into(),
-                expression: expression.source.clone(),
-                dependencies: expression.dependencies().into_iter().collect(),
-                resolved: resolved.clone(),
-            });
+            parameter_manifest
+                .bindings
+                .push(crate::expression::ParameterBinding {
+                    component: couple.name.clone(),
+                    field: "coefficient".into(),
+                    expression: expression.source.clone(),
+                    dependencies: expression.dependencies().into_iter().collect(),
+                    resolved: resolved.clone(),
+                });
             resolved
         } else {
             parse_quantity(&couple.factor, SIUnit::Ratio).map_err(|error| {

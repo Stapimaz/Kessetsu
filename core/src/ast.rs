@@ -222,7 +222,10 @@ impl Statement {
     pub(crate) fn expression_nodes(&self) -> usize {
         match self {
             Self::Param(parameter) => parameter.expression.node_count(),
-            Self::Couple(couple) => couple.factor_expression.as_ref().map_or(0, |e| e.node_count()),
+            Self::Couple(couple) => couple
+                .factor_expression
+                .as_ref()
+                .map_or(0, |e| e.node_count()),
             Self::Decl(decl) => {
                 decl.value_expression.as_ref().map_or(0, |e| e.node_count())
                     + decl.waveform_expression.as_ref().map_or(0, |call| {
