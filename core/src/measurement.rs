@@ -1048,11 +1048,16 @@ fn current_signal(
             }
         }
         ComponentKind::CurrentSource => source_current(dataset, component),
-        ComponentKind::Diode | ComponentKind::BJT(_) | ComponentKind::MOSFET(_) => {
+        ComponentKind::Diode
+        | ComponentKind::BJT(_)
+        | ComponentKind::MOSFET(_)
+        | ComponentKind::JFET(_) => {
             let key = match component.kind {
                 ComponentKind::Diode => format!("@{}[id]", spice_instance_name(component)),
                 ComponentKind::BJT(_) => format!("@{}[ic]", spice_instance_name(component)),
-                ComponentKind::MOSFET(_) => format!("@{}[id]", spice_instance_name(component)),
+                ComponentKind::MOSFET(_) | ComponentKind::JFET(_) => {
+                    format!("@{}[id]", spice_instance_name(component))
+                }
                 _ => unreachable!(),
             };
             direct_real_signal(dataset, &key.to_ascii_lowercase())
@@ -1098,7 +1103,7 @@ fn device_voltage_pins(component: &IRComponent) -> Result<(&'static str, &'stati
         | ComponentKind::Switch => ("p1", "p2"),
         ComponentKind::VoltageSource | ComponentKind::CurrentSource => ("plus", "minus"),
         ComponentKind::BJT(_) => ("c", "e"),
-        ComponentKind::MOSFET(_) => ("d", "s"),
+        ComponentKind::MOSFET(_) | ComponentKind::JFET(_) => ("d", "s"),
         ComponentKind::OpAmp => ("out", "vee"),
         ComponentKind::Vcvs | ComponentKind::Vccs | ComponentKind::Ccvs | ComponentKind::Cccs => {
             ("p_out", "n_out")
@@ -1307,6 +1312,7 @@ fn spice_instance_name(component: &IRComponent) -> String {
         ComponentKind::Switch => "s",
         ComponentKind::BJT(_) => "q",
         ComponentKind::MOSFET(_) => "m",
+        ComponentKind::JFET(_) => "j",
         ComponentKind::OpAmp | ComponentKind::ExternalDevice(_) => "x",
         ComponentKind::VoltageSource => "v",
         ComponentKind::CurrentSource => "i",

@@ -22,6 +22,7 @@ const CURRENT: &[(&str, i32, i32)] = &[("plus", 0, 0), ("minus", 0, 80)];
 const BJT: &[(&str, i32, i32)] = &[("c", 64, 0), ("b", 0, 48), ("e", 64, 96)];
 const MOSFET: &[(&str, i32, i32)] = &[("d", 48, 0), ("g", 0, 80), ("s", 48, 96)];
 const MOSFET4: &[(&str, i32, i32)] = &[("d", 48, 0), ("g", 0, 80), ("s", 48, 96), ("b", 48, 48)];
+const JFET: &[(&str, i32, i32)] = &[("d", 48, 0), ("g", 0, 64), ("s", 48, 96)];
 const OPAMP: &[(&str, i32, i32)] = &[
     ("in_p", -32, 80),
     ("in_n", -32, 48),
@@ -86,6 +87,16 @@ fn symbol(component: &SchematicComponent) -> Result<LtSymbol, ExportError> {
                 (false, false) => ("nmos", MOSFET),
             };
             LtSymbol { name, pins }
+        },
+        CatalogSymbol::Jfet { polarity } => LtSymbol {
+            name: if matches!(polarity, crate::ir::JFETPolarity::PJF)
+                || component.variant.as_deref() == Some("pjf")
+            {
+                "pjf"
+            } else {
+                "njf"
+            },
+            pins: JFET,
         },
         CatalogSymbol::OpAmp => LtSymbol {
             name: "OpAmps/opamp2",
@@ -429,6 +440,7 @@ fn component_value(component: &SchematicComponent, circuit: &CircuitIR) -> Strin
         ComponentParams::VoltageSource { value } | ComponentParams::CurrentSource { value } => {
             spice_source(value)
         }
+        ComponentParams::JFETParams { model } => model.clone(),
         _ => component
             .model
             .clone()

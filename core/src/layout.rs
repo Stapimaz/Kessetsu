@@ -228,7 +228,7 @@ pub fn generate_layout(circuit: &CircuitIR) -> LayoutResult {
         let has_active = chain.iter().any(|(c, _)| {
             matches!(
                 component_kinds.get(c),
-                Some(ComponentKind::BJT(_) | ComponentKind::MOSFET(_))
+                Some(ComponentKind::BJT(_) | ComponentKind::MOSFET(_) | ComponentKind::JFET(_))
             )
         });
         if has_active { 1 } else { 0 }
@@ -256,7 +256,7 @@ pub fn generate_layout(circuit: &CircuitIR) -> LayoutResult {
         for (comp_name, entry_pin) in chain {
             let pos = components.get_mut(comp_name).unwrap();
 
-            if pos.comp_type == "Transistor" || pos.comp_type == "Mosfet" {
+            if pos.comp_type == "Transistor" || pos.comp_type == "Mosfet" || pos.comp_type == "jfet" {
                 pos.x = axis_x - 2;
                 pos.y = current_y;
                 pos.rotation = 0;

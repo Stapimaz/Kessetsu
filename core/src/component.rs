@@ -1,4 +1,4 @@
-use crate::ir::{BJTPolarity, ComponentKind, ExternalDeviceFamily};
+use crate::ir::{BJTPolarity, ComponentKind, ExternalDeviceFamily, JFETPolarity};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -29,6 +29,7 @@ pub enum CatalogSymbol {
     Vccs,
     Ccvs,
     Cccs,
+    Jfet { polarity: JFETPolarity },
 }
 
 /// Conservative visible symbol extents in eighths of a schematic grid unit.
@@ -42,6 +43,7 @@ pub const fn symbol_ink_bounds_eighths(symbol: CatalogSymbol) -> (i32, i32, i32,
         CatalogSymbol::VoltageSource | CatalogSymbol::CurrentSource => (0, -5, 16, 5),
         CatalogSymbol::Bjt
         | CatalogSymbol::Mosfet
+        | CatalogSymbol::Jfet { .. }
         | CatalogSymbol::Switch
         | CatalogSymbol::Vcvs
         | CatalogSymbol::Vccs
@@ -62,6 +64,7 @@ pub enum PinFlow {
     Power,
     Reference,
     Conduction,
+    Control,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -211,6 +214,55 @@ const MOSFET_PINS: &[PinDefinition] = &[
     },
 ];
 
+pub const JFET_PINS: &[PinDefinition] = &[
+    PinDefinition {
+        name: "d",
+        x: 2,
+        y: 0,
+        is_signal: false,
+        flow: PinFlow::Conduction,
+        side: PinSide::Top,
+    },
+    PinDefinition {
+        name: "g",
+        x: 0,
+        y: 1,
+        is_signal: true,
+        flow: PinFlow::Control,
+        side: PinSide::Left,
+    },
+    PinDefinition {
+        name: "s",
+        x: 2,
+        y: 2,
+        is_signal: false,
+        flow: PinFlow::Conduction,
+        side: PinSide::Bottom,
+    },
+];
+
+pub const JFET_NJF_SPEC: ComponentDefinition = ComponentDefinition {
+    symbol: CatalogSymbol::Jfet {
+        polarity: JFETPolarity::NJF,
+    },
+    display_name: "jfet",
+    spice_prefix: Some("J"),
+    width: 2,
+    height: 2,
+    pins: JFET_PINS,
+};
+
+pub const JFET_PJF_SPEC: ComponentDefinition = ComponentDefinition {
+    symbol: CatalogSymbol::Jfet {
+        polarity: JFETPolarity::PJF,
+    },
+    display_name: "jfet",
+    spice_prefix: Some("J"),
+    width: 2,
+    height: 2,
+    pins: JFET_PINS,
+};
+
 const OPAMP_PINS: &[PinDefinition] = &[
     PinDefinition {
         name: "in_p",
@@ -347,6 +399,10 @@ pub fn component_definition(kind: &ComponentKind) -> ComponentDefinition {
         ComponentKind::MOSFET(_) => {
             definition(CatalogSymbol::Mosfet, "Mosfet", "M", 3, 3, MOSFET_PINS)
         }
+        ComponentKind::JFET(polarity) => match polarity {
+            JFETPolarity::NJF => JFET_NJF_SPEC,
+            JFETPolarity::PJF => JFET_PJF_SPEC,
+        },
         ComponentKind::OpAmp => definition(CatalogSymbol::OpAmp, "OpAmp", "X", 3, 3, OPAMP_PINS),
         ComponentKind::ExternalDevice(ExternalDeviceFamily::Comparator) => {
             definition(CatalogSymbol::OpAmp, "Comparator", "X", 3, 3, OPAMP_PINS)
@@ -465,6 +521,11 @@ pub fn through_pin(kind: &ComponentKind, entry_pin: &str) -> Option<&'static str
             "d" => Some("s"),
             "s" => Some("d"),
             "g" => Some("s"),
+            _ => None,
+        },
+        ComponentKind::JFET(_) => match entry_pin {
+            "d" => Some("s"),
+            "s" => Some("d"),
             _ => None,
         },
         ComponentKind::OpAmp | ComponentKind::ExternalDevice(ExternalDeviceFamily::Comparator) => {

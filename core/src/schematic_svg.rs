@@ -35,6 +35,7 @@ fn symbol_width(symbol: CatalogSymbol) -> f32 {
         | CatalogSymbol::Vccs
         | CatalogSymbol::Ccvs
         | CatalogSymbol::Cccs
+        | CatalogSymbol::Jfet { .. }
         | CatalogSymbol::Switch => 2.0,
         CatalogSymbol::Bjt | CatalogSymbol::Mosfet | CatalogSymbol::OpAmp => 3.0,
     }
@@ -204,6 +205,34 @@ fn symbol_markup(component: &SchematicComponent) -> String {
                 } else {
                     String::new()
                 }
+            )
+        }
+        CatalogSymbol::Jfet { polarity } => {
+            let is_pjf = matches!(polarity, crate::ir::JFETPolarity::PJF)
+                || component.variant.as_deref() == Some("pjf");
+            let arrow_points = if is_pjf {
+                [(0.65, 1.0), (0.95, 0.82), (0.95, 1.18)]
+            } else {
+                [(0.95, 1.0), (0.65, 0.82), (0.65, 1.18)]
+            };
+            let arrow = format!(
+                "M {} {} L {} {} L {} {} Z",
+                local(arrow_points[0].0),
+                local(arrow_points[0].1),
+                local(arrow_points[1].0),
+                local(arrow_points[1].1),
+                local(arrow_points[2].0),
+                local(arrow_points[2].1)
+            );
+            format!(
+                "<path {stroke} d=\"M 0 {one} H {channel} M {channel} {top_bar} V {bot_bar} M {channel} {top_lead} H {two} V 0 M {channel} {bot_lead} H {two} V {two}\"/><path class=\"gate-arrow\" d=\"{arrow}\" fill=\"#172033\" stroke=\"none\"/>",
+                one = local(1.0),
+                channel = local(1.15),
+                top_bar = local(0.4),
+                bot_bar = local(1.6),
+                top_lead = local(0.55),
+                bot_lead = local(1.45),
+                two = local(2.0),
             )
         }
         CatalogSymbol::OpAmp => format!(

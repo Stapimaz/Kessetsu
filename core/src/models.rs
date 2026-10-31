@@ -3,7 +3,7 @@ use crate::component::component_definition;
 use crate::graph::format_spice_number;
 use crate::ir::{
     BJTPolarity, ComponentKind, ExternalModelMetadata, ExternalParameterDefinition, FETPolarity,
-    IRComponent, ModelDefinition, ModelManifest, ModelManifestEntry, ModelProvenance, ModelRef,
+    IRComponent, JFETPolarity, ModelDefinition, ModelManifest, ModelManifestEntry, ModelProvenance, ModelRef,
     ModelSource, RedistributionPolicy, ResolvedModelPackage, SemanticDiagnostic,
     SimulatorCompatibility, parse_si_value,
 };
@@ -255,6 +255,11 @@ pub const MOSFET_MODEL_PARAMETERS: &[&str] = &[
 /// SPICE voltage-controlled switch parameters accepted by typed user models.
 pub const SWITCH_MODEL_PARAMETERS: &[&str] = &["vt", "vh", "ron", "roff"];
 
+/// Standard Ngspice JFET model parameters accepted by typed user models.
+pub const JFET_MODEL_PARAMETERS: &[&str] = &[
+    "vto", "beta", "lambda", "rd", "rs", "cgs", "cgd", "pb", "is", "fc", "b", "kf", "af", "tnom",
+];
+
 fn compile_user_model(declaration: &ModelDecl) -> Result<ModelRef, SemanticDiagnostic> {
     let (metadata, parameters) = split_metadata(&declaration.parameters, &declaration.name)?;
     let (kind, spice_kind, allowed): (ComponentKind, &str, &[&str]) = match declaration.kind {
@@ -339,6 +344,42 @@ fn compile_user_model(declaration: &ModelDecl) -> Result<ModelRef, SemanticDiagn
                 ));
             }
             (ComponentKind::Switch, "SW", SWITCH_MODEL_PARAMETERS)
+        }
+        ModelDeclKind::Jfet => {
+            let polarity = declaration.polarity.as_deref().ok_or_else(|| {
+                error(
+                    "KES-C004",
+                    format!(
+                        "JFET model '{}' must declare NJF or PJF variant",
+                        declaration.name
+                    ),
+                    Some(&declaration.name),
+                    "polarity",
+                )
+            })?;
+            if polarity.eq_ignore_ascii_case("njf") || polarity.eq_ignore_ascii_case("n") {
+                (
+                    ComponentKind::JFET(JFETPolarity::NJF),
+                    "NJF",
+                    JFET_MODEL_PARAMETERS,
+                )
+            } else if polarity.eq_ignore_ascii_case("pjf") || polarity.eq_ignore_ascii_case("p") {
+                (
+                    ComponentKind::JFET(JFETPolarity::PJF),
+                    "PJF",
+                    JFET_MODEL_PARAMETERS,
+                )
+            } else {
+                return Err(error(
+                    "KES-C004",
+                    format!(
+                        "JFET model '{}' must declare NJF or PJF variant",
+                        declaration.name
+                    ),
+                    Some(&declaration.name),
+                    "polarity",
+                ));
+            }
         }
     };
     let parameters = canonical_parameters(&parameters, allowed, &declaration.name)?;
@@ -1161,6 +1202,21 @@ fn builtin_models() -> Vec<ModelRef> {
             ComponentKind::Switch,
             ".model KESSETSU_SW_V1 SW (vt=0.5 vh=0 ron=1 roff=1000000)",
             "1.0.0",
+        ),
+        device_model(
+            "2N5457",
+            ComponentKind::JFET(JFETPolarity::NJF),
+            ".model 2N5457 NJF (VTO=-1.5 BETA=1.125m LAMBDA=2.25m RD=10 RS=10 CGS=4p CGD=1.5p)",
+        ),
+        device_model(
+            "J2N5457",
+            ComponentKind::JFET(JFETPolarity::NJF),
+            ".model J2N5457 NJF (VTO=-1.5 BETA=1.125m LAMBDA=2.25m RD=10 RS=10 CGS=4p CGD=1.5p)",
+        ),
+        device_model(
+            "2N5460",
+            ComponentKind::JFET(JFETPolarity::PJF),
+            ".model 2N5460 PJF (VTO=-2.5 BETA=1.0m LAMBDA=3.0m RD=15 RS=15 CGS=5p CGD=2p)",
         ),
         subcircuit_model(
             "KESSETSU_OPAMP_V1",

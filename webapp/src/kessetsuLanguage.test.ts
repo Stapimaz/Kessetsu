@@ -21,17 +21,19 @@ describe('Kessetsu editor language support', () => {
     expect(labels).toEqual(expect.arrayContaining([
       'param', 'net', 'source', 'current_source', 'resistor', 'capacitor', 'inductor',
       'vcvs', 'vccs', 'ccvs', 'cccs', 'switch',
-      'diode', 'transistor', 'mosfet', 'opamp', 'connect', 'simulate', 'assert',
+      'diode', 'transistor', 'mosfet', 'jfet', 'opamp', 'connect', 'simulate', 'assert',
       'model_include', 'model', 'subcircuit', 'external_subcircuit', 'module', 'use',
     ]));
     expect(topLevelCompletions.find((item) => item.label === 'switch')?.insertText)
       .toBe('switch ${1:S1} ${2:KESSETSU_SW_V1}');
     expect(topLevelCompletions.find((item) => item.label === 'model')?.insertText)
-      .toBe('model ${1|diode,bjt,mosfet,switch|} ${2:ModelName} ${3:version=1.0.0} ${4:license=MIT}');
+      .toBe('model ${1|diode,bjt,mosfet,jfet,switch|} ${2:ModelName} ${3:version=1.0.0} ${4:license=MIT}');
     expect(topLevelCompletions.find((item) => item.label === 'model')?.detail)
-      .toBe('Declare an allowlisted typed diode, BJT, MOSFET, or switch model.');
+      .toBe('Declare an allowlisted typed diode, BJT, MOSFET, JFET, or switch model.');
     expect(topLevelCompletions.find((item) => item.label === 'mosfet')?.insertText)
       .toBe('mosfet ${1:M1} ${2:IRF540}');
+    expect(topLevelCompletions.find((item) => item.label === 'jfet')?.insertText)
+      .toBe('jfet ${1:J1} ${2:2N5457}');
     expect(topLevelCompletions.find((item) => item.label === 'vcvs')?.insertText)
       .toBe('vcvs ${1:E1} ${2:1}');
     expect(topLevelCompletions.find((item) => item.label === 'vccs')?.insertText)
@@ -204,6 +206,57 @@ describe('Kessetsu editor language support', () => {
       expect(typeRule).toBeDefined();
       const typeRegex = typeRule![0];
       expect(typeRegex.test('switch')).toBe(true);
+    });
+  });
+
+  describe('Junction field-effect transistor (jfet)', () => {
+    it('defines COMPONENT_TYPES entry with expected details and documentation', () => {
+      expect(COMPONENT_TYPES.jfet).toEqual(expect.objectContaining({
+        label: 'jfet',
+        detail: 'jfet <name> <model>',
+        documentation: 'Declare a JFET; polarity is determined by its model.',
+        insertText: 'jfet ${1:J1} ${2:2N5457}',
+      }));
+    });
+
+    it('defines 3-pin mapping in PIN_MAP for jfet', () => {
+      expect(PIN_MAP.jfet).toEqual(['d', 'g', 's']);
+    });
+
+    it('extracts declarations for jfet', () => {
+      const sourceCode = `
+        jfet J1 2N5457
+        resistor R1 1k
+      `;
+      const decls = extractDeclarations(sourceCode);
+      expect(decls.get('J1')).toBe('jfet');
+      expect(decls.get('R1')).toBe('resistor');
+    });
+
+    it('provides pin completions for connect statements with jfet', () => {
+      const code = `
+        jfet J1 2N5457
+        resistor R1 1k
+      `;
+      const decls = extractDeclarations(code);
+      const pins = getPinCompletions('J1', decls).map((c) => c.label);
+      expect(pins).toEqual(['d', 'g', 's']);
+
+      const pinCompletions = completionsForLine('connect J1.', code);
+      expect(pinCompletions.map((c) => c.label)).toEqual(['d', 'g', 's']);
+
+      const targetPinCompletions = completionsForLine('connect R1.p1 to J1.', code);
+      expect(targetPinCompletions.map((c) => c.label)).toEqual(['d', 'g', 's']);
+    });
+
+    it('includes jfet in componentTypes and monarch token provider', () => {
+      expect(componentTypes).toContain('jfet');
+
+      const rootRules = kessetsuLanguageDefinition.tokenizer.root as Array<[RegExp, string]>;
+      const typeRule = rootRules.find((rule) => Array.isArray(rule) && rule[1] === 'type');
+      expect(typeRule).toBeDefined();
+      const typeRegex = typeRule![0];
+      expect(typeRegex.test('jfet')).toBe(true);
     });
   });
 });

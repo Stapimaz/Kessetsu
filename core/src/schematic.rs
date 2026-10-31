@@ -2,7 +2,7 @@ use crate::component::{CatalogSymbol, PinFlow, PinSide, component_definition, th
 use crate::graph::{NetId, NetlistGraph, format_spice_number};
 use crate::ir::{
     BJTPolarity, CircuitIR, ComponentKind, ComponentParams, FETPolarity, IRComponent,
-    ModelDefinition, SIUnit, SourceValue, Waveform,
+    JFETPolarity, ModelDefinition, SIUnit, SourceValue, Waveform,
 };
 use serde::{Deserialize, Serialize};
 use std::cmp::Reverse;
@@ -458,12 +458,21 @@ fn component_labels(component: &IRComponent) -> (Option<String>, Option<String>,
         ComponentParams::ModulePort { module_name, .. } => Some(module_name.clone()),
         _ => None,
     };
-    let model = component.model.as_ref().map(|model| model.name.clone());
+    let model = component
+        .model
+        .as_ref()
+        .map(|model| model.name.clone())
+        .or_else(|| match &component.parameters {
+            ComponentParams::JFETParams { model } => Some(model.clone()),
+            _ => None,
+        });
     let variant = match component.kind {
         ComponentKind::BJT(BJTPolarity::NPN) => Some("npn".to_string()),
         ComponentKind::BJT(BJTPolarity::PNP) => Some("pnp".to_string()),
         ComponentKind::MOSFET(FETPolarity::NMOS) => Some("nmos".to_string()),
         ComponentKind::MOSFET(FETPolarity::PMOS) => Some("pmos".to_string()),
+        ComponentKind::JFET(JFETPolarity::NJF) => Some("njf".to_string()),
+        ComponentKind::JFET(JFETPolarity::PJF) => Some("pjf".to_string()),
         ComponentKind::ExternalDevice(crate::ir::ExternalDeviceFamily::Comparator) => {
             Some("comparator".to_string())
         }
@@ -2492,7 +2501,7 @@ fn single_transistor_stage_placement(
     let transistor = circuit.components.iter().find(|component| {
         matches!(
             component.kind,
-            ComponentKind::MOSFET(_) | ComponentKind::BJT(_)
+            ComponentKind::MOSFET(_) | ComponentKind::BJT(_) | ComponentKind::JFET(_)
         )
     })?;
     if circuit
@@ -2501,7 +2510,7 @@ fn single_transistor_stage_placement(
         .filter(|component| {
             matches!(
                 component.kind,
-                ComponentKind::MOSFET(_) | ComponentKind::BJT(_)
+                ComponentKind::MOSFET(_) | ComponentKind::BJT(_) | ComponentKind::JFET(_)
             )
         })
         .count()
@@ -2510,7 +2519,7 @@ fn single_transistor_stage_placement(
         return None;
     }
     let (input_pin, upper_pin, lower_pin) = match transistor.kind {
-        ComponentKind::MOSFET(_) => ("g", "d", "s"),
+        ComponentKind::MOSFET(_) | ComponentKind::JFET(_) => ("g", "d", "s"),
         ComponentKind::BJT(_) => ("b", "c", "e"),
         _ => return None,
     };
@@ -2949,7 +2958,7 @@ fn place_components(
                     };
                     let y = match component.kind {
                         ComponentKind::OpAmp => MAIN_Y - 2 + row_offset,
-                        ComponentKind::BJT(_) | ComponentKind::MOSFET(_) => MAIN_Y - 1 + row_offset,
+                        ComponentKind::BJT(_) | ComponentKind::MOSFET(_) | ComponentKind::JFET(_) => MAIN_Y - 1 + row_offset,
                         _ => MAIN_Y + row_offset,
                     };
                     Point::new(rank_x, y)

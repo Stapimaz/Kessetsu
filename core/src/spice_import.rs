@@ -89,6 +89,7 @@ enum ImportedKind {
         model: String,
     },
     Mosfet(String),
+    Jfet(String),
     Switch(String),
     OpAmp(String),
     Vcvs(String),
@@ -212,6 +213,9 @@ const BUILTIN_MODEL_NAMES: &[&str] = &[
     "BZX84C5V1",
     "BZX84C12",
     "IRF540",
+    "2N5457",
+    "J2N5457",
+    "2N5460",
     "KESSETSU_POWER_NPN_V1",
     "KESSETSU_POWER_PNP_V1",
     "KESSETSU_PMOS_V1",
@@ -249,6 +253,7 @@ enum InlineModelKind {
     Diode,
     Bjt(&'static str),
     Mosfet(&'static str),
+    Jfet(&'static str),
     Switch,
 }
 
@@ -718,6 +723,7 @@ pub fn import_spice(source: &str) -> SpiceImportReport {
             ImportedKind::Diode(model)
             | ImportedKind::Bjt { model, .. }
             | ImportedKind::Mosfet(model)
+            | ImportedKind::Jfet(model)
             | ImportedKind::Switch(model) => Some(model.clone()),
             _ => None,
         })
@@ -1534,6 +1540,7 @@ fn render_component_declaration(component: &ImportedComponent, name: &str) -> St
             format!("transistor {name} {polarity} {model}")
         }
         ImportedKind::Mosfet(model) => format!("mosfet {name} {model}"),
+        ImportedKind::Jfet(model) => format!("jfet {name} {model}"),
         ImportedKind::Switch(model) => format!("switch {name} {model}"),
         ImportedKind::OpAmp(model) => format!("opamp {name} {model}"),
         ImportedKind::Vcvs(value) => format!("vcvs {name} {value}"),
@@ -2020,6 +2027,83 @@ fn parse_component(
                 nodes,
                 pins,
                 kind: ImportedKind::Mosfet(model),
+                line,
+            })
+        }
+        'J' => {
+            let normalized = normalize_assignments(&text.replace(',', " "));
+            let fields = split_fields(normalized.trim());
+            let param_start = fields
+                .iter()
+                .skip(1)
+                .position(|f| f.contains('='))
+                .map(|i| i + 1)
+                .unwrap_or(fields.len());
+            let core_fields = &fields[..param_start];
+            let (nodes, model, pins): (Vec<String>, String, &'static [&'static str]) = match core_fields.len() {
+                5 => (core_fields[1..4].to_vec(), core_fields[4].clone(), &["d", "g", "s"]),
+                _ => {
+                    return Err(
+                        "J expects drain, gate, source, and model".into(),
+                    );
+                }
+            };
+            if param_start < fields.len() {
+                let known_jfet_params = [
+                    "area", "off", "ic", "temp", "m",
+                ];
+                for extra in &fields[param_start..] {
+                    let Some((k, v)) = extra.split_once('=') else {
+                        return Err(format!("JFET '{name}': invalid parameter '{extra}'"));
+                    };
+                    if v.is_empty()
+                        || !known_jfet_params.contains(&k.to_ascii_lowercase().as_str())
+                    {
+                        return Err(format!(
+                            "JFET '{name}': unsupported instance parameter '{k}'"
+                        ));
+                    }
+                }
+                push_warning_diag(
+                    diagnostics,
+                    "KES-N011",
+                    format!(
+                        "JFET '{name}': instance parameters ({}) were ignored",
+                        fields[param_start..].join(", ")
+                    ),
+                    Some(line),
+                );
+            }
+            let model = match models.get(&model.to_ascii_lowercase()) {
+                Some(InlineModel {
+                    kind: InlineModelKind::Jfet(_),
+                    mapped,
+                    ..
+                }) => mapped.clone(),
+                Some(inline) => {
+                    return Err(format!(
+                        "JFET '{name}' references non-JFET model '{}'",
+                        inline.original
+                    ));
+                }
+                None if matches!(
+                    model.to_ascii_uppercase().as_str(),
+                    "2N5457" | "J2N5457" | "2N5460"
+                ) =>
+                {
+                    model
+                }
+                None => {
+                    return Err(format!(
+                        "JFET model '{model}' is neither built in nor defined by an inline .model NJF/PJF card"
+                    ));
+                }
+            };
+            Ok(ImportedComponent {
+                original_name: name.clone(),
+                nodes,
+                pins,
+                kind: ImportedKind::Jfet(model),
                 line,
             })
         }
@@ -3424,11 +3508,13 @@ fn parse_inline_model(
         "PNP" => InlineModelKind::Bjt("pnp"),
         "NMOS" => InlineModelKind::Mosfet("nmos"),
         "PMOS" => InlineModelKind::Mosfet("pmos"),
+        "NJF" => InlineModelKind::Jfet("njf"),
+        "PJF" => InlineModelKind::Jfet("pjf"),
         "SW" => InlineModelKind::Switch,
         "" => return Err(format!("model '{original}' has no model type")),
         other => {
             return Err(format!(
-                "model '{original}' type '{other}' is outside the typed subset (D, NPN, PNP, NMOS, PMOS, SW)"
+                "model '{original}' type '{other}' is outside the typed subset (D, NPN, PNP, NMOS, PMOS, NJF, PJF, SW)"
             ));
         }
     };
@@ -3443,6 +3529,7 @@ fn parse_inline_model(
         InlineModelKind::Diode => crate::models::DIODE_MODEL_PARAMETERS,
         InlineModelKind::Bjt(_) => crate::models::BJT_MODEL_PARAMETERS,
         InlineModelKind::Mosfet(_) => crate::models::MOSFET_MODEL_PARAMETERS,
+        InlineModelKind::Jfet(_) => crate::models::JFET_MODEL_PARAMETERS,
         InlineModelKind::Switch => crate::models::SWITCH_MODEL_PARAMETERS,
     };
     let mut parameters = Vec::new();
@@ -3563,6 +3650,7 @@ fn render_inline_model(model: &InlineModel) -> String {
         InlineModelKind::Diode => ("diode", String::new()),
         InlineModelKind::Bjt(polarity) => ("bjt", format!(" {polarity}")),
         InlineModelKind::Mosfet(polarity) => ("mosfet", format!(" {polarity}")),
+        InlineModelKind::Jfet(polarity) => ("jfet", format!(" {polarity}")),
         InlineModelKind::Switch => ("switch", String::new()),
     };
     let parameters = model

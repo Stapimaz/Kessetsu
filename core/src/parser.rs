@@ -159,6 +159,7 @@ fn parse_model_decl(pair: pest::iterators::Pair<Rule>) -> ModelDecl {
         "diode" => ModelDeclKind::Diode,
         "bjt" => ModelDeclKind::BJT,
         "mosfet" => ModelDeclKind::MOSFET,
+        "jfet" => ModelDeclKind::Jfet,
         "switch" => ModelDeclKind::Switch,
         _ => unreachable!(),
     };
@@ -289,6 +290,7 @@ fn parse_statement(
                         "cccs" => ComponentType::Cccs,
                         "diode" => ComponentType::Diode,
                         "mosfet" => ComponentType::Mosfet,
+                        "jfet" => ComponentType::JFET,
                         "switch" => ComponentType::Switch,
                         _ => unreachable!(),
                     };

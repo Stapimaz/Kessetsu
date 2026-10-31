@@ -302,10 +302,7 @@ J1 d vg 0 J2N5457
 .op
 .end
 ",
-        expected: ExpectedOutcome::ExpectedUnsupportedImport {
-            expected_error_code: "KES-N012",
-            construct_gap: "JFET component family 'J' and .model type 'NJF' outside supported subset",
-        },
+        expected: ExpectedOutcome::SupportedRoundTrip,
     },
     // =========================================================================
     // Category 4 — Controlled Sources & Switches (5 fixtures)
@@ -894,10 +891,10 @@ fn spice_corpus_all_fixtures_match_declared_disposition() {
         unsupported_compile_count
     );
 
-    assert_eq!(supported_roundtrip_count, 19);
+    assert_eq!(supported_roundtrip_count, 20);
     assert_eq!(supported_warning_count, 5);
-    assert_eq!(supported_roundtrip_count + supported_warning_count, 24);
-    assert_eq!(unsupported_import_count, 6);
+    assert_eq!(supported_roundtrip_count + supported_warning_count, 25);
+    assert_eq!(unsupported_import_count, 5);
     assert_eq!(unsupported_compile_count, 0);
 }
 
@@ -912,6 +909,7 @@ fn wave5_corpus_fixtures_simulate_cleanly_through_ngspice() {
     let target_ids = [
         "C06_SOURCE_EXP_WAVEFORM",
         "C10_MOSFET_BULK_TIED_RAIL",
+        "C12_JFET_DEVICE_AND_MODEL",
         "C18_MAGNETIC_COUPLED_INDUCTORS_TWO_WINDING",
         "C19_MAGNETIC_MULTI_WINDING_COUPLING",
     ];

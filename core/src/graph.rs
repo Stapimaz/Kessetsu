@@ -244,6 +244,7 @@ fn format_spice_value(comp: &IRComponent) -> String {
                 SourceValue::Waveform(waveform) => format_waveform(waveform),
             }
         }
+        ComponentParams::JFETParams { model } => model.clone(),
         _ => "".to_string(),
     }
 }
@@ -350,6 +351,7 @@ pub fn generate_browser_analysis_netlist(
             ComponentKind::Diode => Some(format!("@D_{}[id]", component.id)),
             ComponentKind::BJT(_) => Some(format!("@Q_{}[ic]", component.id)),
             ComponentKind::MOSFET(_) => Some(format!("@M_{}[id]", component.id)),
+            ComponentKind::JFET(_) => Some(format!("@J_{}[id]", component.id)),
             _ => None,
         })
         .collect::<BTreeSet<_>>();
@@ -498,6 +500,12 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
                 spice.push_str(&format!(
                     "M_{} {} {} {} {} {}\n",
                     comp.id, nets[0], nets[1], nets[2], bulk_net, value_str
+                ));
+            }
+            ComponentKind::JFET(_) => {
+                spice.push_str(&format!(
+                    "J_{} {} {} {} {}\n",
+                    comp.id, nets[0], nets[1], nets[2], value_str
                 ));
             }
             ComponentKind::Switch => {
@@ -762,6 +770,7 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
                     Some('D') | Some('d') => "D_",
                     Some('Q') | Some('q') => "Q_",
                     Some('M') | Some('m') => "M_",
+                    Some('J') | Some('j') => "J_",
                     Some('X') | Some('x') => "X_",
                     _ => "",
                 };

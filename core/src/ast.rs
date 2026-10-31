@@ -10,6 +10,7 @@ pub enum ComponentType {
     Diode,
     Transistor,
     Mosfet,
+    JFET,
     Switch,
     OpAmp,
     ExternalDevice,
@@ -155,6 +156,14 @@ pub enum ModelDeclKind {
     BJT,
     MOSFET,
     Switch,
+    Jfet,
+}
+
+pub type ModelFamily = ModelDeclKind;
+
+impl ModelDeclKind {
+    #[allow(non_upper_case_globals)]
+    pub const JFET: Self = Self::Jfet;
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

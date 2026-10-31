@@ -109,6 +109,7 @@ pub enum ComponentKind {
     Diode,
     BJT(BJTPolarity),
     MOSFET(FETPolarity),
+    JFET(JFETPolarity),
     Switch,
     OpAmp,
     ExternalDevice(ExternalDeviceFamily),
@@ -140,6 +141,12 @@ pub enum FETPolarity {
     PMOS,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum JFETPolarity {
+    NJF,
+    PJF,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ComponentParams {
     TwoPinPassive {
@@ -153,6 +160,9 @@ pub enum ComponentParams {
     },
     MOSFETParams {
         polarity: FETPolarity,
+    },
+    JFETParams {
+        model: String,
     },
     DiodeParams,
     SwitchParams,
@@ -1320,6 +1330,53 @@ pub fn ast_to_ir_with_resources(
                             ComponentParams::MOSFETParams { polarity },
                         )
                     }
+                    ComponentType::JFET => {
+                        let requested_model = if val_str.is_empty() {
+                            "2N5457"
+                        } else {
+                            val_str
+                        };
+                        if let Some(resolved) = model_library.resolve(requested_model) {
+                            let ComponentKind::JFET(polarity) = resolved.kind else {
+                                return Err(semantic_error(
+                                    "KES-C004",
+                                    format!("model '{requested_model}' is not a JFET model"),
+                                    Some(&decl.name),
+                                    Some("model"),
+                                ));
+                            };
+                            model = Some(resolved.clone());
+                            (
+                                ComponentKind::JFET(polarity),
+                                ComponentParams::JFETParams {
+                                    model: requested_model.to_string(),
+                                },
+                            )
+                        } else {
+                            if !is_safe_model_token(requested_model) {
+                                return Err(semantic_error(
+                                    "KES-C001",
+                                    format!("invalid model token '{requested_model}'"),
+                                    Some(&decl.name),
+                                    Some("model"),
+                                ));
+                            }
+                            let polarity = if requested_model.to_uppercase().contains("PJF")
+                                || requested_model.eq_ignore_ascii_case("2N5460")
+                                || requested_model.eq_ignore_ascii_case("J2N5460")
+                            {
+                                JFETPolarity::PJF
+                            } else {
+                                JFETPolarity::NJF
+                            };
+                            (
+                                ComponentKind::JFET(polarity),
+                                ComponentParams::JFETParams {
+                                    model: requested_model.to_string(),
+                                },
+                            )
+                        }
+                    }
                     ComponentType::Diode => {
                         let requested_model = if val_str.is_empty() {
                             "1N4148"
@@ -2374,4 +2431,11 @@ fn assertion_numeric_unit(metric: &str, arguments: &[&str], index: usize) -> Opt
         "energy" if count == 4 && matches!(index, 2 | 3) => Some(SIUnit::Second),
         _ => None,
     }
+}
+
+fn is_safe_model_token(value: &str) -> bool {
+    !value.is_empty()
+        && value
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
 }

@@ -314,3 +314,95 @@ simulate op
     let ltspice_4p = generate_ltspice_asc(sch_4p, compiled_4p.ir.as_ref().unwrap()).unwrap();
     assert!(ltspice_4p.contains("SYMBOL nmos4"), "4-pin MOSFET should export as nmos4: {ltspice_4p}");
 }
+
+#[test]
+fn test_jfet_njf_and_pjf_compilation_export_and_import() {
+    let kess = r#"
+model jfet CUSTOM_NJF njf version=1.0.0 license=MIT vto=-2.0 beta=1.2m
+model jfet CUSTOM_PJF pjf version=1.0.0 license=MIT vto=2.5 beta=1.0m
+
+net vdd
+net vss
+net vg
+net d
+net s
+net gnd
+
+source VDD 15V
+source VSS -15V
+source VG -1V
+
+jfet J1 2N5457
+jfet J2 CUSTOM_PJF
+
+resistor RD 2k
+resistor RS 100
+
+connect VDD.plus to vdd
+connect VDD.minus to gnd
+connect VSS.plus to gnd
+connect VSS.minus to vss
+connect VG.plus to vg
+connect VG.minus to gnd
+
+connect RD.p1 to vdd
+connect RD.p2 to d
+connect J1.d to d
+connect J1.g to vg
+connect J1.s to s
+connect RS.p1 to s
+connect RS.p2 to gnd
+connect J2.d to vss
+connect J2.g to gnd
+connect J2.s to gnd
+
+simulate op
+"#;
+    let compiled = compile_source(kess, CompileOptions::all_outputs());
+    assert!(!compiled.has_errors(), "JFET program must compile: {:?}", compiled.diagnostics);
+
+    let ir = compiled.ir.as_ref().unwrap();
+    let j1 = ir.components.iter().find(|c| c.id == "J1").unwrap();
+    assert!(matches!(j1.kind, kessetsu_core::ir::ComponentKind::JFET(kessetsu_core::ir::JFETPolarity::NJF)));
+    let j2 = ir.components.iter().find(|c| c.id == "J2").unwrap();
+    assert!(matches!(j2.kind, kessetsu_core::ir::ComponentKind::JFET(kessetsu_core::ir::JFETPolarity::PJF)));
+
+    // SPICE generation check
+    let spice = compiled.spice_netlist.as_ref().unwrap();
+    assert!(spice.contains("J_J1 d vg s 2N5457"), "Generated SPICE netlist must contain J_J1 card: {spice}");
+
+    // Schematic & SVG check
+    let sch = compiled.schematic.as_ref().unwrap();
+    let sch_j1 = sch.components.iter().find(|c| c.id == "J1").unwrap();
+    assert_eq!(sch_j1.variant.as_deref(), Some("njf"));
+    let sch_j2 = sch.components.iter().find(|c| c.id == "J2").unwrap();
+    assert_eq!(sch_j2.variant.as_deref(), Some("pjf"));
+
+    let svg = render_svg(sch);
+    assert!(!svg.is_empty(), "SVG rendering should succeed");
+    assert!(svg.contains("gate-arrow"), "SVG should render gate arrow for JFET");
+
+    // LTspice export check
+    let ltspice = generate_ltspice_asc(sch, ir).unwrap();
+    assert!(ltspice.contains("SYMBOL njf"), "LTspice export should contain SYMBOL njf: {ltspice}");
+    assert!(ltspice.contains("SYMBOL pjf"), "LTspice export should contain SYMBOL pjf: {ltspice}");
+
+    // SPICE import round-trip check
+    let spice_input = r#"* Clean-room JFET test
+Vdd vdd 0 15
+Vg vg 0 -1
+Rload vdd d 2k
+J1 d vg 0 J2N5457
+.model J2N5457 NJF(VTO=-2.5 BETA=1.5m)
+.op
+.end
+"#;
+    let report = kessetsu_core::spice_import::import_spice(spice_input);
+    assert!(!report.has_errors(), "SPICE import of JFET netlist must succeed: {:?}", report.diagnostics);
+    let imported_kess = report.kess_source.expect("imported kess source should be emitted");
+    assert!(imported_kess.contains("jfet J1"), "Imported kess source should declare jfet J1: {imported_kess}");
+    assert!(imported_kess.contains("model jfet"), "Imported kess source should declare model jfet: {imported_kess}");
+
+    let recompiled = compile_source(&imported_kess, CompileOptions::default());
+    assert!(!recompiled.has_errors(), "Recompiling imported JFET kess source must succeed: {:?}", recompiled.diagnostics);
+}

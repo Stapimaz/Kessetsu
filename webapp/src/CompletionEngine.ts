@@ -23,6 +23,7 @@ export const PIN_MAP: Record<string, readonly string[]> = {
   transistor: ['b', 'c', 'e'],
   bjt: ['b', 'c', 'e'],
   mosfet: ['d', 'g', 's', 'b'],
+  jfet: ['d', 'g', 's'],
   opamp: ['in_p', 'in_n', 'vcc', 'vee', 'out'],
   comparator: ['in_p', 'in_n', 'vcc', 'vee', 'out'],
   vcvs: ['p_out', 'n_out', 'ctrl_p', 'ctrl_n'],
@@ -106,6 +107,12 @@ const componentList: readonly ComponentTypeDetail[] = [
     insertText: 'mosfet ${1:M1} ${2:IRF540}',
   },
   {
+    label: 'jfet',
+    detail: 'jfet <name> <model>',
+    documentation: 'Declare a JFET; polarity is determined by its model.',
+    insertText: 'jfet ${1:J1} ${2:2N5457}',
+  },
+  {
     label: 'opamp',
     detail: 'opamp <name> <model>',
     documentation: 'Declare a five-pin typed op-amp.',
@@ -145,7 +152,7 @@ export function extractDeclarations(code: string): Map<string, string> {
   const lines = code.split(/\r?\n/);
 
   // Line 141 area: Matches component declarations for pin autocompletion
-  const declMatch = /^\s*(resistor|capacitor|inductor|diode|transistor|bjt|mosfet|opamp|source|current_source|vcvs|vccs|ccvs|cccs|switch)\s+([A-Za-z_][A-Za-z0-9_]*)/i;
+  const declMatch = /^\s*(resistor|capacitor|inductor|diode|transistor|bjt|mosfet|jfet|opamp|source|current_source|vcvs|vccs|ccvs|cccs|switch)\s+([A-Za-z_][A-Za-z0-9_]*)/i;
 
   for (const line of lines) {
     const trimmed = line.trim();
