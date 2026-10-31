@@ -315,4 +315,7 @@
 .hub-advanced a { color: #55e1cc; text-decoration: none; }
 .hub-advanced a:hover { text-decoration: underline; }
 
+.tools-hub-note { margin: 14px 0 0; color: #98a8bd; font-size: 14px; line-height: 1.6; }
+.tools-hub-note a { margin-left: 4px; }
+
 

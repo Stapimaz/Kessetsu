@@ -46,9 +46,9 @@ export function LandingPage() {
           <p className="eyebrow">SPICE Simulation · Auto-Schematic · AI Agent Verification</p>
           <h1 id="hero-title">Circuit engineering you can execute.</h1>
           <p className="hero-lead">
-            Run existing SPICE netlists (<code>.cir</code>, <code>.sp</code>) or readable <code>.kess</code> circuits.
-            Get real Ngspice simulation, automatic connectivity-verified schematics, and hard <code>PASS / FAIL</code> requirement
-            checks—in your browser or connected to your AI agent via <strong>MCP</strong> and the <strong>local CLI</strong>.
+            Write a circuit or paste an existing SPICE netlist. Kessetsu simulates it with Ngspice, draws the schematic
+            automatically, and checks whether your engineering requirements actually pass—in your browser, connected to
+            your AI coding tool, or from the terminal.
           </p>
           <div className="hero-actions">
             <a className="button button-primary" href="#editor">
@@ -59,35 +59,35 @@ export function LandingPage() {
             </a>
           </div>
           <div className="trust-line">
-            <span><Check size={15} /> Native SPICE &amp; .kess</span>
-            <span><Check size={15} /> Built-in MCP server (<code>kess mcp</code>)</span>
+            <span><Check size={15} /> Standard SPICE (.cir, .sp) &amp; .kess</span>
+            <span><Check size={15} /> Works with Claude, Cursor &amp; VS Code</span>
             <span><Check size={15} /> Real Ngspice simulation</span>
-            <span><Check size={15} /> No account or cloud upload</span>
+            <span><Check size={15} /> Free, local &amp; no account</span>
           </div>
         </div>
 
         <div className="hero-console" aria-label="Kessetsu agent verification example">
           <div className="console-bar">
             <span /><span /><span />
-            <code>agent-loop.kess + stage.kessreq</code>
-            <small className="console-bar-tag">kess mcp · kess test</small>
+            <code>rc_low_pass.kess · 1 kHz filter</code>
+            <small className="console-bar-tag">Browser · AI · CLI</small>
           </div>
           <div className="requirement-note">
-            <small>LOCKED REQUIREMENT CONTRACT (.KESSREQ) · GENERIC MODELS</small>
-            <p>Four-stage amplifier · 8 Ω load · output_power ≥ 1.8 W · gain ≈ 55 · device dissipation &lt; 2 W</p>
+            <small>1. CIRCUIT &amp; TARGET REQUIREMENTS</small>
+            <p>First-order RC low-pass filter (R1 = 1 kΩ, C1 = 159.15 nF) · Verify −3 dB cutoff ≈ 1 kHz and −45° phase</p>
           </div>
-          <pre><span className="prompt">$</span> kess test agent-loop.kess --requirements stage.kessreq{`\n`}
-<span className="muted">iteration 01</span>  <span className="fail">FAIL</span>  output_power = 997.7 mW  <span className="muted">(requires ≥ 1.80 W)</span>{`\n`}
-<span className="muted">agent action</span>  revises output stage load matching (16 Ω → 8 Ω){`\n`}
-<span className="muted">iteration 02</span>  <span className="pass">PASS</span>  output_power = 1.995 W · max_pd = 1.41 W</pre>
+          <pre><span className="prompt">$</span> kess test rc_low_pass.kess{`\n`}
+<span className="muted">check 01</span>  <span className="pass">PASS</span>  dc passband gain   = 1.000      <span className="muted">(requires &gt; 0.99)</span>{`\n`}
+<span className="muted">check 02</span>  <span className="pass">PASS</span>  -3 dB cutoff       = 1.000 kHz  <span className="muted">(requires 990 Hz .. 1.01 kHz)</span>{`\n`}
+<span className="muted">check 03</span>  <span className="pass">PASS</span>  phase @ 1.000 kHz  = -45.0°     <span className="muted">(requires -46° .. -44°)</span></pre>
           <div className="console-artifacts">
-            <span>ERC: 0 warnings</span>
+            <span>Connections: 0 warnings</span>
             <span>Auto-Schematic: SVG / PNG</span>
-            <span>Exports: KiCad · SPICE · BOM</span>
+            <span>Exports: KiCad · LTspice · SPICE · BOM</span>
           </div>
           <div className="console-result">
-            <span><Check size={15} /> 12 / 12 encoded assertions passed</span>
-            <small>kessetsu.cli.v1 · stdio MCP</small>
+            <span><Check size={15} /> 5 / 5 engineering requirements passed</span>
+            <small>Ngspice verified · Ready to export</small>
           </div>
         </div>
       </section>
@@ -95,20 +95,19 @@ export function LandingPage() {
       <section className="landing-section modes-section" id="modes" aria-labelledby="modes-title">
         <div className="section-heading">
           <p className="eyebrow">Three ways to use Kessetsu</p>
-          <h2 id="modes-title">Browser workspace, AI tool server, or terminal CLI.</h2>
+          <h2 id="modes-title">Start in your browser, connect your AI, or run in the terminal.</h2>
           <p>
-            Every interface runs the exact same Rust engineering core. Start visually in the browser, or install the single{' '}
-            <code>kess</code> binary to get both the command-line tool and the Model Context Protocol (MCP) server.
+            Every workflow uses the same Rust simulation and verification core. Start immediately in your browser with zero setup, or install Kessetsu once for your AI coding assistant and terminal.
           </p>
         </div>
         <div className="modes-grid">
           <article className="mode-card">
             <div className="mode-card-top">
-              <span className="mode-badge"><Globe2 size={14} /> Browser · Zero install</span>
-              <h3>Interactive Web Hub</h3>
+              <span className="mode-badge"><Globe2 size={14} /> Browser · Web Hub</span>
+              <h3>Use it in your browser</h3>
               <p>
-                Write <code>.kess</code> or import existing SPICE netlists directly in your browser. Inspect automatic schematics,
-                explore interactive Bode and transient plots, and export engineering files immediately.
+                Open a starter example, write <code>.kess</code>, or import an existing SPICE netlist. Inspect the automatic schematic,
+                explore interactive Bode and transient plots, and export to KiCad, LTspice, or SVG with zero installation.
               </p>
             </div>
             <div className="mode-card-foot">
@@ -119,26 +118,26 @@ export function LandingPage() {
 
           <article className="mode-card is-highlighted">
             <div className="mode-card-top">
-              <span className="mode-badge"><Bot size={14} /> AI Tool Connector · MCP</span>
-              <h3>Built-in MCP Server (<code>kess mcp</code>)</h3>
+              <span className="mode-badge"><Bot size={14} /> AI Assistant · MCP (kess mcp)</span>
+              <h3>Use it with your AI</h3>
               <p>
-                Plug Kessetsu directly into Claude Code, Claude Desktop, Cursor, Windsurf, or VS Code. Instead of guessing shell flags,
-                your AI calls native tools to compile, simulate, check <code>.kessreq</code> limits, and render schematics.
+                Connect Claude Code, Cursor, VS Code, Claude Desktop, or Windsurf. When you ask your AI to design or debug a circuit,
+                it calls Kessetsu locally to run Ngspice and verify that your requirements pass.
               </p>
             </div>
             <div className="mode-card-foot">
               <code>claude mcp add kessetsu -- kess mcp</code>
-              <a className="text-link" href={`${import.meta.env.BASE_URL}install/`}>Set up MCP &amp; CLI <ArrowRight size={14} /></a>
+              <a className="text-link" href={`${import.meta.env.BASE_URL}install/`}>Connect your AI tool <ArrowRight size={14} /></a>
             </div>
           </article>
 
           <article className="mode-card">
             <div className="mode-card-top">
-              <span className="mode-badge"><Terminal size={14} /> Terminal &amp; CI · CLI</span>
-              <h3>Local CLI (<code>kess test</code>)</h3>
+              <span className="mode-badge"><Terminal size={14} /> Terminal &amp; CI · CLI (kess test)</span>
+              <h3>Use it from the terminal</h3>
               <p>
-                Run deterministic ERC checks, Ngspice simulations, parameter sweeps, and requirement verification from your terminal,
-                scripts, or GitHub Actions pipelines with structured JSON output.
+                Check circuit connections, run Ngspice simulations, sweep component tolerances, and enforce pass/fail requirements from your command line,
+                scripts, or GitHub Actions pipelines.
               </p>
             </div>
             <div className="mode-card-foot">
@@ -153,28 +152,28 @@ export function LandingPage() {
         <div className="section-heading">
           <p className="eyebrow">Closed-loop verification</p>
           <h2 id="workflow-title">Give your agent requirements, not blind trust.</h2>
-          <p>An AI agent proposes and revises the circuit; Kessetsu enforces real electrical rules and Ngspice measurements at every step.</p>
+          <p>AI models can suggest circuits that look plausible on paper but fail electrically. Kessetsu puts real Ngspice simulation and locked pass/fail checks in the loop.</p>
         </div>
         <ol className="workflow-grid">
           <li>
             <span className="step-number">01</span>
-            <strong>Specify (.kessreq)</strong>
-            <p>Pin acceptance criteria—gain, cutoff, power, ripple, or dissipation—in a separate requirement file the design cannot rewrite.</p>
+            <strong>Set the goal (.kessreq)</strong>
+            <p>Write your target limits—gain, cutoff, ripple, or power dissipation—in a separate requirement file so the designing AI cannot quietly weaken the spec to make a test pass.</p>
           </li>
           <li>
             <span className="step-number">02</span>
-            <strong>Design (.kess or SPICE)</strong>
-            <p>Work with standard SPICE netlists (<code>.cir</code>, <code>.sp</code>) or readable <code>.kess</code> source through <code>kess mcp</code> or the CLI.</p>
+            <strong>Write or import a circuit</strong>
+            <p>Work with standard SPICE netlists (<code>.cir</code>, <code>.sp</code>) or readable <code>.kess</code> source in the browser, through your AI assistant, or from the CLI.</p>
           </li>
           <li>
             <span className="step-number">03</span>
-            <strong>Check and test</strong>
-            <p>ERC catches floating pins and shorted sources before Ngspice runs; structured PASS/FAIL assertions report exact measured values.</p>
+            <strong>Check connections &amp; simulate</strong>
+            <p>Electrical Rules Check (ERC) catches floating pins and shorted sources before simulation; Ngspice then runs and grades every requirement as PASS or FAIL with exact measured values.</p>
           </li>
           <li>
             <span className="step-number">04</span>
-            <strong>Review and hand off</strong>
-            <p>Render a connectivity-verified schematic (PNG/SVG) for human review and export to KiCad, LTspice, SPICE, or BOM CSV.</p>
+            <strong>Inspect &amp; export</strong>
+            <p>Review the connectivity-verified schematic and waveform plots, then export to KiCad, LTspice, SPICE, SVG, PNG, PDF, or BOM CSV.</p>
           </li>
         </ol>
         <p className="provider-note">

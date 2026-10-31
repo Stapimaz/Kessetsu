@@ -86,7 +86,8 @@ export function CircuitToolsIndex() {
   return <ToolsShell>
     <div className="tools-heading"><p className="eyebrow">Circuit tools</p>
       <h1>Calculate. Open the circuit. Keep going.</h1>
-      <p>Start with a practical calculation, inspect the assumptions and continue in the editor with an editable schematic and real SPICE simulation.</p>
+      <p>Optional quick-sizing calculators for common building blocks. Pick your target values and standard E12/E24 parts, inspect the assumptions, and open the generated .kess circuit in the full Web Hub for Ngspice simulation and schematic export.</p>
+      <p className="tools-hub-note">Already have a circuit or SPICE netlist? <a className="text-link" href={`${import.meta.env.BASE_URL}#editor`}>Open the full Web Hub <ArrowRight size={14} /></a></p>
     </div>
     <div className="tool-cards">{Object.entries(circuitTools).map(([id, tool]) =>
       <a className="tool-card" key={id} href={`${import.meta.env.BASE_URL}tools/${tool.slug}/`}>

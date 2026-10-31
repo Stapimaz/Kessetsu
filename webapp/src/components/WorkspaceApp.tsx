@@ -659,6 +659,18 @@ export function WorkspaceApp() {
             setSourceRevealRequest((current) => current + 1);
             setSymbolRevealRequest((current) => ({ id: (current?.id ?? 0) + 1, symbol }));
           }}
+          onQuickSimulate={() => {
+            setLayoutCommand((current) => ({ id: (current?.id ?? 0) + 1, action: 'split' }));
+            void run();
+          }}
+          onOpenSpiceConverter={() => {
+            setSpiceConverterOpen(true);
+            setOpenMenu(null);
+          }}
+          onOpenExamples={() => {
+            setOpenMenu('file');
+            setExamplesOpen(true);
+          }}
         />}
         results={(panelControls) => <ResultsPanel
           state={state.simulationState}
