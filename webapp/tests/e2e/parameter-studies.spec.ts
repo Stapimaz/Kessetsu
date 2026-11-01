@@ -10,7 +10,7 @@ async function openStudy(page: Page) {
   await page.goto('/#editor');
   await expect(page.getByTestId('compile-success')).toBeVisible();
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Test parameter variations…', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Parameter study…', exact: true }).click();
   return page.getByRole('dialog', { name: 'Parameter study', exact: true });
 }
 async function downloadReport(page: Page): Promise<StudyResults> {
@@ -24,7 +24,10 @@ async function downloadReport(page: Page): Promise<StudyResults> {
 
 test('loaded-filter configuration, all outcomes, native parity, reports and source continuation', async ({ page }, testInfo) => {
   const dialog = await openStudy(page);
+  await expect(dialog).toContainText('Current editor circuit:');
+  await expect(dialog).toContainText('No sweepable param declarations in this circuit');
   await dialog.getByLabel('Open study file').setInputFiles(specPath('loaded-filter'));
+  await expect(dialog).toContainText('Studying snapshot:');
   await expect(dialog.getByLabel('Sweep values 1')).toHaveValue('820Ohm, 1kOhm, 1.2kOhm');
   await dialog.getByLabel('Sweep parameter 1').selectOption('capacitance');
   await expect(dialog.getByLabel('Sweep values 1')).toHaveValue(/F/);
@@ -71,7 +74,7 @@ test('loaded-filter configuration, all outcomes, native parity, reports and sour
   await dialog.getByRole('button', { name: 'Close parameter study' }).click();
   await expect(page.locator('.view-lines')).toHaveText(sourceBefore, { useInnerText: true });
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Test parameter variations…', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Parameter study…', exact: true }).click();
   await expect(dialog.getByTestId('study-summary')).toContainText('6 total');
   page.once('dialog', event => event.accept());
   await dialog.getByRole('button', { name: 'Apply parameters', exact: true }).nth(5).click();
@@ -93,7 +96,7 @@ test('cancel/reopen/resume preserves completed evidence and rejects changed cons
   expect(partial.cases.some(c => c.status === 'pending' || c.status === 'cancelled')).toBe(true);
   await dialog.getByRole('button', { name: 'Close parameter study' }).click();
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Test parameter variations…', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Parameter study…', exact: true }).click();
   await dialog.getByRole('button', { name: 'Resume', exact: true }).click();
   await expect(dialog.getByRole('status')).toContainText('Study complete', { timeout: 90_000 });
   const completed = await downloadReport(page);
@@ -102,7 +105,7 @@ test('cancel/reopen/resume preserves completed evidence and rejects changed cons
     expect(completed.cases.find(c => c.case_id === row.case_id)?.content_sha256).toBe(row.content_sha256);
   }
   await dialog.getByLabel('Open study file').setInputFiles({ name: 'partial-results.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(partial)) });
-  await dialog.getByRole('button', { name: 'Configure', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Setup', exact: true }).click();
   await dialog.getByText('Conditions and portable specification', { exact: true }).click();
   await dialog.getByText('Advanced JSON: revisions and combined studies', { exact: true }).click();
   const changed = { ...spec, source: spec.source.replace('> 0.8', '> 0.7') };

@@ -486,10 +486,10 @@ export function WorkspaceApp() {
               </button>}
               <div className="menu-separator" role="separator" />
               <button role="menuitem" disabled={!state.wasmLoaded || state.simulationState === 'running'} onClick={() => { setStudyOpen(true); setOpenMenu(null); }}>
-                <span>Test parameter variations…</span>
+                <span>Parameter study…</span>
               </button>
               <button role="menuitem" disabled={!state.wasmLoaded} onClick={() => { setResearchDataMounted(true); setResearchDataOpen(true); setOpenMenu(null); }}>
-                <span>Compare research data…</span>
+                <span>Compare data…</span>
               </button>
             </div>}
           </div>

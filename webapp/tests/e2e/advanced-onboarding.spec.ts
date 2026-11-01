@@ -38,7 +38,7 @@ test('keyboard menus and a complete study preserve the newcomer circuit', async 
   await expect(dialog.getByRole('heading', { name: 'Parameter study', exact: true })).toBeInViewport();
   await expect(dialog.locator('.study-case-failed')).toHaveCount(3);
   await page.screenshot({ path: testInfo.outputPath('study-first-run.png') });
-  await dialog.getByRole('button', { name: 'Configure', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Setup', exact: true }).click();
   page.once('dialog', confirmation => confirmation.dismiss());
   await dialog.getByRole('button', { name: 'Try loaded-filter study' }).click();
   await dialog.getByRole('button', { name: 'Results', exact: true }).click();
@@ -58,7 +58,7 @@ test('failed page download recovers on reload, and research failure leaves the e
   const original = await page.locator('.view-lines').innerText();
   await page.route(/\/ResearchDataDialog-[^/]+\.js$/, route => route.abort());
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Compare research data…', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Compare data…', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Could not open research data' })).toBeVisible();
   await page.getByRole('button', { name: 'Return to editor' }).click();
   await expect(page.getByRole('heading', { name: 'Could not open research data' })).toBeHidden();
