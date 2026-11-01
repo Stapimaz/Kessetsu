@@ -89,26 +89,6 @@ export function ArtifactBar({ enabled, capabilities, message, filenameStem, onEx
           </section>;
         })}
       </div>
-      <details className="export-details">
-        <summary>Format details</summary>
-        <div className="export-popover">
-          {capabilities.map((descriptor) => (
-            <article key={descriptor.format}>
-              <strong>{descriptor.label}</strong>
-              <span>
-                {descriptor.capability.editable ? 'editable' : 'view-only'} ·{' '}
-                {descriptor.capability.machine_readable ? 'machine-readable' : 'visual'} ·{' '}
-                {descriptor.capability.preserves_connectivity ? 'connectivity preserved' : descriptor.capability.visual ? 'visual projection' : 'does not encode connectivity'}
-              </span>
-              <small>
-                models {descriptor.capability.preserves_models ? 'preserved' : 'not represented'} · analyses{' '}
-                {descriptor.capability.preserves_analysis ? 'preserved' : 'not represented'}
-                {' '}· parts {descriptor.capability.preserves_physical_parts ? 'preserved' : 'not represented'}
-              </small>
-            </article>
-          ))}
-        </div>
-      </details>
       </dialog>
     </aside>
   );

@@ -121,8 +121,7 @@ export function ShareDialog({ open, source, currentName, onClose, onCreateLink, 
           }
         }}
       />
-      <p className="share-privacy">The link includes this source and exact package versions, not simulation results or local model/data files. Nothing is uploaded. Anyone with the link can read the circuit; complex circuits produce longer URLs.</p>
-      <p className="share-privacy">Recipients open their own editable copy. Later edits do not update a link you already sent.</p>
+      <p className="share-privacy">Encodes this source and exact package versions in the URL (nothing is uploaded; not simulation results or local model/data files). Recipients open their own copy. Later edits do not update a link you already sent.</p>
       {url && <label className="share-url">
         <span>Share link</span>
         <input readOnly value={url} onFocus={(event) => event.currentTarget.select()} />

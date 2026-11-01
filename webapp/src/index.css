@@ -478,6 +478,7 @@ button.measurement-card.is-interactive:hover:not(:disabled) { border-color: #2c6
 .dialog-section-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .dialog-section-heading h3 { margin: 0; font-size: 12px; }
 .dialog-section-heading > span { min-width: 20px; padding: 2px 6px; border-radius: 10px; color: var(--muted); background: var(--panel-raised); text-align: center; font-size: 10px; }
+.dialog-section-heading > button { margin-left: auto; height: 24px; padding: 0 8px; font-size: 10.5px; }
 .model-details > p { margin: 0 0 8px; color: var(--muted); font-size: 11px; }
 .model-list { border: 1px solid var(--border); border-radius: 7px; background: var(--panel-raised); }
 .model-list article { display: grid; gap: 3px; padding: 10px 12px; border-top: 1px solid var(--border); font-size: 11px; }

@@ -169,25 +169,19 @@ export function StudyDialog({ open, source, name, resources, onClose, onApplySou
   };
 
   return <dialog ref={dialog} className="app-dialog study-dialog" aria-labelledby="study-title" onClose={() => { if (active.current) cancel(); onClose(); }}>
-    <header><div><h2 id="study-title">Parameter study</h2><p>Try conditions, keep every outcome and compare the results.</p></div><button aria-label="Close parameter study" onClick={() => dialog.current?.close()}><X size={18} /></button></header>
+    <header><div><h2 id="study-title">Parameter study</h2><p>Sweep parameters or tolerances on a snapshot of this circuit without modifying the editor.</p></div><button aria-label="Close parameter study" onClick={() => dialog.current?.close()}><X size={18} /></button></header>
     <p className="dialog-help-link"><a href={`${import.meta.env.BASE_URL}docs/guides/parameter-studies/`} target="_blank" rel="noreferrer">How to set up a study and read its outcomes</a></p>
     <nav className="study-tabs" aria-label="Study sections"><button aria-pressed={tab === 'configure'} onClick={() => setTab('configure')}>Configure</button><button aria-pressed={tab === 'results'} disabled={!results} onClick={() => setTab('results')}>Results</button><button onClick={() => importInput.current?.click()} disabled={running}>Open study / results…</button></nav>
     <input ref={importInput} type="file" className="sr-only" accept=".json" aria-label="Open study file" onChange={event => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (file) void importFile(file, false); }} />
     <input ref={compareInput} type="file" className="sr-only" accept=".json" aria-label="Compare study results file" onChange={event => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (file) void importFile(file, true); }} />
     {error && <p className="study-error" role="alert">{error}</p>}
     {tab === 'configure' ? <fieldset className="study-config" disabled={running}>
-      <details className="study-start"><summary>New to parameter studies?</summary>
-        <p className="study-note">Compare component values or tolerances without editing your open circuit. You need a valid circuit, named root parameters (for example <code>param resistance: Ohm = 1kOhm</code> used by <code>resistor R1 &#123;resistance&#125;</code>), an analysis, and any exact local model files.</p>
-        <ol className="study-note"><li>Choose the parameters and values to try, or load the complete example below.</li><li>Run the study. Inspect every case and its measurements, including failures.</li><li>Download Results JSON to keep or resume the evidence. Apply parameters only when you want to change the editor circuit.</li></ol>
-        <p className="study-note">Six ideal-passive AC cases with fixed assertions, including three expected failures. Loads a study snapshot only; your editor circuit is untouched.</p>
-      </details>
       <div className="study-row"><label>Study name<input value={spec.name} onChange={event => update({ name: event.target.value })} /></label><button onClick={reset}><RotateCcw size={14} /> Use current circuit</button><button className="study-example-button" onClick={tryExample}>Try loaded-filter study</button></div>
-      <p className="study-note">A source snapshot, not changes to the open circuit. Local models stay separate and are never uploaded.</p>
       {spec.source !== source && <p className="study-note">This study uses a different source snapshot from the editor. Choose “Use current circuit” to start from the current source.</p>}
       {parameterError && <p role="alert">{parameterError} Open the study source in the editor and choose its matching model files.</p>}
       {parameters.length === 0 && !parameterError && <div className="study-empty-params">
         <strong>No sweepable <code>param</code> declarations in this circuit yet</strong>
-        <p className="study-note">This source has no named root parameters. With no axes, only the nominal design runs. Add <code>param</code> declarations in Source (or use the <code>+ param</code> button in the Source panel header), then choose “Use current circuit”, or choose “Try loaded-filter study” above to explore a ready-made 6-case study.</p>
+        <p className="study-note">Add <code>param</code> declarations in Source (or use <code>+ param</code> in the Source header), then choose “Use current circuit”, or choose “Try loaded-filter study” above.</p>
       </div>}
       <label>Study type<select value={mode} onChange={event => changeMode(event.target.value)}><option value="sweep">Parameter sweep</option><option value="corners">Nominal + tolerance corners</option><option value="monte_carlo">Nominal + Monte Carlo samples</option></select></label>
       {!spec.tolerances ? <section><h3>Sweep parameters</h3>{spec.axes.map((axis, index) => <div className="study-axis" key={index}>
@@ -233,8 +227,7 @@ const row = results.cases[index]; return <tr key={point.id} className={`study-ca
         } catch (cause) { setError(message(cause)); } }}>Apply parameters</button></td></tr>;
       })}</tbody></table></div>
       <div className="study-row"><label>Export current study<select value={exportTarget} onChange={event => setExportTarget(event.target.value)}><option value="json">Results JSON — full data + resume</option><option value="csv">Measurement summary CSV</option><option value="data_csv">Full numeric samples CSV</option><option value="svg">Visible overlay SVG</option><option value="html">Printable HTML report</option></select></label><button disabled={running} onClick={exportFile}><Download size={14} /> Download</button></div>
-      <p className="study-note">Full samples are independent of plotted samples. Files contain source and model references, not local model bodies. Native/browser solver identities differ: compare reports, but resume with the original adapter.</p>
     </>}</section>}
-    <footer><p role="status">{progress || 'Local execution: one solver at a time, up to 32 browser cases. Use the CLI for larger studies.'}</p>{running ? <button onClick={cancel}><Square size={14} /> Stop study</button> : <><button disabled={!results || results.cases.every(row => reusable(row.status))} onClick={() => void runStudy(true)}>Resume</button><button className="primary" onClick={() => void runStudy(false)}><Play size={14} /> {results ? 'Run new study' : 'Run study'}</button></>}</footer>
+    <footer><p role="status">{progress || 'Local execution: up to 32 browser cases (use the CLI for larger studies).'}</p>{running ? <button onClick={cancel}><Square size={14} /> Stop study</button> : <>{results && <button disabled={results.cases.every(row => reusable(row.status))} onClick={() => void runStudy(true)}>Resume</button>}<button className="primary" onClick={() => void runStudy(false)}><Play size={14} /> {results ? 'Run new study' : 'Run study'}</button></>}</footer>
   </dialog>;
 }

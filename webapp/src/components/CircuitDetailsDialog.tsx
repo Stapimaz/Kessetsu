@@ -1,4 +1,4 @@
-import { X } from 'lucide-react';
+import { Check, Copy, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { ModelManifest } from '../domain';
 import type { LocalModelRequirement } from '../hooks/useKessetsuWorkspace';
@@ -20,32 +20,47 @@ interface Props {
 export function CircuitDetailsDialog({ open, spice, models, onClose, resources, boundResources, onBindFile, onClearFiles }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [resourceError, setResourceError] = useState('');
+  const [copiedSpice, setCopiedSpice] = useState(false);
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal();
+    if (open && !dialog.open) {
+      setCopiedSpice(false);
+      dialog.showModal();
+    }
     if (!open && dialog.open) dialog.close();
   }, [open]);
+
+  const usesBundledExampleModels = resources.some((item) => item.resource.endsWith('comparator.lib') || item.resource.endsWith('memristor.lib'));
+
+  const copySpice = async () => {
+    if (!spice) return;
+    try {
+      await navigator.clipboard.writeText(spice);
+      setCopiedSpice(true);
+      globalThis.setTimeout(() => setCopiedSpice(false), 2000);
+    } catch {
+      // Fallback: user can still select from <pre>.
+    }
+  };
 
   return (
     <dialog ref={dialogRef} className="app-dialog circuit-details-dialog" aria-labelledby="circuit-details-title" onClose={onClose}>
       <header>
         <div>
           <h2 id="circuit-details-title">Circuit details</h2>
-          <p>Inspect resolved models and the generated simulation netlist.</p>
+          <p>Inspect resolved models, bind local model files, and view the generated SPICE netlist.</p>
         </div>
         <button aria-label="Close circuit details" onClick={() => dialogRef.current?.close()}><X size={18} /></button>
       </header>
-      <p className="dialog-help-link"><a href={`${import.meta.env.BASE_URL}docs/reference/model-catalog/`} target="_blank" rel="noreferrer">Model examples, local files and simulation limits</a></p>
-      <p>Model libraries describe device behavior for simulation; they are not measured CSV data or study settings. Import measurements through Analyze → Compare research data, and study/results JSON through Analyze → Test parameter variations.</p>
+      <p className="dialog-help-link"><a href={`${import.meta.env.BASE_URL}docs/reference/model-catalog/`} target="_blank" rel="noreferrer">Model catalog, local files and simulation limits</a></p>
       {resources.length > 0 && <section className="model-details">
         <div className="dialog-section-heading"><h3>Local model files</h3>
-          <button onClick={onClearFiles} disabled={boundResources.length === 0}>Clear files</button>
+          <button className="secondary-button" onClick={onClearFiles} disabled={boundResources.length === 0}>Clear files</button>
         </div>
-        <p>Choose the exact files named by your source. Files stay in memory on this device: they are not uploaded, saved with the circuit or included in shared links. Select them again after reloading.</p>
-        <p>Portable Ngspice analog libraries can simulate here. PSpice compatibility and unsupported model constructs require the CLI. Exports retain file references; keep matching files beside SPICE/LTspice exports.</p>
-        <p>Files for the provided examples: <a href={comparatorModelUrl} download="comparator.lib">comparator.lib</a> · <a href={memristorModelUrl} download="memristor.lib">memristor.lib</a> · <a href={memristorNoticeUrl} download="MEMRISTOR_NOTICE.md">memristor attribution and license</a>. Download, then choose the matching file below. Custom declarations need their own exact files.</p>
+        <p>Select the exact model files referenced by your circuit. Files stay in memory in this browser tab and are never uploaded or included in shared links.</p>
+        {usesBundledExampleModels && <p>Example model files: <a href={comparatorModelUrl} download="comparator.lib">comparator.lib</a> · <a href={memristorModelUrl} download="memristor.lib">memristor.lib</a> (<a href={memristorNoticeUrl} download="MEMRISTOR_NOTICE.md">attribution &amp; license</a>).</p>}
         <div className="model-list">{resources.map((item) => <article key={`${item.model}:${item.resource}`}>
           <strong>{item.model} · {item.resource}</strong>
           <span>{item.simulator === 'ngspice_ps' ? 'Native-only: use the installed CLI with Ngspice; selecting a file will not enable browser simulation' : 'Browser profile checked before simulation'} · {boundResources.includes(item.resource) ? 'File selected; see compilation status for validation' : 'File required'}</span>
@@ -66,7 +81,6 @@ export function CircuitDetailsDialog({ open, spice, models, onClose, resources, 
         <div className="dialog-section-heading">
           <h3>Resolved models</h3><span>{models?.models.length ?? 0}</span>
         </div>
-        <p>Models are selected only through typed Kessetsu declarations or exact package imports.</p>
         <div className="model-list">
           {models?.models.length
             ? models.models.map((model) => (
@@ -79,11 +93,16 @@ export function CircuitDetailsDialog({ open, spice, models, onClose, resources, 
                 </small>}
               </article>
             ))
-            : <span className="empty-detail">No packaged models are resolved for this circuit.</span>}
+            : <span className="empty-detail">No packaged models resolved for this circuit.</span>}
         </div>
       </section>
       <section className="spice-details">
-        <div className="dialog-section-heading"><h3>Generated SPICE Netlist</h3></div>
+        <div className="dialog-section-heading">
+          <h3>Generated SPICE Netlist</h3>
+          {spice && <button type="button" className="secondary-button spice-copy-button" onClick={() => void copySpice()}>
+            {copiedSpice ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy netlist</>}
+          </button>}
+        </div>
         <pre>{spice || 'Waiting for a valid circuit…'}</pre>
       </section>
     </dialog>
