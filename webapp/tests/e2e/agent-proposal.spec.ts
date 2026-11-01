@@ -51,7 +51,7 @@ test('invalidates completed proposal evidence when local model bindings change w
   await details.getByRole('button', { name: 'Close circuit details' }).click();
   await openAgent();
   await expect(dialog.getByTestId('agent-verification')).toBeHidden();
-  await expect(dialog.getByRole('button', { name: 'Apply to editor', exact: true })).toBeDisabled();
+  await expect(dialog.getByRole('button', { name: 'Apply to editor', exact: true })).toBeHidden();
   await expect(dialog.locator('textarea').nth(1)).toHaveValue(reply);
   await expect(dialog).toContainText('Local model files changed');
   await dialog.getByRole('button', { name: 'Close AI agent workflow' }).click();
@@ -128,7 +128,7 @@ for (const stage of ['file', 'review'] as const) {
       await new Promise(requestAnimationFrame);
     });
     await expect(dialog.getByText('Core compile and connectivity', { exact: true })).toBeHidden();
-    await expect(dialog.getByRole('button', { name: 'Apply to editor', exact: true })).toBeDisabled();
+    await expect(dialog.getByRole('button', { name: 'Apply to editor', exact: true })).toBeHidden();
     await expect(dialog.locator('textarea').nth(1)).toHaveValue(stage === 'file' ? '' : reply);
     await expect(page.locator('.view-lines')).not.toContainText('reviewed agent proposal');
     // A deliberate new review still works after the abandoned operation settles.
@@ -218,7 +218,7 @@ test('keeps agent proposals separate until verified, accepted and explicitly rev
   const serializedProposal = await replyText.inputValue();
   await replyText.fill(`${serializedProposal}\n`);
   await expect(dialog.getByText('Core compile and connectivity')).toBeHidden();
-  await expect(dialog.getByRole('button', { name: 'Apply to editor', exact: true })).toBeDisabled();
+  await expect(dialog.getByRole('button', { name: 'Apply to editor', exact: true })).toBeHidden();
   await replyText.fill(serializedProposal);
   await dialog.getByRole('button', { name: 'Check returned circuit', exact: true }).click();
   await expect(dialog.getByText('Core compile and connectivity')).toBeVisible();

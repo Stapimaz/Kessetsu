@@ -39,25 +39,6 @@ interface Props {
 type VerificationState = 'idle' | 'running' | 'complete' | 'failed' | 'cancelled';
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 
-const REQUIREMENT_PRESETS = [
-  {
-    label: 'Verify & add assertions',
-    text: 'Verify this circuit, add appropriate simulation analyses if missing, and encode assertions for the key operating point and signal targets.',
-  },
-  {
-    label: '1 kHz RC low-pass',
-    text: 'Design or tune an RC low-pass filter with a -3 dB cutoff near 1 kHz (between 950 Hz and 1.05 kHz) and passband gain >= 0.98 at 20 Hz. Include AC simulation and assertions.',
-  },
-  {
-    label: 'Op-amp gain = 2',
-    text: 'Design a non-inverting op-amp stage powered by +12 V and -12 V with DC output near 2 V for a 1 V input. Include operating-point simulation and assertions.',
-  },
-  {
-    label: '5 V → 3.3 V divider',
-    text: 'Design a 5 V to 3.3 V resistive divider with output between 3.25 V and 3.35 V and total supply current under 1 mA. Include operating-point simulation and assertions.',
-  },
-] as const;
-
 function compileCandidate(source: string, resources: Record<string, number[]>): CompileReport {
   const report = compile_kessetsu_with_resources(source, resources) as CompileReport;
   if (report.schema_version !== compile_schema_version()) throw new Error(`Unsupported compile report: ${report.schema_version}`);
@@ -86,14 +67,14 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
   const [verification, setVerification] = useState<BrowserEvaluation | null>(null);
   const [verificationState, setVerificationState] = useState<VerificationState>('idle');
   const [confirmApply, setConfirmApply] = useState(false);
-  const [status, setStatus] = useState('Nothing leaves this browser automatically.');
+  const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [correctionText, setCorrectionText] = useState('');
   const [correctionPending, setCorrectionPending] = useState(false);
   const latestReview = useRef({ verificationState, proposal, proposalText });
   latestReview.current = { verificationState, proposal, proposalText };
 
-  const resetProposal = (nextStatus = 'Nothing leaves this browser automatically.') => {
+  const resetProposal = (nextStatus = '') => {
     const nextOperation = ++operationId.current;
     correctionOperationId.current++;
     correctionPendingRef.current = false;
@@ -132,8 +113,7 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
       setConfirmApply(false);
       setStatus('Proposal simulation cancelled. Test again before applying.');
     } else if (!proposal) {
-      setStatus(proposalText.trim() ? 'Check the returned circuit before testing or applying it.'
-        : 'Nothing leaves this browser automatically.');
+      setStatus(proposalText.trim() ? 'Check the returned circuit before testing or applying it.' : '');
     }
   };
 
@@ -354,14 +334,6 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
     setStatus('Proposal simulation cancelled. The editor source is unchanged.');
   };
 
-  const applyRequirementPreset = (presetText: string) => {
-    taskOperationId.current++;
-    setRequirements(presetText);
-    setTaskText('');
-    setProposalText('');
-    resetProposal(proposal || proposalText ? 'Requirements changed. Create a new task and bring back a new reply.' : 'Preset loaded. Click Copy task for AI to generate the handoff package.');
-  };
-
   const pasteAndCheck = async () => {
     try {
       const clip = await navigator.clipboard.readText();
@@ -372,7 +344,7 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
       setProposalText(clip);
       await reviewProposal(clip);
     } catch {
-      setError('Clipboard access was blocked. Paste the reply into Step 2 with Ctrl+V, then select Check returned circuit.');
+      setError('Clipboard access was blocked. Paste the reply below with Ctrl+V, then select Check returned circuit.');
     }
   };
 
@@ -383,50 +355,47 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
 
   return <dialog ref={dialog} className="app-dialog agent-proposal-dialog" aria-labelledby="agent-proposal-title"
     onCancel={(event) => { event.preventDefault(); close(); }} onClose={() => { invalidatePending(); onClose(); }}>
-    <header><div><h2 id="agent-proposal-title">Work with an AI agent</h2><p>Send the current circuit to an AI, then let Kessetsu test its returned design before you apply it.</p></div><button aria-label="Close AI agent workflow" onClick={close}><X size={18} /></button></header>
-    <p className="dialog-help-link"><a href={`${import.meta.env.BASE_URL}docs/guides/web-editor/#review-a-proposal-from-an-external-agent`} target="_blank" rel="noreferrer">How the agent handoff works and what a test proves</a> · <a href={`${import.meta.env.BASE_URL}docs/guides/agent-workflow/`} target="_blank" rel="noreferrer">MCP server guide</a></p>
-
-    <div className="agent-privacy-note">
-      <strong>You stay in control.</strong>
-      <span>Kessetsu never contacts an AI service or changes your circuit automatically. You choose the agent and move the task between apps.</span>
-    </div>
-
-    <details className="agent-mcp-banner">
-      <summary>Using Claude Code, Cursor, or VS Code? Connect <code>kess mcp</code> for zero-copy verification</summary>
-      <div className="agent-mcp-body">
-        <p>Local coding agents can call Kessetsu’s ERC, SPICE simulation, <code>.kessreq</code> testing, and schematic tools directly over stdio without manual copy-paste:</p>
-        <pre>claude mcp add kessetsu -- kess mcp</pre>
+    <header>
+      <div>
+        <h2 id="agent-proposal-title">Work with an AI agent</h2>
+        <p>Copy a task for your AI agent, then bring back its reply to verify locally. Kessetsu never contacts an AI service or changes your circuit automatically.</p>
       </div>
-    </details>
+      <button aria-label="Close AI agent workflow" onClick={close}><X size={18} /></button>
+    </header>
+    <p className="dialog-help-link">
+      <a href={`${import.meta.env.BASE_URL}docs/guides/web-editor/#review-a-proposal-from-an-external-agent`} target="_blank" rel="noreferrer">How the agent handoff works</a>
+      {' · '}
+      <a href={`${import.meta.env.BASE_URL}docs/guides/agent-workflow/`} target="_blank" rel="noreferrer">Local CLI / MCP setup (<code>kess mcp</code>)</a>
+    </p>
 
     <section className="agent-step">
-      <div className="agent-step-heading"><span>1</span><div><h3>Tell the agent what you need</h3><p>Write the electrical target and limits, or pick a quick starter below. Kessetsu includes your current circuit automatically.</p></div></div>
-      <div className="agent-preset-chips" aria-label="Requirement starter templates">
-        <span>Quick starters:</span>
-        {REQUIREMENT_PRESETS.map((preset) => (
-          <button key={preset.label} type="button" className="agent-preset-chip" onClick={() => applyRequirementPreset(preset.text)}>
-            {preset.label}
-          </button>
-        ))}
+      <div className="agent-section-head">
+        <h3>Task for your AI</h3>
+        <span>Includes your current circuit and exact revision automatically</span>
       </div>
-      <textarea aria-label="Your circuit requirements" rows={4} value={requirements} maxLength={12_000} placeholder="Example: Design for 2 W RMS into 8 ohm, gain near 20, and less than 2 W transistor dissipation. Include simulations and assertions for every target." onChange={(event) => {
+      <textarea aria-label="Your circuit requirements" rows={3} value={requirements} maxLength={12_000} placeholder="Example: Design for 2 W RMS into 8 ohm, gain near 20, and less than 2 W transistor dissipation. Include simulations and assertions." onChange={(event) => {
         taskOperationId.current++;
         setRequirements(event.target.value);
         setTaskText('');
         setProposalText('');
-        resetProposal(proposal || proposalText ? 'Requirements changed. Create a new task and bring back a new reply.' : undefined);
+        resetProposal(proposal || proposalText ? 'Requirements changed. Create a new task and bring back a new reply.' : '');
       }} />
-      <div className="agent-actions"><button className="agent-primary" onClick={() => void copyTask()}><Clipboard size={14} /> Copy task for AI</button><button onClick={() => void downloadTask()}><Download size={14} /> Download task file</button></div>
-      {taskText && <div className="agent-next-step"><CheckCircle2 size={16} /><div><strong>Task ready</strong><span>Paste it into ChatGPT, Gemini, Claude, Codex, or another agent. Ask it to return the JSON object (Markdown code fences are also accepted).</span></div></div>}
-      {taskText && <details><summary>Inspect the task JSON</summary><pre>{taskText}</pre></details>}
+      <div className="agent-actions">
+        <button className="agent-primary" onClick={() => void copyTask()}><Clipboard size={14} /> Copy task for AI</button>
+        <button onClick={() => void downloadTask()}><Download size={14} /> Download task file</button>
+      </div>
+      {taskText && <details><summary>Inspect task JSON</summary><pre>{taskText}</pre></details>}
     </section>
 
     <section className="agent-step">
-      <div className="agent-step-heading"><span>2</span><div><h3>Bring back the agent's reply</h3><p>Paste the agent’s JSON response (raw JSON or a <code>```json</code> block), or open the JSON file it created.</p></div></div>
-      <textarea aria-label="Agent reply JSON" rows={5} value={proposalText} placeholder={`Paste the returned ${'kessetsu.agent-proposal.v1'} JSON here…`} onChange={(event) => {
+      <div className="agent-section-head">
+        <h3>Agent reply</h3>
+        <span>Paste JSON / Markdown code fence or open a reply file</span>
+      </div>
+      <textarea aria-label="Agent reply JSON" rows={4} value={proposalText} placeholder={`Paste the returned ${'kessetsu.agent-proposal.v1'} JSON here…`} onChange={(event) => {
         const text = event.target.value;
         setProposalText(text);
-        resetProposal(text.trim() ? 'Reply changed. Check this version before testing or applying it.' : undefined);
+        resetProposal(text.trim() ? 'Reply changed. Check this version before testing or applying it.' : '');
       }} />
       <input ref={fileInput} type="file" className="sr-only" accept=".json,application/json" aria-label="Open agent proposal JSON" onChange={(event) => {
         const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (!file) return;
@@ -442,15 +411,15 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
         });
       }} />
       <div className="agent-actions">
+        <button className="agent-primary" disabled={!proposalText.trim()} onClick={() => void reviewProposal()}>Check returned circuit</button>
         <button type="button" onClick={() => void pasteAndCheck()}><Clipboard size={14} /> Paste &amp; check</button>
         <button onClick={() => fileInput.current?.click()}><FileUp size={14} /> Open reply file…</button>
-        <button className="agent-primary" disabled={!proposalText.trim()} onClick={() => void reviewProposal()}>Check returned circuit</button>
       </div>
     </section>
 
     {needsCorrection && <section className="agent-recovery" aria-label="Correct the agent reply" role="alert">
       <h3>The returned circuit needs a correction</h3>
-      <p>Your editor circuit is unchanged. Send the feedback to your agent; you do not need to decipher or rewrite its code.</p>
+      <p>Your editor circuit is unchanged. Send this diagnostic feedback back to your agent:</p>
       {compileErrors.length > 0 ? <ul>{compileErrors.map((diagnostic, index) => <li key={index}>
         <span>{describeProposalDiagnostic(diagnostic)}</span>
         {diagnostic.line && proposal && <code>{proposal.proposed_source.split(/\r?\n/)[diagnostic.line - 1]?.slice(0, 240)}</code>}
@@ -462,15 +431,18 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
         <button className="agent-primary" disabled={!requirements.trim() || correctionPending} onClick={() => void sendCorrection(false)}><Clipboard size={14} /> {correctionPending ? 'Preparing feedback…' : 'Copy correction task'}</button>
         <button disabled={!requirements.trim() || correctionPending} onClick={() => void sendCorrection(true)}><Download size={14} /> Download correction file</button>
       </div>
-      <p>{requirements.trim() ? 'Your original requirements and source revision stay fixed. Bring the new reply back to Step 2 and test it again.' : 'Add your electrical target in Step 1 and send a fresh task first.'}</p>
+      {!requirements.trim() && <p>Add your electrical target above and send a task first so Kessetsu can package the correction context.</p>}
       {correctionText && <details><summary>Copy correction text manually</summary><textarea aria-label="Correction task JSON" readOnly rows={5} value={correctionText} onFocus={event => event.currentTarget.select()} /></details>}
     </section>}
 
     {proposal && <section className="agent-review" aria-label="Agent proposal review">
-      <div className="agent-step-heading"><span>3</span><div><h3>Review and test the returned circuit</h3><p>The candidate remains separate from the editor until you explicitly apply it.</p></div></div>
+      <div className="agent-section-head">
+        <h3>Proposal verification</h3>
+        <span>Candidate stays separate from the editor until you apply it</span>
+      </div>
       <div className="agent-check-grid">
-        <div className="agent-check-card agent-check-pass"><CheckCircle2 size={16} /><div><strong>Correct circuit revision</strong><span>The reply matches the source you sent.</span></div></div>
-        <div className={connectivityVerified && compileErrors.length === 0 ? 'agent-check-card agent-check-pass' : 'agent-check-card agent-check-fail'}>{connectivityVerified && compileErrors.length === 0 ? <CheckCircle2 size={16} /> : <X size={16} />}<div><strong>Core compile and connectivity</strong><span>{connectivityVerified && compileErrors.length === 0 ? 'Kessetsu accepted the source and verified its connections.' : 'Kessetsu rejected the returned circuit.'}</span></div></div>
+        <div className="agent-check-card agent-check-pass"><CheckCircle2 size={16} /><div><strong>Correct circuit revision</strong><span>Matches the source you sent.</span></div></div>
+        <div className={connectivityVerified && compileErrors.length === 0 ? 'agent-check-card agent-check-pass' : 'agent-check-card agent-check-fail'}>{connectivityVerified && compileErrors.length === 0 ? <CheckCircle2 size={16} /> : <X size={16} />}<div><strong>Core compile and connectivity</strong><span>{connectivityVerified && compileErrors.length === 0 ? 'Compiles cleanly and schematic connects.' : 'Rejected by Core compiler or ERC.'}</span></div></div>
         <div className={`agent-check-card ${simulationCard.tone}`}>
           {simulationCard.icon === 'pass' ? <CheckCircle2 size={16} />
             : simulationCard.icon === 'loading' ? <LoaderCircle className="agent-spin" size={16} />
@@ -480,12 +452,7 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
         </div>
       </div>
       {compileWarnings.length > 0 && <p className="agent-warning">{compileWarnings.length} compile warning{compileWarnings.length === 1 ? '' : 's'}: {compileWarnings.slice(0, 2).map((item) => item.message).join(' ')}</p>}
-      <div className="agent-human-requirements">
-        <strong>Your requested outcome</strong>
-        <p>{requirements.trim() || 'No human requirements were recorded in this dialog. Review the source changes and encoded assertions carefully.'}</p>
-        <span>Kessetsu can evaluate encoded assertions; it cannot infer that they cover every sentence above.</span>
-      </div>
-      <details className="agent-review-detail"><summary><span>Agent's explanation <em>unverified</em></span><small>Read</small></summary><p>{proposal.summary}</p></details>
+      {proposal.summary && <p className="agent-summary-line"><strong>Agent note <em>(unverified)</em>:</strong> {proposal.summary}</p>}
       <details className="agent-review-detail"><summary><span>Source changes</span><small>{changedLines} changed lines</small></summary>
         <div className="agent-change-summary" aria-label="High-impact source changes">
           <span>Assertions <b>+{changeSummary.assertions.added} / −{changeSummary.assertions.removed}</b></span>
@@ -507,10 +474,18 @@ export function AgentProposalDialog({ open, source, name, productVersion, resour
     </section>}
 
     {error && !needsCorrection && <p className="agent-error" role="alert">{error}</p>}
-    <footer className="agent-footer"><p role="status">{status}</p><div>{verificationState === 'running' ? <button onClick={cancelVerification}><Square size={14} /> Stop test</button> : <button disabled={!inputsMatch || !proposal || !connectivityVerified || compileErrors.length > 0} onClick={() => void runVerification()}><Play size={14} /> {verificationState === 'complete' || verificationState === 'failed' || verificationState === 'cancelled' ? 'Test again' : 'Test proposed circuit'}</button>}<button className="agent-accept" disabled={!canApply} onClick={() => {
-      if (!proposal || !canApply) return;
-      if (verificationPassed) { onAccept(proposal.proposed_source); close(); }
-      else setConfirmApply(true);
-    }}>{verificationPassed ? 'Apply tested proposal' : verificationState === 'complete' ? 'Apply anyway…' : 'Apply to editor'}</button></div></footer>
+    {(status || proposal) && <footer className="agent-footer">
+      <p role="status">{status}</p>
+      {proposal && <div>
+        {verificationState === 'running'
+          ? <button onClick={cancelVerification}><Square size={14} /> Stop test</button>
+          : <button disabled={!inputsMatch || !connectivityVerified || compileErrors.length > 0} onClick={() => void runVerification()}><Play size={14} /> {verificationState === 'complete' || verificationState === 'failed' || verificationState === 'cancelled' ? 'Test again' : 'Test proposed circuit'}</button>}
+        <button className="agent-accept" disabled={!canApply} onClick={() => {
+          if (!proposal || !canApply) return;
+          if (verificationPassed) { onAccept(proposal.proposed_source); close(); }
+          else setConfirmApply(true);
+        }}>{verificationPassed ? 'Apply tested proposal' : verificationState === 'complete' ? 'Apply anyway…' : 'Apply to editor'}</button>
+      </div>}
+    </footer>}
   </dialog>;
 }

@@ -1,34 +1,20 @@
-.agent-proposal-dialog { width: min(980px, calc(100vw - 24px)); }
-.agent-privacy-note { display: flex; gap: 7px; margin: 12px 0 8px; padding: 9px 10px; border: 1px solid #29465a; border-radius: 6px; color: #a9bed2; background: #101d29; font-size: 10px; line-height: 1.45; }
-.agent-privacy-note strong { flex: 0 0 auto; color: #d8e8f6; }
-.agent-mcp-banner { margin: 0 0 8px; border: 1px solid #253b4e; border-radius: 6px; background: #0d1622; font-size: 11px; }
-.agent-mcp-banner > summary { padding: 8px 10px; color: #9ec5e8; cursor: pointer; font-weight: 500; }
-.agent-mcp-banner > summary code { color: var(--accent); font-family: ui-monospace, monospace; }
-.agent-mcp-body { padding: 0 10px 10px; color: var(--muted); font-size: 10px; line-height: 1.5; }
-.agent-mcp-body p { margin: 0 0 6px; }
-.agent-mcp-body pre { margin: 0; padding: 7px 9px; border: 1px solid var(--border); border-radius: 5px; color: #d5fff8; background: #080d14; font: 11px ui-monospace, monospace; }
-.agent-step { padding: 14px 0; border-top: 1px solid var(--border); }
-.agent-privacy-note + .agent-step { border-top: 0; }
-.agent-step-heading { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
-.agent-step-heading > span { width: 22px; height: 22px; display: grid; flex: 0 0 auto; place-items: center; border: 1px solid #315267; border-radius: 50%; color: var(--accent); font-size: 10px; font-weight: 700; }
-.agent-step h3, .agent-review h3 { margin: 1px 0 3px; font-size: 13px; }
-.agent-step p, .agent-review .agent-step-heading p { margin: 0; color: var(--muted); font-size: 11px; }
-.agent-preset-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; }
-.agent-preset-chips > span { color: var(--muted); font-size: 10px; font-weight: 600; }
-.agent-preset-chip { height: 24px; padding: 0 8px; border: 1px solid #2c4257; border-radius: 999px; color: #b8cde4; background: #131e2c; cursor: pointer; font-size: 10px; transition: border-color 120ms ease, background 120ms ease; }
-.agent-preset-chip:hover { border-color: var(--accent); color: var(--text); background: #19293b; }
+.agent-proposal-dialog { width: min(860px, calc(100vw - 24px)); }
+.agent-step { padding: 12px 0; border-top: 1px solid var(--border); }
+.agent-section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin-bottom: 8px; }
+.agent-section-head h3 { margin: 0; font-size: 13px; }
+.agent-section-head span { color: var(--muted); font-size: 11px; }
 .agent-step textarea { width: 100%; resize: vertical; padding: 10px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: #0b1019; font: 11px/1.5 ui-monospace, monospace; }
 .agent-step textarea:focus { border-color: var(--accent); outline: 1px solid var(--accent); }
 .agent-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
 .agent-actions button, .agent-footer button { min-height: 32px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 11px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--panel-raised); cursor: pointer; font-size: 11px; }
 .agent-actions button:disabled, .agent-footer button:disabled { cursor: not-allowed; opacity: .42; }
 .agent-actions .agent-primary, .agent-footer .agent-accept { border-color: #228f80; color: #d5fff8; background: #17665b; }
-.agent-next-step { display: flex; align-items: flex-start; gap: 8px; margin-top: 9px; padding: 9px 10px; border: 1px solid #235c4d; border-radius: 6px; color: #83f0c4; background: #102b25; }
-.agent-next-step div { display: grid; gap: 2px; }
-.agent-next-step span { color: #a8c9be; font-size: 10px; line-height: 1.45; }
 .agent-step details { margin-top: 9px; color: var(--muted); font-size: 10px; }
 .agent-step pre { max-height: 180px; overflow: auto; padding: 9px; border: 1px solid var(--border); border-radius: 5px; color: #a9b8cc; background: #090e16; white-space: pre-wrap; }
-.agent-review { padding-top: 14px; border-top: 1px solid var(--border); }
+.agent-review { padding-top: 12px; border-top: 1px solid var(--border); }
+.agent-summary-line { margin: 8px 0; color: #b8c7da; font-size: 11px; line-height: 1.5; }
+.agent-summary-line strong { color: var(--text); }
+.agent-summary-line em { color: #eacb82; font-style: normal; font-size: 10px; }
 .agent-recovery { margin: 12px 0; padding: 12px; border: 1px solid #69572d; border-radius: 6px; background: #211d17; }
 .agent-recovery h3 { margin: 0 0 6px; font-size: 13px; color: #f0d799; }
 .agent-recovery p, .agent-recovery li { color: #c6bfae; font-size: 11px; line-height: 1.5; }
