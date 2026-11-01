@@ -36,12 +36,14 @@ test('invalidates completed proposal evidence when local model bindings change w
   await expect(page.getByTestId('compile-success')).toBeVisible();
   await openAgent();
   const reply = replyFor(source);
-  await dialog.locator('textarea').nth(1).fill(reply);
+  await dialog.getByRole('button', { name: /Proposal/ }).click();
+  await dialog.getByLabel('Agent reply JSON').fill(reply);
   await dialog.getByRole('button', { name: 'Check returned circuit', exact: true }).click();
   await dialog.getByRole('button', { name: 'Test proposed circuit', exact: true }).click();
   await expect(dialog.getByTestId('agent-verification')).toContainText('4/4 passed', { timeout: 90_000 });
   await dialog.getByRole('button', { name: 'Close AI agent workflow' }).click();
   await openAgent();
+  await dialog.getByRole('button', { name: /Review/ }).click();
   await expect(dialog.getByRole('button', { name: 'Apply tested proposal', exact: true })).toBeEnabled();
   await dialog.getByRole('button', { name: 'Close AI agent workflow' }).click();
 
@@ -52,7 +54,8 @@ test('invalidates completed proposal evidence when local model bindings change w
   await openAgent();
   await expect(dialog.getByTestId('agent-verification')).toBeHidden();
   await expect(dialog.getByRole('button', { name: 'Apply to editor', exact: true })).toBeHidden();
-  await expect(dialog.locator('textarea').nth(1)).toHaveValue(reply);
+  await dialog.getByRole('button', { name: /Proposal/ }).click();
+  await expect(dialog.getByLabel('Agent reply JSON')).toHaveValue(reply);
   await expect(dialog).toContainText('Local model files changed');
   await dialog.getByRole('button', { name: 'Close AI agent workflow' }).click();
 
@@ -63,6 +66,7 @@ test('invalidates completed proposal evidence when local model bindings change w
   await expect(details).toContainText('File selected');
   await details.getByRole('button', { name: 'Close circuit details' }).click();
   await openAgent();
+  await dialog.getByRole('button', { name: /Proposal/ }).click();
   await dialog.getByRole('button', { name: 'Check returned circuit', exact: true }).click();
   await dialog.getByRole('button', { name: 'Test proposed circuit', exact: true }).click();
   await expect(dialog.getByTestId('agent-verification')).toContainText('4/4 passed', { timeout: 90_000 });
@@ -117,7 +121,8 @@ for (const stage of ['file', 'review'] as const) {
         name: 'proposal.json', mimeType: 'application/json', buffer: Buffer.from(reply),
       });
     } else {
-      await dialog.locator('textarea').nth(1).fill(reply);
+      await dialog.getByRole('button', { name: /Proposal/ }).click();
+      await dialog.getByLabel('Agent reply JSON').fill(reply);
       await dialog.getByRole('button', { name: 'Check returned circuit', exact: true }).click();
     }
     await expect.poll(() => page.evaluate(() => (globalThis as unknown as { agentWorkStarted: boolean }).agentWorkStarted)).toBe(true);
@@ -129,10 +134,11 @@ for (const stage of ['file', 'review'] as const) {
     });
     await expect(dialog.getByText('Core compile and connectivity', { exact: true })).toBeHidden();
     await expect(dialog.getByRole('button', { name: 'Apply to editor', exact: true })).toBeHidden();
-    await expect(dialog.locator('textarea').nth(1)).toHaveValue(stage === 'file' ? '' : reply);
+    await dialog.getByRole('button', { name: /Proposal/ }).click();
+    await expect(dialog.getByLabel('Agent reply JSON')).toHaveValue(stage === 'file' ? '' : reply);
     await expect(page.locator('.view-lines')).not.toContainText('reviewed agent proposal');
     // A deliberate new review still works after the abandoned operation settles.
-    await dialog.locator('textarea').nth(1).fill(reply);
+    await dialog.getByLabel('Agent reply JSON').fill(reply);
     await dialog.getByRole('button', { name: 'Check returned circuit', exact: true }).click();
     await expect(dialog.getByText('Core compile and connectivity', { exact: true })).toBeVisible();
   });
@@ -149,7 +155,8 @@ test('closing an active proposal run requires a deliberate new test after reopen
   };
   await openAgent();
   const dialog = page.getByRole('dialog', { name: 'Work with an AI agent', exact: true });
-  await dialog.locator('textarea').nth(1).fill(replyFor(source));
+  await dialog.getByRole('button', { name: /Proposal/ }).click();
+  await dialog.getByLabel('Agent reply JSON').fill(replyFor(source));
   await dialog.getByRole('button', { name: 'Check returned circuit', exact: true }).click();
   // Hold only the initial worker fetch so cancellation is deterministic, not a race with solver speed.
   let releaseWorker!: () => void;
@@ -166,6 +173,7 @@ test('closing an active proposal run requires a deliberate new test after reopen
   await dialog.getByRole('button', { name: 'Close AI agent workflow' }).click();
   releaseWorker();
   await openAgent();
+  await dialog.getByRole('button', { name: /Review/ }).click();
   await expect(dialog).toContainText('Simulation was cancelled. Test again before applying.');
   await expect(dialog.getByTestId('agent-verification')).toBeHidden();
   await expect(dialog.getByRole('button', { name: 'Apply to editor', exact: true })).toBeDisabled();
@@ -193,7 +201,7 @@ test('keeps agent proposals separate until verified, accepted and explicitly rev
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Work with an AI agent…', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Work with an AI agent', exact: true });
-  await dialog.getByPlaceholder(/Design for 2 W RMS/).fill('Restore the intended 1 kHz cutoff so every existing assertion passes.');
+  await dialog.getByLabel('Circuit requirements').fill('Restore the intended 1 kHz cutoff so every existing assertion passes.');
   const taskDownload = page.waitForEvent('download');
   await dialog.getByRole('button', { name: 'Download task file', exact: true }).click();
   const taskFile = await taskDownload;
@@ -214,7 +222,8 @@ test('keeps agent proposals separate until verified, accepted and explicitly rev
   await expect(dialog.getByText('Core compile and connectivity')).toBeVisible();
   await expect(dialog.getByText('3 changed lines')).toBeVisible();
 
-  const replyText = dialog.locator('textarea').nth(1);
+  await dialog.getByRole('button', { name: /Proposal/ }).click();
+  const replyText = dialog.getByLabel('Agent reply JSON');
   const serializedProposal = await replyText.inputValue();
   await replyText.fill(`${serializedProposal}\n`);
   await expect(dialog.getByText('Core compile and connectivity')).toBeHidden();
@@ -229,6 +238,7 @@ test('keeps agent proposals separate until verified, accepted and explicitly rev
 
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Work with an AI agent…', exact: true }).click();
+  await dialog.getByRole('button', { name: /Review/ }).click();
   await dialog.getByRole('button', { name: 'Test proposed circuit', exact: true }).click();
   await expect(dialog.getByTestId('agent-verification')).toBeVisible({ timeout: 90_000 });
   await expect(dialog.getByTestId('agent-verification')).toContainText('5/5 passed');
@@ -248,7 +258,7 @@ test('does not present a simulation without assertions as verified', async ({ pa
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Work with an AI agent…', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Work with an AI agent', exact: true });
-  await dialog.getByPlaceholder(/Design for 2 W RMS/).fill('Return a simulated candidate and preserve every stated requirement.');
+  await dialog.getByLabel('Circuit requirements').fill('Return a simulated candidate and preserve every stated requirement.');
   const taskDownload = page.waitForEvent('download');
   await dialog.getByRole('button', { name: 'Download task file', exact: true }).click();
   const taskFile = await taskDownload;

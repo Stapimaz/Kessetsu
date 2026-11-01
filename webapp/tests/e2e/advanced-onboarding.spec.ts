@@ -38,7 +38,7 @@ test('keyboard menus and a complete study preserve the newcomer circuit', async 
   await expect(dialog.getByRole('heading', { name: 'Parameter study', exact: true })).toBeInViewport();
   await expect(dialog.locator('.study-case-failed')).toHaveCount(3);
   await page.screenshot({ path: testInfo.outputPath('study-first-run.png') });
-  await dialog.getByRole('button', { name: 'Setup', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Variables', exact: true }).click();
   page.once('dialog', confirmation => confirmation.dismiss());
   await dialog.getByRole('button', { name: 'Try loaded-filter study' }).click();
   await dialog.getByRole('button', { name: 'Results', exact: true }).click();

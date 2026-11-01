@@ -84,6 +84,16 @@ test('loaded-filter configuration, all outcomes, native parity, reports and sour
 
 test('cancel/reopen/resume preserves completed evidence and rejects changed constraints', async ({ page }, testInfo) => {
   const dialog = await openStudy(page);
+  await dialog.getByLabel('Open study file').setInputFiles(specPath('loaded-filter'));
+  await dialog.getByRole('button', { name: 'Method', exact: true }).click();
+  await dialog.getByLabel('Mode').selectOption('Nominal + tolerance corners');
+  await dialog.getByRole('button', { name: 'Next: Variables' }).click();
+  await expect(dialog.getByLabel('Corner parameter 1')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Next: Checks' }).click();
+  await expect(dialog.getByRole('button', { name: 'Add measurement' })).toBeVisible();
+  await expect(dialog.getByLabel('Objective measurement')).toBeVisible();
+  await expect(dialog.getByText('Independent requirement constraints (.kessreq)')).toBeVisible();
+
   const spec = JSON.parse(readFileSync(specPath('loaded-filter'), 'utf8'));
   spec.axes = []; spec.objective = null;
   spec.tolerances = { mode: 'monte_carlo', seed: 42, samples: 8, parameters: [{ parameter: 'resistance', relative: 0.05, distribution: 'uniform', group: null }] };
@@ -105,12 +115,12 @@ test('cancel/reopen/resume preserves completed evidence and rejects changed cons
     expect(completed.cases.find(c => c.case_id === row.case_id)?.content_sha256).toBe(row.content_sha256);
   }
   await dialog.getByLabel('Open study file').setInputFiles({ name: 'partial-results.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(partial)) });
-  await dialog.getByRole('button', { name: 'Setup', exact: true }).click();
-  await dialog.getByText('Conditions and portable specification', { exact: true }).click();
+  await dialog.getByRole('button', { name: 'Checks', exact: true }).click();
+  await dialog.getByText('Execution conditions & advanced specification', { exact: true }).click();
   await dialog.getByText('Advanced JSON: revisions and combined studies', { exact: true }).click();
   const changed = { ...spec, source: spec.source.replace('> 0.8', '> 0.7') };
   await dialog.getByLabel('Advanced study specification').fill(JSON.stringify(changed));
-  await dialog.getByRole('button', { name: 'Apply specification', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Apply JSON', exact: true }).click();
   await dialog.getByRole('button', { name: 'Resume', exact: true }).click();
   await expect(dialog.getByRole('alert')).toContainText('Cannot resume');
   await page.setViewportSize({ width: 760, height: 900 });

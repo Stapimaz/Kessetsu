@@ -26,7 +26,7 @@ test('recovers a rejected agent reply and failed requirement without changing th
   await page.getByRole('menuitem', { name: 'Work with an AI agent…', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Work with an AI agent', exact: true });
   const request = 'Design a loaded divider from 12 V with OUT between 2.95 V and 3.05 V, RL = 10kOhm.';
-  await dialog.getByLabel('Your circuit requirements').fill(request);
+  await dialog.getByLabel('Circuit requirements').fill(request);
   await dialog.getByRole('button', { name: 'Copy task for AI', exact: true }).click();
   const copied = async () => JSON.parse(await page.evaluate(() =>
     (window as unknown as { __correctionClipboard: { text: string } }).__correctionClipboard.text));
@@ -36,6 +36,7 @@ test('recovers a rejected agent reply and failed requirement without changing th
   const valid = task.language.example_source as string;
   const reply = (source: string) => JSON.stringify({ ...task.expected_response, proposed_source: source, summary: 'Nominal divider under the original fixed load and supply.' });
   const invalid = reply(valid.replace('net OUT', 'et OUT'));
+  await dialog.getByRole('button', { name: /Proposal/ }).click();
   await dialog.getByLabel('Agent reply JSON').fill(invalid);
   await dialog.getByRole('button', { name: 'Check returned circuit', exact: true }).click();
   const recovery = dialog.getByRole('alert', { name: 'Correct the agent reply' });
@@ -87,6 +88,7 @@ test('recovers a rejected agent reply and failed requirement without changing th
   await expect(dialog.getByLabel('Correction task JSON')).toHaveCount(0);
   await expect(dialog.getByRole('status')).not.toContainText('Correction task copied');
 
+  await dialog.getByRole('button', { name: /Proposal/ }).click();
   await dialog.getByLabel('Agent reply JSON').fill(reply(valid.replace('resistor R1 15k', 'resistor R1 20k')));
   await expect(recovery).toBeHidden();
   await dialog.getByRole('button', { name: 'Check returned circuit', exact: true }).click();
@@ -98,6 +100,7 @@ test('recovers a rejected agent reply and failed requirement without changing th
   expect(failedFeedback.requirements).toBe(request);
   expect(failedFeedback.correction.assertions.assertions[0]).toMatchObject({ status: 'FAIL', threshold: 2.95 });
   expect(failedFeedback.correction.assertions.assertions[0].actual).toBeCloseTo(2.4, 5);
+  await dialog.getByRole('button', { name: /Proposal/ }).click();
   await dialog.getByLabel('Agent reply JSON').fill(reply(valid));
   await dialog.getByRole('button', { name: 'Check returned circuit', exact: true }).click();
   await dialog.getByRole('button', { name: 'Test proposed circuit', exact: true }).click();
