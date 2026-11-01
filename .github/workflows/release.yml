@@ -51,7 +51,7 @@ jobs:
             target: linux-x86_64
           - runner: macos-15-intel
             target: macos-x86_64
-          - runner: macos-14
+          - runner: macos-15
             target: macos-aarch64
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
