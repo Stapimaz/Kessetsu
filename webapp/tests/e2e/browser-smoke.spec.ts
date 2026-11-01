@@ -38,6 +38,7 @@ test('opens the landing page, enters Web Hub, initializes WASM and compiles the 
   expect(nodeAlignmentError).toBeLessThanOrEqual(0.5);
   expect(await page.locator('.landing-hero .eyebrow').evaluate((element) => (element as HTMLElement).innerText))
     .toBe('SPICE SIMULATION · AUTO-SCHEMATIC · AI AGENT VERIFICATION');
+  expect(await page.locator('.hero-console pre').evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
   await expect(page.getByText('First-release scope:')).toHaveCount(0);
   await expect(page.locator('.preview-generated-schematic [data-component="VIN"].reference')).toBeVisible();
   await expect(page.getByRole('contentinfo')).toContainText(`Kessetsu ${productVersion}`);
@@ -89,6 +90,7 @@ test('keeps the landing page readable and actionable on mobile', async ({ page }
   await expect(page.locator('.landing-header').getByRole('link', { name: /Open Web Hub/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Give your agent requirements, not blind trust.' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'The complete workflow, in your browser.' })).toBeVisible();
+  expect(await page.locator('.hero-console pre').evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
   if (process.env.KESSETSU_E2E_SCREENSHOTS) {
     await page.screenshot({ path: 'test-results/landing-mobile.png', fullPage: true });
   }

@@ -69,14 +69,19 @@ function ToolsShell({ children }: { children: ReactNode }) {
     <header className="landing-header">
       <a className="landing-wordmark" href={import.meta.env.BASE_URL} aria-label="Kessetsu home"><BrandWordmark /></a>
       <nav className="landing-nav" aria-label="Circuit tools navigation">
-        <a href={`${import.meta.env.BASE_URL}tools/`}>Tools</a>
+        <a href={`${import.meta.env.BASE_URL}tools/`}>Calculators</a>
         <a href={`${import.meta.env.BASE_URL}docs/`}>Docs</a>
       </nav>
       <a className="button button-compact button-secondary" href={`${import.meta.env.BASE_URL}#editor`}>Open editor <ArrowRight size={15} /></a>
     </header>
     <div className="tools-content">{children}</div>
-    <footer className="landing-footer"><span>Free · No account · Calculated locally with Kessetsu Core</span>
-      <a href={`${import.meta.env.BASE_URL}install/`}>Also available through the CLI</a>
+    <footer className="landing-footer tools-footer">
+      <span>Kessetsu Calculators</span>
+      <nav aria-label="Calculators footer navigation">
+        <a href={`${import.meta.env.BASE_URL}#editor`}>Web Hub</a>
+        <a href={`${import.meta.env.BASE_URL}docs/`}>Docs</a>
+        <a href={`${import.meta.env.BASE_URL}install/`}>CLI &amp; MCP</a>
+      </nav>
     </footer>
   </main>;
 }
@@ -84,14 +89,14 @@ function ToolsShell({ children }: { children: ReactNode }) {
 export function CircuitToolsIndex() {
   useEffect(() => { document.title = 'Circuit tools — Kessetsu'; }, []);
   return <ToolsShell>
-    <div className="tools-heading"><p className="eyebrow">Circuit tools</p>
-      <h1>Calculate. Open the circuit. Keep going.</h1>
-      <p>Optional quick-sizing calculators for common building blocks. Pick your target values and standard E12/E24 parts, inspect the assumptions, and open the generated .kess circuit in the full Web Hub for Ngspice simulation and schematic export.</p>
-      <p className="tools-hub-note">Already have a circuit or SPICE netlist? <a className="text-link" href={`${import.meta.env.BASE_URL}#editor`}>Open the full Web Hub <ArrowRight size={14} /></a></p>
+    <div className="tools-heading">
+      <p className="eyebrow">Calculators</p>
+      <h1>Circuit calculators</h1>
+      <p>Quick-sizing calculators for common building blocks. Select E12/E24 standard values and open the generated <code>.kess</code> circuit directly in the Web Hub.</p>
     </div>
     <div className="tool-cards">{Object.entries(circuitTools).map(([id, tool]) =>
       <a className="tool-card" key={id} href={`${import.meta.env.BASE_URL}tools/${tool.slug}/`}>
-        <h2>{tool.name}</h2><p>{tool.description}</p><span>Open tool <ArrowRight size={16} /></span>
+        <h2>{tool.name}</h2><p>{tool.description}</p><span>Open calculator <ArrowRight size={15} /></span>
       </a>)}</div>
   </ToolsShell>;
 }
@@ -140,8 +145,8 @@ export function CircuitToolsPage({ toolId }: { toolId: ToolId }) {
     : `kess tool rc-lowpass --cutoff "${inputs.cutoff}" --resistance "${inputs.resistance}" --values ${series} --output rc-lowpass.kess`;
 
   return <ToolsShell>
-    <a className="text-link" href={`${import.meta.env.BASE_URL}tools/`}>← All circuit tools</a>
-    <div className="tools-heading"><p className="eyebrow">Calculate and design</p>
+    <a className="text-link tools-back-link" href={`${import.meta.env.BASE_URL}tools/`}>← All calculators</a>
+    <div className="tools-heading">
       <h1>{definition.name}</h1><p>{definition.description}</p>
     </div>
     <div className="tool-layout">
@@ -178,22 +183,24 @@ export function CircuitToolsPage({ toolId }: { toolId: ToolId }) {
             <button className="button button-primary" onClick={openInEditor}>Open in editor <ArrowRight size={16} /></button>
             <button className="button button-secondary" onClick={() => downloadTextFile(result.source, `${definition.slug}.kess`)}><Download size={16} /> Download .kess</button>
           </div>
-          <p className="tool-caption">Run the generated simulation in the editor, then export the schematic or continue in KiCad/LTspice. Your previous browser circuit is retained under File → Restore previous circuit.</p>
+          <p className="tool-caption">Your previous browser circuit is retained under File → Restore previous circuit.</p>
           <details className="tool-source"><summary>Generated circuit source</summary><pre>{result.source}</pre></details>
         </>}
       </section>
     </div>
-    <section className="tool-explanation"><h2>How this calculation works</h2>
-      <code>{definition.formula}</code>
-      {result ? <ul>{result.assumptions.map((assumption) => <li key={assumption}>{assumption}</li>)}</ul> : <p>{definition.assumption}</p>}
-    </section>
-    <section className="tool-cli"><h2><Terminal size={18} /> Use the same tool locally</h2>
-      <p>Use Kessetsu CLI 1.1.0 or newer. Add <code>--format json</code> for an AI agent.
-        {' '}<a href={`${import.meta.env.BASE_URL}install/`}>Install or update the CLI</a>.</p>
-      <pre>{cliCommand}</pre>
-      <button className="button button-compact button-secondary" disabled={!result} onClick={() => {
-        void navigator.clipboard.writeText(cliCommand).then(() => setNotice('Command copied.')).catch(() => setNotice('Select the command above and copy it manually.'));
-      }}>Copy command</button><span className="tool-notice" role="status">{notice}</span>
-    </section>
+    <div className="tool-meta-grid">
+      <section className="tool-explanation"><h2>How this calculation works</h2>
+        <code>{definition.formula}</code>
+        {result ? <ul>{result.assumptions.map((assumption) => <li key={assumption}>{assumption}</li>)}</ul> : <p>{definition.assumption}</p>}
+      </section>
+      <section className="tool-cli"><h2><Terminal size={18} /> Use the same tool locally</h2>
+        <p>Use Kessetsu CLI 1.1.0 or newer. Add <code>--format json</code> for an AI agent.
+          {' '}<a href={`${import.meta.env.BASE_URL}install/`}>Install or update the CLI</a>.</p>
+        <pre>{cliCommand}</pre>
+        <button className="button button-compact button-secondary" disabled={!result} onClick={() => {
+          void navigator.clipboard.writeText(cliCommand).then(() => setNotice('Command copied.')).catch(() => setNotice('Select the command above and copy it manually.'));
+        }}>Copy command</button><span className="tool-notice" role="status">{notice}</span>
+      </section>
+    </div>
   </ToolsShell>;
 }

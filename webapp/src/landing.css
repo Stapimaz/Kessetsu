@@ -128,7 +128,7 @@
 .requirement-note { padding: 18px 20px; border-bottom: 1px solid #223044; background: rgba(24, 34, 49, .7); }
 .requirement-note small { color: #55e1cc; font-size: 9px; font-weight: 800; letter-spacing: .14em; }
 .requirement-note p { margin: 7px 0 0; color: #cad5e4; font-size: 13px; line-height: 1.55; }
-.hero-console pre { overflow-x: auto; margin: 0; padding: 20px; color: #cfdae8; font: 12px/1.9 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.hero-console pre { overflow-x: hidden; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; padding: 16px 18px; color: #cfdae8; font: clamp(10.5px, 0.92vw, 11.5px)/1.85 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .hero-console .prompt { color: #55e1cc; }
 .hero-console .muted { color: #738299; }
 .hero-console .fail { color: #fb7185; font-weight: 700; }
@@ -162,7 +162,7 @@
 .mode-card h3 code { color: #55e1cc; font-size: .9em; }
 .mode-card p { margin: 12px 0 0; color: #93a3b8; font-size: 14px; line-height: 1.65; }
 .mode-card-foot { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding-top: 16px; border-top: 1px solid #223043; }
-.mode-card-foot > code { width: 100%; overflow-x: auto; padding: 8px 10px; border: 1px solid #233144; border-radius: 7px; color: #b9cade; background: #0c121b; font: 11px/1.4 ui-monospace, monospace; white-space: nowrap; }
+.mode-card-foot > code { width: 100%; overflow-x: hidden; white-space: pre-wrap; overflow-wrap: anywhere; padding: 8px 10px; border: 1px solid #233144; border-radius: 7px; color: #b9cade; background: #0c121b; font: 11px/1.4 ui-monospace, monospace; }
 
 .workflow-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; margin: 0; padding: 1px; list-style: none; border-radius: 13px; background: #2a384b; }
 .workflow-grid li { min-height: 220px; padding: 25px; background: #111823; }

@@ -8,6 +8,8 @@ test('calculates the loaded divider, downloads source and restores the prior wor
   })));
   await page.getByRole('navigation', { name: 'Footer navigation' }).getByRole('link', { name: 'Calculators', exact: true }).click();
   await page.getByRole('link', { name: /Loaded voltage divider/ }).click();
+  await expect(page.getByRole('link', { name: '← All calculators' })).toHaveAttribute('href', '/tools/');
+  await expect(page.getByRole('navigation', { name: 'Calculators footer navigation' })).toBeVisible();
   await page.getByLabel('Component values', { exact: true }).selectOption('exact');
   await page.getByRole('button', { name: 'Calculate circuit' }).click();
   const output = page.getByRole('region', { name: 'Calculation results' });
@@ -39,6 +41,7 @@ test('calculates the loaded divider, downloads source and restores the prior wor
 
 test('RC rounding changes achieved cutoff, rejects wrong units and stays usable on mobile', async ({ page, browser, baseURL }) => {
   await page.goto('/tools/rc-lowpass/');
+  await expect(page.getByRole('link', { name: '← All calculators' })).toHaveAttribute('href', '/tools/');
   await page.getByLabel('Component values', { exact: true }).selectOption('e12');
   await page.getByRole('button', { name: 'Calculate circuit' }).focus();
   await page.keyboard.press('Enter');

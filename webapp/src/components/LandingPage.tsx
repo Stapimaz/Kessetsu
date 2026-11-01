@@ -77,9 +77,9 @@ export function LandingPage() {
             <p>First-order RC low-pass filter (R1 = 1 kΩ, C1 = 159.15 nF) · Verify −3 dB cutoff ≈ 1 kHz and −45° phase</p>
           </div>
           <pre><span className="prompt">$</span> kess test rc_low_pass.kess{`\n`}
-<span className="muted">check 01</span>  <span className="pass">PASS</span>  dc passband gain   = 1.000      <span className="muted">(requires &gt; 0.99)</span>{`\n`}
-<span className="muted">check 02</span>  <span className="pass">PASS</span>  -3 dB cutoff       = 1.000 kHz  <span className="muted">(requires 990 Hz .. 1.01 kHz)</span>{`\n`}
-<span className="muted">check 03</span>  <span className="pass">PASS</span>  phase @ 1.000 kHz  = -45.0°     <span className="muted">(requires -46° .. -44°)</span></pre>
+<span className="muted">check 01</span>  <span className="pass">PASS</span>  dc passband gain  = 1.000      <span className="muted">(requires &gt; 0.99)</span>{`\n`}
+<span className="muted">check 02</span>  <span className="pass">PASS</span>  -3 dB cutoff      = 1.000 kHz  <span className="muted">(requires 990 Hz .. 1.01 kHz)</span>{`\n`}
+<span className="muted">check 03</span>  <span className="pass">PASS</span>  phase @ 1.000 kHz = -45.0°     <span className="muted">(requires -46° .. -44°)</span></pre>
           <div className="console-artifacts">
             <span>Connections: 0 warnings</span>
             <span>Auto-Schematic: SVG / PNG</span>
