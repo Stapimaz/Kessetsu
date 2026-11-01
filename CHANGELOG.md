@@ -4,6 +4,10 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-11-01
+
+Expanded SPICE and semiconductor device coverage (`vcvs`, `vccs`, `ccvs`, `cccs`, `switch`, Zener breakdown diodes, `jfet`, `couple` magnetic coupling, 4-terminal MOSFET bulk pin `b`, `exp` transient waveform, biased `ac` sources, `.param` math expressions, and RKM notation), physical op-amp macromodeling (`KESSETSU_OPAMP_V2`), deterministic parameter studies (`kess study`) and engineering calculators (`kess tool`), canonical 1.5 showcase circuits, and a progressive-disclosure public website and onboarding experience.
+
 ### SPICE and device domain expansion
 
 - **Linear SPICE dependent sources:**
