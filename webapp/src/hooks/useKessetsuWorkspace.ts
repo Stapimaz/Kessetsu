@@ -18,6 +18,8 @@ import reusableFilters from '../../../examples/reusable_filters.kess?raw';
 import reusableAmplifiers from '../../../examples/reusable_amplifiers.kess?raw';
 import externalComparator from '../../../examples/external_comparator.kess?raw';
 import externalMemristor from '../../../examples/external_memristor.kess?raw';
+import comparatorModelSource from '../../../examples/models/comparator.lib?raw';
+import memristorModelSource from '../../../examples/models/memristor.lib?raw';
 import loadedFilter from '../../../examples/loaded_filter.kess?raw';
 import transistorDriver from '../../../examples/transistor_driver.kess?raw';
 import zenerRegulator from '../../../examples/zener_shunt_regulator.kess?raw';
@@ -48,14 +50,30 @@ export const examples = {
   power: { label: 'Power Amplifier', description: '8 Ω multi-stage benchmark', source: powerAmplifier },
   filters: { label: 'Reusable Filters', description: 'One RC block, 500 Hz and 2 kHz instances', source: reusableFilters },
   amplifiers: { label: 'Reusable Amplifiers', description: 'One op-amp block, gains 5 and 10', source: reusableAmplifiers },
-  comparator: { label: 'External Comparator', description: 'Choose the local comparator.lib model file', source: externalComparator },
-  memristor: { label: 'Threshold Memristor', description: 'Choose the local memristor.lib model file', source: externalMemristor },
+  comparator: { label: 'External Comparator', description: 'Generic comparator subcircuit (comparator.lib)', source: externalComparator },
+  memristor: { label: 'Threshold Memristor', description: 'Threshold memristor subcircuit (memristor.lib)', source: externalMemristor },
   zener: { label: 'Zener Regulator', description: '5.1 V shunt regulator with BZX84C5V1', source: zenerRegulator },
   sample_hold: { label: 'Sample & Hold', description: 'Switched capacitor track and hold', source: sampleHold },
   current_sense: { label: 'Current Sense Amp', description: 'CCVS sensor with rail-clamped op-amp', source: currentSense },
 } as const;
 
 export type ExampleId = keyof typeof examples;
+
+const BUNDLED_MODEL_FILES: Record<string, { sha256: string; bytes: number[] }> = {
+  'models/comparator.lib': {
+    sha256: '00198a3b00ef90c78b93beb6c7e7ed61c9f0220dc597a6c71cd0661343246c34',
+    bytes: Array.from(new TextEncoder().encode(comparatorModelSource)),
+  },
+  'models/memristor.lib': {
+    sha256: 'cd4bac38581fb00c1b5667e9d5ec440cf954efb5e26105ae2775853cc90301f6',
+    bytes: Array.from(new TextEncoder().encode(memristorModelSource)),
+  },
+};
+
+export function hasBundledExampleModel(resource: string, sha256: string): boolean {
+  const entry = BUNDLED_MODEL_FILES[resource];
+  return Boolean(entry && entry.sha256 === sha256);
+}
 
 export interface LocalModelRequirement {
   model: string;
@@ -289,7 +307,13 @@ export function useKessetsuWorkspace() {
   const loadExample = useCallback((id: ExampleId) => {
     beginDocument();
     revisionRef.current += 1;
-    setModelResources({});
+    if (id === 'comparator') {
+      setModelResources({ 'models/comparator.lib': BUNDLED_MODEL_FILES['models/comparator.lib'].bytes });
+    } else if (id === 'memristor') {
+      setModelResources({ 'models/memristor.lib': BUNDLED_MODEL_FILES['models/memristor.lib'].bytes });
+    } else {
+      setModelResources({});
+    }
     leaveSharedUrl();
     runnerRef.current?.cancel();
     setState((current) => ({
@@ -526,6 +550,14 @@ export function useKessetsuWorkspace() {
     setModelResources({});
   }, [invalidateBindings]);
 
+  const bindBundledModel = useCallback((resource: string) => {
+    const req = modelRequirements.find((item) => item.resource === resource);
+    const bundled = req ? BUNDLED_MODEL_FILES[resource] : undefined;
+    if (!req || !bundled || bundled.sha256 !== req.sha256) return;
+    invalidateBindings();
+    setModelResources((current) => ({ ...current, [resource]: bundled.bytes }));
+  }, [modelRequirements, invalidateBindings]);
+
   const share = useCallback(async (name: string, signal: AbortSignal): Promise<string> => {
     const snapshot = captureDocumentRevision();
     if (!state.wasmLoaded || !state.compileSucceeded) throw new Error('Compile must succeed before sharing');
@@ -552,6 +584,7 @@ export function useKessetsuWorkspace() {
     boundModelResources: Object.keys(modelResources),
     modelResources,
     bindModelFile,
+    bindBundledModel,
     clearModelFiles,
     setCode,
     loadExample,

@@ -85,7 +85,7 @@ test('imports the supported SPICE subset as an unsaved editable circuit', async 
 
   await openFileMenu(page);
   const chooserPromise = page.waitForEvent('filechooser');
-  await page.getByRole('menuitem', { name: 'Import SPICE netlist...' }).click();
+  await page.getByRole('menuitem', { name: 'Import SPICE netlist…' }).click();
   const chooser = await chooserPromise;
   await chooser.setFiles({
     name: 'Imported Filter.cir',
@@ -102,7 +102,7 @@ test('imports the supported SPICE subset as an unsaved editable circuit', async 
   page.once('dialog', (dialog) => void dialog.accept());
   await openFileMenu(page);
   const invalidChooserPromise = page.waitForEvent('filechooser');
-  await page.getByRole('menuitem', { name: 'Import SPICE netlist...' }).click();
+  await page.getByRole('menuitem', { name: 'Import SPICE netlist…' }).click();
   const invalidChooser = await invalidChooserPromise;
   await invalidChooser.setFiles({
     name: 'unsafe.cir',
@@ -191,7 +191,7 @@ test('Save retains a native file handle while Save As selects a new destination'
 
   await openFileMenu(page);
   const invalidChooserPromise = page.waitForEvent('filechooser');
-  await page.getByRole('menuitem', { name: 'Import SPICE netlist...' }).click();
+  await page.getByRole('menuitem', { name: 'Import SPICE netlist…' }).click();
   await (await invalidChooserPromise).setFiles({ name: 'unsafe.cir', mimeType: 'text/plain', buffer: Buffer.from('.include ../outside.lib\n.end\n') });
   await expect(page.locator('.global-error')).toContainText('KES-N003');
   await page.keyboard.press('ControlOrMeta+s');

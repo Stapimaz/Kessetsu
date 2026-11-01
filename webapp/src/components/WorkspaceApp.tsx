@@ -45,7 +45,7 @@ export function WorkspaceApp() {
     state, setCode, loadExample, newDocument, openDocument, importSpiceDocument, markSaved, saveBrowserDocument, renameDocument,
     run, cancel, createExport, share,
     captureDocumentRevision, isCurrentDocument, isCurrentDocumentRevision,
-    modelRequirements, boundModelResources, bindModelFile, clearModelFiles,
+    modelRequirements, boundModelResources, bindModelFile, bindBundledModel, clearModelFiles,
     modelResources,
   } = useKessetsuWorkspace();
   const [openMenu, setOpenMenu] = useState<MenuId | null>(null);
@@ -385,14 +385,14 @@ export function WorkspaceApp() {
             {openMenu === 'file' && <div className="menu-popover file-menu" role="menu" aria-label="File menu">
               <button role="menuitem" onClick={startNewDocument}><span>New circuit</span></button>
               <button role="menuitem" onClick={chooseDocument}><span>Open .kess…</span></button>
-              <button role="menuitem" onClick={chooseSpiceDocument}><span>Import SPICE netlist...</span></button>
+              <button role="menuitem" onClick={chooseSpiceDocument}><span>Import SPICE netlist…</span></button>
               <button role="menuitem" disabled={!state.wasmLoaded} onClick={() => { setSpiceConverterSeed(undefined); setSpiceConverterOpen(true); setOpenMenu(null); }}><span>Convert SPICE netlist…</span></button>
               <div className="menu-separator" role="separator" />
               <button role="menuitem" disabled={documentSaving || !state.wasmLoaded} aria-label={nativeFileSaving ? 'Save' : 'Save in browser'} onClick={() => void saveDocument()}>
                 <span>{nativeFileSaving ? 'Save' : 'Save in browser'}</span><kbd>Ctrl+S</kbd>
               </button>
               <button role="menuitem" disabled={documentSaving || !state.wasmLoaded} aria-label={nativeFileSaving ? 'Save As' : 'Download .kess'} onClick={() => void saveDocument(true)}>
-                <span>{nativeFileSaving ? 'Save As...' : 'Download .kess…'}</span><kbd>Ctrl+Shift+S</kbd>
+                <span>{nativeFileSaving ? 'Save As…' : 'Download .kess'}</span><kbd>Ctrl+Shift+S</kbd>
               </button>
               <button role="menuitem" onClick={() => { setRenameOpen(true); setOpenMenu(null); }}><span>Rename…</span></button>
               {previousCircuitAvailable && <button role="menuitem" onClick={() => void restorePreviousCircuit()}><span>Restore previous circuit</span></button>}
@@ -401,7 +401,7 @@ export function WorkspaceApp() {
               <a role="menuitem" href={`${import.meta.env.BASE_URL}tools/`} onClick={(event) => {
                 try { writeWorkspaceDraft(localStorage, state.circuitName, state.code, state.isDirty); }
                 catch { event.preventDefault(); setDocumentError('Browser storage is unavailable. Download this circuit before opening tools.'); }
-              }}><span>Circuit tools</span></a>
+              }}><span>Calculators</span></a>
               <div className="menu-submenu">
                 <button role="menuitem" aria-haspopup="menu" aria-expanded={examplesOpen} onClick={() => setExamplesOpen((current) => !current)}>
                   <span>Examples</span><ChevronRight size={14} />
@@ -602,9 +602,11 @@ export function WorkspaceApp() {
         open={circuitDetailsOpen}
         spice={state.spiceNetlist}
         models={state.modelManifest}
+        diagnostics={state.diagnostics}
         resources={modelRequirements}
         boundResources={boundModelResources}
         onBindFile={bindModelFile}
+        onBindBundled={bindBundledModel}
         onClearFiles={clearModelFiles}
         onClose={() => setCircuitDetailsOpen(false)}
       />

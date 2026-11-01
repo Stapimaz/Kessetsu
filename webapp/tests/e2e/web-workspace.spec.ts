@@ -39,6 +39,9 @@ test('supports edit, inline diagnostic navigation, fix, simulation, assertion an
   page.once('dialog', (dialog) => void dialog.accept());
   await page.getByRole('button', { name: 'File', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Examples', exact: true }).click();
+  const menuBox = await page.getByRole('menu', { name: 'Examples menu' }).boundingBox();
+  const viewport = page.viewportSize()!;
+  expect(menuBox!.y + menuBox!.height).toBeLessThanOrEqual(viewport.height);
   await page.getByRole('menuitem', { name: 'RC Low-pass', exact: true }).click();
   await expect(page.getByTestId('compile-success')).toBeVisible();
   await expect(page.getByTestId('canonical-schematic')).toHaveAttribute('data-quality', 'pass');
@@ -105,18 +108,22 @@ test('guides missing and mismatched local model files to the binding dialog', as
   await page.getByRole('button', { name: 'File', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Examples', exact: true }).click();
   await page.getByRole('menuitem', { name: 'External Comparator', exact: true }).click();
+  await expect(page.getByTestId('compile-success')).toBeVisible();
+  await page.getByRole('button', { name: 'View', exact: true }).click();
+  await page.getByRole('menuitem', { name: /Circuit details/ }).click();
+  const details = page.getByRole('dialog', { name: 'Circuit details' });
+  await details.getByRole('button', { name: 'Clear files' }).click();
+  await details.getByRole('button', { name: 'Close circuit details' }).click();
   const simulation = page.getByLabel('Circuit simulation');
   await expect(simulation).toContainText('Model file needed');
   await simulation.getByRole('button', { name: 'Choose model files' }).click();
-  const details = page.getByRole('dialog', { name: 'Circuit details' });
   await details.getByLabel('Model file for CMP').setInputFiles({ name: 'wrong.lib', mimeType: 'text/plain', buffer: Buffer.from('* wrong file\n') });
   await expect(page.getByLabel('Diagnostics')).toContainText('KES-C016');
+  await expect(details).toContainText('Verification failed');
+  await details.getByRole('button', { name: 'Use bundled example file' }).click();
+  await expect(details).toContainText('Verified');
   await details.getByRole('button', { name: 'Close circuit details' }).click();
-  await expect(simulation).toContainText('Model file needed');
-  await simulation.getByRole('button', { name: 'Choose model files' }).click();
-  await details.getByLabel('Model file for CMP').setInputFiles({ name: 'comparator.lib', mimeType: 'text/plain', buffer: readFileSync(new URL('../../../examples/models/comparator.lib', import.meta.url)) });
   await expect(page.getByTestId('compile-success')).toBeVisible();
-  await details.getByRole('button', { name: 'Close circuit details' }).click();
   await expect(simulation.getByRole('button', { name: 'Run simulation', exact: true })).toBeEnabled();
 });
 
