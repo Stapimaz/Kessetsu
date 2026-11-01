@@ -1,4 +1,4 @@
-import { BarChart3, CheckCircle2, Download, Plus, Trash2, Upload, X } from 'lucide-react';
+import { BarChart3, CheckCircle2, Download, Plus, RotateCcw, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { compare_research_data, import_research_csv, import_simulation_research_data, preview_research_csv } from 'kessetsu-core';
 import { downloadTextFile, sanitizeFileStem } from '../document';
@@ -31,10 +31,9 @@ function analysisLabel(dataset: Dataset, index: number) {
   return `${index + 1}: Operating point`;
 }
 
-function MappingRow({ mapping, headers, axis, onChange, onRemove }: {
+function PrimaryMappingRow({ mapping, headers, onChange, onRemove }: {
   mapping: ColumnMapping;
   headers: string[];
-  axis?: boolean;
   onChange: (mapping: ColumnMapping) => void;
   onRemove?: () => void;
 }) {
@@ -47,10 +46,21 @@ function MappingRow({ mapping, headers, axis, onChange, onRemove }: {
     <label>Quantity<select value={mapping.unit} onChange={(event) => changeUnit(event.target.value as ResearchUnit)}>
       {researchUnits.map((unit) => <option key={unit}>{unit}</option>)}
     </select></label>
+    {onRemove && <button className="research-icon-button" aria-label={`Remove signal ${mapping.name}`} onClick={onRemove}><Trash2 size={14} /></button>}
+  </div>;
+}
+
+function CalibrationRow({ label, mapping, axis, onChange }: {
+  label: string;
+  mapping: ColumnMapping;
+  axis?: boolean;
+  onChange: (mapping: ColumnMapping) => void;
+}) {
+  return <div className="research-calibration-row">
+    <span className="research-calibration-target">{label} (<code>{mapping.name}</code>)</span>
     <label>CSV unit<input value={mapping.source_unit} aria-label={`${axis ? 'Axis' : 'Signal'} source unit`} onChange={(event) => onChange({ ...mapping, source_unit: event.target.value })} /></label>
     <label>Gain<input type="number" step="any" value={mapping.gain} onChange={(event) => onChange({ ...mapping, gain: Number(event.target.value) })} /></label>
     <label>Offset<input type="number" step="any" value={mapping.offset} onChange={(event) => onChange({ ...mapping, offset: Number(event.target.value) })} /></label>
-    {onRemove && <button className="research-icon-button" aria-label={`Remove signal ${mapping.name}`} onClick={onRemove}><Trash2 size={14} /></button>}
   </div>;
 }
 
@@ -63,6 +73,7 @@ function DatasetEditor({ slot, role, onRead, onUpdate, onPreview, onImport }: {
   onImport: () => void;
 }) {
   const title = role === 'data' ? 'Observed data' : 'Reference data';
+  const actionLabel = role === 'data' ? 'Use observed data' : 'Use reference CSV';
   const headers = slot.preview?.headers.length
     ? slot.preview.headers
     : (slot.preview?.sample[0]?.fields ?? []).map((_, index) => `Column ${index + 1}`);
@@ -82,24 +93,10 @@ function DatasetEditor({ slot, role, onRead, onUpdate, onPreview, onImport }: {
           onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (file) onRead(file); }} />
       </label>
       <span title={fileName}>{fileName}</span>
-      {slot.dataset && <span className="research-ready"><CheckCircle2 size={14} /> Imported</span>}
+      {slot.dataset && <span className="research-ready"><CheckCircle2 size={14} /> Active ({slot.dataset.spec.name})</span>}
     </div>
 
     {slot.file && <>
-      <div className="research-dialect">
-        <label>Delimiter<select value={slot.dialect.delimiter} onChange={(event) => updateDialect({ delimiter: event.target.value as CsvDialect['delimiter'] })}>
-          <option value="comma">Comma</option><option value="semicolon">Semicolon</option><option value="tab">Tab</option>
-        </select></label>
-        <label>Decimal<select value={slot.dialect.decimal} onChange={(event) => updateDialect({ decimal: event.target.value as CsvDialect['decimal'] })}>
-          <option value="dot">Dot</option><option value="comma">Comma</option>
-        </select></label>
-        <label>Header<select value={slot.dialect.header ? 'yes' : 'no'} onChange={(event) => updateDialect({ header: event.target.value === 'yes' })}>
-          <option value="yes">First record</option><option value="no">No header</option>
-        </select></label>
-        <label>Skip records<input type="number" min="0" max="128" value={slot.dialect.preamble_records}
-          onChange={(event) => updateDialect({ preamble_records: Number(event.target.value) })} /></label>
-      </div>
-
       {slot.preview && <div className="research-preview">
         <div><strong>{slot.preview.data_records.toLocaleString()}</strong> data records · {headers.length} columns · {slot.preview.blank_records} blank</div>
         <div className="research-preview-table"><table><thead><tr><th>Record</th>{headers.map((header, index) => <th key={index}>{header || `Column ${index + 1}`}</th>)}</tr></thead>
@@ -108,37 +105,60 @@ function DatasetEditor({ slot, role, onRead, onUpdate, onPreview, onImport }: {
       </div>}
 
       {slot.preview && headers.length > 0 && <div className="research-import-form">
-        <div className="research-form-grid">
+        <div className="research-primary-meta">
           <label>Dataset name<input value={slot.draft.name} onChange={(event) => updateDraft({ name: event.target.value })} /></label>
           <label>Origin<select value={slot.draft.origin} onChange={(event) => updateDraft({ origin: event.target.value as DatasetSlot['draft']['origin'] })}>
             <option value="measured">Measured</option><option value="published_simulation">Published simulation</option>
             <option value="simulation">Simulation export</option><option value="synthetic">Synthetic</option><option value="unspecified">Unspecified</option>
           </select></label>
-          <label>Axis order<select value={slot.draft.axisOrder} onChange={(event) => updateDraft({ axisOrder: event.target.value as DatasetSlot['draft']['axisOrder'] })}>
-            <option value="increasing">Increasing</option><option value="decreasing">Decreasing</option>
-          </select></label>
-          <label>Missing values<select value={slot.draft.missing} onChange={(event) => updateDraft({ missing: event.target.value as DatasetSlot['draft']['missing'] })}>
-            <option value="error">Stop with error</option><option value="skip_row">Skip whole row and record it</option>
-          </select></label>
-          <label>Missing tokens<input value={slot.draft.missingTokens} onChange={(event) => updateDraft({ missingTokens: event.target.value })} /></label>
         </div>
         <h3>Comparison axis</h3>
-        <MappingRow mapping={slot.draft.axis} headers={headers} axis onChange={(axis) => updateDraft({ axis })} />
+        <PrimaryMappingRow mapping={slot.draft.axis} headers={headers} onChange={(axis) => updateDraft({ axis })} />
         <div className="research-section-heading"><h3>Signals</h3><button disabled={slot.draft.signals.length >= 32} onClick={() => {
           const next = slot.draft.signals.length + 1;
           const used = new Set([slot.draft.axis.column, ...slot.draft.signals.map((signal) => signal.column)]);
           const available = headers.findIndex((_, index) => !used.has(index));
           updateDraft({ signals: [...slot.draft.signals, column(available >= 0 ? available : 0, `signal_${next}`, 'Volt')] });
         }}><Plus size={14} /> Add signal</button></div>
-        {slot.draft.signals.map((signal, index) => <MappingRow key={index} mapping={signal} headers={headers}
+        {slot.draft.signals.map((signal, index) => <PrimaryMappingRow key={index} mapping={signal} headers={headers}
           onChange={(next) => updateDraft({ signals: slot.draft.signals.map((item, i) => i === index ? next : item) })}
           onRemove={slot.draft.signals.length > 1 ? () => updateDraft({ signals: slot.draft.signals.filter((_, i) => i !== index) }) : undefined} />)}
-        <details><summary>Identity and citation</summary><div className="research-form-grid">
-          <label>Device<input value={slot.draft.device} onChange={(event) => updateDraft({ device: event.target.value })} /></label>
-          <label>Sample / run<input value={slot.draft.sample} onChange={(event) => updateDraft({ sample: event.target.value })} /></label>
-          <label className="research-wide">Citation or source<textarea rows={2} value={slot.draft.citation} onChange={(event) => updateDraft({ citation: event.target.value })} /></label>
-        </div></details>
-        <button className="research-primary" onClick={onImport}>Import mapped dataset</button>
+
+        <details>
+          <summary>Advanced import settings</summary>
+          <div className="research-dialect">
+            <label>Delimiter<select value={slot.dialect.delimiter} onChange={(event) => updateDialect({ delimiter: event.target.value as CsvDialect['delimiter'] })}>
+              <option value="comma">Comma</option><option value="semicolon">Semicolon</option><option value="tab">Tab</option>
+            </select></label>
+            <label>Decimal<select value={slot.dialect.decimal} onChange={(event) => updateDialect({ decimal: event.target.value as CsvDialect['decimal'] })}>
+              <option value="dot">Dot</option><option value="comma">Comma</option>
+            </select></label>
+            <label>Header<select value={slot.dialect.header ? 'yes' : 'no'} onChange={(event) => updateDialect({ header: event.target.value === 'yes' })}>
+              <option value="yes">First record</option><option value="no">No header</option>
+            </select></label>
+            <label>Skip records<input type="number" min="0" max="128" value={slot.dialect.preamble_records}
+              onChange={(event) => updateDialect({ preamble_records: Number(event.target.value) })} /></label>
+            <label>Axis order<select value={slot.draft.axisOrder} onChange={(event) => updateDraft({ axisOrder: event.target.value as DatasetSlot['draft']['axisOrder'] })}>
+              <option value="increasing">Increasing</option><option value="decreasing">Decreasing</option>
+            </select></label>
+            <label>Missing values<select value={slot.draft.missing} onChange={(event) => updateDraft({ missing: event.target.value as DatasetSlot['draft']['missing'] })}>
+              <option value="error">Stop with error</option><option value="skip_row">Skip whole row and record it</option>
+            </select></label>
+            <label className="research-wide">Missing tokens<input value={slot.draft.missingTokens} onChange={(event) => updateDraft({ missingTokens: event.target.value })} /></label>
+          </div>
+          <h4>Unit scaling and offset</h4>
+          <CalibrationRow label="Axis" mapping={slot.draft.axis} axis onChange={(axis) => updateDraft({ axis })} />
+          {slot.draft.signals.map((signal, index) => <CalibrationRow key={index} label={`Signal ${index + 1}`} mapping={signal}
+            onChange={(next) => updateDraft({ signals: slot.draft.signals.map((item, i) => i === index ? next : item) })} />)}
+          <h4>Identity and citation</h4>
+          <div className="research-form-grid">
+            <label>Device<input value={slot.draft.device} onChange={(event) => updateDraft({ device: event.target.value })} /></label>
+            <label>Sample / run<input value={slot.draft.sample} onChange={(event) => updateDraft({ sample: event.target.value })} /></label>
+            <label className="research-wide">Citation or source<textarea rows={2} value={slot.draft.citation} onChange={(event) => updateDraft({ citation: event.target.value })} /></label>
+          </div>
+        </details>
+
+        <button className="research-primary" onClick={onImport}>{actionLabel}</button>
       </div>}
     </>}
     {slot.error && <p className="research-error" role="alert">{slot.error}</p>}
@@ -231,6 +251,23 @@ export function ResearchDataDialog({ open, evaluation, circuitName, onClose }: P
     setter(next);
     setComparison(null); setComparisonError('');
   };
+  const resetComparison = () => {
+    setData(emptySlot('Observed dataset'));
+    setReference(emptySlot('Reference dataset'));
+    setPairs([{ data_signal: '', reference_signal: '' }]);
+    setComparisonName('Observed data versus reference');
+    setCoverage('require_full');
+    setInterpolation('linear');
+    setShift('0');
+    setWindowStart('');
+    setWindowStop('');
+    setMaxGap('');
+    setComparison(null);
+    setComparisonError('');
+    setSimulationError('');
+    setPlotSignal(0);
+    setStep('data');
+  };
   const preview = (id: SlotId, dialect: CsvDialect, csv = slot(id).csv) => {
     if (!csv) return;
     try {
@@ -284,6 +321,7 @@ export function ResearchDataDialog({ open, evaluation, circuitName, onClose }: P
   }, [data.dataset, reference.dataset, pairs]);
 
   const canCompare = Boolean(data.dataset && reference.dataset);
+  const hasAnyState = Boolean(data.file || data.dataset || reference.file || reference.dataset || comparison);
   const compare = () => {
     if (!data.dataset || !reference.dataset) return;
     try {
@@ -319,16 +357,19 @@ export function ResearchDataDialog({ open, evaluation, circuitName, onClose }: P
   const totalRetained = useMemo(() => (data.dataset?.axis.values.length ?? 0) + (reference.dataset?.axis.values.length ?? 0), [data.dataset, reference.dataset]);
 
   return <dialog ref={dialog} className="app-dialog research-dialog" aria-labelledby="research-data-title" onClose={onClose}>
-    <header><div><h2 id="research-data-title">Research data</h2><p>Map and compare local CSV measurements against reference data or the current simulation. Files stay in this browser tab.</p></div><button aria-label="Close research data" onClick={() => dialog.current?.close()}><X size={17} /></button></header>
+    <header><div><h2 id="research-data-title">Research data</h2><p>Compare observed CSV measurements against a simulation or reference CSV. Files stay in this browser tab.</p></div><button aria-label="Close research data" onClick={() => dialog.current?.close()}><X size={17} /></button></header>
     <p className="dialog-help-link"><a href={`${import.meta.env.BASE_URL}docs/guides/research-data/`} target="_blank" rel="noreferrer">CSV inputs, mapping and comparison walkthrough</a> · Sample CSVs: <a href={`${import.meta.env.BASE_URL}examples/research/scope-style.csv`} download>observed</a> / <a href={`${import.meta.env.BASE_URL}examples/research/rc-reference.csv`} download>reference</a></p>
     <nav className="research-steps" aria-label="Research data steps">
-      <button aria-pressed={step === 'data'} onClick={() => setStep('data')}>1 · Observed {data.dataset && <CheckCircle2 size={13} />}</button>
-      <button aria-pressed={step === 'reference'} onClick={() => setStep('reference')}>2 · Reference {reference.dataset && <CheckCircle2 size={13} />}</button>
-      <button aria-pressed={step === 'compare'} disabled={!canCompare} onClick={() => setStep('compare')}>3 · Compare</button>
+      <div className="research-steps-primary">
+        <button aria-pressed={step === 'data'} onClick={() => setStep('data')}>1 · Observed {data.dataset && <><CheckCircle2 size={13} /><small>({data.dataset.spec.name})</small></>}</button>
+        <button aria-pressed={step === 'reference'} onClick={() => setStep('reference')}>2 · Reference {reference.dataset && <><CheckCircle2 size={13} /><small>({reference.dataset.spec.name})</small></>}</button>
+        <button aria-pressed={step === 'compare'} disabled={!canCompare} onClick={() => setStep('compare')}>3 · Compare</button>
+      </div>
+      <button onClick={resetComparison} disabled={!hasAnyState}><RotateCcw size={13} /> New comparison</button>
     </nav>
     {step !== 'compare' ? <>
       {step === 'reference' && <section className="research-simulation-source" aria-label="Current simulation reference">
-        <div><h3>Use the current simulation</h3><p>Project one completed transient, AC or DC dataset through Core. AC signals use linear magnitude; the exact simulation hash and solver identity are retained.</p></div>
+        <div><h3>Use the current simulation</h3><p>Project one completed transient, AC or DC dataset from the workspace as your reference.</p></div>
         {selectedAnalysis ? <>
           <div className="research-simulation-controls"><label>Analysis<select value={selectedAnalysis.index} onChange={(event) => { setSimulationAnalysis(Number(event.target.value)); setSimulationSignals([]); setSimulationError(''); }}>
             {eligibleAnalyses.map((item) => <option key={item.index} value={item.index}>{analysisLabel(item.data, item.index)}</option>)}
@@ -349,23 +390,37 @@ export function ResearchDataDialog({ open, evaluation, circuitName, onClose }: P
         onUpdate={(change) => setSlot(step, change)}
         onPreview={(dialect) => preview(step, dialect)} onImport={() => importSlot(step)} />
     </> : <section className="research-comparison" aria-label="Compare research datasets">
-      <div className="research-comparison-summary"><article><span>Observed</span><strong>{data.dataset?.spec.name}</strong><small>{data.dataset?.spec.metadata.origin} · {data.dataset?.axis.values.length} rows</small></article><article><span>Reference</span><strong>{reference.dataset?.spec.name}</strong><small>{reference.dataset?.spec.metadata.origin} · {reference.dataset?.axis.values.length} rows</small></article></div>
-      <div className="research-form-grid">
-        <label className="research-wide">Comparison name<input value={comparisonName} onChange={(event) => { setComparisonName(event.target.value); setComparison(null); }} /></label>
-        <label>Coverage<select value={coverage} onChange={(event) => { setCoverage(event.target.value as typeof coverage); setComparison(null); }}><option value="require_full">Require every observed point</option><option value="overlap_only">Keep unmatched points</option></select></label>
-        <label>Interpolation<select value={interpolation} onChange={(event) => { setInterpolation(event.target.value as typeof interpolation); setComparison(null); }}><option value="linear">Linear axis</option><option value="log_axis">Log-frequency axis</option></select></label>
-        <label>Reference axis shift<input value={shift} onChange={(event) => { setShift(event.target.value); setComparison(null); }} /></label>
-        <label>Maximum reference gap<input placeholder="No limit" value={maxGap} onChange={(event) => { setMaxGap(event.target.value); setComparison(null); }} /></label>
-        <label>Window start<input placeholder="All data" value={windowStart} onChange={(event) => { setWindowStart(event.target.value); setComparison(null); }} /></label>
-        <label>Window stop<input placeholder="All data" value={windowStop} onChange={(event) => { setWindowStop(event.target.value); setComparison(null); }} /></label>
+      <div className="research-comparison-summary">
+        <article>
+          <div><span>Observed</span><strong>{data.dataset?.spec.name}</strong><small>{data.dataset?.spec.metadata.origin} · {data.dataset?.axis.values.length} rows</small></div>
+          <button onClick={() => setStep('data')}>Change</button>
+        </article>
+        <article>
+          <div><span>Reference</span><strong>{reference.dataset?.spec.name}</strong><small>{reference.dataset?.spec.metadata.origin} · {reference.dataset?.axis.values.length} rows</small></div>
+          <button onClick={() => setStep('reference')}>Change</button>
+        </article>
       </div>
       <div className="research-section-heading"><h3>Signal pairs</h3><button disabled={pairs.length >= 16} onClick={() => setPairs((current) => [...current, { data_signal: data.dataset?.signals[0]?.name ?? '', reference_signal: reference.dataset?.signals[0]?.name ?? '' }])}><Plus size={14} /> Add pair</button></div>
       {pairs.map((pair, index) => <div className="research-pair" key={index}><label>Observed signal<select value={pair.data_signal} onChange={(event) => { setPairs((current) => current.map((item, i) => i === index ? { ...item, data_signal: event.target.value } : item)); setComparison(null); }}>{data.dataset?.signals.map((signal) => <option key={signal.name}>{signal.name}</option>)}</select></label><label>Reference signal<select value={pair.reference_signal} onChange={(event) => { setPairs((current) => current.map((item, i) => i === index ? { ...item, reference_signal: event.target.value } : item)); setComparison(null); }}>{reference.dataset?.signals.map((signal) => <option key={signal.name}>{signal.name}</option>)}</select></label>{pairs.length > 1 && <button className="research-icon-button" aria-label={`Remove comparison pair ${index + 1}`} onClick={() => { setPairs((current) => current.filter((_, i) => i !== index)); setComparison(null); }}><Trash2 size={14} /></button>}</div>)}
-      <p className="research-note">Residual means reference minus observed. Kessetsu never extrapolates or auto-aligns axes. Log interpolation is available only for positive frequency axes.</p>
-      <button className="research-primary" onClick={compare}><BarChart3 size={15} /> Compare datasets</button>
+      <div className="research-compare-primary">
+        <label>Interpolation<select value={interpolation} onChange={(event) => { setInterpolation(event.target.value as typeof interpolation); setComparison(null); }}><option value="linear">Linear axis</option><option value="log_axis">Log-frequency axis</option></select></label>
+        <button className="research-primary" onClick={compare}><BarChart3 size={15} /> Compare datasets</button>
+      </div>
+      <details>
+        <summary>Advanced comparison settings</summary>
+        <div className="research-form-grid">
+          <label className="research-wide">Comparison name<input value={comparisonName} onChange={(event) => { setComparisonName(event.target.value); setComparison(null); }} /></label>
+          <label>Coverage<select value={coverage} onChange={(event) => { setCoverage(event.target.value as typeof coverage); setComparison(null); }}><option value="require_full">Require every observed point</option><option value="overlap_only">Keep unmatched points</option></select></label>
+          <label>Reference axis shift<input value={shift} onChange={(event) => { setShift(event.target.value); setComparison(null); }} /></label>
+          <label>Maximum reference gap<input placeholder="No limit" value={maxGap} onChange={(event) => { setMaxGap(event.target.value); setComparison(null); }} /></label>
+          <label>Window start<input placeholder="All data" value={windowStart} onChange={(event) => { setWindowStart(event.target.value); setComparison(null); }} /></label>
+          <label>Window stop<input placeholder="All data" value={windowStop} onChange={(event) => { setWindowStop(event.target.value); setComparison(null); }} /></label>
+        </div>
+        <p className="research-note">Residual means reference minus observed. Kessetsu never extrapolates or auto-aligns axes. Log interpolation is available only for positive frequency axes.</p>
+      </details>
       {comparisonError && <p className="research-error" role="alert">{comparisonError}</p>}
       {comparison && <div className="research-results">
-        <div className="research-result-header"><div><strong>Comparison complete</strong><small>{totalRetained.toLocaleString()} source rows retained across both datasets · {comparison.identity}</small></div><button onClick={() => downloadTextFile(JSON.stringify(comparison, null, 2), `${sanitizeFileStem(comparison.spec.name)}.kesscompare.json`)}><Download size={14} /> Download evidence JSON</button></div>
+        <div className="research-result-header"><div><strong>Comparison complete: {data.dataset?.spec.name} vs {reference.dataset?.spec.name}</strong><small>{totalRetained.toLocaleString()} source rows retained across both datasets · {comparison.identity}</small></div><button onClick={() => downloadTextFile(JSON.stringify(comparison, null, 2), `${sanitizeFileStem(comparison.spec.name)}.kesscompare.json`)}><Download size={14} /> Download evidence JSON</button></div>
         <div className="research-metrics"><table><thead><tr><th>Signal</th><th>Coverage</th><th>Bias</th><th>MAE</th><th>RMSE</th><th>Max |error|</th></tr></thead><tbody>{comparison.signals.map((signal, index) => <tr key={signal.mapping.data_signal} className={plotSignal === index ? 'selected' : ''} onClick={() => setPlotSignal(index)}><td>{signal.mapping.data_signal} vs {signal.mapping.reference_signal}<small>{signal.unit}</small></td><td>{signal.metrics.matched}/{signal.metrics.total}<small>{signal.metrics.unmatched} unmatched · {signal.metrics.excluded_by_window} excluded</small></td><td>{engineering(signal.metrics.bias)}</td><td>{engineering(signal.metrics.mae)}</td><td>{engineering(signal.metrics.rmse)}</td><td>{engineering(signal.metrics.max_absolute)}</td></tr>)}</tbody></table></div>
         {selectedSignal && <ComparisonPlot comparison={comparison} signalIndex={plotSignal} />}
       </div>}

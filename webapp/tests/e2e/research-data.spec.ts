@@ -30,19 +30,19 @@ test('maps two local CSV files, compares every point and downloads reproducible 
   await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
   const sourceBefore = await page.locator('.view-lines').innerText();
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Compare research data…', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Compare data…', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Research data', exact: true });
 
   await dialog.getByLabel('Choose Observed data CSV').setInputFiles({ name: 'observed.csv', mimeType: 'text/csv', buffer: Buffer.from(observed) });
   await expect(dialog).toContainText('6 data records');
   await dialog.screenshot({ path: testInfo.outputPath('research-mapping.png') });
   await dialog.getByLabel('Origin').selectOption('measured');
-  await dialog.getByRole('button', { name: 'Import mapped dataset' }).click();
-  await expect(dialog.getByRole('button', { name: /1 · Observed/ })).toContainText('Observed');
+  await dialog.getByRole('button', { name: 'Use observed data' }).click();
+  await expect(dialog.getByRole('button', { name: /1 · Observed/ })).toContainText('(observed)');
 
   await dialog.getByLabel('Choose Reference data CSV').setInputFiles({ name: 'reference.csv', mimeType: 'text/csv', buffer: Buffer.from(reference) });
   await dialog.getByLabel('Origin').selectOption('published_simulation');
-  await dialog.getByRole('button', { name: 'Import mapped dataset' }).click();
+  await dialog.getByRole('button', { name: 'Use reference CSV' }).click();
   await expect(dialog.getByRole('button', { name: '3 · Compare' })).toHaveAttribute('aria-pressed', 'true');
   await dialog.getByRole('button', { name: 'Compare datasets' }).click();
 
@@ -77,7 +77,7 @@ test('compares observed CSV directly with the current typed simulation projectio
   await page.getByRole('button', { name: 'Run simulation' }).click();
   await expect(page.getByText(/requirements passed/)).toBeVisible({ timeout: 30_000 });
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Compare research data…', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Compare data…', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Research data', exact: true });
   const measured = `frequency,out
 10,0.9999
@@ -87,7 +87,7 @@ test('compares observed CSV directly with the current typed simulation projectio
   await dialog.getByLabel('Choose Observed data CSV').setInputFiles({ name: 'bench.csv', mimeType: 'text/csv', buffer: Buffer.from(measured) });
   await dialog.getByLabel('Origin').selectOption('measured');
   await dialog.getByLabel('Quantity').nth(0).selectOption('Hertz');
-  await dialog.getByRole('button', { name: 'Import mapped dataset' }).click();
+  await dialog.getByRole('button', { name: 'Use observed data' }).click();
 
   await expect(dialog.getByRole('heading', { name: 'Use the current simulation', exact: true })).toBeVisible();
   await expect(dialog.getByLabel('Analysis')).toHaveValue('0');
