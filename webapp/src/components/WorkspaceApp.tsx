@@ -62,9 +62,10 @@ export function WorkspaceApp() {
   const [researchDataMounted, setResearchDataMounted] = useState(false);
   const [agentProposalOpen, setAgentProposalOpen] = useState(false);
   const [spiceConverterOpen, setSpiceConverterOpen] = useState(false);
+  const [spiceConverterSeed, setSpiceConverterSeed] = useState<string | undefined>(undefined);
   const [acceptedProposal, setAcceptedProposal] = useState<{ before: string; after: string } | null>(null);
   const [documentError, setDocumentError] = useState('');
-  const [importFailure, setImportFailure] = useState<{ filename: string; error: Error } | null>(null);
+  const [importFailure, setImportFailure] = useState<{ filename: string; error: Error; rawText?: string } | null>(null);
   const [documentNotice, setDocumentNotice] = useState('');
   const [draftToastVisible, setDraftToastVisible] = useState(false);
   const [documentSaving, setDocumentSaving] = useState(false);
@@ -212,7 +213,8 @@ export function WorkspaceApp() {
       detachFileHandle();
       showDocumentNotice(`Imported ${report.summary.components} components from ${file.name}`);
     } catch (cause: unknown) {
-      setImportFailure({ filename: file.name, error: cause instanceof Error ? cause : new Error(String(cause)) });
+      const rawText = await file.text().catch(() => undefined);
+      setImportFailure({ filename: file.name, error: cause instanceof Error ? cause : new Error(String(cause)), rawText });
     }
   }, [detachFileHandle, importSpiceDocument, showDocumentNotice]);
 
@@ -384,7 +386,7 @@ export function WorkspaceApp() {
               <button role="menuitem" onClick={startNewDocument}><span>New circuit</span></button>
               <button role="menuitem" onClick={chooseDocument}><span>Open .kess…</span></button>
               <button role="menuitem" onClick={chooseSpiceDocument}><span>Import SPICE netlist...</span></button>
-              <button role="menuitem" disabled={!state.wasmLoaded} onClick={() => { setSpiceConverterOpen(true); setOpenMenu(null); }}><span>Convert SPICE netlist…</span></button>
+              <button role="menuitem" disabled={!state.wasmLoaded} onClick={() => { setSpiceConverterSeed(undefined); setSpiceConverterOpen(true); setOpenMenu(null); }}><span>Convert SPICE netlist…</span></button>
               <div className="menu-separator" role="separator" />
               <button role="menuitem" disabled={documentSaving || !state.wasmLoaded} aria-label={nativeFileSaving ? 'Save' : 'Save in browser'} onClick={() => void saveDocument()}>
                 <span>{nativeFileSaving ? 'Save' : 'Save in browser'}</span><kbd>Ctrl+S</kbd>
@@ -573,15 +575,18 @@ export function WorkspaceApp() {
       {documentError && <div className="global-error" role="alert">{documentError}</div>}
       {importFailure && <div className="global-error import-failure" role="alert">
         <strong>SPICE import stopped: {importFailure.filename}</strong>
-        <p>The import did not change your open circuit or save destination.</p>
-        <p>{importFailure.error.message}</p>
+        <p>{importFailure.error.message} — the import did not change your open circuit or save destination.</p>
         {importFailure.error instanceof SpiceImportError && <details>
           <summary>All import diagnostics ({importFailure.error.diagnostics.length})</summary>
           <ol>{importFailure.error.diagnostics.map((diagnostic, index) =>
             <li key={index}>{importDiagnosticLabel(diagnostic)}</li>)}</ol>
         </details>}
-        <p>Edit the reported lines in the original netlist, then choose the corrected file. Unsupported constructs are not silently removed.</p>
         <div className="import-recovery-actions">
+          {importFailure.rawText && <button onClick={() => {
+            setSpiceConverterSeed(importFailure.rawText);
+            setImportFailure(null);
+            setSpiceConverterOpen(true);
+          }}>Edit in SPICE converter…</button>}
           <button onClick={chooseSpiceDocument}>Choose another netlist…</button>
           <a href={`${import.meta.env.BASE_URL}docs/guides/spice-import/`} target="_blank" rel="noreferrer">Supported formats and RC example</a>
           <button onClick={() => setImportFailure(null)}>Dismiss</button>
@@ -624,7 +629,8 @@ export function WorkspaceApp() {
         onClose={() => { setAgentProposalOpen(false); focusAnalyzeMenu(); }} />}
       {state.wasmLoaded && <SpiceConverterDialog
         open={spiceConverterOpen}
-        onClose={() => setSpiceConverterOpen(false)}
+        initialSpice={spiceConverterSeed}
+        onClose={() => { setSpiceConverterOpen(false); setSpiceConverterSeed(undefined); }}
         onChooseSpiceFile={chooseSpiceDocument}
         onApply={(nextSource, components) => {
           detachFileHandle();

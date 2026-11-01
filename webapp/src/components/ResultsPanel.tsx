@@ -680,7 +680,7 @@ export function ResultsPanel({ state, hasSimulationAttempt, message, evaluation,
           <Activity size={28} className={state === 'running' ? 'simulation-running-icon' : undefined} />
           {sourceFeedback && <strong>{sourceFeedback.title}</strong>}
           {needsAnalysis && <strong>Add an analysis to simulate</strong>}
-          {showFirstRunGuide && <strong>Ready for your first run</strong>}
+          {showFirstRunGuide && <strong>Ready to simulate</strong>}
           <p>{displayedMessage}</p>
           {sourceFeedback?.actionLabel && <button className="secondary-button" onClick={onResolveSource}>{sourceFeedback.actionLabel}</button>}
           {needsAnalysis && <div className="simulation-help">
@@ -692,9 +692,9 @@ export function ResultsPanel({ state, hasSimulationAttempt, message, evaluation,
             <a href={`${import.meta.env.BASE_URL}docs/guides/troubleshooting/`} target="_blank" rel="noreferrer">Simulation troubleshooting</a>
           </div>}
           {!sourceFeedback && !needsAnalysis && state === 'cancelled' && <p>Your source is unchanged. Run again when you are ready.</p>}
-          {showFirstRunGuide && <div className="result-start-guide" aria-label="First simulation steps">
-            <span><b>1</b> Review Source</span><span><b>2</b> Press Run above</span><span><b>3</b> Inspect plots and assertions</span><span><b>4</b> Export from the top bar</span>
-            <a href={`${import.meta.env.BASE_URL}docs/guides/tutorial/`} target="_blank" rel="noreferrer">Open the first-circuit tutorial</a>
+          {showFirstRunGuide && <div className="result-empty-actions">
+            <button type="button" className="simulation-run-button run-button result-empty-run" onClick={onRun}><Zap size={13} /><span>Simulate circuit</span></button>
+            <a href={`${import.meta.env.BASE_URL}docs/guides/tutorial/`} target="_blank" rel="noreferrer">First-circuit tutorial</a>
           </div>}
         </div>}
         {state === 'succeeded' && summary?.total === 0 && <p className="simulation-help">Simulation completed without requirement checks. Add <code>assert</code> statements in Source to test measurable limits. <a href={`${import.meta.env.BASE_URL}docs/reference/simulation-and-assertions/`} target="_blank" rel="noreferrer">Learn about assertions</a></p>}

@@ -13,6 +13,7 @@ C1 out 0 159.15n
 
 interface Props {
   open: boolean;
+  initialSpice?: string;
   onClose: () => void;
   onChooseSpiceFile: () => void;
   onApply: (nextSource: string, componentCount: number) => void;
@@ -20,6 +21,7 @@ interface Props {
 
 export function SpiceConverterDialog({
   open,
+  initialSpice,
   onClose,
   onChooseSpiceFile,
   onApply,
@@ -33,6 +35,7 @@ export function SpiceConverterDialog({
     const dialog = dialogRef.current;
     if (!dialog) return;
     if (open && !dialog.open) {
+      if (initialSpice !== undefined) setSpiceInput(initialSpice);
       setCopied(false);
       setClipboardError('');
       dialog.showModal();
@@ -40,7 +43,7 @@ export function SpiceConverterDialog({
     if (!open && dialog.open) {
       dialog.close();
     }
-  }, [open]);
+  }, [open, initialSpice]);
 
   const conversion = useMemo<{
     report: SpiceImportReport | null;
@@ -215,19 +218,22 @@ export function SpiceConverterDialog({
         <span className="dialog-status" role="status">
           {conversion.report
             ? 'Converted .kess source passes compiler & ERC checks.'
-            : 'Waiting for a valid SPICE netlist…'}
+            : spiceInput.trim()
+              ? 'Fix the reported SPICE lines to enable editor import.'
+              : ''}
         </span>
         <button type="button" className="dialog-secondary" onClick={() => dialogRef.current?.close()}>
           Cancel
         </button>
-        <button
-          type="button"
-          className="dialog-secondary"
-          disabled={!previewSource}
-          onClick={() => void copyPreview()}
-        >
-          {copied ? 'Copied' : 'Copy .kess'}
-        </button>
+        {previewSource && (
+          <button
+            type="button"
+            className="dialog-secondary"
+            onClick={() => void copyPreview()}
+          >
+            {copied ? 'Copied' : 'Copy .kess'}
+          </button>
+        )}
         <button
           type="button"
           className="dialog-primary"
