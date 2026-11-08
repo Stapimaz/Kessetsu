@@ -27,16 +27,12 @@ use kessetsu_core::simulation::{
     CancellationToken, NativeSimulationContext, NgspiceRunner, SIMULATION_SCHEMA_VERSION,
     SimulationRequest, SimulationResult,
 };
-use kessetsu_core::spice_import::{
-    ImportDiagnostic, ImportSeverity, SPICE_IMPORT_SCHEMA_VERSION, SpiceImportReport, import_spice,
-};
+use kessetsu_core::spice_import::{ImportDiagnostic, ImportSeverity, import_spice};
 use kessetsu_core::stress::{
     PART_STRESS_SCHEMA_VERSION, PartStressReport, PartStressStatus, PartStressSummary,
     evaluate_part_stress,
 };
-use kessetsu_core::tools::{
-    PreferredValues, TOOL_SCHEMA_VERSION, ToolRequest, ToolResult, calculate_tool,
-};
+use kessetsu_core::tools::{PreferredValues, ToolResult};
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -45,10 +41,16 @@ use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::process;
 
+#[path = "kess_support/import.rs"]
+mod import;
 #[path = "kess_support/mcp.rs"]
 mod mcp;
+#[path = "kess_support/research.rs"]
+mod research;
+#[path = "kess_support/tool.rs"]
+mod tool;
 
-const CLI_SCHEMA_VERSION: &str = "kessetsu.cli.v1";
+pub(crate) const CLI_SCHEMA_VERSION: &str = "kessetsu.cli.v1";
 
 #[derive(Parser)]
 #[command(
@@ -121,25 +123,25 @@ enum Commands {
 }
 
 #[derive(Args)]
-struct ImportCommand {
+pub(crate) struct ImportCommand {
     /// SPICE netlist path, or - for stdin
-    file: PathBuf,
+    pub(crate) file: PathBuf,
     /// Generated .kess path; defaults beside a file input
     #[arg(short, long)]
-    output: Option<PathBuf>,
+    pub(crate) output: Option<PathBuf>,
     /// Allow replacing an existing output file
     #[arg(long)]
-    force: bool,
+    pub(crate) force: bool,
 }
 
 #[derive(Args)]
-struct FitCommand {
+pub(crate) struct FitCommand {
     #[command(subcommand)]
-    action: FitAction,
+    pub(crate) action: FitAction,
 }
 
 #[derive(Subcommand)]
-enum FitAction {
+pub(crate) enum FitAction {
     /// Score a completed study; validation data never influences candidate selection
     Evaluate {
         /// Completed kessetsu.experiment-results.v1 JSON
@@ -158,13 +160,13 @@ enum FitAction {
 }
 
 #[derive(Args)]
-struct DataCommand {
+pub(crate) struct DataCommand {
     #[command(subcommand)]
-    action: DataAction,
+    pub(crate) action: DataAction,
 }
 
 #[derive(Subcommand)]
-enum DataAction {
+pub(crate) enum DataAction {
     /// Preview CSV before selecting an explicit column/unit mapping
     Preview {
         file: PathBuf,
@@ -213,13 +215,13 @@ enum DataAction {
 }
 
 #[derive(Args)]
-struct StudyCommand {
+pub(crate) struct StudyCommand {
     #[command(subcommand)]
-    action: StudyAction,
+    pub(crate) action: StudyAction,
 }
 
 #[derive(Subcommand)]
-enum StudyAction {
+pub(crate) enum StudyAction {
     /// Create an editable experiment specification from a circuit
     Create {
         file: PathBuf,
@@ -282,7 +284,7 @@ enum StudyAction {
 }
 
 #[derive(Clone, Copy, ValueEnum)]
-enum StudyTarget {
+pub(crate) enum StudyTarget {
     Json,
     Csv,
     DataCsv,
@@ -291,22 +293,22 @@ enum StudyTarget {
 }
 
 #[derive(Args)]
-struct ToolCommand {
+pub(crate) struct ToolCommand {
     #[command(subcommand)]
-    tool: CircuitTool,
+    pub(crate) tool: CircuitTool,
     /// Write generated .kess source (no file is written by default)
     #[arg(short, long, global = true)]
-    output: Option<PathBuf>,
+    pub(crate) output: Option<PathBuf>,
     /// Allow overwriting an existing output file
     #[arg(long, global = true)]
-    force: bool,
+    pub(crate) force: bool,
     /// Nominal component value series (not a tolerance specification)
     #[arg(long, value_enum, default_value_t = ValueSeries::E24, global = true)]
-    values: ValueSeries,
+    pub(crate) values: ValueSeries,
 }
 
 #[derive(Subcommand)]
-enum CircuitTool {
+pub(crate) enum CircuitTool {
     /// Size a divider for its actual resistive load
     Divider {
         #[arg(long)]
@@ -329,7 +331,7 @@ enum CircuitTool {
 }
 
 #[derive(Clone, Copy, ValueEnum)]
-enum ValueSeries {
+pub(crate) enum ValueSeries {
     Exact,
     E12,
     E24,
@@ -411,7 +413,7 @@ struct TestCommand {
 }
 
 #[derive(Clone, Copy, ValueEnum, PartialEq, Eq)]
-enum Format {
+pub(crate) enum Format {
     Human,
     Json,
 }
@@ -458,7 +460,7 @@ impl From<Background> for RenderBackground {
 
 #[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq, PartialOrd, Ord)]
 #[value(rename_all = "kebab-case")]
-enum Include {
+pub(crate) enum Include {
     Ast,
     Ir,
     Graph,
@@ -471,905 +473,117 @@ enum Include {
 }
 
 #[derive(Serialize)]
-struct JsonOutput {
-    schema_version: &'static str,
-    command: &'static str,
-    status: String,
-    domain_versions: DomainVersions,
-    diagnostics: Vec<JsonDiagnostic>,
-    summary: JsonSummary,
-    measurements: BTreeMap<String, f64>,
-    assertions: Option<AssertionReport>,
+pub(crate) struct JsonOutput {
+    pub(crate) schema_version: &'static str,
+    pub(crate) command: &'static str,
+    pub(crate) status: String,
+    pub(crate) domain_versions: DomainVersions,
+    pub(crate) diagnostics: Vec<JsonDiagnostic>,
+    pub(crate) summary: JsonSummary,
+    pub(crate) measurements: BTreeMap<String, f64>,
+    pub(crate) assertions: Option<AssertionReport>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    part_stress: Option<PartStressReport>,
-    requirements: Option<JsonRequirements>,
-    artifacts: Vec<JsonArtifact>,
+    pub(crate) part_stress: Option<PartStressReport>,
+    pub(crate) requirements: Option<JsonRequirements>,
+    pub(crate) artifacts: Vec<JsonArtifact>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    calculation: Option<ToolResult>,
+    pub(crate) calculation: Option<ToolResult>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    study: Option<Value>,
+    pub(crate) study: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    data: Option<Value>,
+    pub(crate) data: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    fit: Option<Value>,
+    pub(crate) fit: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    capabilities: Option<CapabilityManifest>,
+    pub(crate) capabilities: Option<CapabilityManifest>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    debug: Option<BTreeMap<String, Value>>,
+    pub(crate) debug: Option<BTreeMap<String, Value>>,
 }
 
 #[derive(Serialize)]
-struct DomainVersions {
-    compile: &'static str,
+pub(crate) struct DomainVersions {
+    pub(crate) compile: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
-    capabilities: Option<&'static str>,
-    simulation: Option<&'static str>,
-    measurement: Option<&'static str>,
-    assertion: Option<&'static str>,
+    pub(crate) capabilities: Option<&'static str>,
+    pub(crate) simulation: Option<&'static str>,
+    pub(crate) measurement: Option<&'static str>,
+    pub(crate) assertion: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    part_stress: Option<&'static str>,
-    requirements: Option<&'static str>,
-    export: Option<&'static str>,
+    pub(crate) part_stress: Option<&'static str>,
+    pub(crate) requirements: Option<&'static str>,
+    pub(crate) export: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    tool: Option<&'static str>,
+    pub(crate) tool: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    experiment: Option<&'static str>,
+    pub(crate) experiment: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    research_data: Option<&'static str>,
+    pub(crate) research_data: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    fit: Option<&'static str>,
+    pub(crate) fit: Option<&'static str>,
 }
 
 #[derive(Clone, Serialize)]
-struct JsonRequirements {
-    schema_version: String,
-    sha256: String,
-    assertion_count: usize,
-    hash_pinned: bool,
+pub(crate) struct JsonRequirements {
+    pub(crate) schema_version: String,
+    pub(crate) sha256: String,
+    pub(crate) assertion_count: usize,
+    pub(crate) hash_pinned: bool,
 }
 
 #[derive(Serialize)]
-struct JsonDiagnostic {
-    code: String,
-    severity: String,
-    stage: String,
+pub(crate) struct JsonDiagnostic {
+    pub(crate) code: String,
+    pub(crate) severity: String,
+    pub(crate) stage: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    kind: Option<String>,
-    message: String,
+    pub(crate) kind: Option<String>,
+    pub(crate) message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    component: Option<String>,
+    pub(crate) component: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pin: Option<String>,
+    pub(crate) pin: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    field: Option<String>,
+    pub(crate) field: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    line: Option<usize>,
+    pub(crate) line: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    column: Option<usize>,
+    pub(crate) column: Option<usize>,
 }
 
 #[derive(Serialize)]
-struct JsonSummary {
-    errors: usize,
-    warnings: usize,
-    info: usize,
-    analyses: usize,
-    measurements: usize,
-    assertions: Option<AssertionSummary>,
+pub(crate) struct JsonSummary {
+    pub(crate) errors: usize,
+    pub(crate) warnings: usize,
+    pub(crate) info: usize,
+    pub(crate) analyses: usize,
+    pub(crate) measurements: usize,
+    pub(crate) assertions: Option<AssertionSummary>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    part_stress: Option<PartStressSummary>,
+    pub(crate) part_stress: Option<PartStressSummary>,
 }
 
 #[derive(Clone, Serialize)]
-struct JsonArtifact {
-    kind: String,
-    path: String,
+pub(crate) struct JsonArtifact {
+    pub(crate) kind: String,
+    pub(crate) path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    schema_version: Option<String>,
+    pub(crate) schema_version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    exporter: Option<String>,
+    pub(crate) exporter: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    exporter_version: Option<u32>,
+    pub(crate) exporter_version: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    sha256: Option<String>,
+    pub(crate) sha256: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    byte_length: Option<usize>,
+    pub(crate) byte_length: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    connectivity_verified: Option<bool>,
+    pub(crate) connectivity_verified: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    capability: Option<ExportCapability>,
+    pub(crate) capability: Option<ExportCapability>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    warnings: Vec<String>,
+    pub(crate) warnings: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    losses: Vec<String>,
-}
-
-#[derive(Serialize)]
-struct ImportJsonOutput<'a> {
-    schema_version: &'static str,
-    command: &'static str,
-    status: &'static str,
-    domain_versions: ImportDomainVersions,
-    import: &'a SpiceImportReport,
-    artifacts: Vec<JsonArtifact>,
-}
-
-#[derive(Serialize)]
-struct ImportDomainVersions {
-    compile: &'static str,
-    spice_import: &'static str,
-}
-
-fn emit_study_error(
-    format: &Format,
-    includes: &BTreeSet<Include>,
-    message: impl Into<String>,
-) -> i32 {
-    emit(
-        format,
-        "study",
-        includes,
-        "error",
-        CompileReport::failure(diagnostic("KES-X001", DiagnosticStage::Cli, message)),
-        None,
-        None,
-        None,
-    );
-    2
-}
-
-fn emit_study(
-    format: &Format,
-    includes: &BTreeSet<Include>,
-    status: &str,
-    body: Value,
-    artifact: Option<&Path>,
-) {
-    let report = kessetsu_core::compiler::compile_source("", CompileOptions::default());
-    let mut output = build_json_output("study", includes, status, &report, None, None, None, None);
-    output.domain_versions.experiment = Some(kessetsu_core::experiment::EXPERIMENT_SCHEMA);
-    output.domain_versions.measurement = Some(MEASUREMENT_SCHEMA_VERSION);
-    output.study = Some(body.clone());
-    if let Some(path) = artifact {
-        output.artifacts.push(plain_json_artifact(
-            "study",
-            path.to_string_lossy().into_owned(),
-        ));
-    }
-    if *format == Format::Json {
-        println!("{}", serde_json::to_string(&output).unwrap());
-    } else {
-        println!(
-            "Study {status}: {}",
-            serde_json::to_string_pretty(&body).unwrap()
-        );
-        if let Some(path) = artifact {
-            println!("Saved: {}", path.display());
-        }
-    }
-}
-
-fn study_read(path: &Path, limit: u64) -> Result<Vec<u8>, String> {
-    if fs::metadata(path).map_err(|e| e.to_string())?.len() > limit {
-        return Err("Study file exceeds its size limit".into());
-    }
-    fs::read(path).map_err(|e| e.to_string())
-}
-
-fn study_preflight(input: &Path, output: &Path, force: bool) -> Result<(), String> {
-    let parent = output
-        .parent()
-        .filter(|p| !p.as_os_str().is_empty())
-        .unwrap_or(Path::new("."));
-    let resolved = fs::canonicalize(parent)
-        .map_err(|e| e.to_string())?
-        .join(output.file_name().ok_or("Output must name a file")?);
-    let input = fs::canonicalize(input).map_err(|e| e.to_string())?;
-    if resolved == input
-        || (output.exists() && fs::canonicalize(output).map_err(|e| e.to_string())? == input)
-    {
-        return Err("Study output cannot overwrite its input".into());
-    }
-    if output.exists() && !force {
-        return Err("Output already exists; use --force or --resume as appropriate".into());
-    }
-    Ok(())
-}
-
-fn study_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    use std::io::Write;
-    let pending = path.with_file_name(format!(".kess-study-{}.tmp", process::id()));
-    let mut file = fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&pending)
-        .map_err(|e| e.to_string())?;
-    file.write_all(bytes)
-        .and_then(|_| file.sync_all())
-        .map_err(|e| e.to_string())?;
-    drop(file);
-    fs::rename(&pending, path)
-        .map_err(|e| format!("Could not save checkpoint; temporary data is preserved: {e}"))
-}
-
-fn study_write_package(
-    output: &Path,
-    package: &kessetsu_core::research_package::ResearchPackage,
-) -> Result<PathBuf, String> {
-    if output.exists() {
-        return Err("Package output already exists; choose a new directory".into());
-    }
-    let parent = output
-        .parent()
-        .filter(|path| !path.as_os_str().is_empty())
-        .unwrap_or(Path::new("."));
-    let parent = fs::canonicalize(parent).map_err(|e| e.to_string())?;
-    let name = output
-        .file_name()
-        .ok_or("Package output must name a directory")?;
-    let target = parent.join(name);
-    let pending = parent.join(format!(".kess-package-{}.tmp", process::id()));
-    if pending.exists() {
-        return Err(format!(
-            "Temporary package directory already exists: {}",
-            pending.display()
-        ));
-    }
-    fs::create_dir(&pending).map_err(|e| e.to_string())?;
-    let write = || -> Result<(), String> {
-        for (relative, bytes) in &package.files {
-            validate_external_resource_reference(relative)?;
-            let destination = pending.join(relative);
-            if let Some(directory) = destination.parent() {
-                fs::create_dir_all(directory).map_err(|e| e.to_string())?;
-            }
-            fs::write(destination, bytes).map_err(|e| e.to_string())?;
-        }
-        fs::write(
-            pending.join("manifest.json"),
-            serde_json::to_vec_pretty(&package.manifest).map_err(|e| e.to_string())?,
-        )
-        .map_err(|e| e.to_string())?;
-        Ok(())
-    };
-    if let Err(error) = write() {
-        let cleanup = fs::remove_dir_all(&pending);
-        return Err(match cleanup {
-            Ok(()) => error,
-            Err(cleanup) => format!(
-                "{error}; incomplete package remains at '{}': {cleanup}",
-                pending.display()
-            ),
-        });
-    }
-    fs::rename(&pending, &target).map_err(|error| {
-        format!(
-            "Could not publish package; complete temporary directory remains at '{}': {error}",
-            pending.display()
-        )
-    })?;
-    Ok(target.join("manifest.json"))
-}
-
-fn study_resources(
-    file: &Path,
-    spec: &kessetsu_core::experiment::ExperimentSpec,
-) -> Result<ExternalModelResources, String> {
-    let mut resources =
-        load_external_model_resources(file, false, &spec.source).map_err(|e| e.message)?;
-    for revision in &spec.revisions {
-        if let Some(source) = &revision.source {
-            resources
-                .extend(load_external_model_resources(file, false, source).map_err(|e| e.message)?);
-        }
-    }
-    Ok(resources)
-}
-
-fn run_study(command: &StudyCommand, format: &Format, includes: &BTreeSet<Include>) -> i32 {
-    use kessetsu_core::experiment::*;
-    let execute = || -> Result<i32, String> {
-        match &command.action {
-            StudyAction::Create {
-                file,
-                output,
-                sweep,
-                force,
-            } => {
-                study_preflight(file, output, *force)?;
-                let source = String::from_utf8(study_read(file, MAX_SPEC_BYTES as u64)?)
-                    .map_err(|e| e.to_string())?;
-                let mut axes = Vec::new();
-                for axis in sweep {
-                    let (parameter, values) = axis
-                        .split_once('=')
-                        .ok_or("--sweep requires NAME=value,value")?;
-                    axes.push(Axis {
-                        parameter: parameter.into(),
-                        values: Values::List {
-                            values: values.split(',').map(str::to_owned).collect(),
-                        },
-                    });
-                }
-                let spec = ExperimentSpec {
-                    schema_version: EXPERIMENT_SCHEMA.into(),
-                    name: file
-                        .file_stem()
-                        .unwrap_or_default()
-                        .to_string_lossy()
-                        .into_owned(),
-                    source,
-                    requirements: None,
-                    axes,
-                    revisions: Vec::new(),
-                    tolerances: None,
-                    temperatures_c: vec![27.0],
-                    timeout_ms: 30_000,
-                    measurements: Vec::new(),
-                    objective: None,
-                };
-                let resources = study_resources(file, &spec)?;
-                let plan = plan_experiment(spec, &resources)?;
-                study_write(
-                    output,
-                    &serde_json::to_vec_pretty(&plan.spec).map_err(|e| e.to_string())?,
-                )?;
-                emit_study(
-                    format,
-                    includes,
-                    "success",
-                    serde_json::json!({"identity":plan.identity,"cases":plan.cases.len()}),
-                    Some(output),
-                );
-                Ok(0)
-            }
-            StudyAction::Plan { file } => {
-                let spec = decode_spec(&study_read(file, MAX_SPEC_BYTES as u64)?)?;
-                let resources = study_resources(file, &spec)?;
-                let plan = plan_experiment(spec, &resources)?;
-                emit_study(
-                    format,
-                    includes,
-                    "success",
-                    serde_json::json!({"identity":plan.identity,"requirements_sha256":plan.requirements_sha256,"cases":plan.cases}),
-                    None,
-                );
-                Ok(0)
-            }
-            StudyAction::Run {
-                file,
-                output,
-                resume,
-                force,
-            } => {
-                if *resume && *force {
-                    return Err("Choose --resume or --force, not both".into());
-                }
-                study_preflight(file, output, *resume || *force)?;
-                let spec = decode_spec(&study_read(file, MAX_SPEC_BYTES as u64)?)?;
-                let resources = study_resources(file, &spec)?;
-                let output_absolute = fs::canonicalize(
-                    output
-                        .parent()
-                        .filter(|p| !p.as_os_str().is_empty())
-                        .unwrap_or(Path::new(".")),
-                )
-                .map_err(|e| e.to_string())?
-                .join(output.file_name().unwrap());
-                let model_root = fs::canonicalize(
-                    file.parent()
-                        .filter(|p| !p.as_os_str().is_empty())
-                        .unwrap_or(Path::new(".")),
-                )
-                .map_err(|e| e.to_string())?;
-                for reference in resources.keys() {
-                    let model =
-                        fs::canonicalize(model_root.join(reference)).map_err(|e| e.to_string())?;
-                    if model == output_absolute
-                        || (output.exists()
-                            && fs::canonicalize(output).map_err(|e| e.to_string())? == model)
-                    {
-                        return Err("Results cannot overwrite a bound model file".into());
-                    }
-                }
-                let plan = plan_experiment(spec, &resources)?;
-                let runner = NgspiceRunner::discover();
-                let simulator = runner.info().map_err(|e| e.to_string())?;
-                let solver_fingerprint = hash_bytes(
-                    format!(
-                        "{}:{}",
-                        hash_bytes(&fs::read(&simulator.executable).map_err(|e| e.to_string())?),
-                        hash_bytes(
-                            &fs::read(std::env::current_exe().map_err(|e| e.to_string())?)
-                                .map_err(|e| e.to_string())?
-                        )
-                    )
-                    .as_bytes(),
-                );
-                let mut results = if *resume {
-                    let previous: ExperimentResults =
-                        serde_json::from_slice(&study_read(output, MAX_RESULT_BYTES as u64)?)
-                            .map_err(|e| e.to_string())?;
-                    validate_results(&previous, &plan, &simulator, &solver_fingerprint)?;
-                    previous
-                } else {
-                    new_results(plan, simulator, solver_fingerprint)
-                };
-                let cancellation = CancellationToken::new();
-                let signal = cancellation.clone();
-                ctrlc::set_handler(move || signal.cancel()).map_err(|e| e.to_string())?;
-                let checkpoint = |results: &ExperimentResults| -> Result<(), String> {
-                    let bytes = serde_json::to_vec(results).map_err(|e| e.to_string())?;
-                    if bytes.len() > MAX_RESULT_BYTES {
-                        return Err("Results exceed 64 MiB; previous checkpoint is preserved. Narrow the study.".into());
-                    }
-                    study_write(output, &bytes)
-                };
-                summarize(&mut results);
-                checkpoint(&results)?;
-                for index in 0..results.plan.cases.len() {
-                    if cancellation.is_cancelled() {
-                        break;
-                    }
-                    if results.cases[index].status.reusable() {
-                        continue;
-                    }
-                    let case = &results.plan.cases[index];
-                    let row = match compile_case(&results.plan, case, &resources) {
-                        Err(error) => failed_case(&case.id, CaseStatus::Error, error),
-                        Ok(report) => {
-                            let circuit = report.ir.as_ref().unwrap();
-                            let mut context = NativeSimulationContext::default();
-                            for model in &circuit.model_manifest.models {
-                                if let Some(external) = &model.external {
-                                    if external.simulator
-                                        == kessetsu_core::ir::SimulatorCompatibility::NgspicePs
-                                    {
-                                        context.compatibility = external.simulator;
-                                    }
-                                    if let Some(bytes) = resources.get(&external.resource) {
-                                        context
-                                            .resources
-                                            .insert(external.resource.clone(), bytes.clone());
-                                    }
-                                }
-                            }
-                            let spice = temperature_netlist(
-                                report.spice_netlist.as_deref().ok_or("Missing SPICE")?,
-                                case.temperature_c,
-                            )?;
-                            let mut request =
-                                SimulationRequest::new(spice, circuit.analyses.clone());
-                            request.timeout_ms = results.plan.spec.timeout_ms;
-                            match runner.run_with_context(&request, &context, &cancellation) {
-                                Ok(simulation) => {
-                                    evaluate_case(&results.plan, case, &report, simulation)
-                                }
-                                Err(error) => {
-                                    failed_case(&case.id, CaseStatus::Error, error.to_string())
-                                }
-                            }
-                        }
-                    };
-                    eprintln!(
-                        "Study {}/{}: {} {:?}",
-                        index + 1,
-                        results.plan.cases.len(),
-                        case.id,
-                        row.status
-                    );
-                    results.cases[index] = row;
-                    summarize(&mut results);
-                    checkpoint(&results)?;
-                }
-                let exit = if cancellation.is_cancelled() {
-                    130
-                } else if results.summary.errors > 0 {
-                    3
-                } else if results.summary.failed > 0 {
-                    1
-                } else {
-                    0
-                };
-                let body = if includes.contains(&Include::Datasets) {
-                    serde_json::to_value(&results).map_err(|e| e.to_string())?
-                } else {
-                    serde_json::json!({"schema_version":RESULTS_SCHEMA,"identity":results.identity,"summary":results.summary,"cases":results.cases.iter().map(|r| serde_json::json!({"case_id":r.case_id,"status":r.status,"measurements":r.measurements,"assertions":r.assertions,"errors":r.errors})).collect::<Vec<_>>()})
-                };
-                emit_study(
-                    format,
-                    includes,
-                    if exit == 0 {
-                        "success"
-                    } else if exit == 130 {
-                        "cancelled"
-                    } else {
-                        "fail"
-                    },
-                    body,
-                    Some(output),
-                );
-                Ok(exit)
-            }
-            StudyAction::Export {
-                file,
-                output,
-                target,
-                signal,
-                analysis,
-                cases,
-                force,
-            } => {
-                study_preflight(file, output, *force)?;
-                let mut results: ExperimentResults =
-                    serde_json::from_slice(&study_read(file, MAX_RESULT_BYTES as u64)?)
-                        .map_err(|e| e.to_string())?;
-                validate_results(
-                    &results,
-                    &results.plan,
-                    &results.simulator,
-                    &results.solver_fingerprint,
-                )?;
-                summarize(&mut results);
-                let content = match target {
-                    StudyTarget::Json => {
-                        serde_json::to_string_pretty(&results).map_err(|e| e.to_string())?
-                    }
-                    StudyTarget::Csv => results_csv(&results),
-                    StudyTarget::DataCsv => datasets_csv(&results),
-                    StudyTarget::Svg => plot_svg(&results, *analysis, signal, cases)?,
-                    StudyTarget::Html => report_html(&results),
-                };
-                study_write(output, content.as_bytes())?;
-                emit_study(
-                    format,
-                    includes,
-                    "success",
-                    serde_json::json!({"identity":results.identity,"summary":results.summary}),
-                    Some(output),
-                );
-                Ok(0)
-            }
-            StudyAction::Package {
-                file,
-                results,
-                output,
-                signal,
-                analysis,
-                cases,
-            } => {
-                let spec = decode_spec(&study_read(file, MAX_SPEC_BYTES as u64)?)?;
-                let resources = study_resources(file, &spec)?;
-                let completed: ExperimentResults =
-                    serde_json::from_slice(&study_read(results, MAX_RESULT_BYTES as u64)?)
-                        .map_err(|e| e.to_string())?;
-                if serde_json::to_value(&spec).map_err(|e| e.to_string())?
-                    != serde_json::to_value(&completed.plan.spec).map_err(|e| e.to_string())?
-                {
-                    return Err("Package specification does not match the completed results".into());
-                }
-                let package = kessetsu_core::research_package::build_research_package(
-                    &completed, &resources, *analysis, signal, cases,
-                )?;
-                let manifest_path = study_write_package(output, &package)?;
-                emit_study(
-                    format,
-                    includes,
-                    "success",
-                    serde_json::to_value(&package.manifest).map_err(|e| e.to_string())?,
-                    Some(&manifest_path),
-                );
-                Ok(0)
-            }
-        }
-    };
-    match execute() {
-        Ok(exit) => exit,
-        Err(error) => emit_study_error(format, includes, error),
-    }
-}
-
-fn run_data(command: &DataCommand, format: &Format, includes: &BTreeSet<Include>) -> i32 {
-    use kessetsu_core::research_data::*;
-    let read_text = |path: &Path, limit: usize| -> Result<String, String> {
-        String::from_utf8(study_read(path, limit as u64)?).map_err(|_| "Input must be UTF-8".into())
-    };
-    let execute = || -> Result<(Value, Option<&Path>), String> {
-        match &command.action {
-            DataAction::Preview {
-                file,
-                delimiter,
-                decimal,
-                no_header,
-                skip_records,
-            } => {
-                let dialect = CsvDialect {
-                    delimiter: match delimiter.as_str() {
-                        "semicolon" => Delimiter::Semicolon,
-                        "tab" => Delimiter::Tab,
-                        _ => Delimiter::Comma,
-                    },
-                    decimal: if decimal == "comma" {
-                        Decimal::Comma
-                    } else {
-                        Decimal::Dot
-                    },
-                    header: !no_header,
-                    preamble_records: *skip_records,
-                };
-                Ok((
-                    serde_json::to_value(preview_csv(&read_text(file, MAX_CSV_BYTES)?, &dialect)?)
-                        .map_err(|e| e.to_string())?,
-                    None,
-                ))
-            }
-            DataAction::Import {
-                file,
-                mapping,
-                output,
-                force,
-            } => {
-                for input in [file, mapping] {
-                    study_preflight(input, output, *force)?;
-                }
-                let spec: ImportSpec = serde_json::from_str(&read_text(mapping, 64 * 1024)?)
-                    .map_err(|e| e.to_string())?;
-                let result = import_csv(&read_text(file, MAX_CSV_BYTES)?, spec)?;
-                let mut body = serde_json::json!({ "schema_version": result.schema_version, "identity": result.identity, "raw_sha256": result.raw_sha256, "rows": result.source_records.len(), "skipped": result.skipped.len(), "origin": result.spec.metadata.origin, "axis": {"name": result.axis.name, "unit": result.axis.unit}, "signals": result.signals.iter().map(|c| serde_json::json!({"name":c.name,"unit":c.unit})).collect::<Vec<_>>() });
-                if includes.contains(&Include::Datasets) {
-                    body["axis"]["values"] =
-                        serde_json::to_value(&result.axis.values).map_err(|e| e.to_string())?;
-                    body["signals"] =
-                        serde_json::to_value(&result.signals).map_err(|e| e.to_string())?;
-                }
-                study_write(
-                    output,
-                    &serde_json::to_vec_pretty(&result).map_err(|e| e.to_string())?,
-                )?;
-                Ok((body, Some(output.as_path())))
-            }
-            DataAction::FromSimulation {
-                file,
-                mapping,
-                output,
-                force,
-            } => {
-                for input in [file, mapping] {
-                    study_preflight(input, output, *force)?;
-                }
-                let input: Value = serde_json::from_str(&read_text(file, 64 * 1024 * 1024)?)
-                    .map_err(|error| format!("Invalid simulation JSON: {error}"))?;
-                let simulation_value = if input.get("schema_version").and_then(Value::as_str)
-                    == Some(SIMULATION_SCHEMA_VERSION)
-                {
-                    input
-                } else if input.get("schema_version").and_then(Value::as_str)
-                    == Some(CLI_SCHEMA_VERSION)
-                {
-                    input
-                        .get("debug")
-                        .and_then(|debug| debug.get("simulation"))
-                        .cloned()
-                        .ok_or(
-                            "CLI input does not contain debug.simulation; rerun with --include simulation",
-                        )?
-                } else {
-                    return Err(
-                        "Expected kessetsu.simulation.v1 or kessetsu.cli.v1 simulation JSON".into(),
-                    );
-                };
-                let simulation: SimulationResult = serde_json::from_value(simulation_value)
-                    .map_err(|error| format!("Invalid typed simulation result: {error}"))?;
-                let spec: SimulationImportSpec =
-                    serde_json::from_str(&read_text(mapping, 64 * 1024)?)
-                        .map_err(|error| error.to_string())?;
-                let result = import_simulation_data(&simulation, spec)?;
-                let mut body = serde_json::json!({ "schema_version": result.schema_version, "identity": result.identity, "raw_sha256": result.raw_sha256, "rows": result.source_records.len(), "skipped": result.skipped.len(), "origin": result.spec.metadata.origin, "axis": {"name": result.axis.name, "unit": result.axis.unit}, "signals": result.signals.iter().map(|column| serde_json::json!({"name":column.name,"unit":column.unit})).collect::<Vec<_>>() });
-                if includes.contains(&Include::Datasets) {
-                    body = serde_json::to_value(&result).map_err(|error| error.to_string())?;
-                }
-                study_write(
-                    output,
-                    &serde_json::to_vec_pretty(&result).map_err(|error| error.to_string())?,
-                )?;
-                Ok((body, Some(output.as_path())))
-            }
-            DataAction::Compare {
-                file,
-                reference,
-                mapping,
-                output,
-                force,
-            } => {
-                for input in [file, reference, mapping] {
-                    study_preflight(input, output, *force)?;
-                }
-                let data: ResearchData = serde_json::from_str(&read_text(file, 64 * 1024 * 1024)?)
-                    .map_err(|e| e.to_string())?;
-                let reference: ResearchData =
-                    serde_json::from_str(&read_text(reference, 64 * 1024 * 1024)?)
-                        .map_err(|e| e.to_string())?;
-                let spec: ComparisonSpec = serde_json::from_str(&read_text(mapping, 64 * 1024)?)
-                    .map_err(|e| e.to_string())?;
-                let result = compare_data(&data, &reference, spec)?;
-                let body = if includes.contains(&Include::Datasets) {
-                    serde_json::to_value(&result).map_err(|e| e.to_string())?
-                } else {
-                    serde_json::json!({ "schema_version": result.schema_version, "identity": result.identity, "data_identity": result.data_identity, "reference_identity": result.reference_identity, "axis_unit": result.axis_unit, "signals": result.signals.iter().map(|c| serde_json::json!({"mapping":c.mapping,"unit":c.unit,"metrics":c.metrics})).collect::<Vec<_>>() })
-                };
-                study_write(
-                    output,
-                    &serde_json::to_vec_pretty(&result).map_err(|e| e.to_string())?,
-                )?;
-                Ok((body, Some(output.as_path())))
-            }
-        }
-    };
-    match execute() {
-        Ok((body, artifact)) => {
-            let report = kessetsu_core::compiler::compile_source("", CompileOptions::default());
-            let mut output = build_json_output(
-                "data",
-                includes,
-                "completed",
-                &report,
-                None,
-                None,
-                None,
-                None,
-            );
-            output.domain_versions.research_data = Some(DATA_SCHEMA);
-            output.data = Some(body.clone());
-            if let Some(path) = artifact {
-                output.artifacts.push(plain_json_artifact(
-                    "research_data",
-                    path.to_string_lossy().into_owned(),
-                ));
-            }
-            if *format == Format::Json {
-                println!("{}", serde_json::to_string(&output).unwrap());
-            } else {
-                println!("{}", serde_json::to_string_pretty(&body).unwrap());
-                if let Some(path) = artifact {
-                    println!("Saved: {}", path.display());
-                }
-            }
-            0
-        }
-        Err(error) => {
-            emit(
-                format,
-                "data",
-                includes,
-                "error",
-                CompileReport::failure(diagnostic("KES-R001", DiagnosticStage::Cli, error)),
-                None,
-                None,
-                None,
-            );
-            2
-        }
-    }
-}
-
-fn run_fit(command: &FitCommand, format: &Format, includes: &BTreeSet<Include>) -> i32 {
-    use kessetsu_core::fitting::*;
-    use kessetsu_core::research_data::ResearchData;
-    let read_text = |path: &Path, limit: usize| -> Result<String, String> {
-        String::from_utf8(study_read(path, limit as u64)?).map_err(|_| "Input must be UTF-8".into())
-    };
-    let execute = || -> Result<(Value, &Path), String> {
-        match &command.action {
-            FitAction::Evaluate {
-                file,
-                spec,
-                datasets,
-                output,
-                force,
-            } => {
-                for input in [file, spec] {
-                    study_preflight(input, output, *force)?;
-                }
-                if datasets.len() > 32 {
-                    return Err("At most 32 observed datasets can be bound".into());
-                }
-                let mut bound = BTreeMap::new();
-                for binding in datasets {
-                    let (name, path) = binding
-                        .split_once('=')
-                        .ok_or("--data requires NAME=path.kessdata.json")?;
-                    if name.trim().is_empty() || name.len() > 128 {
-                        return Err("Dataset binding names must be nonempty and bounded".into());
-                    }
-                    let path = PathBuf::from(path);
-                    study_preflight(&path, output, *force)?;
-                    let data: ResearchData =
-                        serde_json::from_str(&read_text(&path, MAX_FIT_RESULT_BYTES)?)
-                            .map_err(|error| format!("Invalid dataset '{name}': {error}"))?;
-                    if bound.insert(name.to_string(), data).is_some() {
-                        return Err(format!("Duplicate dataset binding '{name}'"));
-                    }
-                }
-                let experiment: kessetsu_core::experiment::ExperimentResults =
-                    serde_json::from_str(&read_text(
-                        file,
-                        kessetsu_core::experiment::MAX_RESULT_BYTES,
-                    )?)
-                    .map_err(|error| format!("Invalid experiment results: {error}"))?;
-                let spec = decode_fit_spec(&study_read(spec, MAX_FIT_SPEC_BYTES as u64)?)?;
-                let result = evaluate_fit(&experiment, &bound, spec)?;
-                study_write(
-                    output,
-                    &serde_json::to_vec_pretty(&result).map_err(|error| error.to_string())?,
-                )?;
-                let body = if includes.contains(&Include::Datasets) {
-                    serde_json::to_value(&result).map_err(|error| error.to_string())?
-                } else {
-                    serde_json::json!({
-                        "schema_version": result.schema_version,
-                        "identity": result.identity,
-                        "experiment_identity": result.experiment_identity,
-                        "selected_candidate": result.selected_candidate,
-                        "near_equivalent_candidates": result.near_equivalent_candidates,
-                        "warnings": result.warnings,
-                        "candidates": result.candidates.iter().map(|candidate| serde_json::json!({
-                            "id": candidate.id,
-                            "parameters": candidate.parameters,
-                            "eligible": candidate.eligible,
-                            "calibration_score": candidate.calibration_score,
-                            "validation_score": candidate.validation_score,
-                            "boundary_hits": candidate.boundary_hits,
-                            "observation_failures": candidate.observations.iter().filter(|observation| observation.error.is_some()).count(),
-                        })).collect::<Vec<_>>()
-                    })
-                };
-                Ok((body, output))
-            }
-        }
-    };
-    match execute() {
-        Ok((body, artifact)) => {
-            let report = kessetsu_core::compiler::compile_source("", CompileOptions::default());
-            let mut output = build_json_output(
-                "fit",
-                includes,
-                "completed",
-                &report,
-                None,
-                None,
-                None,
-                None,
-            );
-            output.domain_versions.experiment = Some(kessetsu_core::experiment::EXPERIMENT_SCHEMA);
-            output.domain_versions.research_data = Some(kessetsu_core::research_data::DATA_SCHEMA);
-            output.domain_versions.fit = Some(FIT_SCHEMA);
-            output.fit = Some(body.clone());
-            output.artifacts.push(plain_json_artifact(
-                "fit_result",
-                artifact.to_string_lossy().into_owned(),
-            ));
-            if *format == Format::Json {
-                println!("{}", serde_json::to_string(&output).unwrap());
-            } else {
-                println!("{}", serde_json::to_string_pretty(&body).unwrap());
-                println!("Saved: {}", artifact.display());
-            }
-            0
-        }
-        Err(error) => {
-            emit(
-                format,
-                "fit",
-                includes,
-                "error",
-                CompileReport::failure(diagnostic("KES-R002", DiagnosticStage::Cli, error)),
-                None,
-                None,
-                None,
-            );
-            2
-        }
-    }
+    pub(crate) losses: Vec<String>,
 }
 
 fn main() {
@@ -1438,9 +652,9 @@ fn run(cli: Cli) -> i32 {
                 line: None,
                 column: None,
             });
-            return emit_import(&cli.format, &report, None);
+            return import::emit_import(&cli.format, &report, None);
         }
-        return run_spice_import(import, &cli.format);
+        return import::run_spice_import(import, &cli.format);
     }
 
     if let Commands::Data(data) = &cli.command {
@@ -1461,7 +675,7 @@ fn run(cli: Cli) -> i32 {
             );
             return 2;
         }
-        return run_data(data, &cli.format, &includes);
+        return research::run_data(data, &cli.format, &includes);
     }
     if let Commands::Fit(fit) = &cli.command {
         if !cli.parameters.is_empty() {
@@ -1481,7 +695,7 @@ fn run(cli: Cli) -> i32 {
             );
             return 2;
         }
-        return run_fit(fit, &cli.format, &includes);
+        return research::run_fit(fit, &cli.format, &includes);
     }
     if let Commands::Tool(tool) = &cli.command {
         if !cli.parameters.is_empty() {
@@ -1501,17 +715,17 @@ fn run(cli: Cli) -> i32 {
             );
             return 2;
         }
-        return run_tool(tool, &cli.format, &includes);
+        return tool::run_tool(tool, &cli.format, &includes);
     }
     if let Commands::Study(study) = &cli.command {
         if !cli.parameters.is_empty() {
-            return emit_study_error(
+            return research::emit_study_error(
                 &cli.format,
                 &includes,
                 "Use study axes/revision inputs, not --param",
             );
         }
-        return run_study(study, &cli.format, &includes);
+        return research::run_study(study, &cli.format, &includes);
     }
     let mut inputs = CompileInputs::default();
     for parameter in &cli.parameters {
@@ -1994,293 +1208,7 @@ fn command_name(command: &Commands) -> &'static str {
     }
 }
 
-fn run_spice_import(command: &ImportCommand, format: &Format) -> i32 {
-    let source_is_stdin = command.file == Path::new("-");
-    let source = match read_source(&command.file) {
-        Ok(source) => source,
-        Err(error) => {
-            let mut report = import_spice("");
-            report.diagnostics.clear();
-            report.diagnostics.push(ImportDiagnostic {
-                code: "KES-I001".into(),
-                severity: ImportSeverity::Error,
-                message: format!(
-                    "Could not read SPICE input '{}': {error}",
-                    command.file.display()
-                ),
-                line: None,
-                column: None,
-            });
-            return emit_import(format, &report, None);
-        }
-    };
-    let mut report = import_spice(&source);
-    if report.has_errors() {
-        return emit_import(format, &report, None);
-    }
-
-    let output = command
-        .output
-        .clone()
-        .or_else(|| (!source_is_stdin).then(|| command.file.with_extension("kess")));
-    let Some(output) = output else {
-        report.diagnostics.push(ImportDiagnostic {
-            code: "KES-I002".into(),
-            severity: ImportSeverity::Error,
-            message: "stdin import requires --output PATH.kess".into(),
-            line: None,
-            column: None,
-        });
-        return emit_import(format, &report, None);
-    };
-    if output.extension().and_then(|extension| extension.to_str()) != Some("kess") {
-        report.diagnostics.push(ImportDiagnostic {
-            code: "KES-I002".into(),
-            severity: ImportSeverity::Error,
-            message: "SPICE import output must use the .kess extension".into(),
-            line: None,
-            column: None,
-        });
-        return emit_import(format, &report, None);
-    }
-    let output_parent = output
-        .parent()
-        .filter(|parent| !parent.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."));
-    let resolved_output = match fs::canonicalize(output_parent) {
-        Ok(parent) => parent.join(output.file_name().expect("output has a filename")),
-        Err(error) => {
-            report.diagnostics.push(ImportDiagnostic {
-                code: "KES-I001".into(),
-                severity: ImportSeverity::Error,
-                message: format!("Could not resolve output directory: {error}"),
-                line: None,
-                column: None,
-            });
-            return emit_import(format, &report, None);
-        }
-    };
-    let aliases_input = !source_is_stdin
-        && fs::canonicalize(&command.file).is_ok_and(|input| {
-            input == resolved_output
-                || (output.exists()
-                    && fs::canonicalize(&output).is_ok_and(|existing| existing == input))
-        });
-    if aliases_input {
-        report.diagnostics.push(ImportDiagnostic {
-            code: "KES-I002".into(),
-            severity: ImportSeverity::Error,
-            message: "Import output cannot overwrite the original SPICE file".into(),
-            line: None,
-            column: None,
-        });
-        return emit_import(format, &report, None);
-    }
-    if output.exists() && !command.force {
-        report.diagnostics.push(ImportDiagnostic {
-            code: "KES-I003".into(),
-            severity: ImportSeverity::Error,
-            message: format!(
-                "Output '{}' already exists; use --force to replace it",
-                output.display()
-            ),
-            line: None,
-            column: None,
-        });
-        return emit_import(format, &report, None);
-    }
-    let source = report
-        .kess_source
-        .as_deref()
-        .expect("successful import has canonical source");
-    if let Err(error) = fs::write(&output, source) {
-        report.diagnostics.push(ImportDiagnostic {
-            code: "KES-I004".into(),
-            severity: ImportSeverity::Error,
-            message: format!("Could not write '{}': {error}", output.display()),
-            line: None,
-            column: None,
-        });
-        return emit_import(format, &report, None);
-    }
-    emit_import(format, &report, Some(&output))
-}
-
-fn emit_import(format: &Format, report: &SpiceImportReport, output: Option<&Path>) -> i32 {
-    let failed = report.has_errors();
-    let status = if failed { "error" } else { "success" };
-    if *format == Format::Json {
-        let artifacts = output
-            .map(|path| plain_json_artifact("kessetsu_source", path.to_string_lossy()))
-            .into_iter()
-            .collect();
-        let body = ImportJsonOutput {
-            schema_version: CLI_SCHEMA_VERSION,
-            command: "import",
-            status,
-            domain_versions: ImportDomainVersions {
-                compile: COMPILE_SCHEMA_VERSION,
-                spice_import: SPICE_IMPORT_SCHEMA_VERSION,
-            },
-            import: report,
-            artifacts,
-        };
-        println!("{}", serde_json::to_string_pretty(&body).unwrap());
-    } else {
-        for diagnostic in &report.diagnostics {
-            let location = diagnostic
-                .line
-                .map(|line| format!(" at line {line}"))
-                .unwrap_or_default();
-            eprintln!(
-                "[{:?}] {}{}: {}",
-                diagnostic.severity, diagnostic.code, location, diagnostic.message
-            );
-        }
-        if let Some(path) = output {
-            println!(
-                "[SUCCESS] Imported {} components, {} nets and {} analyses to {}",
-                report.summary.components,
-                report.summary.nets,
-                report.summary.analyses,
-                path.display()
-            );
-        }
-    }
-    if failed { 2 } else { 0 }
-}
-
-fn run_tool(command: &ToolCommand, format: &Format, includes: &BTreeSet<Include>) -> i32 {
-    let preferred_values = command.values.into();
-    let request = match &command.tool {
-        CircuitTool::Divider {
-            vin,
-            target,
-            lower,
-            load,
-        } => ToolRequest::Divider {
-            input_voltage: vin.clone(),
-            target_voltage: target.clone(),
-            lower_resistance: lower.clone(),
-            load_resistance: load.clone(),
-            preferred_values,
-        },
-        CircuitTool::RcLowpass { cutoff, resistance } => ToolRequest::RcLowpass {
-            cutoff: cutoff.clone(),
-            resistance: resistance.clone(),
-            preferred_values,
-        },
-    };
-    let calculation = match calculate_tool(request) {
-        Ok(result) => result,
-        Err(error) => {
-            let mut diagnostic = diagnostic("KES-F003", DiagnosticStage::Cli, error.message);
-            diagnostic.field = Some(error.field);
-            emit(
-                format,
-                "tool",
-                includes,
-                "error",
-                CompileReport::failure(diagnostic),
-                None,
-                None,
-                None,
-            );
-            return 2;
-        }
-    };
-    let mut report = kessetsu_core::compile_source(
-        &calculation.source,
-        CompileOptions {
-            include_ast: includes.contains(&Include::Ast),
-            ..CompileOptions::default()
-        },
-    );
-    let mut artifacts = Vec::new();
-    if !report.has_errors()
-        && let Some(path) = &command.output
-    {
-        if path.extension().and_then(|value| value.to_str()) != Some("kess") {
-            report.diagnostics.push(diagnostic("KES-F003", DiagnosticStage::Cli,
-                "Tool --output must have the .kess extension; use render/export on that source for other formats."));
-        } else if path.exists() && !command.force {
-            report.diagnostics.push(diagnostic(
-                "KES-I003",
-                DiagnosticStage::Io,
-                format!(
-                    "Output file '{}' already exists; pass --force to overwrite it.",
-                    path.display()
-                ),
-            ));
-        } else if let Err(error) = fs::write(path, &calculation.source) {
-            report.diagnostics.push(diagnostic(
-                "KES-I004",
-                DiagnosticStage::Io,
-                format!(
-                    "Could not write generated source '{}': {error}",
-                    path.display()
-                ),
-            ));
-        } else {
-            artifacts.push(plain_json_artifact(
-                "circuit_source",
-                path.to_string_lossy(),
-            ));
-        }
-    }
-    let failed = report.has_errors();
-    if *format == Format::Json {
-        let mut output = build_json_output(
-            "tool",
-            includes,
-            if failed { "error" } else { "success" },
-            &report,
-            None,
-            None,
-            None,
-            None,
-        );
-        output.domain_versions.tool = Some(TOOL_SCHEMA_VERSION);
-        output.artifacts = artifacts;
-        output.calculation = Some(calculation);
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&output).expect("finite tool result must serialize")
-        );
-    } else {
-        emit_human_diagnostics(&report);
-        if !failed {
-            println!(
-                "{} — nominal analytical calculation ({:?})",
-                calculation.name, calculation.preferred_values
-            );
-            for (name, value) in &calculation.components {
-                println!("{name}: {}", format_quantity(value.value, value.unit));
-            }
-            for (name, value) in &calculation.results {
-                println!("{name}: {}", format_quantity(value.value, value.unit));
-            }
-            for assumption in &calculation.assumptions {
-                println!("Note: {assumption}");
-            }
-            if let Some(path) = &command.output {
-                println!(
-                    "Source written to {}. Next: kess simulate {}",
-                    path.display(),
-                    path.display()
-                );
-            } else {
-                println!(
-                    "\nEditable source (use --output circuit.kess to save):\n{}",
-                    calculation.source
-                );
-            }
-        }
-    }
-    if failed { 2 } else { 0 }
-}
-
-fn read_source(source_path: &Path) -> io::Result<String> {
+pub(crate) fn read_source(source_path: &Path) -> io::Result<String> {
     if source_path == Path::new("-") {
         let mut source = String::new();
         io::stdin().read_to_string(&mut source)?;
@@ -2331,7 +1259,7 @@ fn import_diagnostic(diagnostic: &ImportDiagnostic) -> Diagnostic {
     }
 }
 
-fn load_external_model_resources(
+pub(crate) fn load_external_model_resources(
     source_path: &Path,
     source_is_stdin: bool,
     source: &str,
@@ -2756,7 +1684,10 @@ fn json_export_artifact(artifact: &ExportArtifact, path: String) -> JsonArtifact
     }
 }
 
-fn plain_json_artifact(kind: impl Into<String>, path: impl Into<String>) -> JsonArtifact {
+pub(crate) fn plain_json_artifact(
+    kind: impl Into<String>,
+    path: impl Into<String>,
+) -> JsonArtifact {
     JsonArtifact {
         kind: kind.into(),
         path: path.into(),
@@ -3271,7 +2202,11 @@ fn compile_failure_exit_code(report: &CompileReport) -> i32 {
     }
 }
 
-fn diagnostic(code: &str, stage: DiagnosticStage, message: impl Into<String>) -> Diagnostic {
+pub(crate) fn diagnostic(
+    code: &str,
+    stage: DiagnosticStage,
+    message: impl Into<String>,
+) -> Diagnostic {
     Diagnostic {
         code: code.to_string(),
         severity: DiagnosticSeverity::Error,
@@ -3286,7 +2221,7 @@ fn diagnostic(code: &str, stage: DiagnosticStage, message: impl Into<String>) ->
 }
 
 #[allow(clippy::too_many_arguments)]
-fn emit(
+pub(crate) fn emit(
     format: &Format,
     command: &'static str,
     includes: &BTreeSet<Include>,
@@ -3336,7 +2271,7 @@ fn emit_with_requirements(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn build_json_output(
+pub(crate) fn build_json_output(
     command: &'static str,
     includes: &BTreeSet<Include>,
     status: &str,
@@ -3526,7 +2461,7 @@ impl JsonDiagnostic {
     }
 }
 
-fn emit_human_diagnostics(report: &CompileReport) {
+pub(crate) fn emit_human_diagnostics(report: &CompileReport) {
     if let Some(ir) = &report.ir {
         for parameter in &ir.parameter_manifest.parameters {
             if parameter.instance_path.is_empty() && parameter.effective_override.is_some() {
