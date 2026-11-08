@@ -6,7 +6,7 @@ your open source or relax its requirements.
 
 ## First study in Web
 
-For a ready-to-run introduction, open **Analyze → Test parameter variations…** and choose
+For a ready-to-run introduction, open **Analyze → Parameter study…** and choose
 **Try loaded-filter study**. This loads the complete six-case study inside the dialog without
 replacing your editor circuit. Run it, inspect the three passing and three expected failing
 cases, then download Results JSON. Replacing an existing report with this example asks first.
@@ -15,7 +15,7 @@ The collapsed **New to parameter studies?** section explains prerequisites and n
 To build the same study from your own editor snapshot:
 
 1. Choose **File → Examples → Loaded Filter**.
-2. Open **Analyze → Test parameter variations…**. It takes a source snapshot.
+2. Open **Analyze → Parameter study…**. It takes a source snapshot.
 3. Select `resistance` and enter `820Ohm, 1kOhm, 1.2kOhm` as an explicit list.
 4. Add `load`, with `2kOhm, 10kOhm`. These lists produce six combinations.
 5. Run. Three cases pass and three fail: heavy loading reduces gain.

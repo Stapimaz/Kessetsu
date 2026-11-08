@@ -37,21 +37,23 @@ overwriting any input CSV, mapping, dataset or reference.
 
 ## Web workflow
 
-In the Web editor, open **Analyze → Compare research data…**.
+In the Web editor, open **Analyze → Compare data…**.
 
 The collapsed **What files do I need?** section links the complete synthetic CSV pair and
 explains the inputs. These files are data, not device-model libraries or study JSON. Use the
 mapping instructions in this guide; Kessetsu does not infer physical units from column names.
 
-Follow these three steps:
+Follow the 4-step guided workflow (`Observed` → `Reference` → `Match` → `Results`):
 
-1. Choose the observed CSV, review its dialect/preview, map axis and signal columns, units,
-   calibration, missing-value behavior and origin, then import it.
-2. Repeat for an independent reference CSV, or select an analysis and vectors from the current
-   successful Web simulation. Transient/DC vectors retain real values; AC uses linear complex
+1. **Observed**: Choose the observed CSV, review its dialect/preview (with collapsible advanced
+   settings for CSV dialect, calibration gain/offset, missing values, and provenance metadata),
+   map axis and signal columns and units, then import it.
+2. **Reference**: Repeat for an independent reference CSV, or select an analysis and vectors from the
+   current successful Web simulation. Transient/DC vectors retain real values; AC uses linear complex
    magnitude. The derived dataset records simulator identity, result hash, analysis and vectors.
-3. Pair logical signals, select coverage/interpolation and any explicit shift/window/gap,
-   then compare. The result shows an overlay and complete residual metrics and downloads as
+3. **Match**: Pair logical signals, select coverage/interpolation and any explicit shift/window/gap,
+   then compare.
+4. **Results**: The result shows an overlay and complete residual metrics and downloads as
    `.kesscompare.json`; either normalized source dataset can download as `.kessdata.json`.
 
 The browser enforces the same Core schemas and limits as CLI. Files stay in the current tab,

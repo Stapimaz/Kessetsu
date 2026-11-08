@@ -4,6 +4,34 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
+Post-1.5.0 Web Hub UX enhancements, streamlined external device model workflows, and architectural code maintainability refactoring across web dialogs, CLI command modules, and SPICE import.
+
+### Web Hub UX and workflow wizards
+
+- **Unified multi-step WorkflowDialog wizards:**
+  - Standardize all Web Hub Analyze tools on page-like multi-step `WorkflowDialog` wizards with distinct step navigation, validation states, and sticky action footers:
+    - **Parameter study (`Analyze → Parameter study…`)**: 5-step guided flow (`Method` → `Variables` → `Checks` → `Review & Run` → `Results`), explicit snapshot tracking when the editor circuit changes, and explicit opt-in run comparison against previous results.
+    - **Compare data (`Analyze → Compare data…`)**: 4-step guided flow (`Observed` → `Reference` → `Match` → `Results`) with collapsible advanced panels for CSV dialect, calibration gain/offset, missing-value behavior, and provenance metadata.
+    - **Work with an AI agent (`Analyze → Work with an AI agent…`)**: 3-step guided flow (`Task` → `Proposal` → `Review`) where `Copy agent task` and `Download task file` automatically advance to `Proposal`, `Paste from clipboard & check` and `Upload reply file…` verify and advance to `Review`, and simulation verification (`Run simulation`) and applying changes (`Apply to editor`) remain explicit review actions.
+- **Automated bundled model binding and local model management:**
+  - Automatically bind bundled `.lib` reference models in memory when selecting built-in external-device examples (`External Comparator`, `Threshold Memristor`) from **File → Examples**, enabling immediate out-of-the-box compilation and simulation.
+  - Streamline local external subcircuit model management and file binding in **View → Circuit details…** and the inline **Choose model files…** action.
+- **Workspace layout and responsive polish:**
+  - Replace simulation onboarding placeholder steps with a direct one-click simulation empty state.
+  - Introduce viewport-aware overflow scrolling for the **File → Examples** submenu to prevent clipping on constrained displays.
+  - Remove unnecessary hero console scrollbars and improve responsive layout behavior.
+  - Streamline the **Calculators** utility UI with a compact, focused form and results layout.
+
+### Architectural maintainability and code structure
+
+- **Web Hub Analyze modular decomposition:**
+  - Decompose large Web Hub dialog components into focused submodules: `ResearchDataParts` for CSV preview, column mapping, and residuals; `StudySteps` for parameter axes, tolerance configs, and candidate grids; and `AgentProposalParts` for task packaging, proposal verification, and diagnostic recovery.
+- **Core and CLI module organization:**
+  - Modularize the SPICE netlist import subsystem into dedicated `spice_import` submodules for tokenization, card parsing, expression evaluation, and device folding.
+  - Decompose the native `kess` CLI into focused command support modules across test, simulation, study, data, and export pipelines.
+- **Schematic symbol reveal:**
+  - Extend schematic-to-source symbol reveal and canvas selection highlighting for `jfet`, `couple`, and `device` components.
+
 ## [1.5.0] — 2026-11-01
 
 Expanded SPICE and semiconductor device coverage (`vcvs`, `vccs`, `ccvs`, `cccs`, `switch`, Zener breakdown diodes, `jfet`, `couple` magnetic coupling, 4-terminal MOSFET bulk pin `b`, `exp` transient waveform, biased `ac` sources, `.param` math expressions, and RKM notation), physical op-amp macromodeling (`KESSETSU_OPAMP_V2`), deterministic parameter studies (`kess study`) and engineering calculators (`kess tool`), canonical 1.5 showcase circuits, and a progressive-disclosure public website and onboarding experience.

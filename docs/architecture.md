@@ -241,9 +241,11 @@ See the [study guide](guides/parameter-studies.md).
 | `resistor` | Passive | p1, p2 | R_ |
 | `capacitor` | Passive | p1, p2 | C_ |
 | `inductor` | Passive | p1, p2 | L_ |
+| `couple` | Mutual inductor coupling | L1, L2 (inductor refs) | K_ |
 | `diode` | Semiconductor | p1, p2 | D_ |
 | `transistor` | BJT (NPN/PNP) | c, b, e | Q_ |
-| `mosfet` | MOSFET (NMOS/PMOS) | d, g, s | M_ |
+| `jfet` | JFET (NJF/PJF) | d, g, s | J_ |
+| `mosfet` | MOSFET (NMOS/PMOS) | d, g, s (optional b) | M_ |
 | `switch` | Voltage-controlled switch | p1, p2, ctrl_p, ctrl_n | S_ |
 | `opamp` | Operational amplifier | in_p, in_n, vcc, vee, out | X_ |
 | `vcvs` | Voltage-controlled voltage source | p_out, n_out, ctrl_p, ctrl_n | E_ |
@@ -258,6 +260,9 @@ See the [study guide](guides/parameter-studies.md).
 
 - `source` is the canonical component type for DC and waveform voltage sources; generated SPICE uses the `V_` prefix.
 - `switch` represents a voltage-controlled switch with conduction pins `p1`, `p2` and control terminals `ctrl_p`, `ctrl_n`, defaulted to `KESSETSU_SW_V1` or configured with a typed `model switch`.
+- `jfet <id> <model>` represents an N-channel or P-channel JFET (`d`, `g`, `s`), defaulted to built-in `2N5457` (NJF) or configured with `2N5460` (PJF) or a typed `model jfet <name> njf|pjf`.
+- `mosfet` connects drain, gate, and source (`d`, `g`, `s`), with an optional 4-terminal bulk connection (`b: <net>` / `connect <id>.b to <net>`) defaulting to source `s` when omitted.
+- `couple <id> <L1> <L2> <k>` defines mutual magnetic coupling between inductors (`0 < k <= 1`), supporting two-winding and uniform multi-winding statements.
 - Linear dependent sources:
   - `vcvs <id> <gain>`: voltage-controlled voltage source (SPICE `E`), with dimensionless gain `ratio` (`SIUnit::Ratio`).
   - `vccs <id> <gm>`: voltage-controlled current source (SPICE `G`), with transconductance in Siemens `S` (`SIUnit::Siemens`, also accepting `siemens` or `mho`).
@@ -336,13 +341,15 @@ Ngspice integration uses a repository/release sidecar on Windows and the `KESSET
 | BZX84C3V3 | Zener diode (3.3 V breakdown) | Built in |
 | BZX84C5V1 | Zener diode (5.1 V breakdown) | Built in |
 | BZX84C12 | Zener diode (12 V breakdown) | Built in |
+| 2N5457 | JFET (NJF) | Built in |
+| 2N5460 | JFET (PJF) | Built in |
 | IRF540 | MOSFET NMOS | Built in |
 | KESSETSU_PMOS_V1 | Generic MOSFET PMOS | Verified built in |
 | KESSETSU_SW_V1 | Generic voltage-controlled switch | Verified built in |
 | KESSETSU_OPAMP_V1 | Generic op-amp subcircuit (rail-clamped) | Verified built in |
 | KESSETSU_OPAMP_V2 | Physical op-amp subcircuit (rail headroom, slew, rout) | Verified built in |
 
-Default built-ins are `2N3904`/`2N3906` for BJTs, `IRF540` for MOSFETs, `1N4148` for diodes, `KESSETSU_SW_V1` for switches, and `KESSETSU_OPAMP_V1` for op-amps. Built-in Zener breakdown diodes (`1N4733A`, `BZX84C3V3`, `BZX84C5V1`, `BZX84C12`) provide characterized breakdown behavior. Kessetsu 1.2.0 repairs the `1N4148`/`1N4007` diode directives with provenance version `1.0.1`; published CLI 1.1.0 remains affected by invalid descriptive fields in those models. Their legacy provenance is unchanged, and the repair does not establish manufacturer fidelity or enforce device ratings. Exact packaged models are unchanged. `KESSETSU_*` models are Kessetsu's own open-licensed generic verification models; they are not claimed to match a specific manufacturer's data sheet. `KESSETSU_PMOS_V1` has provenance version `1.0.1` and uses portable Ngspice `MOS1` parameters. `KESSETSU_SW_V1` has provenance version `1.0.0` and implements a voltage-controlled switch with `vt=0.5 vh=0 ron=1 roff=1Meg`. `KESSETSU_OPAMP_V1` has provenance version `1.1.0` and connects to `vcc` and `vee` to enforce anti-windup supply-rail output clamping (with safe symmetric clamping when `V(vcc) <= V(vee)`). `KESSETSU_OPAMP_V2` has provenance version `1.0.0` and models `gain=200k`, `bandwidth=1MHz`, 1 V rail headroom, 0.5 V/µs slew rate (`500k` V/s), and 50 Ω linear output resistance.
+Default built-ins are `2N3904`/`2N3906` for BJTs, `2N5457` for JFETs, `IRF540` for MOSFETs, `1N4148` for diodes, `KESSETSU_SW_V1` for switches, and `KESSETSU_OPAMP_V1` for op-amps. Built-in Zener breakdown diodes (`1N4733A`, `BZX84C3V3`, `BZX84C5V1`, `BZX84C12`) provide characterized breakdown behavior. Built-in generic JFET models (`2N5457` and `2N5460`) provide characterized pinch-off and transconductance behavior. Kessetsu 1.2.0 repairs the `1N4148`/`1N4007` diode directives with provenance version `1.0.1`; published CLI 1.1.0 remains affected by invalid descriptive fields in those models. Their legacy provenance is unchanged, and the repair does not establish manufacturer fidelity or enforce device ratings. Exact packaged models are unchanged. `KESSETSU_*` models are Kessetsu's own open-licensed generic verification models; they are not claimed to match a specific manufacturer's data sheet. `KESSETSU_PMOS_V1` has provenance version `1.0.1` and uses portable Ngspice `MOS1` parameters. `KESSETSU_SW_V1` has provenance version `1.0.0` and implements a voltage-controlled switch with `vt=0.5 vh=0 ron=1 roff=1Meg`. `KESSETSU_OPAMP_V1` has provenance version `1.1.0` and connects to `vcc` and `vee` to enforce anti-windup supply-rail output clamping (with safe symmetric clamping when `V(vcc) <= V(vee)`). `KESSETSU_OPAMP_V2` has provenance version `1.0.0` and models `gain=200k`, `bandwidth=1MHz`, 1 V rail headroom, 0.5 V/µs slew rate (`500k` V/s), and 50 Ω linear output resistance.
 
 ### Typed User-Model and Subcircuit Boundary
 
@@ -352,11 +359,12 @@ Kessetsu does not accept raw `.include`, `.model`, `.subckt`, or control directi
 model diode SafeD version=1.0.0 license=MIT Is=2e-9 Rs=0.5 bv=10 ibv=1m
 model switch FastSW version=1.0.0 license=MIT vt=1.0 vh=0.1 ron=0.1 roff=10Meg
 model mosfet SafeP pmos version=1.0.0 license=MIT Vto=-2 Kp=4
+model jfet CustomJ njf version=1.0.0 license=MIT vto=-2 beta=1.2m
 subcircuit opamp SafeOp (in_p,in_n,vcc,vee,out) version=1.0.0 license=MIT gain=100k bandwidth=2MHz rail_headroom=1 slew_rate=500k rout=50
 ```
 
-- Device model kinds are `diode`, `bjt`, `mosfet`, and `switch`. The safe subcircuit template is currently limited to `opamp`.
-- BJTs require `npn|pnp`; MOSFETs require `nmos|pmos`. Switches accept `vt`, `vh`, `ron`, and `roff` parameters. Diodes accept standard junction parameters plus breakdown parameters `bv`, `ibv`, `nbv`, `ibvl`, and `nbvl`. Component/model kind or polarity mismatch produces `KES-C004`.
+- Device model kinds are `diode`, `bjt`, `mosfet`, `jfet`, and `switch`. The safe subcircuit template is currently limited to `opamp`.
+- BJTs require `npn|pnp`; MOSFETs require `nmos|pmos`; JFETs require explicit polarity `njf` or `pjf` and accept the Level-1 Shichman-Hodges parameter allowlist (`vto`, `beta`, `lambda`, `rd`, `rs`, `cgs`, `cgd`, `pb`, `is`, `fc`, `b`, `kf`, `af`, `tnom`). Switches accept `vt`, `vh`, `ron`, and `roff` parameters. Diodes accept standard junction parameters plus breakdown parameters `bv`, `ibv`, `nbv`, `ibvl`, and `nbvl`. Component/model kind or polarity mismatch produces `KES-C004`.
 - User models and subcircuits carry required `version` and `license` metadata; `source` is optional. Electrical parameters come from a fixed allowlist for each kind. Unknown, duplicate, or non-finite parameters produce `KES-C010`.
 - Op-amp subcircuits require positive `gain` and `bandwidth`. Optional physical macromodel parameters include `rail_headroom` (non-negative, default `0.0`), `slew_rate` (positive, e.g. `500k` for 0.5 V/µs), and `rout` (positive linear output resistance in ohms). Invalid values produce `KES-C012`.
 - Op-amp pin order must match the shared component catalog byte for byte: `in_p,in_n,vcc,vee,out`. A mismatch is `KES-C012`. Backends do not own separate pin lists.

@@ -83,24 +83,22 @@ See [simulation and assertions](../reference/simulation-and-assertions.md) and
 
 ## Go beyond one simulation
 
-Use **Analyze → Test parameter variations…** for bounded sweeps, tolerances, loads,
-temperatures, comparison and reports; follow the [parameter studies guide](parameter-studies.md).
-Use **Analyze → Compare research data…** to map local CSV measurements or references and compare
-them with another dataset or a completed simulation; follow the [research-data guide](research-data.md).
+Kessetsu provides guided multi-step workflows in unified `WorkflowDialog` wizards to explore variations and validate data:
+
+- **Parameter study (`Analyze → Parameter study…`)**: A 5-step guided flow (`Method` → `Variables` → `Checks` → `Review & Run` → `Results`) for bounded sweeps, tolerances, loads, temperatures, candidate objectives, and reports. It tracks explicit snapshots when the editor circuit changes and supports explicit opt-in run comparison against previous results. Follow the [parameter studies guide](parameter-studies.md).
+- **Compare data (`Analyze → Compare data…`)**: A 4-step guided flow (`Observed` → `Reference` → `Match` → `Results`) to map local CSV measurements or references and compare them against another dataset or a completed simulation. Advanced CSV dialect, calibration (gain/offset), missing-value behavior, and provenance settings are grouped in collapsible sections. Follow the [research-data guide](research-data.md).
+
 These workflows are optional. A first circuit only needs Source, Schematic and Simulation.
 
 ## Review a proposal from an external agent
 
-Copied tasks include a compact Kessetsu syntax guide, a complete working example and links
-to the authoritative references. This also helps chat-only agents that cannot run the CLI.
-The example teaches syntax; your own electrical requirements remain the design target.
+Open **Analyze → Work with an AI agent…** for a provider-neutral handoff structured as a 3-step guided flow (`Task` → `Proposal` → `Review`):
 
-If a reply is rejected or its assertions are not satisfied, use **Copy correction task**
-or **Download correction file**. Send it back to the same agent, then paste the new complete
-reply into Step 2. The correction retains your original requirements and source hash, the
-rejected reply and actual local diagnostic/assertion evidence. It does not change the editor,
-automatically fix code, relax limits or send anything to an AI service. A blocked clipboard
-has a selectable manual-copy fallback. Source, request or model changes invalidate old feedback.
+1. **Task**: Describe the outcome you own, then use **Copy agent task** or **Download task file**, which automatically advances to **Proposal**. Paste the task into ChatGPT, Gemini, Claude, Codex or another agent of your choice. You decide which external agent receives it; Kessetsu does not upload the circuit, contact a model provider or store an API key. The task binds the circuit name, exact source and source SHA-256 to the requirements, including a compact Kessetsu syntax guide, a complete working example, and authoritative reference links.
+2. **Proposal**: Load the returned `kessetsu.agent-proposal.v1` JSON using **Paste from clipboard & check** or **Upload reply file…**, which verifies the format, checks source compatibility, and advances to **Review**.
+3. **Review**: The proposed source is shown as a line diff and compiled through the same local Core while the editor document remains unchanged. Run simulation verification with **Run simulation** to obtain real local simulation and assertion results. **Apply to editor** remains an explicit action in Review and becomes enabled only after that run completes; closing the dialog or stopping the run changes nothing. If assertions fail, error, are skipped or do not exist, the completed simulation is not presented as verified; applying it requires a second explicit confirmation.
+
+If a reply is rejected or its assertions are not satisfied, use **Copy correction task** or **Download correction file** in Step 3. Send it back to the same agent, then paste the new complete reply into Step 2 (**Proposal**). The correction retains your original requirements and source hash, the rejected reply and actual local diagnostic/assertion evidence. It does not change the editor, automatically fix code, relax limits or send anything to an AI service. A blocked clipboard has a selectable manual-copy fallback. Source, request or model changes invalidate old feedback.
 
 For example, a 3 V ±50 mV target is two root-level assertions after `simulate op`:
 
@@ -109,36 +107,11 @@ assert value(V(OUT)) >= 2.95V
 assert value(V(OUT)) <= 3.05V
 ```
 
-These are an excerpt, not a complete circuit. `analyze` blocks, `voltage(OUT)` and inline
-`+/-` bands are not supported Kessetsu syntax; the language reference describes valid forms.
+These are an excerpt, not a complete circuit. `analyze` blocks, `voltage(OUT)` and inline `+/-` bands are not supported Kessetsu syntax; the language reference describes valid forms.
 
-Open **Analyze → Work with an AI agent…** for a provider-neutral handoff. Describe the outcome you
-own, then copy or download the versioned agent-task JSON. Paste it into ChatGPT, Gemini, Claude,
-Codex or another agent of your choice. You decide which
-external agent receives it; Kessetsu does not upload the circuit, contact a model provider or store
-an API key. The task binds the circuit name, exact source and source SHA-256 to the requirements.
+Editing the reply, changing the requested outcome, changing the open circuit or selecting/clearing local model files invalidates prior review and simulation evidence. After a model-file change, the reply text is kept so you can check and test it again. Closing the dialog abandons pending file reads, review and simulation; late results cannot restore them. A completed review is kept across close/reopen when its inputs are unchanged. After acceptance, **Analyze → Undo AI agent change** restores the exact prior source as long as it has not since been edited.
 
-Load the returned `kessetsu.agent-proposal.v1` JSON in the same dialog. Kessetsu rejects proposals
-for another source revision and keeps an accepted proposal's explanation separate from engineering
-evidence. The proposed source is shown as a line diff and compiled through the same local Core while
-the editor document remains unchanged. **Test proposed circuit** obtains real local simulation and
-assertion results. **Apply to editor** becomes available only after that run completes; closing the
-dialog or stopping the run changes nothing. If assertions fail, error, are skipped or do not exist,
-the completed simulation is not presented as verified; applying it requires a second explicit
-confirmation. Editing the reply, changing the requested outcome, changing the open circuit or
-selecting/clearing local model files invalidates the prior review and simulation evidence.
-After a model-file change, the reply text is kept so you can check and test it again.
-Closing the dialog abandons pending file reads, review and simulation; late results cannot
-restore them. A completed review is kept across close/reopen when its inputs are unchanged.
-After acceptance,
-**Analyze → Undo AI agent change** restores the exact prior source as long as it has not since been edited.
-
-The proposal summary is untrusted text. Compilation verifies supported syntax and schematic
-connectivity; simulation verifies only the modeled analyses and assertions in the proposed source.
-The dialog keeps the human request visible and highlights high-impact assertion, analysis, source,
-component and connection edits, but it cannot infer that agent-authored assertions cover every
-sentence. Neither step proves hardware, hidden requirements or an agent's broader claims. Local model files
-remain local and must already be bound for a proposal that depends on them.
+The proposal summary is untrusted text. Compilation verifies supported syntax and schematic connectivity; simulation verifies only the modeled analyses and assertions in the proposed source. The dialog keeps the human request visible and highlights high-impact assertion, analysis, source, component and connection edits, but it cannot infer that agent-authored assertions cover every sentence. Neither step proves hardware, hidden requirements or an agent's broader claims. Local model files remain local and must already be bound for a proposal that depends on them.
 
 ## Save and recover
 
@@ -173,10 +146,9 @@ when browser recovery is unavailable.
 
 ## Select a local device model
 
-For an `external_subcircuit`, open **View → Circuit details…** and select the file beside
-the declared resource. Its exact hash and interface must match before compilation succeeds.
-When files are missing or mismatched, **Choose model files** in Simulation or Schematic
-opens that dialog directly. Selecting a file alone is not validation; wait for **Source valid**.
+Built-in examples using bundled `.lib` models (**External Comparator**, **Threshold Memristor**) automatically bind their bundled reference model in memory when selected from **File → Examples**, allowing immediate compilation and simulation.
+
+For custom or modified `external_subcircuit` declarations, or to replace a model, open **View → Circuit details…** and select the file beside the declared resource, or use the inline **Choose model files…** action in Simulation or Schematic when models are missing or mismatched. Its exact hash and interface must match before compilation succeeds. Selecting a file alone is not validation; wait for **Source valid**.
 Files remain in memory only: reselect after reload, opening another document or sharing.
 Browser-incompatible models require the native CLI; there is no generic replacement.
 The [model catalog](../reference/model-catalog.md) provides example downloads and limits.
