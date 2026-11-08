@@ -1,15 +1,9 @@
 import {
-  AlertTriangle,
-  CheckCircle2,
-  ClipboardPaste,
   Copy,
   Download,
-  LoaderCircle,
   Play,
   RotateCcw,
   Square,
-  Upload,
-  X,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import {
@@ -24,7 +18,6 @@ import {
   assertionOutcome,
   createAgentCorrectionTask,
   createAgentTask,
-  describeProposalDiagnostic,
   lineDiff,
   MAX_AGENT_PROPOSAL_BYTES,
   parseAgentProposal,
@@ -38,6 +31,13 @@ import { BrowserSimulationRunner, SimulationCancelledError } from '../simulation
 import type { BrowserEvaluation, BrowserSimulationPlan } from '../simulation/types';
 import { assertValidSpiceReport, looksLikeSpiceNetlist } from '../spiceImport';
 import { WorkflowDialog, type WorkflowStep } from './WorkflowDialog';
+import {
+  AgentRecoverySection,
+  AgentTaskStep,
+  AgentProposalStep,
+  AgentReviewStep,
+  type AgentStep,
+} from './AgentProposalParts';
 import './AgentProposalDialog.css';
 
 interface Props {
@@ -50,7 +50,7 @@ interface Props {
   onClose(): void;
 }
 
-export type AgentStep = 'task' | 'proposal' | 'review';
+export type { AgentStep };
 type VerificationState = 'idle' | 'running' | 'complete' | 'failed' | 'cancelled';
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 const docsHref = (path: string) => `${import.meta.env.BASE_URL}docs/${path}`;
@@ -528,73 +528,18 @@ export function AgentProposalDialog({
   ];
 
   const renderRecovery = (inReview: boolean) => (
-    <section className="agent-recovery" aria-label="Correct the agent reply" role="alert">
-      <h3>The returned circuit needs a correction</h3>
-      <p>Your editor circuit is unchanged. Send this diagnostic feedback back to your agent:</p>
-      {compileErrors.length > 0 ? (
-        <ul>
-          {compileErrors.map((diagnostic, index) => (
-            <li key={index}>
-              <span>{describeProposalDiagnostic(diagnostic)}</span>
-              {diagnostic.line && proposal && (
-                <code>{proposal.proposed_source.split(/\r?\n/)[diagnostic.line - 1]?.slice(0, 240)}</code>
-              )}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p>
-          {error ||
-            (checkedAssertions === 'unchecked'
-              ? 'No assertions checked your requested outcome. Ask the agent to encode the measurable targets.'
-              : 'Some assertions failed, errored or were skipped. The correction task includes the actual results.')}
-        </p>
-      )}
-      {compileErrors.length > 0 && (
-        <details>
-          <summary>Technical diagnostics</summary>
-          <pre>{compileErrors.map((item) => `${item.code}: ${item.message}`).join('\n\n')}</pre>
-        </details>
-      )}
-      <div className="agent-actions">
-        <button
-          type="button"
-          className="agent-primary"
-          disabled={!requirements.trim() || correctionPending}
-          onClick={() => void sendCorrection(false)}
-        >
-          <Copy size={14} /> {correctionPending ? 'Preparing feedback…' : 'Copy correction task'}
-        </button>
-        <button
-          type="button"
-          disabled={!requirements.trim() || correctionPending}
-          onClick={() => void sendCorrection(true)}
-        >
-          <Download size={14} /> Download correction file
-        </button>
-        {inReview && (
-          <button type="button" onClick={() => setStep('proposal')}>
-            Edit reply JSON
-          </button>
-        )}
-      </div>
-      {inReview && <small className="agent-recovery-note">Failure details included</small>}
-      {!requirements.trim() && (
-        <p>Add your electrical target above and send a task first so Kessetsu can package the correction context.</p>
-      )}
-      {correctionText && (
-        <details>
-          <summary>Copy correction text manually</summary>
-          <textarea
-            aria-label="Correction task JSON"
-            readOnly
-            rows={5}
-            value={correctionText}
-            onFocus={(event) => event.currentTarget.select()}
-          />
-        </details>
-      )}
-    </section>
+    <AgentRecoverySection
+      inReview={inReview}
+      compileErrors={compileErrors}
+      proposal={proposal}
+      error={error}
+      checkedAssertions={checkedAssertions}
+      requirements={requirements}
+      correctionPending={correctionPending}
+      correctionText={correctionText}
+      onSendCorrection={(download) => void sendCorrection(download)}
+      onSetStep={setStep}
+    />
   );
 
   return (
@@ -739,248 +684,61 @@ export function AgentProposalDialog({
       />
 
       {step === 'task' && (
-        <div className="workflow-step-pane">
-          <div className="agent-context-strip">
-            <div className="agent-context-item">
-              <span className="agent-context-label">Circuit revision</span>
-              <code>sha256:{sourceHash ? `${sourceHash.slice(0, 12)}…` : '…'}</code>
-            </div>
-            <div className="agent-context-item">
-              <span className="agent-context-label">Compile status</span>
-              <span>{sourceClean ? 'Compiled cleanly' : 'Diagnostics present'}</span>
-            </div>
-            <div className="agent-context-item">
-              <span className="agent-context-label">Simulation context</span>
-              <span>Ready to evaluate locally</span>
-            </div>
-          </div>
-
-          <label className="agent-label">
-            <span>Circuit requirements</span>
-            <textarea
-              rows={5}
-              value={requirements}
-              onChange={(event) => {
-                taskOperationId.current++;
-                setRequirements(event.target.value);
-                setTaskCopied(false);
-                setTaskText('');
-              }}
-              placeholder="Describe the circuit change or target outcome (optional — leave blank to use assertions already in the circuit)…"
-            />
-          </label>
-
-          <details className="agent-advanced">
-            <summary>Inspect task JSON</summary>
-            <p>Includes current source, SHA-256 revision hash, diagnostics, simulation summary, and reply schema.</p>
-            <pre>{taskText}</pre>
-          </details>
-        </div>
+        <AgentTaskStep
+          sourceHash={sourceHash}
+          sourceClean={sourceClean}
+          requirements={requirements}
+          taskText={taskText}
+          onRequirementsChange={(value) => {
+            taskOperationId.current++;
+            setRequirements(value);
+            setTaskCopied(false);
+            setTaskText('');
+          }}
+        />
       )}
 
       {step === 'proposal' && (
-        <div className="workflow-step-pane">
-          <div className="agent-step-toolbar">
-            <button type="button" onClick={() => void pasteAndReview()}>
-              <ClipboardPaste size={14} /> Paste &amp; check
-            </button>
-            <button type="button" onClick={() => fileInput.current?.click()}>
-              <Upload size={14} /> Open reply file…
-            </button>
-          </div>
-
-          <label className="agent-label">
-            <span>Agent reply JSON</span>
-            <textarea
-              rows={8}
-              value={proposalText}
-              onChange={(event) => {
-                const text = event.target.value;
-                setProposalText(text);
-                setConfirmApply(false);
-                resetProposal(text.trim() ? 'Reply changed. Check this version before testing or applying it.' : '');
-              }}
-              placeholder="Paste the JSON reply from your AI agent…"
-            />
-          </label>
-
-          {needsCorrection && !proposal && renderRecovery(false)}
-          {error && !needsCorrection && (
-            <p className="agent-error" role="alert">
-              {error}
-            </p>
-          )}
-        </div>
+        <AgentProposalStep
+          proposalText={proposalText}
+          needsCorrection={needsCorrection}
+          proposal={proposal}
+          error={error}
+          onPasteAndReview={() => void pasteAndReview()}
+          onOpenFileClick={() => fileInput.current?.click()}
+          onProposalTextChange={(text) => {
+            setProposalText(text);
+            setConfirmApply(false);
+            resetProposal(text.trim() ? 'Reply changed. Check this version before testing or applying it.' : '');
+          }}
+          recoverySection={renderRecovery(false)}
+        />
       )}
 
       {step === 'review' && proposal && (
-        <div className="workflow-step-pane is-wide">
-          <div className="agent-check-grid">
-            <div className="agent-check-card agent-check-pass">
-              <CheckCircle2 size={16} />
-              <div>
-                <strong>Correct circuit revision</strong>
-                <span>Matches the source you sent.</span>
-              </div>
-            </div>
-            <div
-              className={
-                connectivityVerified && compileErrors.length === 0
-                  ? 'agent-check-card agent-check-pass'
-                  : 'agent-check-card agent-check-fail'
-              }
-            >
-              {connectivityVerified && compileErrors.length === 0 ? <CheckCircle2 size={16} /> : <X size={16} />}
-              <div>
-                <strong>Core compile and connectivity</strong>
-                <span>
-                  {connectivityVerified && compileErrors.length === 0
-                    ? 'Compiles cleanly and schematic connects.'
-                    : 'Rejected by Core compiler or ERC.'}
-                </span>
-              </div>
-            </div>
-            <div className={`agent-check-card ${simulationCard.tone}`}>
-              {simulationCard.icon === 'pass' ? (
-                <CheckCircle2 size={16} />
-              ) : simulationCard.icon === 'loading' ? (
-                <LoaderCircle className="agent-spin" size={16} />
-              ) : simulationCard.icon === 'idle' ? (
-                <Play size={16} />
-              ) : simulationCard.icon === 'error' ? (
-                <X size={16} />
-              ) : (
-                <AlertTriangle size={16} />
-              )}
-              <div>
-                <strong>Local simulation and assertions</strong>
-                <span>{simulationCard.text}</span>
-              </div>
-            </div>
-          </div>
-
-          {needsCorrection && renderRecovery(true)}
-
-          {compileWarnings.length > 0 && (
-            <p className="agent-warning">
-              {compileWarnings.length} compile warning{compileWarnings.length === 1 ? '' : 's'}:{' '}
-              {compileWarnings.slice(0, 2).map((item) => item.message).join(' ')}
-            </p>
-          )}
-          {proposal.summary && (
-            <p className="agent-summary-line">
-              <strong>
-                Agent note <em>(unverified)</em>:
-              </strong>{' '}
-              {proposal.summary}
-            </p>
-          )}
-
-          <details className="agent-review-detail" open>
-            <summary>
-              <span>Source changes</span>
-              <small>{changedLines} changed lines</small>
-            </summary>
-            <div className="agent-change-summary" aria-label="High-impact source changes">
-              <span>
-                Assertions{' '}
-                <b>
-                  +{changeSummary.assertions.added} / −{changeSummary.assertions.removed}
-                </b>
-              </span>
-              <span>
-                Analyses{' '}
-                <b>
-                  +{changeSummary.analyses.added} / −{changeSummary.analyses.removed}
-                </b>
-              </span>
-              <span>
-                Sources{' '}
-                <b>
-                  +{changeSummary.sources.added} / −{changeSummary.sources.removed}
-                </b>
-              </span>
-              <span>
-                Components{' '}
-                <b>
-                  +{changeSummary.components.added} / −{changeSummary.components.removed}
-                </b>
-              </span>
-              <span>
-                Connections{' '}
-                <b>
-                  +{changeSummary.connections.added} / −{changeSummary.connections.removed}
-                </b>
-              </span>
-            </div>
-            {(changeSummary.assertions.removed > 0 ||
-              changeSummary.sources.added + changeSummary.sources.removed > 0) && (
-              <p className="agent-impact-warning">
-                <AlertTriangle size={14} /> Review removed assertions and source or supply changes before applying.
-              </p>
-            )}
-            <div className="agent-diff" role="region" aria-label="Proposed source diff" tabIndex={0}>
-              {diff.map((line, index) => (
-                <div className={`agent-diff-${line.kind}`} key={`${index}-${line.kind}`}>
-                  <span>{line.oldLine ?? ''}</span>
-                  <span>{line.newLine ?? ''}</span>
-                  <b>{line.kind === 'add' ? '+' : line.kind === 'remove' ? '−' : ' '}</b>
-                  <code>{line.text || ' '}</code>
-                </div>
-              ))}
-            </div>
-          </details>
-
-          {verification && (
-            <div
-              className={`agent-verification ${verificationPassed ? '' : 'agent-verification-warning'}`}
-              data-testid="agent-verification"
-            >
-              {verificationPassed ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
-              <div>
-                <strong>
-                  {verificationPassed
-                    ? 'Simulation completed and all encoded assertions passed'
-                    : checkedAssertions === 'unchecked'
-                      ? 'Simulation completed without requirement checks'
-                      : 'Simulation completed with unresolved assertion results'}
-                </strong>
-                <span>
-                  {verification.simulation.datasets.length} analyses · {assertionSummary?.passed}/
-                  {assertionSummary?.total} passed · {assertionSummary?.failed} failed · {assertionSummary?.errors}{' '}
-                  errors · {assertionSummary?.skipped} skipped. Only encoded assertions were checked.
-                </span>
-              </div>
-            </div>
-          )}
-
-          {confirmApply && canApply && !verificationPassed && (
-            <div className="agent-apply-confirm" role="alert">
-              <AlertTriangle size={17} />
-              <div>
-                <strong>Apply an unverified outcome?</strong>
-                <span>
-                  The simulation ran, but the requested outcome was not fully checked or satisfied. Review the diff before
-                  changing the editor.
-                </span>
-              </div>
-              <button type="button" onClick={() => setConfirmApply(false)}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="agent-confirm-apply"
-                onClick={() => {
-                  if (!canApply) return;
-                  onAccept(proposal.proposed_source);
-                  close();
-                }}
-              >
-                Apply unchecked changes
-              </button>
-            </div>
-          )}
-        </div>
+        <AgentReviewStep
+          proposal={proposal}
+          connectivityVerified={connectivityVerified}
+          compileErrors={compileErrors}
+          simulationCard={simulationCard}
+          compileWarnings={compileWarnings}
+          changedLines={changedLines}
+          changeSummary={changeSummary}
+          diff={diff}
+          verification={verification}
+          verificationPassed={verificationPassed}
+          checkedAssertions={checkedAssertions}
+          assertionSummary={assertionSummary}
+          confirmApply={confirmApply}
+          canApply={canApply}
+          onCancelConfirmApply={() => setConfirmApply(false)}
+          onApply={() => {
+            if (!canApply) return;
+            onAccept(proposal.proposed_source);
+            close();
+          }}
+          recoverySection={needsCorrection ? renderRecovery(true) : undefined}
+        />
       )}
     </WorkflowDialog>
   );
