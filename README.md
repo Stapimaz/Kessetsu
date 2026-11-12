@@ -12,8 +12,8 @@ When a student or engineer tells an AI agent *"design this circuit with Kessetsu
 
 ## Current capabilities
 
-- Direct `.kess` and supported SPICE netlist (`--input auto|kess|spice`) input across `check`, `compile`, `simulate`, `test`, `render`, and `export`, including inline `.model` (`D`/`NPN`/`PNP`/`NMOS`/`PMOS`) and embedded `.SUBCKT` conversion
-- Built-in `kess mcp` stdio server exposing `kessetsu_guide`, `kessetsu_capabilities`, `kessetsu_check`, `kessetsu_simulate`, `kessetsu_test`, `kessetsu_render_schematic`, `kessetsu_export`, and `kessetsu_import_spice`
+- Direct `.kess` and supported SPICE netlist (`--input auto|kess|spice`) input across `check`, `compile`, `simulate`, `test`, `render`, and `export`, including inline `.model` (`D`/`NPN`/`PNP`/`NMOS`/`PMOS`/`NJF`/`PJF`/`SW`), Zener breakdown diodes, linear dependent sources (`vcvs`/`vccs`/`ccvs`/`cccs` and SPICE `E`/`G`/`F`/`H`), coupled inductors (`couple` / `K`), 4-terminal MOSFET bulk connections, `.param` math expressions, RKM notation, and embedded `.SUBCKT` conversion
+- Built-in `kess mcp` stdio server exposing `kessetsu_guide`, `kessetsu_capabilities`, `kessetsu_check`, `kessetsu_simulate`, `kessetsu_test`, `kessetsu_render_schematic`, `kessetsu_export`, `kessetsu_import_spice`, `kessetsu_tool`, `kessetsu_study_plan`, `kessetsu_study_run`, and the `design_circuit` prompt
 - Evaluator-owned, exact-hash `.kessreq` files for agent loops that must not rewrite their own acceptance criteria
 - Rust parser, module flattening, and typed Circuit IR (`kessetsu.compile.v9`)
 - Unit-checked named parameters, reusable circuit modules and CLI numeric overrides

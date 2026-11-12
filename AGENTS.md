@@ -19,17 +19,17 @@ You are an AI agent assigned to Kessetsu, or continuing an earlier session. Kess
 
 ## Multi-agent delegation workflow
 
-When working in Antigravity with subagent tools available, operate under a **Lead + Flash Worker** model to keep architectural decisions centralized while delegating bounded execution work:
+When working in Antigravity with subagent and swarm tools available, operate under a **Lead (Argon High) + Worker (Hydrogen High)** model to keep architectural decisions centralized while delegating execution and research work to the high-throughput worker tier:
 
-1. **Lead agent (Gemini 4 Argon High):** The primary conversation agent acts as the lead engineer and owns task planning, architecture, cross-cutting design decisions, complex debugging, multi-component integration, code review of subagent output, and final verification.
-2. **Worker subagents (`Model: "flash"` — use the `flash` worker tier, currently intended as Gemini 3.8 Flash High):** Override the default `Model: "inherit"` parameter on `invoke_subagent` and explicitly pass `Model: "flash"` when delegating suitable worker tasks:
-   - Use `TypeName: "research"` with `Model: "flash"` for broad codebase exploration, multi-file searches, and read-only analysis.
-   - Use `TypeName: "self"` (or a session worker defined via `define_subagent` with `EnableWriteTools: true`) with `Model: "flash"` for focused implementation tasks, unit/integration test authoring, documentation updates, repetitive refactoring, and independent subtasks.
+1. **Lead / Coordinator agent (`Gemini 4 Argon High`):** The primary conversation agent acts as the lead engineer and coordinator. It owns task planning, architecture, cross-cutting design decisions, complex debugging, multi-component integration, code review of worker output, and final sign-off. Conserve lead turns by delegating broad file exploration, implementation, test authoring, and verification runs to workers whenever practical.
+2. **Worker agents (`Gemini 4 Hydrogen High`):**
+   - **Native Swarm (`swarm` tool — preferred for multi-part, parallel, or iterative work):** Explicitly pass `model: "gemini-4-hydrogen-high"` on `swarm{action: "add", ...}` so every worker runs on **Gemini 4 Hydrogen (High)**. Use `workspace: "share"` when multiple authors edit or build concurrently, and add a `gemini-4-hydrogen-high` verifier worker when parallel changes benefit from independent review and test execution.
+   - **Single Subagents (`invoke_subagent` tool — for single bounded background tasks):** Override the default `Model: "inherit"` parameter and pass `Model: "flash"` (`TypeName: "research"` for read-only codebase exploration; `TypeName: "self"` for focused implementation, tests, or documentation updates).
 3. **Delegation guardrails:**
-   - **No trivial delegation:** Do not spawn subagents for tiny one-file edits, quick lookups, or trivial fixes that are faster to execute directly.
-   - **Parallelize independent work safely:** For larger tasks, split independent work across multiple `Model: "flash"` subagents when useful, assigning strictly disjoint file scopes so parallel subagents never edit the same files or make competing architectural decisions.
-   - **Mandatory lead review:** Always inspect and review subagent diffs, test results, and outputs directly in the lead agent before treating any delegated subtask as complete.
-   - **Lead owns final sign-off:** Keep final verification (`scripts/verify.ps1`, focused test suites, release/doc audits) and completion decisions with the lead Argon agent.
+   - **No trivial delegation:** Do not spawn workers for tiny one-file edits, quick lookups, or trivial fixes that are faster to execute directly in a single turn.
+   - **Parallelize independent work safely:** Assign strictly disjoint file scopes (or `workspace: "share"` in a swarm) so parallel workers never edit the same files concurrently or make competing architectural decisions.
+   - **Mandatory lead review:** Always inspect and review worker diffs, test results, and outputs before treating any delegated subtask as complete.
+   - **Lead owns final sign-off:** Keep final release/architecture decisions and canonical verification approval with the lead Argon agent.
 
 ## Work tracking
 
