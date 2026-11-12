@@ -66,7 +66,6 @@ test('opens the landing page, enters Web Hub, initializes WASM and compiles the 
   ]);
   await expect(page.locator('.monaco-editor')).toBeVisible();
   await expect(page.locator('svg polyline')).not.toHaveCount(0);
-  await expect(page.getByRole('region', { name: 'Quick start actions' }).getByRole('button', { name: 'Simulate circuit', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Focus simulation view' }).click();
   await expect(page.getByRole('button', { name: 'Run simulation' })).toBeVisible();
   await page.getByRole('button', { name: 'Focus schematic view' }).click();

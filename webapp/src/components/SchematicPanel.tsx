@@ -14,9 +14,6 @@ interface Props {
   onResolveSource(): void;
   evaluation?: BrowserEvaluation | null;
   onRevealSymbol?(symbol: string): void;
-  onQuickSimulate?(): void;
-  onOpenSpiceConverter?(): void;
-  onOpenExamples?(): void;
 }
 
 function formatEngineering(value: number, unit = ''): string {
@@ -101,11 +98,7 @@ export function SchematicPanel({
   onResolveSource,
   evaluation = null,
   onRevealSymbol,
-  onQuickSimulate,
-  onOpenSpiceConverter,
-  onOpenExamples,
 }: Props) {
-  const [quickStartDismissed, setQuickStartDismissed] = useState(false);
   const [view, setView] = useState({ zoom: 1, pan: { x: 0, y: 0 } });
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
   const [gridVisible, setGridVisible] = useState(true);
@@ -533,44 +526,6 @@ export function SchematicPanel({
           </div>}
           {normalizedQuery && <div className="navigator-section"><h4>Search results</h4><div className="navigator-results">{matchingComponents.map(componentRow)}{matchingNets.map((net) => <button className="navigator-result" key={`net-${net.id}`} onClick={() => chooseNet(net.id, true)}><span><strong>{net.name}</strong><small>{net.kind} · {net.pins.length} pins</small></span></button>)}{matchingComponents.length + matchingNets.length === 0 && <small>No matching component or net.</small>}</div></div>}
         </aside>}
-
-        {Boolean(svg && !evaluation && !sourceFeedback && !quickStartDismissed && panelControls.canvasMode === 'schematic' && onQuickSimulate) && (
-          <div
-            className="schematic-quickstart"
-            role="region"
-            aria-label="Quick start actions"
-            onPointerDown={(event) => event.stopPropagation()}
-            onDoubleClick={(event) => event.stopPropagation()}
-          >
-            <span className="quickstart-copy">
-              <strong>Ready to test:</strong> simulate this circuit with Ngspice, or switch starting points.
-            </span>
-            <div className="quickstart-actions">
-              <button type="button" className="quickstart-primary" onClick={onQuickSimulate}>
-                Simulate circuit
-              </button>
-              {onOpenSpiceConverter && (
-                <button type="button" className="quickstart-secondary" onClick={onOpenSpiceConverter}>
-                  Paste SPICE netlist
-                </button>
-              )}
-              {onOpenExamples && (
-                <button type="button" className="quickstart-secondary" onClick={onOpenExamples}>
-                  Browse examples
-                </button>
-              )}
-              <button
-                type="button"
-                className="quickstart-dismiss"
-                aria-label="Dismiss quick start"
-                title="Dismiss"
-                onClick={() => setQuickStartDismissed(true)}
-              >
-                <X size={13} />
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </section>
   );
