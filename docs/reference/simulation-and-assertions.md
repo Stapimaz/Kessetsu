@@ -41,7 +41,7 @@ For supervised agents and CI, the same assertions may live in an evaluator-owned
 
 ## Measurements
 
-Primitive reductions include `value`, `min`, `max`, absolute `peak`, `average`/`avg` and `rms`. Derived metrics include gain, low-pass bandwidth/cutoff, frequency, phase, output power, efficiency, THD, clipping and device dissipation. Exact formulas, windows, required datasets, current polarity and power sign are normative in [engineering measurements](measurements.md).
+Primitive reductions include `value`, `min`, `max`, absolute `peak`, `pk2pk`/`p2p`/`vpp`, `average`/`avg` and `rms`. Derived metrics include gain, low-pass bandwidth/cutoff, frequency, phase, output power, efficiency, THD, clipping and device dissipation. Exact formulas, windows, required datasets, current polarity and power sign are normative in [engineering measurements](measurements.md).
 
 ## CLI examples
 

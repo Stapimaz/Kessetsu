@@ -55,7 +55,9 @@ Agents with terminal access can also call `kess` directly (`kess check`, `kess t
    sources, ambiguous ground) before simulating; these are the root cause of most cryptic
    simulator failures.
 4. **Test against the requirements.** Call `kessetsu_test` with the design and the
-   unchanged requirements text. Iterate on the design only. Each assertion returns
+   unchanged requirements text (if using the CLI on a file path after `kess simulate`,
+   pass `--force` so `kess test` can overwrite the companion `<design>.spice` artifact,
+   or pipe via `-`). Iterate on the design only. Each assertion returns
    PASS/FAIL/ERROR/SKIPPED with its measured value. For parameter variations, corner
    analysis, or Monte Carlo distributions, call `kessetsu_study_plan` and `kessetsu_study_run`.
 5. **Show the human.** Call `kessetsu_render_schematic` and save `schematic.svg` next to the
@@ -118,7 +120,7 @@ assert upper_cutoff(V(OUT),V(IN)) < 1050Hz
 assert gain_at(V(OUT),V(IN),100Hz) > 0.99
 ```
 
-Common metrics: `value|min|max|peak|average|rms(V(net))`, `gain(out,in)`,
+Common metrics: `value|min|max|peak|pk2pk|p2p|vpp|average|rms(V(net))`, `gain(out,in)`,
 `gain_at(out,in,f)`, `upper_cutoff/lower_cutoff(out,in)`, `phase(out,in,f)`,
 `frequency(V(net))`, `output_power(V(out),RL)`, `efficiency(...)`, `thd(...)`,
 `rise_time/fall_time/settling_time/overshoot(...)`, `dissipation(device)`.

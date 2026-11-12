@@ -65,12 +65,13 @@ datasheet-compliance result.
 
 ## Reductions
 
-`value`, `min`, `max`, absolute `peak`, `average`/`avg`, and `rms` accept any real `V`, `I`, or `P` primitive. `value` is the final sample for series data and the scalar itself for OP. `peak` is `max(|x|)`, average is the arithmetic mean, and RMS is `sqrt(mean(x²))`.
+`value`, `min`, `max`, absolute `peak`, `pk2pk`/`p2p`/`vpp`, `average`/`avg`, and `rms` accept any real `V`, `I`, or `P` primitive. `value` is the final sample for series data and the scalar itself for OP. `peak` is `max(|x|)`, `pk2pk` (`p2p`, `vpp`) is the peak-to-peak swing `max(x) - min(x)` on series data (rejected on single-point OP data), average is the arithmetic mean, and RMS is `sqrt(mean(x²))`.
 
 Transient/DC reductions can be windowed with inclusive SI-valued time bounds:
 
 ```kessetsu
 assert rms(V(OUT),2ms,10ms) > 3V
+assert pk2pk(V(OUT),2ms,10ms) > 3.5V
 ```
 
 The contract requires `0 <= start < stop` and at least one sample inside the window. Complex AC data is intentionally not coerced into a real reduction; use `gain`, `bandwidth`/`cutoff`, or `phase`.

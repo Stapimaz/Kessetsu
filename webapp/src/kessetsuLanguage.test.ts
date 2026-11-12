@@ -56,7 +56,7 @@ describe('Kessetsu editor language support', () => {
       expect(hoverDocumentation.get(item.label)).toContain(item.detail);
     }
     expect(metricCompletions.map((item) => item.label)).toEqual(expect.arrayContaining([
-      'value', 'min', 'max', 'peak', 'average', 'avg', 'rms', 'gain', 'bandwidth',
+      'value', 'min', 'max', 'peak', 'pk2pk', 'p2p', 'vpp', 'average', 'avg', 'rms', 'gain', 'bandwidth',
       'cutoff', 'frequency', 'phase', 'output_power', 'dissipation', 'efficiency',
       'thd', 'clipping', 'gain_at', 'lower_cutoff', 'upper_cutoff',
       'rise_time', 'fall_time', 'settling_time', 'overshoot', 'energy',

@@ -31,6 +31,9 @@ Post-1.5.0 Web Hub UX enhancements, streamlined external device model workflows,
   - Decompose the native `kess` CLI into focused command support modules across test, simulation, study, data, and export pipelines.
 - **Schematic symbol reveal:**
   - Extend schematic-to-source symbol reveal and canvas selection highlighting for `jfet`, `couple`, and `device` components.
+- **Measurement and schematic rendering polish:**
+  - Add `pk2pk` (with aliases `p2p` and `vpp`) as a reduction metric (`max - min` over transient or DC-sweep series data, supporting optional `[start, stop]` transient windows).
+  - Position negative-rail supply labels on top pins and positive-rail supply labels on bottom pins outside the vertical lead stub so label text never overlaps the supply lead wire.
 
 ## [1.5.0] — 2026-11-01
 

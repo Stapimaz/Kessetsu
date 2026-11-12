@@ -184,3 +184,29 @@ fn human_quantity_formatter_keeps_units_and_engineering_prefixes() {
     assert_eq!(format_quantity(2.5e-6, SIUnit::Ampere), "2.500000µA");
     assert_eq!(format_quantity(10_000.0, SIUnit::Hertz), "10.000000kHz");
 }
+
+#[test]
+fn pk2pk_and_aliases_measure_series_swing_and_reject_op_scalars() {
+    let series_circuit = circuit(
+        "assert pk2pk(V(out)) == 8V\nassert p2p(V(out)) == 8V\nassert vpp(V(out),1s,2s) == 2V\n",
+    );
+    let series_sim = simulation(
+        SimulationStatus::Succeeded,
+        transient(BTreeMap::from([("out".to_string(), vec![-5.0, 1.0, 3.0])])),
+    );
+    let report = evaluate_assertions(&series_circuit, &series_sim);
+    assert!(report.all_passed());
+    assert_eq!(report.assertions[0].actual, Some(8.0));
+    assert_eq!(report.assertions[1].actual, Some(8.0));
+    assert_eq!(report.assertions[2].actual, Some(2.0));
+
+    let op_circuit = circuit("assert pk2pk(V(out)) > 0V\n");
+    let op_sim = simulation(
+        SimulationStatus::Succeeded,
+        Dataset::OperatingPoint {
+            values: BTreeMap::from([("out".to_string(), 5.0)]),
+        },
+    );
+    let op_report = evaluate_assertions(&op_circuit, &op_sim);
+    assert_eq!(op_report.assertions[0].status, AssertionStatus::Error);
+}

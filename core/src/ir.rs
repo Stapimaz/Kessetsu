@@ -1601,7 +1601,7 @@ pub fn ast_to_ir_with_resources(
                     return Err(semantic_error(
                         "KES-C006",
                         format!(
-                            "unsupported assertion metric '{}'; expected value, min, max, peak, average, avg, rms, gain, gain_at, lower_cutoff, upper_cutoff, bandwidth, cutoff, frequency, phase, output_power, dissipation, efficiency, thd, clipping, rise_time, fall_time, settling_time, overshoot or energy",
+                            "unsupported assertion metric '{}'; expected value, min, max, peak, pk2pk, p2p, vpp, average, avg, rms, gain, gain_at, lower_cutoff, upper_cutoff, bandwidth, cutoff, frequency, phase, output_power, dissipation, efficiency, thd, clipping, rise_time, fall_time, settling_time, overshoot or energy",
                             assert.metric
                         ),
                         None,
@@ -2288,6 +2288,9 @@ fn is_supported_assertion_metric(metric: &str) -> bool {
             | "min"
             | "max"
             | "peak"
+            | "pk2pk"
+            | "p2p"
+            | "vpp"
             | "average"
             | "avg"
             | "rms"
@@ -2347,7 +2350,8 @@ fn assertion_result_unit(
         }
     }
     match metric {
-        "value" | "min" | "max" | "peak" | "average" | "avg" | "rms" => {
+        "value" | "min" | "max" | "peak" | "pk2pk" | "p2p" | "vpp" | "average" | "avg"
+        | "rms" => {
             if matches!(arguments.len(), 1 | 3) {
                 signal_unit(arguments[0])
             } else {
@@ -2415,7 +2419,8 @@ fn assertion_result_unit(
 fn assertion_numeric_unit(metric: &str, arguments: &[&str], index: usize) -> Option<SIUnit> {
     let count = arguments.len();
     match metric {
-        "value" | "min" | "max" | "peak" | "average" | "avg" | "rms" | "dissipation"
+        "value" | "min" | "max" | "peak" | "pk2pk" | "p2p" | "vpp" | "average" | "avg"
+        | "rms" | "dissipation"
             if count == 3 && matches!(index, 1 | 2) =>
         {
             Some(SIUnit::Second)

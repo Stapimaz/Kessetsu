@@ -86,7 +86,7 @@ The canonical SPICE importer (`kess import`, CLI `--input auto|spice`, and `kess
 | Parameter study | Finite grids, revisions, temperature cases, tolerance corners and seeded uniform/Gaussian samples | Explicit quantities/distributions and finite evaluation budgets; no automatic manufacturing-yield or global-optimum claim |
 | Dataset | OP scalar; transient/DC real series; AC complex series | Simulator raw format is not a public contract |
 | Primitive | `V(net/device)`, `I(device)`, `P(device)` | Safe op-amp internal/output branch current fails closed |
-| Reduction | `value`, `min`, `max`, absolute `peak`, `average`, `rms` | No real reduction over complex AC data |
+| Reduction | `value`, `min`, `max`, absolute `peak`, `pk2pk` (`p2p`, `vpp`), `average`, `rms` | No real reduction over complex AC data |
 | Derived | gain, gain_at, bandwidth/cutoff, lower_cutoff, upper_cutoff, frequency, phase, output power, efficiency, THD, clipping, dissipation, rise/fall/settling time, overshoot, energy | Only under documented analysis, signal and window conditions |
 | Assertion | `<`, `>`, `==`, `<=`, `>=`; PASS/FAIL/ERROR/SKIPPED | Missing data is never treated as `0` or PASS |
 | Provided part limits | Condition-qualified peak voltage/current and average dissipation | User-supplied advisory comparison; no SOA, thermal or datasheet-compliance inference |

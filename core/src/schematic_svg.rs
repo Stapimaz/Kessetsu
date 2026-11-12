@@ -473,10 +473,11 @@ fn label_markup(label: &crate::schematic::NetLabel) -> String {
                 )
             };
             let rotation = if points_down { 180 } else { 0 };
-            let text_y = if points_down {
-                anchor_y + 28
-            } else {
-                anchor_y - 16
+            let text_y = match (label.side, points_down) {
+                (PinSide::Top, true) => anchor_y - 8,
+                (PinSide::Bottom, false) => anchor_y + 20,
+                (_, true) => anchor_y + 28,
+                (_, false) => anchor_y - 16,
             };
             format!(
                 "<g class=\"net-label supply\" data-net=\"{}\">{stub}<g transform=\"translate({anchor_x} {anchor_y}) rotate({rotation})\"><path d=\"M 0 0 v -9 m -5 4 l 5 -5 5 5\" stroke=\"#172033\" stroke-width=\"2\" fill=\"none\"/></g><text x=\"{anchor_x}\" y=\"{text_y}\" text-anchor=\"middle\">{}</text></g>",
@@ -608,6 +609,39 @@ mod tests {
         assert!(!supply_points_down("VDD"));
         assert!(supply_points_down("VEE"));
         assert!(supply_points_down("VSS"));
+    }
+
+    #[test]
+    fn top_and_bottom_supply_labels_place_text_outside_vertical_lead_stubs() {
+        let top_vee = label_markup(&crate::schematic::NetLabel {
+            id: "L1".to_string(),
+            net: crate::graph::NetId(1),
+            text: "VEE".to_string(),
+            kind: NetKind::Supply,
+            point: Point { x: 10, y: 10 },
+            side: PinSide::Top,
+            attached_to: crate::schematic::PinRef {
+                component: "VN".to_string(),
+                pin: "plus".to_string(),
+            },
+        });
+        // Pin at y=320, anchor at y=256 (offset -2); text sits above anchor at y=248.
+        assert!(top_vee.contains("y=\"248\" text-anchor=\"middle\">VEE</text>"));
+
+        let bottom_vcc = label_markup(&crate::schematic::NetLabel {
+            id: "L2".to_string(),
+            net: crate::graph::NetId(2),
+            text: "VCC".to_string(),
+            kind: NetKind::Supply,
+            point: Point { x: 10, y: 10 },
+            side: PinSide::Bottom,
+            attached_to: crate::schematic::PinRef {
+                component: "VP".to_string(),
+                pin: "minus".to_string(),
+            },
+        });
+        // Pin at y=320, anchor at y=384 (offset +2); text sits below anchor at y=404.
+        assert!(bottom_vcc.contains("y=\"404\" text-anchor=\"middle\">VCC</text>"));
     }
 
     #[test]

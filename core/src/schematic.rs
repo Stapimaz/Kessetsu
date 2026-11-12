@@ -4458,10 +4458,11 @@ fn semantic_label_bounds(label: &NetLabel) -> Rect {
         },
         (NetKind::Supply, _) => {
             let anchor = supply_marker_anchor(label);
-            let (low, high) = if supply_points_down(&label.text) {
-                (0, 2)
-            } else {
-                (-2, 0)
+            let (low, high) = match (label.side, supply_points_down(&label.text)) {
+                (PinSide::Top, _) => (-2, 0),
+                (PinSide::Bottom, _) => (0, 2),
+                (_, true) => (0, 2),
+                (_, false) => (-2, 0),
             };
             Rect {
                 min: Point::new(

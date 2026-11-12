@@ -11,6 +11,7 @@ pub const SUPPORTED_METRICS: &[&str] = &[
     "min",
     "max",
     "peak",
+    "pk2pk",
     "average",
     "rms",
     "gain",
@@ -44,7 +45,8 @@ pub fn evaluate_assertion_metric(
         resolved: &assertion.numeric_arguments,
     };
     match metric.as_str() {
-        "value" | "min" | "max" | "peak" | "average" | "avg" | "rms" => {
+        "value" | "min" | "max" | "peak" | "pk2pk" | "p2p" | "vpp" | "average" | "avg"
+        | "rms" => {
             evaluate_reduction(&metric, &arguments, circuit, simulation)
         }
         "gain" => evaluate_gain(&arguments, circuit, simulation),
@@ -1535,6 +1537,11 @@ fn reduce_series(metric: &str, values: &[f64]) -> Result<f64, String> {
         "min" => Ok(values.iter().copied().fold(f64::INFINITY, f64::min)),
         "max" => Ok(values.iter().copied().fold(f64::NEG_INFINITY, f64::max)),
         "peak" => Ok(values.iter().copied().map(f64::abs).fold(0.0, f64::max)),
+        "pk2pk" | "p2p" | "vpp" => {
+            let min = values.iter().copied().fold(f64::INFINITY, f64::min);
+            let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            Ok(max - min)
+        }
         "average" | "avg" => Ok(values.iter().sum::<f64>() / values.len() as f64),
         "rms" => Ok(
             (values.iter().map(|value| value * value).sum::<f64>() / values.len() as f64).sqrt(),
