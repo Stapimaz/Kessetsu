@@ -2350,8 +2350,7 @@ fn assertion_result_unit(
         }
     }
     match metric {
-        "value" | "min" | "max" | "peak" | "pk2pk" | "p2p" | "vpp" | "average" | "avg"
-        | "rms" => {
+        "value" | "min" | "max" | "peak" | "pk2pk" | "p2p" | "vpp" | "average" | "avg" | "rms" => {
             if matches!(arguments.len(), 1 | 3) {
                 signal_unit(arguments[0])
             } else {
@@ -2419,8 +2418,8 @@ fn assertion_result_unit(
 fn assertion_numeric_unit(metric: &str, arguments: &[&str], index: usize) -> Option<SIUnit> {
     let count = arguments.len();
     match metric {
-        "value" | "min" | "max" | "peak" | "pk2pk" | "p2p" | "vpp" | "average" | "avg"
-        | "rms" | "dissipation"
+        "value" | "min" | "max" | "peak" | "pk2pk" | "p2p" | "vpp" | "average" | "avg" | "rms"
+        | "dissipation"
             if count == 3 && matches!(index, 1 | 2) =>
         {
             Some(SIUnit::Second)

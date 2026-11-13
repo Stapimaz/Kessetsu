@@ -45,8 +45,7 @@ pub fn evaluate_assertion_metric(
         resolved: &assertion.numeric_arguments,
     };
     match metric.as_str() {
-        "value" | "min" | "max" | "peak" | "pk2pk" | "p2p" | "vpp" | "average" | "avg"
-        | "rms" => {
+        "value" | "min" | "max" | "peak" | "pk2pk" | "p2p" | "vpp" | "average" | "avg" | "rms" => {
             evaluate_reduction(&metric, &arguments, circuit, simulation)
         }
         "gain" => evaluate_gain(&arguments, circuit, simulation),
