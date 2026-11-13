@@ -86,7 +86,7 @@ export function LandingPage() {
             <span>Exports: KiCad · LTspice · SPICE · BOM</span>
           </div>
           <div className="console-result">
-            <span><Check size={15} /> 5 / 5 engineering requirements passed</span>
+            <span><Check size={15} /> 3 / 3 engineering requirements passed</span>
             <small>Ngspice verified · Ready to export</small>
           </div>
         </div>

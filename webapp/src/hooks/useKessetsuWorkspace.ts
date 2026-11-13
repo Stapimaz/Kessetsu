@@ -405,23 +405,7 @@ export function useKessetsuWorkspace() {
     }));
   }, [beginDocument, captureDocumentRevision, isCurrentDocumentRevision, leaveSharedUrl]);
 
-  const importSpiceDocument = useCallback(async (file: File): Promise<SpiceImportReport> => {
-    const snapshot = captureDocumentRevision();
-    if (!state.wasmLoaded) throw new Error('Kessetsu Core is still loading');
-    if (file.size > MAX_DOCUMENT_SOURCE_BYTES) throw new Error('SPICE source exceeds the 1 MiB browser import limit');
-    const input = await file.text();
-    if (!isCurrentDocumentRevision(snapshot)) throw new Error('The circuit changed while reading the netlist. Import it again when you are ready to replace the current work.');
-    if (new TextEncoder().encode(input).byteLength > MAX_DOCUMENT_SOURCE_BYTES) {
-      throw new Error('SPICE source exceeds the 1 MiB browser import limit');
-    }
-    const report = import_spice_netlist(input) as SpiceImportReport;
-    if (report.schema_version !== spice_import_schema_version()) {
-      throw new Error(`Unsupported SPICE import report: ${report.schema_version}`);
-    }
-    const errors = report.diagnostics.filter((diagnostic) => diagnostic.severity === 'error');
-    if (errors.length > 0 || !report.kess_source) {
-      throw new SpiceImportError(report.diagnostics);
-    }
+  const applyConvertedSpice = useCallback((kessSource: string, name: string | null = null) => {
     beginDocument();
     revisionRef.current += 1;
     setModelResources({});
@@ -429,8 +413,8 @@ export function useKessetsuWorkspace() {
     runnerRef.current?.cancel();
     setState((current) => ({
       ...current,
-      code: report.kess_source!,
-      circuitName: documentNameFromSpiceFile(file.name),
+      code: kessSource,
+      circuitName: name,
       isDirty: true,
       draftRestored: false,
       compileState: 'checking',
@@ -448,8 +432,28 @@ export function useKessetsuWorkspace() {
       evaluation: null,
       exportMessage: '',
     }));
+  }, [beginDocument, leaveSharedUrl]);
+
+  const importSpiceDocument = useCallback(async (file: File): Promise<SpiceImportReport> => {
+    const snapshot = captureDocumentRevision();
+    if (!state.wasmLoaded) throw new Error('Kessetsu Core is still loading');
+    if (file.size > MAX_DOCUMENT_SOURCE_BYTES) throw new Error('SPICE source exceeds the 1 MiB browser import limit');
+    const input = await file.text();
+    if (!isCurrentDocumentRevision(snapshot)) throw new Error('The circuit changed while reading the netlist. Import it again when you are ready to replace the current work.');
+    if (new TextEncoder().encode(input).byteLength > MAX_DOCUMENT_SOURCE_BYTES) {
+      throw new Error('SPICE source exceeds the 1 MiB browser import limit');
+    }
+    const report = import_spice_netlist(input) as SpiceImportReport;
+    if (report.schema_version !== spice_import_schema_version()) {
+      throw new Error(`Unsupported SPICE import report: ${report.schema_version}`);
+    }
+    const errors = report.diagnostics.filter((diagnostic) => diagnostic.severity === 'error');
+    if (errors.length > 0 || !report.kess_source) {
+      throw new SpiceImportError(report.diagnostics);
+    }
+    applyConvertedSpice(report.kess_source, documentNameFromSpiceFile(file.name));
     return report;
-  }, [beginDocument, captureDocumentRevision, isCurrentDocumentRevision, leaveSharedUrl, state.wasmLoaded]);
+  }, [applyConvertedSpice, captureDocumentRevision, isCurrentDocumentRevision, state.wasmLoaded]);
 
   const markSaved = useCallback((snapshot: DocumentRevision) => {
     setState((current) => isCurrentDocumentRevision(snapshot) ? { ...current, isDirty: false, draftRestored: false } : current);
@@ -591,6 +595,7 @@ export function useKessetsuWorkspace() {
     newDocument,
     openDocument,
     importSpiceDocument,
+    applyConvertedSpice,
     markSaved,
     captureDocumentRevision,
     isCurrentDocument,

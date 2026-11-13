@@ -95,7 +95,7 @@ Expanded SPICE and semiconductor device coverage (`vcvs`, `vccs`, `ccvs`, `cccs`
 
 ### Engineering study and design tools
 
-- Expose nominal engineering design calculators via `kessetsu_tool` MCP tool and `kess tool` CLI (`rc_cutoff`, `rl_cutoff`, `rlc_resonance`, `voltage_divider`, `led_resistor`, `decibels`) with exact analytical values, standard E12/E24 preferred selections, design equations, and ready-to-run `.kess` circuits.
+- Expose nominal engineering design calculators via `kessetsu_tool` MCP tool and `kess tool` CLI (`divider` and `rc-lowpass` / `rc_lowpass`) with exact analytical values, standard E12/E24 preferred selections, design equations, and ready-to-run `.kess` circuits.
 - Expose deterministic multi-condition parameter studies via `kessetsu_study` MCP tool (`kessetsu_study_plan` and `kessetsu_study_run`) and `kess study` CLI (`sweep`, `monte_carlo`, `corners`) for parameter sweeps, tolerance corners, temperature grids, and seeded Monte Carlo verification.
 - Add canonical 1.5 showcase circuits exercising new physical domains and verified subsystems:
   - `examples/zener_shunt_regulator.kess`: 12 V to 5.1 V shunt regulator using the built-in `BZX84C5V1` Zener breakdown diode with `.op` and `.tran` regulation assertions.

@@ -16,11 +16,23 @@ After installing the CLI (`kess --version`), register Kessetsu's built-in stdio 
   ```bash
   claude mcp add kessetsu -- kess mcp
   ```
-- **Cursor, Windsurf, VS Code or any MCP client (`mcpServers` JSON):**
+- **Claude Desktop, Cursor, Windsurf or any `mcpServers` client:**
   ```json
   {
     "mcpServers": {
       "kessetsu": {
+        "command": "kess",
+        "args": ["mcp"]
+      }
+    }
+  }
+  ```
+- **VS Code (`.vscode/mcp.json`):**
+  ```json
+  {
+    "servers": {
+      "kessetsu": {
+        "type": "stdio",
         "command": "kess",
         "args": ["mcp"]
       }
@@ -37,7 +49,7 @@ Agents with terminal access can also call `kess` directly (`kess check`, `kess t
 - `kessetsu_render_schematic`: Generates a connectivity-proven SVG schematic for visual inspection.
 - `kessetsu_export`: Exports circuits to external EDA targets (`kicad`, `ltspice`, `bom-csv`, `spice`, `json`, `pdf`).
 - `kessetsu_import_spice`: Converts supported SPICE netlists into editable, reviewable `.kess` source.
-- `kessetsu_tool`: Nominal engineering calculators (`loaded-divider` for resistive dividers under load, `rc-lowpass` for first-order filters) with exact, E12, or E24 standard component selection.
+- `kessetsu_tool`: Nominal engineering calculators (`divider` for resistive dividers under load, `rc_lowpass` / `rc-lowpass` for first-order filters) with exact, E12, or E24 standard component selection.
 - `kessetsu_study_plan`: Plans deterministic multi-condition parameter studies (parameter sweeps, tolerance corners, temperature grids, seeded Monte Carlo draws) without side effects.
 - `kessetsu_study_run`: Executes multi-condition parameter studies sequentially, evaluating assertions across all cases to verify yield, corners, and feasible design points.
 

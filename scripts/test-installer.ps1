@@ -44,6 +44,9 @@ function Set-KessetsuPath([string]$BinDir) { $script:pathCalls++ }
 $managed = Join-Path $testRoot 'managed'
 Install-Kessetsu -RequestedVersion $fixtureVersion -Root $managed
 $launcher = Join-Path $managed 'bin/kess.cmd'
+$exeLauncher = Join-Path $managed 'bin/kess.exe'
+$bundledNgspice = Join-Path $managed 'bin/tools/ngspice/bin/ngspice_con.exe'
+if (-not (Test-Path -LiteralPath $exeLauncher) -or -not (Test-Path -LiteralPath $bundledNgspice)) { throw 'Direct kess.exe launcher or bundled simulator in bin/ is missing' }
 $initial = Get-Content -LiteralPath $launcher -Raw
 Install-Kessetsu -RequestedVersion $fixtureVersion -Root $managed
 $updated = Get-Content -LiteralPath $launcher -Raw

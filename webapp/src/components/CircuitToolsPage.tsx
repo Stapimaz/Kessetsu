@@ -115,10 +115,19 @@ export function CircuitToolsPage({ toolId }: { toolId: ToolId }) {
     let mounted = true;
     void import('kessetsu-core').then(async (core) => {
       await core.default();
-      if (mounted) setCalculator(() => (request: Record<string, unknown>) => core.calculate_circuit_tool(request) as ToolResult);
+      if (!mounted) return;
+      const runCalc: ToolCalculator = (request: Record<string, unknown>) => core.calculate_circuit_tool(request) as ToolResult;
+      setCalculator(() => runCalc);
+      try {
+        const defaultInputs = Object.fromEntries(definition.fields.map((field) => [field.key, field.value]));
+        const request: Record<string, unknown> = { tool: toolId, ...defaultInputs, preferred_values: 'e24' };
+        if (toolId === 'divider' && !defaultInputs.load_resistance?.trim()) delete request.load_resistance;
+        const initialCalculation = runCalc(request);
+        if (initialCalculation.schema_version === 'kessetsu.tool.v1') setResult(initialCalculation);
+      } catch { /* Initial preview calculation is optional; manual Calculate still reports any error. */ }
     }).catch((cause: unknown) => mounted && setError(`Could not load the calculation engine: ${String(cause)}`));
     return () => { mounted = false; };
-  }, [definition.name]);
+  }, [definition, toolId]);
 
   const calculate = (event: FormEvent) => {
     event.preventDefault();
@@ -197,7 +206,7 @@ export function CircuitToolsPage({ toolId }: { toolId: ToolId }) {
         <p>Use Kessetsu CLI 1.1.0 or newer. Add <code>--format json</code> for an AI agent.
           {' '}<a href={`${import.meta.env.BASE_URL}install/`}>Install or update the CLI</a>.</p>
         <pre>{cliCommand}</pre>
-        <button className="button button-compact button-secondary" disabled={!result} onClick={() => {
+        <button className="button button-compact button-secondary" onClick={() => {
           void navigator.clipboard.writeText(cliCommand).then(() => setNotice('Command copied.')).catch(() => setNotice('Select the command above and copy it manually.'));
         }}>Copy command</button><span className="tool-notice" role="status">{notice}</span>
       </section>

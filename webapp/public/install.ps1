@@ -111,7 +111,19 @@ function Install-Kessetsu([string]$RequestedVersion = 'latest', [string]$Root = 
             } else { New-Item -ItemType Directory -Path $dir | Out-Null }
         }
         $installId = "v$resolvedVersion-" + [Guid]::NewGuid().ToString('N')
-        Move-Item -LiteralPath $stage -Destination (Join-Path $releases $installId)
+        $releaseDir = Join-Path $releases $installId
+        Move-Item -LiteralPath $stage -Destination $releaseDir
+        $binTools = Join-Path $bin 'tools'
+        $pendingTools = Join-Path $bin ('tools-' + [Guid]::NewGuid().ToString('N'))
+        Copy-Item -LiteralPath (Join-Path $releaseDir 'tools') -Destination $pendingTools -Recurse -Force
+        if (Test-Path -LiteralPath $binTools) { Remove-Item -LiteralPath $binTools -Recurse -Force }
+        Move-Item -LiteralPath $pendingTools -Destination $binTools
+        $exeLauncher = Join-Path $bin 'kess.exe'
+        $pendingExe = Join-Path $bin ('kess-' + [Guid]::NewGuid().ToString('N') + '.exe')
+        Copy-Item -LiteralPath (Join-Path $releaseDir 'kess.exe') -Destination $pendingExe -Force
+        if (Test-Path -LiteralPath $exeLauncher) {
+            [IO.File]::Replace($pendingExe, $exeLauncher, (Join-Path $bin ('previous-' + [Guid]::NewGuid().ToString('N') + '.exe')))
+        } else { [IO.File]::Move($pendingExe, $exeLauncher) }
         $launcher = Join-Path $bin 'kess.cmd'
         $pending = Join-Path $bin ('kess-' + [Guid]::NewGuid().ToString('N') + '.cmd')
         Set-Content -LiteralPath $pending -Encoding ascii -Value "@echo off`r`n`"%~dp0..\releases\$installId\kess.exe`" %*"

@@ -1,11 +1,11 @@
 import { expect, test } from '@playwright/test';
 
-test('defaults to schematic view and switches cleanly between schematic, simulation, split and collapsed source', async ({ page }) => {
+test('defaults to split view and switches cleanly between schematic, simulation, split and collapsed source', async ({ page }) => {
   await page.goto('/#editor');
   await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
-  await expect(page.locator('.resizable-workspace')).toHaveAttribute('data-canvas-mode', 'schematic');
+  await expect(page.locator('.resizable-workspace')).toHaveAttribute('data-canvas-mode', 'split');
   await expect(page.getByLabel('Canonical schematic')).toBeVisible();
-  await expect(page.getByLabel('Circuit simulation')).toBeHidden();
+  await expect(page.getByLabel('Circuit simulation')).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Minimized panels' })).toHaveCount(0);
 
   const source = page.getByLabel('Kessetsu source editor');
@@ -74,7 +74,7 @@ test('defaults to schematic view and switches cleanly between schematic, simulat
   await page.getByRole('button', { name: 'View', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Reset panel layout' }).click();
   await expect(horizontal).toHaveAttribute('aria-valuenow', '40');
-  await expect(page.locator('.resizable-workspace')).toHaveAttribute('data-canvas-mode', 'schematic');
+  await expect(page.locator('.resizable-workspace')).toHaveAttribute('data-canvas-mode', 'split');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.screenshot({ path: 'test-results/workspace-revision-desktop.png', fullPage: true });
 

@@ -13,14 +13,14 @@ interface LayoutState {
 
 export interface WorkspaceLayoutCommand {
   id: number;
-  action: 'toggle-source' | 'schematic' | 'results' | 'split';
+  action: 'toggle-source' | 'schematic' | 'results' | 'split' | 'ensure-results';
 }
 
 const defaults: LayoutState = {
   horizontal: 40,
   vertical: 55,
   source: true,
-  canvasMode: 'schematic',
+  canvasMode: 'split',
   maximized: null,
 };
 const storageKey = 'kessetsu.workspace-layout.v3';
@@ -121,6 +121,13 @@ export function WorkspaceLayout({ source, schematic, results, resetRequest, sour
     setLayout((current) => {
       if (layoutCommand.action === 'toggle-source') {
         return { ...current, source: !current.source, maximized: null };
+      }
+      if (layoutCommand.action === 'ensure-results') {
+        return {
+          ...current,
+          canvasMode: current.canvasMode === 'schematic' ? 'split' : current.canvasMode,
+          maximized: current.maximized === 'schematic' || current.maximized === 'source' ? null : current.maximized,
+        };
       }
       return { ...current, canvasMode: layoutCommand.action, maximized: null };
     });

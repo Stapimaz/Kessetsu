@@ -19,6 +19,7 @@ interface Props {
   revealRequest: number;
   symbolRevealRequest?: SymbolRevealRequest | null;
   onCodeChange(code: string): void;
+  onConvertPastedSpice?(): void;
   panelControls: PanelWindowControls;
 }
 
@@ -55,6 +56,7 @@ export function EditorPanel({
   revealRequest,
   symbolRevealRequest = null,
   onCodeChange,
+  onConvertPastedSpice,
   panelControls,
 }: Props) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
@@ -142,6 +144,17 @@ export function EditorPanel({
         />
       </div>
       <div className="inline-diagnostics" aria-label="Diagnostics" aria-live="polite">
+        {onConvertPastedSpice && (
+          <button
+            type="button"
+            className="diagnostic-row diagnostic-warning"
+            onClick={onConvertPastedSpice}
+          >
+            <span>SPICE</span>
+            <span>This looks like a SPICE netlist — click to convert it to .kess</span>
+            <span className="diagnostic-location">Convert →</span>
+          </button>
+        )}
         {compileSucceeded && diagnostics.length === 0 ? (
           <span className="diagnostic-ok" data-testid="compile-success">Source valid · ERC and schematic connectivity passed</span>
         ) : diagnostics.length > 0 ? diagnostics.map((diagnostic, index) => (

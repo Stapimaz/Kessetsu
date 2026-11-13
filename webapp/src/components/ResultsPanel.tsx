@@ -630,7 +630,7 @@ export function ResultsPanel({ state, hasSimulationAttempt, message, evaluation,
   useEffect(() => setDatasetIndex(0), [evaluation]);
   const summary = evaluation?.assertions.summary;
   const showFirstRunGuide = !sourceFeedback && simulationConfigured && state === 'idle'
-    && (message.startsWith('Run the simulation') || message.startsWith('This starter circuit'));
+    && (message.startsWith('Run the simulation') || message.startsWith('This starter circuit') || message.startsWith('Imported from SPICE'));
   const needsAnalysis = !sourceFeedback && !simulationConfigured;
   const rerun = hasSimulationAttempt && (state === 'failed' || state === 'cancelled' || message.startsWith('Simulation results are out of date') || message.startsWith('Model bindings changed'));
   const displayedMessage = sourceFeedback?.message ?? (needsAnalysis
@@ -694,7 +694,6 @@ export function ResultsPanel({ state, hasSimulationAttempt, message, evaluation,
           {!sourceFeedback && !needsAnalysis && state === 'cancelled' && <p>Your source is unchanged. Run again when you are ready.</p>}
           {showFirstRunGuide && <div className="result-empty-actions">
             <button type="button" className="simulation-run-button run-button result-empty-run" onClick={onRun}><Zap size={13} /><span>Simulate circuit</span></button>
-            <a href={`${import.meta.env.BASE_URL}docs/guides/tutorial/`} target="_blank" rel="noreferrer">First-circuit tutorial</a>
           </div>}
         </div>}
         {state === 'succeeded' && summary?.total === 0 && <p className="simulation-help">Simulation completed without requirement checks. Add <code>assert</code> statements in Source to test measurable limits. <a href={`${import.meta.env.BASE_URL}docs/reference/simulation-and-assertions/`} target="_blank" rel="noreferrer">Learn about assertions</a></p>}

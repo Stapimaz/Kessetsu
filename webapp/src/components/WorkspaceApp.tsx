@@ -4,8 +4,9 @@ import { applicationMenuKeyDown } from '../applicationMenuKeyboard';
 import { keepModalTabFocus } from '../modalKeyboard';
 import { PageLoadBoundary } from './PageLoadBoundary';
 import type { DragEvent } from 'react';
-import type { SourceFeedback } from '../domain';
-import { SpiceImportError, importDiagnosticLabel } from '../spiceImport';
+import { import_spice_netlist, spice_import_schema_version } from 'kessetsu-core';
+import type { SourceFeedback, SpiceImportReport } from '../domain';
+import { SpiceImportError, assertValidSpiceReport, importDiagnosticLabel, looksLikeSpiceNetlist } from '../spiceImport';
 import productVersionSource from '../../../VERSION?raw';
 import {
   downloadTextFile,
@@ -42,7 +43,7 @@ const ResearchDataDialog = lazy(async () => {
 
 export function WorkspaceApp() {
   const {
-    state, setCode, loadExample, newDocument, openDocument, importSpiceDocument, markSaved, saveBrowserDocument, renameDocument,
+    state, setCode, loadExample, newDocument, openDocument, importSpiceDocument, applyConvertedSpice, markSaved, saveBrowserDocument, renameDocument,
     run, cancel, createExport, share,
     captureDocumentRevision, isCurrentDocument, isCurrentDocumentRevision,
     modelRequirements, boundModelResources, bindModelFile, bindBundledModel, clearModelFiles,
@@ -104,6 +105,32 @@ export function WorkspaceApp() {
     : state.compileState === 'invalid'
       ? CircleAlert
       : LoaderCircle;
+  const showDocumentNotice = useCallback((message: string) => {
+    if (noticeTimeoutRef.current !== null) globalThis.clearTimeout(noticeTimeoutRef.current);
+    setDocumentNotice(message);
+    noticeTimeoutRef.current = globalThis.setTimeout(() => setDocumentNotice(''), 4500);
+  }, []);
+
+  const pastedSpiceDetected = state.compileState === 'invalid' && looksLikeSpiceNetlist(state.code);
+
+  const convertPastedSpice = useCallback(() => {
+    if (!state.wasmLoaded) return;
+    try {
+      const rawReport = import_spice_netlist(state.code) as SpiceImportReport;
+      const report = assertValidSpiceReport(rawReport, spice_import_schema_version());
+      if (report.kess_source) {
+        detachFileHandle();
+        applyConvertedSpice(report.kess_source);
+        showDocumentNotice(`Converted pasted SPICE netlist (${report.summary.components} components)`);
+        return;
+      }
+    } catch {
+      // Open the converter dialog pre-filled with the pasted SPICE netlist so diagnostics are visible.
+    }
+    setSpiceConverterSeed(state.code);
+    setSpiceConverterOpen(true);
+  }, [applyConvertedSpice, detachFileHandle, showDocumentNotice, state.code, state.wasmLoaded]);
+
   const modelFileError = modelRequirements.length > 0
     && state.diagnostics.some((diagnostic) => ['KES-C015', 'KES-C016', 'KES-C017'].includes(diagnostic.code));
   const sourceFeedback: SourceFeedback | null = state.compileState === 'valid' ? null
@@ -111,9 +138,11 @@ export function WorkspaceApp() {
     : state.compileState === 'loading' ? { title: 'Loading editor', message: 'Preparing local circuit checks. Simulation and export will be available when the source is valid.' }
     : state.compileState === 'checking' ? { title: 'Checking source', message: 'Checking your changes before simulation and export.' }
     : modelFileError ? { title: 'Model file needed', message: 'Choose the exact local model file declared in Source. Missing or mismatched files cannot be simulated.', actionLabel: 'Choose model files' }
+    : pastedSpiceDetected ? { title: 'SPICE netlist detected', message: 'The Source editor expects .kess syntax. Convert this SPICE netlist to .kess to render its schematic and simulate it.', actionLabel: 'Convert SPICE to .kess' }
     : { title: 'Fix source errors', message: 'Simulation and export are paused. Open the source diagnostics; select a reported line to fix it.', actionLabel: 'Show source errors' };
   const resolveSource = () => {
     if (modelFileError) setCircuitDetailsOpen(true);
+    else if (pastedSpiceDetected) convertPastedSpice();
     else setSourceRevealRequest((current) => current + 1);
   };
 
@@ -142,12 +171,6 @@ export function WorkspaceApp() {
 
   useEffect(() => setImportFailure(null), [state.code]);
 
-  const showDocumentNotice = useCallback((message: string) => {
-    if (noticeTimeoutRef.current !== null) globalThis.clearTimeout(noticeTimeoutRef.current);
-    setDocumentNotice(message);
-    noticeTimeoutRef.current = globalThis.setTimeout(() => setDocumentNotice(''), 4500);
-  }, []);
-
   useEffect(() => {
     const closeOutside = (event: PointerEvent) => {
       if (!menusRef.current?.contains(event.target as Node)) {
@@ -175,6 +198,7 @@ export function WorkspaceApp() {
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter'
         && state.compileSucceeded && state.simulationState !== 'running') {
         event.preventDefault();
+        setLayoutCommand((current) => ({ id: (current?.id ?? 0) + 1, action: 'ensure-results' }));
         void run();
       }
     };
@@ -636,7 +660,7 @@ export function WorkspaceApp() {
         onChooseSpiceFile={chooseSpiceDocument}
         onApply={(nextSource, components) => {
           detachFileHandle();
-          setCode(nextSource);
+          applyConvertedSpice(nextSource);
           showDocumentNotice(`Loaded converted SPICE circuit (${components} components)`);
         }}
       />}
@@ -653,6 +677,7 @@ export function WorkspaceApp() {
           revealRequest={sourceRevealRequest}
           symbolRevealRequest={symbolRevealRequest}
           onCodeChange={setCode}
+          onConvertPastedSpice={pastedSpiceDetected ? convertPastedSpice : undefined}
           panelControls={panelControls}
         />}
         schematic={(panelControls) => <SchematicPanel

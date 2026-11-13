@@ -27,7 +27,6 @@ export interface AgentRecoverySectionProps {
   proposal: AgentProposalEnvelope | null;
   error: string;
   checkedAssertions: string;
-  requirements: string;
   correctionPending: boolean;
   correctionText: string;
   onSendCorrection: (download: boolean) => void;
@@ -40,7 +39,6 @@ export function AgentRecoverySection({
   proposal,
   error,
   checkedAssertions,
-  requirements,
   correctionPending,
   correctionText,
   onSendCorrection,
@@ -79,14 +77,14 @@ export function AgentRecoverySection({
         <button
           type="button"
           className="agent-primary"
-          disabled={!requirements.trim() || correctionPending}
+          disabled={correctionPending}
           onClick={() => onSendCorrection(false)}
         >
           <Copy size={14} /> {correctionPending ? 'Preparing feedback…' : 'Copy correction task'}
         </button>
         <button
           type="button"
-          disabled={!requirements.trim() || correctionPending}
+          disabled={correctionPending}
           onClick={() => onSendCorrection(true)}
         >
           <Download size={14} /> Download correction file
@@ -98,9 +96,6 @@ export function AgentRecoverySection({
         )}
       </div>
       {inReview && <small className="agent-recovery-note">Failure details included</small>}
-      {!requirements.trim() && (
-        <p>Add your electrical target above and send a task first so Kessetsu can package the correction context.</p>
-      )}
       {correctionText && (
         <details>
           <summary>Copy correction text manually</summary>

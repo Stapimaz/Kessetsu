@@ -325,17 +325,19 @@ export function AgentProposalDialog({
   };
 
   const sendCorrection = async (download: boolean) => {
-    if (!open || !needsCorrection || !inputsMatch || !requirements.trim() || correctionPendingRef.current) return;
+    if (!open || !needsCorrection || !inputsMatch || correctionPendingRef.current) return;
     correctionPendingRef.current = true;
     setCorrectionPending(true);
     const correctionId = ++correctionOperationId.current;
     const reviewId = operationId.current;
     const isCurrent = () => correctionId === correctionOperationId.current && operationIsCurrent(reviewId);
     try {
+      const effectiveReq =
+        requirements.trim() || 'Preserve existing behavior and satisfy all encoded circuit assertions.';
       const task = await createAgentCorrectionTask(
         source,
         name,
-        requirements,
+        effectiveReq,
         productVersion,
         compile_schema_version(),
         proposalText,
@@ -534,7 +536,6 @@ export function AgentProposalDialog({
       proposal={proposal}
       error={error}
       checkedAssertions={checkedAssertions}
-      requirements={requirements}
       correctionPending={correctionPending}
       correctionText={correctionText}
       onSendCorrection={(download) => void sendCorrection(download)}

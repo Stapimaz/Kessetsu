@@ -106,7 +106,13 @@ install_kessetsu() {
     path_line="export PATH='$bin_quoted':\"\$PATH\" # Kessetsu installer"
     case "${SHELL:-}" in
         */zsh) profiles="$HOME/.zshrc:$HOME/.zprofile" ;;
-        */bash) profiles="$HOME/.bashrc:$HOME/.bash_profile" ;;
+        */bash)
+            if [ -e "$HOME/.bash_profile" ]; then
+                profiles="$HOME/.bashrc:$HOME/.bash_profile"
+            else
+                profiles="$HOME/.bashrc:$HOME/.profile"
+            fi
+            ;;
         */fish) profiles='' ;;
         *) profiles="$HOME/.profile" ;;
     esac
