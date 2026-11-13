@@ -28,12 +28,12 @@ test('guides installation, copies commands, and opens direct installation URLs',
   await expect(page.getByText('.cursor/mcp.json', { exact: true })).toBeVisible();
   await aiGroup.getByRole('button', { name: 'Claude Code', exact: true }).click();
   await expect(page.getByText('claude mcp add kessetsu -- kess mcp', { exact: true })).toBeVisible();
-  await page.getByText('Copy a complete first task for your agent', { exact: true }).click();
-  await page.getByRole('button', { name: 'Copy complete agent task' }).click();
-  const task = await page.evaluate(() => navigator.clipboard.readText());
-  expect(task).toContain('kess capabilities --format json');
-  expect(task).toContain('--requirements divider.kessreq');
-  expect(task).toContain('divider.kicad_sch');
+  await expect(page.getByText('Verify it works: send this first prompt to your AI')).toBeVisible();
+  await page.getByRole('button', { name: 'Copy verification prompt', exact: true }).click();
+  const verifyPrompt = await page.evaluate(() => navigator.clipboard.readText());
+  expect(verifyPrompt).toContain('1 kHz RC low-pass filter');
+  expect(verifyPrompt).toContain('-3 dB cutoff');
+  await expect(page.getByText('Copy a complete first task for your agent')).toHaveCount(0);
   await page.getByText('Uninstall the default installation', { exact: true }).click();
   await expect(page.getByText('Do not delete the surrounding bin/share folders.', { exact: false })).toBeVisible();
   await page.screenshot({ path: 'test-results/install-desktop.png', fullPage: true });

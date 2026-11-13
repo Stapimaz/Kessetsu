@@ -8,14 +8,6 @@ type Platform = 'windows' | 'macos' | 'linux';
 type ClientTab = 'claude-code' | 'cursor' | 'vscode' | 'claude-desktop' | 'windsurf' | 'cli';
 
 const origin = 'https://kessetsu.com';
-const agentTask = `Use the installed Kessetsu CLI for this task. Do not install an AI service or send circuit/model files to a server.
-Read kess --version, kess --help, and kess capabilities --format json first.
-Use the language reference at https://kessetsu.com/docs/reference/language/ and the complete examples in https://kessetsu.com/docs/guides/cookbook/; do not invent unsupported syntax or models.
-Design a nominal loaded divider: 12 V input, 10 kOhm output load, 10 kOhm lower resistor. Require 2.97 V < V(OUT) < 3.03 V and absolute supply current < 1 mA.
-Save the requirements separately as divider.kessreq and do not relax them to make a candidate pass. Generate divider.kess with kess tool divider; inspect kess tool divider --help first.
-Run kess check divider.kess --format json, then kess test divider.kess --requirements divider.kessreq --format json. Read diagnostics, assertions and exit codes; revise the circuit and retest if needed.
-Export divider.png with kess render and divider.kicad_sch with kess export --target kicad. Ask before overwriting existing files.
-Return the editable source, requirement file, actual local measurements, exported artifacts and model assumptions. Never claim a test ran unless it actually ran. Simulation is not a hardware guarantee.`;
 
 const platforms: Record<Platform, { label: string; terminal: string; command: string }> = {
   windows: {
@@ -239,7 +231,6 @@ export function InstallPage() {
             <strong>Verify it works: send this first prompt to your AI</strong>
             <CopyCommand command="Check Kessetsu capabilities and simulate a 1 kHz RC low-pass filter (R1=1k, C1=159.15nF) to verify its -3 dB cutoff." label="verification prompt" />
           </div>
-          <details><summary>Copy a complete first task for your agent</summary><p>A small, reproducible design task with fixed requirements and editable outputs. Replace the brief with your own requirements once this works.</p><CopyCommand command={agentTask} label="complete agent task" /></details>
           <p><a href={`${base}docs/guides/agent-workflow/`}>Read the agent design workflow</a> or <a href={`${base}docs/guides/cookbook/#give-an-external-agent-a-complete-task`}>walk through the complete task in the Cookbook</a>. Local manufacturer models need exact file bindings; see <a href={`${base}docs/reference/model-catalog/`}>device models</a>.</p>
           <details><summary>Next: try a transistor circuit</summary>
             <p><a href={`${base}examples/transistor_driver.kess`} download="transistor-driver.kess">Download the complete emitter-follower example</a> as <code>transistor-driver.kess</code>. From its folder, with Ngspice installed, run:</p>
