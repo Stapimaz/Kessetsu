@@ -74,7 +74,7 @@ test('cold informational pages avoid engineering modules; first editor and simul
   expect(text).not.toContain('<!doctype html>');
   const engineering: string[] = [];
   const timings: Record<string, number> = {};
-  for (const [url, heading] of [['/', 'Circuit engineering you can execute.'], ['/install/', 'A few steps. Your first circuit.'], ['/docs/guides/tutorial/', 'Tutorial: From Source to Verified Circuit']]) {
+  for (const [url, heading] of [['/', 'Circuit engineering you can execute.'], ['/install/', 'Install Kessetsu'], ['/docs/guides/tutorial/', 'Tutorial: From Source to Verified Circuit']]) {
     const context = await browser.newContext({ baseURL });
     try {
       const informational = await context.newPage();

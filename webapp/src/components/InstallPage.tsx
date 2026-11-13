@@ -1,40 +1,72 @@
-import { ArrowLeft, Check, Copy, ExternalLink, Terminal } from 'lucide-react';
+import { ArrowLeft, Check, Copy, ExternalLink } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { BrandWordmark } from './BrandWordmark';
 import '../landing.css';
 import '../install.css';
 
+type SetupMode = 'mcp' | 'cli';
 type Platform = 'windows' | 'macos' | 'linux';
-type ClientTab = 'claude-code' | 'cursor' | 'vscode' | 'claude-desktop' | 'windsurf' | 'cli';
+type ClientTab = 'claude-code' | 'cursor' | 'vscode' | 'claude-desktop' | 'windsurf';
 
 const origin = 'https://kessetsu.com';
+const verificationPrompt =
+  'Check Kessetsu capabilities and simulate a 1 kHz RC low-pass filter (R1=1k, C1=159.15nF) to verify its -3 dB cutoff.';
 
-const platforms: Record<Platform, { label: string; terminal: string; command: string }> = {
+const platforms: Record<Platform, { label: string; shell: string; command: string }> = {
   windows: {
     label: 'Windows',
-    terminal: 'Open Start, type PowerShell, and open Windows PowerShell. You do not need “Run as administrator”.',
+    shell: 'PowerShell',
     command: `irm ${origin}/install.ps1 | iex`,
   },
   macos: {
     label: 'macOS',
-    terminal: 'Press Command + Space, type Terminal, and press Enter. Both Intel and Apple Silicon are detected automatically.',
+    shell: 'Terminal',
     command: `curl -fsSL ${origin}/install.sh | sh`,
   },
   linux: {
     label: 'Linux',
-    terminal: 'Open your Terminal app (usually Ctrl + Alt + T). The ready-to-use Linux package supports x86-64.',
+    shell: 'Terminal',
     command: `curl -fsSL ${origin}/install.sh | sh`,
   },
 };
 
-const clientTabs: { id: ClientTab; label: string }[] = [
-  { id: 'claude-code', label: 'Claude Code' },
-  { id: 'cursor', label: 'Cursor' },
-  { id: 'vscode', label: 'VS Code' },
-  { id: 'claude-desktop', label: 'Claude Desktop' },
-  { id: 'windsurf', label: 'Windsurf' },
-  { id: 'cli', label: 'Terminal / JSON CLI' },
-];
+const mcpServersConfig = '{\n  "mcpServers": {\n    "kessetsu": {\n      "command": "kess",\n      "args": ["mcp"]\n    }\n  }\n}';
+const vscodeMcpConfig = '{\n  "servers": {\n    "kessetsu": {\n      "type": "stdio",\n      "command": "kess",\n      "args": ["mcp"]\n    }\n  }\n}';
+
+const clientConfigs: Record<ClientTab, { label: string; commandLabel: string; command: string; pathHint: string }> = {
+  'claude-code': {
+    label: 'Claude Code',
+    commandLabel: 'MCP registration command',
+    command: 'claude mcp add kessetsu -- kess mcp',
+    pathHint: 'Run in your terminal (registers in ~/.claude.json). Restart Claude Code if it was already open.',
+  },
+  cursor: {
+    label: 'Cursor',
+    commandLabel: 'Cursor MCP config',
+    command: mcpServersConfig,
+    pathHint: 'Save in .cursor/mcp.json (project) or ~/.cursor/mcp.json (global), then restart Cursor.',
+  },
+  vscode: {
+    label: 'VS Code',
+    commandLabel: 'VS Code MCP config',
+    command: vscodeMcpConfig,
+    pathHint: 'Save in .vscode/mcp.json in your workspace folder, then restart VS Code.',
+  },
+  'claude-desktop': {
+    label: 'Claude Desktop',
+    commandLabel: 'Claude Desktop MCP config',
+    command: mcpServersConfig,
+    pathHint: 'Settings → Developer → Edit Config (%APPDATA%\\Claude\\claude_desktop_config.json on Windows; ~/Library/Application Support/Claude/claude_desktop_config.json on macOS).',
+  },
+  windsurf: {
+    label: 'Windsurf',
+    commandLabel: 'Windsurf MCP config',
+    command: mcpServersConfig,
+    pathHint: 'Add to ~/.codeium/windsurf/mcp_config.json, then click Refresh or restart Windsurf.',
+  },
+};
+
+const clientOrder: ClientTab[] = ['claude-code', 'cursor', 'vscode', 'claude-desktop', 'windsurf'];
 
 function initialPlatform(): Platform {
   const agent = globalThis.navigator.userAgent;
@@ -54,30 +86,64 @@ function CopyCommand({ command, label }: { command: string; label: string }) {
     return () => globalThis.clearTimeout(timeout);
   }, [state]);
   return (
-    <div>
+    <div className="install-command-wrap">
       <div className="install-command">
         <code>{command}</code>
-        <button type="button" aria-label={`Copy ${label}`} onClick={async () => {
-          try { await navigator.clipboard.writeText(command); if (currentCommand.current === command) setState('copied'); }
-          catch { if (currentCommand.current === command) setState('manual'); }
-        }}>{state === 'copied' ? <Check size={18} /> : <Copy size={18} />}</button>
+        <button
+          type="button"
+          aria-label={`Copy ${label}`}
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(command);
+              if (currentCommand.current === command) setState('copied');
+            } catch {
+              if (currentCommand.current === command) setState('manual');
+            }
+          }}
+        >
+          {state === 'copied' ? <Check size={15} /> : <Copy size={15} />}
+          <span>{state === 'copied' ? 'Copied' : 'Copy'}</span>
+        </button>
       </div>
-      <span className="install-copy-status" role="status">{state === 'copied' ? 'Copied' : state === 'manual' ? 'Select the command above and copy it manually.' : ''}</span>
+      {state === 'manual' && (
+        <span className="install-copy-status" role="status">
+          Select the command above and copy it manually.
+        </span>
+      )}
     </div>
   );
 }
 
 export function InstallPage() {
-  // Keep build-time HTML independent of the build machine's navigator.
+  // Keep build-time HTML independent of the build machine's navigator and URL hash.
+  const [mode, setMode] = useState<SetupMode>('mcp');
   const [platform, setPlatform] = useState<Platform>('windows');
   const [clientTab, setClientTab] = useState<ClientTab>('claude-code');
   const selected = platforms[platform];
+  const selectedClient = clientConfigs[clientTab];
   const base = import.meta.env.BASE_URL;
+
   useEffect(() => {
     setPlatform(initialPlatform());
     document.documentElement.dataset.theme = 'dark';
     document.title = 'Install Kessetsu CLI — Kessetsu';
+
+    const syncModeFromHash = () => {
+      const hash = globalThis.location.hash;
+      if (hash === '#cli-verify') setMode('cli');
+      else if (hash === '#mcp-setup') setMode('mcp');
+    };
+    syncModeFromHash();
+    globalThis.addEventListener('hashchange', syncModeFromHash);
+    return () => globalThis.removeEventListener('hashchange', syncModeFromHash);
   }, []);
+
+  useEffect(() => {
+    const hash = globalThis.location.hash;
+    if ((mode === 'cli' && hash === '#cli-verify') || (mode === 'mcp' && hash === '#mcp-setup')) {
+      document.getElementById(hash.slice(1))?.scrollIntoView();
+    }
+  }, [mode]);
 
   return (
     <main className="landing-page install-page">
@@ -88,164 +154,190 @@ export function InstallPage() {
           <a href={`${base}docs/`}>Docs</a>
         </nav>
       </header>
+
       <section className="install-content" aria-labelledby="install-title">
         <a className="text-link install-back" href={base}><ArrowLeft size={14} /> Back to Kessetsu</a>
-        <p className="eyebrow">CLI &amp; MCP quickstart</p>
-        <h1 id="install-title">A few steps. Your first circuit.</h1>
+        <p className="eyebrow">CLI &amp; MCP SETUP</p>
+        <h1 id="install-title">Install Kessetsu</h1>
         <p className="install-lead">
-          You do not need to install anything to use Kessetsu in your browser. Install the local <code>kess</code> tool once if you want to connect Kessetsu to an AI coding app (like Claude, Cursor, or VS Code) or run circuit simulations from your terminal.
+          One command installs the local <code>kess</code> CLI and built-in MCP server.{' '}
+          <a href={`${base}#editor`}>No install needed for the browser editor — Open Web Hub →</a>
         </p>
-        <div className="install-intent-grid">
-          <div className="install-intent-card">
-            <strong>Try in browser — no install</strong>
-            <p>Draw schematics, import SPICE netlists, and run Ngspice simulations immediately in your browser.</p>
-            <a className="text-link" href={`${base}#editor`}>Open Web Hub →</a>
+
+        <div className="install-controls">
+          <div className="install-mode-tabs" role="tablist" aria-label="Setup mode">
+            <button
+              type="button"
+              role="tab"
+              id="tab-mode-mcp"
+              aria-selected={mode === 'mcp'}
+              aria-labelledby="tab-mode-mcp-title"
+              aria-describedby="tab-mode-mcp-desc"
+              onClick={() => setMode('mcp')}
+            >
+              <span id="tab-mode-mcp-title" className="install-mode-title">MCP (AI Agents)</span>
+              <span id="tab-mode-mcp-desc" className="install-mode-desc">Claude Code, Cursor, VS Code, Windsurf</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="tab-mode-cli"
+              aria-selected={mode === 'cli'}
+              aria-labelledby="tab-mode-cli-title"
+              aria-describedby="tab-mode-cli-desc"
+              onClick={() => setMode('cli')}
+            >
+              <span id="tab-mode-cli-title" className="install-mode-title">CLI (Terminal &amp; CI)</span>
+              <span id="tab-mode-cli-desc" className="install-mode-desc">kess check, test, study &amp; export</span>
+            </button>
           </div>
-          <div className="install-intent-card install-intent-card-highlighted">
-            <strong>Connect to an AI coding app</strong>
-            <p>Let Claude Code, Cursor, VS Code, Claude Desktop, or Windsurf simulate and verify circuits locally.</p>
-            <a className="text-link" href="#install-next">1. Install below · 2. Connect AI ↓</a>
-          </div>
-          <div className="install-intent-card">
-            <strong>Use from the terminal or CI</strong>
-            <p>Run <code>kess check</code>, <code>kess test</code>, parameter sweeps, and schematic exports from PowerShell, Terminal, or CI.</p>
-            <a className="text-link" href="#install-steps">Follow terminal steps ↓</a>
-          </div>
-        </div>
-        <div className="install-platforms" role="group" aria-label="Choose your operating system">
-          {(Object.keys(platforms) as Platform[]).map((key) => (
-            <button key={key} type="button" aria-pressed={key === platform} onClick={() => setPlatform(key)}>{platforms[key].label}</button>
-          ))}
-        </div>
-        <div className="install-os-summary">
-          {platform === 'windows' && (
-            <p>Included on Windows: One command installs the <code>kess</code> CLI, the AI connector (<code>kess mcp</code>), and the Ngspice simulator in your user folder. No administrator rights needed.</p>
-          )}
-          {platform === 'macos' && (
-            <p>On macOS: Step 2 installs the <code>kess</code> CLI and AI connector (<code>kess mcp</code>). For circuit simulation, Step 4 also installs Ngspice via Homebrew.</p>
-          )}
-          {platform === 'linux' && (
-            <p>On Linux (x86-64): Step 2 installs the <code>kess</code> CLI and AI connector (<code>kess mcp</code>). For circuit simulation, Step 4 also installs system Ngspice.</p>
-          )}
-        </div>
-        <ol id="install-steps" className="install-steps">
-          <li>
-            <h2>Open your terminal</h2><p>{selected.terminal}</p>
-            <p className="install-note">A terminal is just where you paste the commands below. You do not need to write code to install.</p>
-          </li>
-          <li>
-            <h2>Paste one command</h2><p>Copy this into {platform === 'windows' ? 'PowerShell' : 'Terminal'}, then press Enter.</p>
-            <CopyCommand command={selected.command} label="installation command" />
-            <p className="install-note">The installer selects the latest stable release, checks its SHA-256 hashes, and sets up your user PATH. No manual ZIP extraction or administrator access is needed.</p>
-          </li>
-          <li>
-            <h2>Check the installation</h2><p>On Windows, the command works immediately in the PowerShell session that ran the installer. Otherwise, open a new terminal. If an already-running IDE or AI agent cannot find it, restart that application so it picks up the updated PATH.</p>
-            <CopyCommand command="kess --version" label="version command" />
-            <p>You should see <code>kess</code> followed by the installed version number.</p>
-          </li>
-          <li>
-            <h2>Try your first circuit</h2>
-            <p><a href={`${base}examples/rc_low_pass.kess`} download="my-circuit.kess">Download the RC low-pass example</a> as <code>my-circuit.kess</code>. Open a terminal in the folder where you saved it, then run:</p>
-            <p className="install-note">{platform === 'windows' ? 'In File Explorer, open that folder, right-click an empty area, and choose Open in Terminal (on older Windows, hold Shift and choose Open PowerShell window here).' : 'In Terminal, type cd followed by a space, drag the saved file’s folder onto the terminal, and press Enter.'}</p>
-            <CopyCommand command="kess check my-circuit.kess" label="first circuit command" />
-            {platform === 'windows' ? <p className="install-note">Ngspice, the simulator, is included in the Windows installation.</p> : (
-              <div className="install-prerequisite">
-                <h3>Simulation needs Ngspice</h3>
-                <p>Compile, check, and export work immediately. Before <code>kess test</code>, install the simulator if you do not already have it:</p>
-                <CopyCommand command={platform === 'macos' ? 'brew install ngspice' : 'sudo apt-get update && sudo apt-get install ngspice'} label="simulator command" />
-                <p>Check that the simulator is available:</p><CopyCommand command="ngspice --version" label="simulator version command" />
-                <p className="install-note">{platform === 'macos' ? <>This command needs <a href="https://brew.sh/">Homebrew</a>. If it is not installed, follow its official installer first.</> : 'This command is for Ubuntu/Debian. On other Linux distributions, install ngspice with your package manager.'} The Kessetsu installer does not run privileged commands for you.</p>
-              </div>
-            )}
-            <p>Now simulate and check the example’s electrical requirements:</p>
-            <CopyCommand command="kess test my-circuit.kess" label="simulation command" />
-            <p className="install-note">This example has five assertions. Read each PASS/FAIL and the measured values. If simulation cannot start, use <a href={`${base}docs/guides/troubleshooting/`}>the troubleshooting guide</a>; a successful source check alone is not a simulation.</p>
-          </li>
-        </ol>
-        <section className="install-followup" aria-labelledby="install-next">
-          <h2 id="install-next"><Terminal size={20} /> Connect Kessetsu to your AI app</h2>
-          <p>Kessetsu runs locally on your computer and needs no AI subscription or API key of its own. When you ask your AI app to design or verify a circuit, your AI app starts <code>kess mcp</code> in the background to run real Ngspice simulations and check requirements. This uses a standard local connection called <strong>MCP</strong>—you do not need to understand MCP to use it.</p>
-          <div className="install-client-tabs" role="group" aria-label="Choose your AI application">
-            {clientTabs.map((tab) => (
+
+          <div className="install-platforms" role="tablist" aria-label="Operating system">
+            {(Object.keys(platforms) as Platform[]).map((key) => (
               <button
-                key={tab.id}
+                key={key}
                 type="button"
-                aria-pressed={tab.id === clientTab}
-                onClick={() => setClientTab(tab.id)}
+                role="tab"
+                aria-selected={key === platform}
+                onClick={() => setPlatform(key)}
               >
-                {tab.label}
+                {platforms[key].label}
               </button>
             ))}
           </div>
-          <div className="install-client-panel">
-            {clientTab === 'claude-code' && (
-              <>
-                <h3>Connect Claude Code (recommended one-liner)</h3>
-                <p>After installing <code>kess</code> above, run this command in your terminal to register Kessetsu’s local tool server:</p>
-                <CopyCommand command="claude mcp add kessetsu -- kess mcp" label="MCP registration command" />
-                <p className="install-note">Using Cursor, VS Code, Claude Desktop, or Windsurf? Select your app above, or add <code>{'{"command": "kess", "args": ["mcp"]}'}</code> to its MCP settings.</p>
-              </>
+        </div>
+
+        <ol className="install-steps">
+          <li>
+            <div className="install-step-header">
+              <h2>Install kess</h2>
+              <span className="install-step-badge">{selected.shell}</span>
+            </div>
+            <CopyCommand command={selected.command} label="installation command" />
+            {platform === 'windows' && (
+              <p className="install-note">Includes Kessetsu CLI, MCP server, and Ngspice 46 — no admin rights needed.</p>
             )}
-            {clientTab === 'cursor' && (
-              <>
-                <h3>Connect Cursor</h3>
-                <p>Save this in <code>.cursor/mcp.json</code> inside your project folder (or <code>~/.cursor/mcp.json</code> for all projects):</p>
-                <CopyCommand command={'{\n  "mcpServers": {\n    "kessetsu": {\n      "command": "kess",\n      "args": ["mcp"]\n    }\n  }\n}'} label="Cursor MCP config" />
-                <p className="install-note">Restart Cursor if it was already open when you installed <code>kess</code> so it picks up your updated PATH.</p>
-              </>
+            {platform === 'macos' && (
+              <p className="install-note">
+                Includes Kessetsu CLI and MCP server. For simulation, also install Ngspice: <code>brew install ngspice</code>.
+              </p>
             )}
-            {clientTab === 'vscode' && (
-              <>
-                <h3>Connect VS Code (Copilot / Agent Mode)</h3>
-                <p>Save this in <code>.vscode/mcp.json</code> in your workspace folder:</p>
-                <CopyCommand command={'{\n  "servers": {\n    "kessetsu": {\n      "type": "stdio",\n      "command": "kess",\n      "args": ["mcp"]\n    }\n  }\n}'} label="VS Code MCP config" />
-                <p className="install-note">Restart VS Code if it was already open when you installed <code>kess</code>.</p>
-              </>
+            {platform === 'linux' && (
+              <p className="install-note">
+                Includes Kessetsu CLI and MCP server. For simulation, also install Ngspice: <code>sudo apt install ngspice</code>.
+              </p>
             )}
-            {clientTab === 'claude-desktop' && (
-              <>
-                <h3>Connect Claude Desktop</h3>
-                <p>In Claude Desktop, open <strong>Settings → Developer → Edit Config</strong> (<code>%APPDATA%\Claude\claude_desktop_config.json</code> on Windows or <code>~/Library/Application Support/Claude/claude_desktop_config.json</code> on macOS) and add:</p>
-                <CopyCommand command={'{\n  "mcpServers": {\n    "kessetsu": {\n      "command": "kess",\n      "args": ["mcp"]\n    }\n  }\n}'} label="Claude Desktop MCP config" />
-                <p className="install-note">Quit and reopen Claude Desktop after saving so it detects <code>kess</code> on your PATH.</p>
-              </>
-            )}
-            {clientTab === 'windsurf' && (
-              <>
-                <h3>Connect Windsurf</h3>
-                <p>Open Windsurf MCP settings (<code>~/.codeium/windsurf/mcp_config.json</code>) and add:</p>
-                <CopyCommand command={'{\n  "mcpServers": {\n    "kessetsu": {\n      "command": "kess",\n      "args": ["mcp"]\n    }\n  }\n}'} label="Windsurf MCP config" />
-                <p className="install-note">Click Refresh in Windsurf MCP settings (or restart Windsurf) so Cascade loads the tools.</p>
-              </>
-            )}
-            {clientTab === 'cli' && (
-              <>
-                <h3>Use Structured JSON CLI (Terminal Agents &amp; CI)</h3>
-                <p>Terminal-capable coding agents, shell scripts, and GitHub Actions pipelines can invoke <code>kess</code> directly without MCP and parse deterministic JSON output:</p>
-                <CopyCommand command="kess test my-circuit.kess --format json" label="JSON CLI test command" />
-                <p className="install-note">Run <code>kess capabilities --format json</code> to inspect all supported commands, models, and export targets.</p>
-              </>
-            )}
-          </div>
-          <div className="install-verify-prompt">
-            <strong>Verify it works: send this first prompt to your AI</strong>
-            <CopyCommand command="Check Kessetsu capabilities and simulate a 1 kHz RC low-pass filter (R1=1k, C1=159.15nF) to verify its -3 dB cutoff." label="verification prompt" />
-          </div>
-          <p><a href={`${base}docs/guides/agent-workflow/`}>Read the agent design workflow</a> or <a href={`${base}docs/guides/cookbook/#give-an-external-agent-a-complete-task`}>walk through the complete task in the Cookbook</a>. Local manufacturer models need exact file bindings; see <a href={`${base}docs/reference/model-catalog/`}>device models</a>.</p>
-          <details><summary>Next: try a transistor circuit</summary>
-            <p><a href={`${base}examples/transistor_driver.kess`} download="transistor-driver.kess">Download the complete emitter-follower example</a> as <code>transistor-driver.kess</code>. From its folder, with Ngspice installed, run:</p>
-            <CopyCommand command="kess test transistor-driver.kess --format json" label="transistor example command" />
-            <p>Inspect its gain, output peaks and transistor dissipation across AC and transient analyses. It uses the built-in generic <code>2N3904</code> model, so no extra library is needed. Passing its four assertions does not establish supplier-specific accuracy, component ratings or thermal safety. For exact local libraries, follow <a href={`${base}docs/reference/model-catalog/`}>the model-file walkthrough</a>.</p>
+          </li>
+
+          {mode === 'mcp' ? (
+            <>
+              <li id="mcp-setup">
+                <div className="install-step-header">
+                  <h2>Register the MCP server</h2>
+                </div>
+                <div className="install-client-tabs" role="tablist" aria-label="Choose your AI application">
+                  {clientOrder.map((tabId) => (
+                    <button
+                      key={tabId}
+                      type="button"
+                      role="tab"
+                      aria-selected={tabId === clientTab}
+                      onClick={() => setClientTab(tabId)}
+                    >
+                      {clientConfigs[tabId].label}
+                    </button>
+                  ))}
+                </div>
+                <div className="install-client-panel" role="tabpanel" aria-label={selectedClient.label}>
+                  <CopyCommand command={selectedClient.command} label={selectedClient.commandLabel} />
+                  <p className="install-note">{selectedClient.pathHint}</p>
+                </div>
+              </li>
+
+              <li>
+                <div className="install-step-header">
+                  <h2>Verify in your AI chat</h2>
+                </div>
+                <CopyCommand command={verificationPrompt} label="verification prompt" />
+                <p className="install-note">
+                  Paste this prompt into your AI chat to confirm Ngspice and requirements work end-to-end.{' '}
+                  <a href={`${base}docs/guides/agent-workflow/`}>Agent design workflow →</a>
+                </p>
+              </li>
+            </>
+          ) : (
+            <li id="cli-verify">
+              <div className="install-step-header">
+                <h2>Verify in your terminal</h2>
+              </div>
+              <CopyCommand command="kess --version" label="version command" />
+              <p className="install-note">
+                If an already-open terminal or IDE cannot find <code>kess</code>, open a new session to pick up the updated PATH.
+              </p>
+              <details className="install-inline-details">
+                <summary>Try a 30-second RC low-pass check in the terminal</summary>
+                <div className="install-details-body">
+                  <p>
+                    <a href={`${base}examples/rc_low_pass.kess`} download="my-circuit.kess">Download the RC low-pass example</a>{' '}
+                    as <code>my-circuit.kess</code>, then run from its folder:
+                  </p>
+                  <CopyCommand command="kess check my-circuit.kess" label="first circuit command" />
+                  <CopyCommand command="kess test my-circuit.kess" label="simulation command" />
+                  <CopyCommand command="kess test my-circuit.kess --format json" label="JSON CLI test command" />
+                  <p className="install-note">
+                    Five electrical assertions should PASS. See the <a href={`${base}docs/reference/cli/`}>CLI reference</a> or{' '}
+                    <a href={`${base}docs/guides/troubleshooting/`}>troubleshooting guide</a>.
+                  </p>
+                </div>
+              </details>
+            </li>
+          )}
+        </ol>
+
+        <section className="install-secondary" aria-label="Additional installation options">
+          <details>
+            <summary>Prefer not to pipe to a shell? Inspect or install manually</summary>
+            <div className="install-details-body">
+              <p>
+                Read the script before running it:{' '}
+                <a href={`${base}${platform === 'windows' ? 'install.ps1' : 'install.sh'}`}>
+                  view {platform === 'windows' ? 'install.ps1' : 'install.sh'}
+                </a>
+                . The installer verifies SHA-256 release hashes before placing binaries in your user directory.
+              </p>
+              <p>
+                Or <a href="https://github.com/Stapimaz/Kessetsu/releases/latest">download release packages manually <ExternalLink size={12} /></a>{' '}
+                and add the <code>bin</code> folder to your user PATH.
+              </p>
+            </div>
           </details>
-          <h2>Updates and alternatives</h2>
-          <p>To update, run the same installation command again. A failed download or hash check will not replace your working CLI. Previous bundles are retained for recovery.</p>
-          <p>The command executes a script from this website. If you prefer to inspect it first: <a href={`${base}${platform === 'windows' ? 'install.ps1' : 'install.sh'}`}>view the installer</a>. Checksums detect damaged downloads; they are not publisher signatures.</p>
-          <p><a href="https://github.com/Stapimaz/Kessetsu/releases/latest">Download packages manually <ExternalLink size={12} /></a> · <a href={`${base}docs/guides/troubleshooting/`}>Troubleshooting</a></p>
-          <details><summary>Uninstall the default installation</summary>
-            <p>Keep your circuit and model files first. Close terminals and agents using Kessetsu. These steps apply only to the standard installer paths, not a custom install location.</p>
-            {platform === 'windows' ? <p>In File Explorer, enter <code>%LOCALAPPDATA%</code> and remove only the <code>Kessetsu</code> folder. In “Edit environment variables for your account”, remove only <code>%LOCALAPPDATA%\Kessetsu\bin</code> (or its expanded path) from your user Path. Open a new terminal.</p>
-              : <p>Remove only the <code>kess</code> symbolic link inside <code>~/.local/bin</code> and the <code>~/.local/share/kessetsu</code> folder. Do not delete the surrounding bin/share folders. Remove only the line ending <code># Kessetsu installer</code> from the shell startup files the installer modified (for example .bashrc or .zshrc), then open a new terminal. System Ngspice is separate and is not removed.</p>}
-            <p>Run <code>kess --version</code> in the new terminal; it should no longer resolve this installation. If it still runs, another installation is on your PATH.</p>
+
+          <details>
+            <summary>Update, uninstall, or fix PATH issues</summary>
+            <div className="install-details-body">
+              <p>
+                <strong>Update:</strong> Run the Step 1 install command again. Failed downloads or hash checks never overwrite your working CLI.
+              </p>
+              <p>
+                <strong>PATH issues:</strong> Open a new terminal (or restart your IDE/AI app) after installing. Still stuck? See{' '}
+                <a href={`${base}docs/guides/troubleshooting/`}>Troubleshooting</a>.
+              </p>
+              <p>
+                <strong>Uninstall:</strong> Close terminals and agents using Kessetsu.{' '}
+                {platform === 'windows' ? (
+                  <>
+                    In File Explorer, open <code>%LOCALAPPDATA%</code> and remove only the <code>Kessetsu</code> folder, then remove{' '}
+                    <code>%LOCALAPPDATA%\Kessetsu\bin</code> from your user Path.
+                  </>
+                ) : (
+                  <>
+                    Remove only the <code>kess</code> symlink in <code>~/.local/bin</code> and the <code>~/.local/share/kessetsu</code> folder.
+                    Do not delete the surrounding bin/share folders. Remove only the line ending <code># Kessetsu installer</code> from your
+                    shell startup file (<code>.bashrc</code> or <code>.zshrc</code>). System Ngspice is separate and is not removed.
+                  </>
+                )}
+              </p>
+            </div>
           </details>
         </section>
       </section>
