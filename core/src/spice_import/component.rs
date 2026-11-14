@@ -292,8 +292,8 @@ pub(crate) fn parse_component(
                 None => {
                     let model = model_field.clone();
                     let polarity = match model.to_ascii_uppercase().as_str() {
-                        "2N3906" | "KESSETSU_POWER_PNP_V1" => "pnp",
-                        "2N3904" | "2N2222" | "KESSETSU_POWER_NPN_V1" => "npn",
+                        "2N3906" | "BC557" | "KESSETSU_POWER_PNP_V1" => "pnp",
+                        "2N3904" | "2N2222" | "BC547" | "KESSETSU_POWER_NPN_V1" => "npn",
                         _ => {
                             return Err(format!(
                                 "BJT model '{model}' is neither built in nor defined by an inline .model NPN/PNP card"
@@ -385,7 +385,7 @@ pub(crate) fn parse_component(
                 }
                 None if matches!(
                     model.to_ascii_uppercase().as_str(),
-                    "IRF540" | "KESSETSU_PMOS_V1"
+                    "IRF540" | "2N7000" | "BSS84" | "KESSETSU_PMOS_V1"
                 ) =>
                 {
                     model
@@ -462,7 +462,7 @@ pub(crate) fn parse_component(
                 }
                 None if matches!(
                     model.to_ascii_uppercase().as_str(),
-                    "2N5457" | "J2N5457" | "2N5460"
+                    "2N5457" | "J2N5457" | "2N5460" | "J201"
                 ) =>
                 {
                     model

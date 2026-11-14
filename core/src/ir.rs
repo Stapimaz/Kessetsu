@@ -13,12 +13,21 @@ pub struct InductorCoupling {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct InitialCondition {
+    pub net: String,
+    pub voltage: f64,
+    pub voltage_expr: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CircuitIR {
     pub components: Vec<IRComponent>,
     pub connections: Vec<Connection>, // Preserved from AST for graph generation
     pub nets: Vec<String>,            // User-named nets
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub couplings: Vec<InductorCoupling>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub initial_conditions: Vec<InitialCondition>,
     pub analyses: Vec<Analysis>,
     pub assertions: Vec<Assertion>,
     pub model_manifest: ModelManifest,
@@ -1022,6 +1031,7 @@ pub fn ast_to_ir_with_resources(
     let mut nets = Vec::new();
     let mut raw_couplings = Vec::new();
     let mut raw_coupling_names = std::collections::HashSet::new();
+    let mut raw_initials = Vec::new();
     let mut analysis_statements = Vec::new();
     let mut assertions = Vec::new();
     let mut part_assignments = Vec::new();
@@ -1601,7 +1611,7 @@ pub fn ast_to_ir_with_resources(
                     return Err(semantic_error(
                         "KES-C006",
                         format!(
-                            "unsupported assertion metric '{}'; expected value, min, max, peak, pk2pk, p2p, vpp, average, avg, rms, gain, gain_at, lower_cutoff, upper_cutoff, bandwidth, cutoff, frequency, phase, output_power, dissipation, efficiency, thd, clipping, rise_time, fall_time, settling_time, overshoot or energy",
+                            "unsupported assertion metric '{}'; expected value, min, max, peak, pk2pk, p2p, vpp, average, avg, rms, gain, gain_at, lower_cutoff, upper_cutoff, bandwidth, cutoff, frequency, freq, period, duty_cycle, duty, phase, output_power, dissipation, efficiency, thd, clipping, rise_time, fall_time, settling_time, overshoot or energy",
                             assert.metric
                         ),
                         None,
@@ -1721,6 +1731,9 @@ pub fn ast_to_ir_with_resources(
                     ));
                 }
                 raw_couplings.push(couple);
+            }
+            Statement::Initial(initial) => {
+                raw_initials.push(initial.clone());
             }
             Statement::Simulate(sim) => {
                 analysis_statements.push(sim.clone());
@@ -1853,6 +1866,128 @@ pub fn ast_to_ir_with_resources(
         });
     }
 
+    let mut initial_conditions = Vec::with_capacity(raw_initials.len());
+    let mut seen_initial_nets = std::collections::HashSet::new();
+    for initial in raw_initials {
+        if initial.net == "0" || initial.net.eq_ignore_ascii_case("gnd") {
+            return Err(semantic_error(
+                "KES-C001",
+                format!(
+                    "cannot set initial condition on ground net '{}'",
+                    initial.net
+                ),
+                None,
+                Some("initial"),
+            ));
+        }
+        let resolved_net = nets
+            .iter()
+            .find(|declared| declared.eq_ignore_ascii_case(&initial.net))
+            .cloned()
+            .or_else(|| {
+                connections
+                    .iter()
+                    .flat_map(|conn| &conn.pins)
+                    .find(|pin| {
+                        pin.component.is_empty() && pin.pin.eq_ignore_ascii_case(&initial.net)
+                    })
+                    .map(|pin| pin.pin.clone())
+            })
+            .ok_or_else(|| {
+                semantic_error(
+                    "KES-C001",
+                    format!(
+                        "initial condition references undeclared or unconnected net '{}'",
+                        initial.net
+                    ),
+                    None,
+                    Some("initial"),
+                )
+            })?;
+        if !seen_initial_nets.insert(resolved_net.to_ascii_lowercase()) {
+            return Err(semantic_error(
+                "KES-C001",
+                format!("duplicate initial condition for net '{}'", resolved_net),
+                None,
+                Some("initial"),
+            ));
+        }
+        let voltage_quantity = if let Some(inner) = initial
+            .voltage
+            .strip_prefix('{')
+            .and_then(|s| s.strip_suffix('}'))
+        {
+            let expression = crate::expression::parse_expression(inner).map_err(|cause| {
+                semantic_error(
+                    "KES-C001",
+                    format!(
+                        "invalid initial condition voltage expression for net '{}': {} (expression byte {})",
+                        resolved_net,
+                        cause.message,
+                        cause.offset + 1
+                    ),
+                    None,
+                    Some("initial"),
+                )
+            })?;
+            let resolved = evaluate_numeric(
+                &expression,
+                SIUnit::Volt,
+                &parameter_values,
+                &mut expression_work,
+            )
+            .map_err(|error| {
+                semantic_error(
+                    "KES-C001",
+                    format!(
+                        "invalid initial condition voltage for net '{}': {error}",
+                        resolved_net
+                    ),
+                    None,
+                    Some("initial"),
+                )
+            })?;
+            parameter_manifest
+                .bindings
+                .push(crate::expression::ParameterBinding {
+                    component: format!("initial.{resolved_net}"),
+                    field: "voltage".into(),
+                    expression: expression.source.clone(),
+                    dependencies: expression.dependencies().into_iter().collect(),
+                    resolved: resolved.clone(),
+                });
+            resolved
+        } else {
+            parse_quantity(&initial.voltage, SIUnit::Volt).map_err(|error| {
+                semantic_error(
+                    "KES-C001",
+                    format!(
+                        "invalid initial condition voltage for net '{}': {error}",
+                        resolved_net
+                    ),
+                    None,
+                    Some("initial"),
+                )
+            })?
+        };
+        if !voltage_quantity.value.is_finite() {
+            return Err(semantic_error(
+                "KES-C001",
+                format!(
+                    "initial condition voltage for net '{}' must be finite",
+                    resolved_net
+                ),
+                None,
+                Some("initial"),
+            ));
+        }
+        initial_conditions.push(InitialCondition {
+            net: resolved_net,
+            voltage: voltage_quantity.value,
+            voltage_expr: initial.voltage.clone(),
+        });
+    }
+
     let analyses = analysis_statements
         .iter()
         .enumerate()
@@ -1924,6 +2059,7 @@ pub fn ast_to_ir_with_resources(
         connections,
         nets,
         couplings,
+        initial_conditions,
         analyses,
         assertions,
         model_manifest,
@@ -2301,6 +2437,10 @@ fn is_supported_assertion_metric(metric: &str) -> bool {
             | "bandwidth"
             | "cutoff"
             | "frequency"
+            | "freq"
+            | "period"
+            | "duty_cycle"
+            | "duty"
             | "phase"
             | "output_power"
             | "dissipation"
@@ -2313,6 +2453,20 @@ fn is_supported_assertion_metric(metric: &str) -> bool {
             | "overshoot"
             | "energy"
     )
+}
+
+fn resolve_assertion_quantity(
+    arguments: &[&str],
+    numeric: &[ResolvedArgument],
+    index: usize,
+    unit: SIUnit,
+) -> Option<Quantity> {
+    numeric
+        .iter()
+        .find(|argument| argument.index == index)
+        .map(|argument| Ok(argument.quantity.clone()))
+        .unwrap_or_else(|| parse_quantity(arguments[index], unit))
+        .ok()
 }
 
 fn assertion_result_unit(
@@ -2395,12 +2549,48 @@ fn assertion_result_unit(
             })
         }
         "bandwidth" | "cutoff" => (arguments.len() == 2).then_some(SIUnit::Hertz),
-        "frequency" => (arguments.len() == 1).then_some(SIUnit::Hertz),
+        "frequency" | "freq" | "period" | "duty_cycle" | "duty" => {
+            if !matches!(arguments.len(), 1 | 3) || signal_unit(arguments[0]).is_none() {
+                return None;
+            }
+            if arguments.len() == 3 {
+                for index in 1..=2 {
+                    let bound =
+                        resolve_assertion_quantity(arguments, numeric, index, SIUnit::Second)?;
+                    if !bound.value.is_finite() {
+                        return None;
+                    }
+                }
+            }
+            Some(match metric {
+                "frequency" | "freq" => SIUnit::Hertz,
+                "period" => SIUnit::Second,
+                _ => SIUnit::Percent,
+            })
+        }
         "phase" => matches!(arguments.len(), 2 | 3).then_some(SIUnit::Degree),
         "output_power" => matches!(arguments.len(), 2 | 4).then_some(SIUnit::Watt),
         "dissipation" => matches!(arguments.len(), 1 | 3).then_some(SIUnit::Watt),
         "efficiency" => matches!(arguments.len(), 4 | 6 | 8).then_some(SIUnit::Percent),
-        "thd" => (arguments.len() == 5).then_some(SIUnit::Percent),
+        "thd" => {
+            if !matches!(arguments.len(), 2 | 4 | 5) || signal_unit(arguments[0]).is_none() {
+                return None;
+            }
+            let fundamental = resolve_assertion_quantity(arguments, numeric, 1, SIUnit::Hertz)?;
+            if !fundamental.value.is_finite() {
+                return None;
+            }
+            if arguments.len() >= 4 {
+                for index in 2..=3 {
+                    let bound =
+                        resolve_assertion_quantity(arguments, numeric, index, SIUnit::Second)?;
+                    if !bound.value.is_finite() {
+                        return None;
+                    }
+                }
+            }
+            Some(SIUnit::Percent)
+        }
         "clipping" => (arguments.len() == 3).then_some(SIUnit::Percent),
         "rise_time" | "fall_time" | "settling_time" => (arguments.len() == 5
             && signal_unit(arguments[0]) == Some(SIUnit::Volt))
@@ -2419,7 +2609,7 @@ fn assertion_numeric_unit(metric: &str, arguments: &[&str], index: usize) -> Opt
     let count = arguments.len();
     match metric {
         "value" | "min" | "max" | "peak" | "pk2pk" | "p2p" | "vpp" | "average" | "avg" | "rms"
-        | "dissipation"
+        | "dissipation" | "frequency" | "freq" | "period" | "duty_cycle" | "duty"
             if count == 3 && matches!(index, 1 | 2) =>
         {
             Some(SIUnit::Second)
@@ -2437,8 +2627,8 @@ fn assertion_numeric_unit(metric: &str, arguments: &[&str], index: usize) -> Opt
         {
             Some(SIUnit::Second)
         }
-        "thd" if count == 5 && index == 1 => Some(SIUnit::Hertz),
-        "thd" if count == 5 && matches!(index, 2 | 3) => Some(SIUnit::Second),
+        "thd" if matches!(count, 2 | 4 | 5) && index == 1 => Some(SIUnit::Hertz),
+        "thd" if matches!(count, 4 | 5) && matches!(index, 2 | 3) => Some(SIUnit::Second),
         "clipping" if count == 3 && matches!(index, 1 | 2) => Some(SIUnit::Volt),
         "rise_time" | "fall_time" | "settling_time" | "overshoot"
             if count == 5 && matches!(index, 1 | 2) =>
@@ -2460,4 +2650,295 @@ fn is_safe_model_token(value: &str) -> bool {
         && value
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::erc::check_rules;
+    use crate::graph::NetlistGraph;
+    use crate::parser::parse_program;
+
+    fn compile_to_ir(source: &str) -> Result<CircuitIR, SemanticDiagnostic> {
+        let program = parse_program(source).expect("program should parse");
+        let flattened = program.flatten().expect("program should flatten");
+        ast_to_ir(&flattened)
+    }
+
+    #[test]
+    fn pwl_parses_comma_and_space_separated_pairs_including_expressions() {
+        let space_comma = "\
+            net GND\n\
+            net OUT\n\
+            source V1 pwl(0s 0V, 1ms 5V)\n\
+            resistor R1 1k\n\
+            connect V1.plus, R1.p1 to OUT\n\
+            connect V1.minus, R1.p2 to GND\n\
+        ";
+        let ir = compile_to_ir(space_comma).expect("space-comma PWL should compile");
+        let v1 = ir.components.iter().find(|c| c.id == "V1").unwrap();
+        assert_eq!(
+            v1.parameters,
+            ComponentParams::VoltageSource {
+                value: SourceValue::Waveform(Waveform::PWL {
+                    points: vec![
+                        (
+                            Quantity {
+                                value: 0.0,
+                                unit: SIUnit::Second
+                            },
+                            Quantity {
+                                value: 0.0,
+                                unit: SIUnit::Volt
+                            }
+                        ),
+                        (
+                            Quantity {
+                                value: 1e-3,
+                                unit: SIUnit::Second
+                            },
+                            Quantity {
+                                value: 5.0,
+                                unit: SIUnit::Volt
+                            }
+                        ),
+                    ]
+                })
+            }
+        );
+
+        let all_spaces = space_comma.replace("pwl(0s 0V, 1ms 5V)", "pwl(0s 0V 1ms 5V)");
+        let ir_spaces = compile_to_ir(&all_spaces).expect("space-only PWL should compile");
+        assert_eq!(
+            ir_spaces
+                .components
+                .iter()
+                .find(|c| c.id == "V1")
+                .unwrap()
+                .parameters,
+            v1.parameters
+        );
+
+        let with_expr = "\
+            param t1: s = 1ms\n\
+            param v1: V = 5V\n\
+            net GND\n\
+            net OUT\n\
+            source V1 pwl(0s 0V, {t1} {v1})\n\
+            resistor R1 1k\n\
+            connect V1.plus, R1.p1 to OUT\n\
+            connect V1.minus, R1.p2 to GND\n\
+        ";
+        let ir_expr = compile_to_ir(with_expr).expect("parametric space PWL should compile");
+        assert_eq!(
+            ir_expr
+                .components
+                .iter()
+                .find(|c| c.id == "V1")
+                .unwrap()
+                .parameters,
+            v1.parameters
+        );
+    }
+
+    #[test]
+    fn initial_condition_supports_literals_expressions_and_module_elaboration() {
+        let literal_src = "\
+            net GND\n\
+            net OUT\n\
+            resistor R1 1k\n\
+            capacitor C1 1u\n\
+            connect R1.p1, C1.p1 to OUT\n\
+            connect R1.p2, C1.p2 to GND\n\
+            initial V(OUT) = 0.1V\n\
+        ";
+        let ir = compile_to_ir(literal_src).expect("initial V(OUT) = 0.1V should compile");
+        assert_eq!(
+            ir.initial_conditions,
+            vec![InitialCondition {
+                net: "OUT".to_string(),
+                voltage: 0.1,
+                voltage_expr: "0.1V".to_string(),
+            }]
+        );
+        let graph = NetlistGraph::build(&ir);
+        assert!(check_rules(&ir, &graph).is_empty());
+
+        let param_src = "\
+            param v0: V = 0.25V\n\
+            net GND\n\
+            net OUT\n\
+            resistor R1 1k\n\
+            capacitor C1 1u\n\
+            connect R1.p1, C1.p1 to OUT\n\
+            connect R1.p2, C1.p2 to GND\n\
+            initial V(OUT) = {v0 * 2}\n\
+        ";
+        let ir_param = compile_to_ir(param_src).expect("parametric initial should compile");
+        assert_eq!(ir_param.initial_conditions.len(), 1);
+        assert!((ir_param.initial_conditions[0].voltage - 0.5).abs() < 1e-12);
+        assert_eq!(ir_param.initial_conditions[0].voltage_expr, "{v0 * 2}");
+
+        let module_src = "\
+            param base: V = 0.4V\n\
+            module Stage(out, gnd) {\n\
+                param vinit: V = 0.1V\n\
+                param doubled: V = vinit * 2\n\
+                net local_n\n\
+                resistor R1 1k\n\
+                capacitor C1 1u\n\
+                connect R1.p1 to out\n\
+                connect R1.p2, C1.p1 to local_n\n\
+                connect C1.p2 to gnd\n\
+                initial V(local_n) = {doubled}\n\
+            }\n\
+            net GND\n\
+            net OUT\n\
+            use Stage s1\n\
+            use Stage s2(vinit={base})\n\
+            connect s1.out, s2.out to OUT\n\
+            connect s1.gnd, s2.gnd to GND\n\
+            resistor RL 10k\n\
+            connect RL.p1 to OUT\n\
+            connect RL.p2 to GND\n\
+        ";
+        let ir_mod = compile_to_ir(module_src).expect("module initial should compile");
+        assert_eq!(ir_mod.initial_conditions.len(), 2);
+        assert_eq!(ir_mod.initial_conditions[0].net, "s1_local_n");
+        assert!((ir_mod.initial_conditions[0].voltage - 0.2).abs() < 1e-12);
+        assert_eq!(ir_mod.initial_conditions[1].net, "s2_local_n");
+        assert!((ir_mod.initial_conditions[1].voltage - 0.8).abs() < 1e-12);
+        let mod_graph = NetlistGraph::build(&ir_mod);
+        assert!(check_rules(&ir_mod, &mod_graph).is_empty());
+    }
+
+    #[test]
+    fn initial_condition_rejects_invalid_targets_units_and_duplicates() {
+        let base = "\
+            param t0: s = 1ms\n\
+            net GND\n\
+            net OUT\n\
+            resistor R1 1k\n\
+            connect R1.p1 to OUT\n\
+            connect R1.p2 to GND\n\
+        ";
+
+        for bad in [
+            "initial V(0) = 1V\n",
+            "initial V(GND) = 1V\n",
+            "initial V(gnd) = 1V\n",
+            "initial V(MISSING) = 1V\n",
+            "initial V(OUT) = 1A\n",
+            "initial V(OUT) = {t0}\n",
+            "initial V(OUT) = 1V\ninitial V(out) = 2V\n",
+        ] {
+            let err = compile_to_ir(&format!("{base}{bad}"))
+                .expect_err(&format!("expected failure for: {bad}"));
+            assert_eq!(err.code, "KES-C001");
+        }
+
+        let port_module = "\
+            module Cell(out, gnd) {\n\
+                resistor R1 1k\n\
+                connect R1.p1 to out\n\
+                connect R1.p2 to gnd\n\
+                initial V(out) = 0.5V\n\
+            }\n\
+            net GND\n\
+            net OUT\n\
+            use Cell c1\n\
+            connect c1.out to OUT\n\
+            connect c1.gnd to GND\n\
+        ";
+        let program = parse_program(port_module).unwrap();
+        assert!(program.flatten().is_err());
+
+        // Direct ERC verification on IR initial_conditions.
+        let mut ir = compile_to_ir(&format!("{base}initial V(OUT) = 0.5V\n")).unwrap();
+        let graph = NetlistGraph::build(&ir);
+        ir.initial_conditions.push(InitialCondition {
+            net: "out".to_string(),
+            voltage: f64::NAN,
+            voltage_expr: "NaN".to_string(),
+        });
+        ir.initial_conditions.push(InitialCondition {
+            net: "GND".to_string(),
+            voltage: 1.0,
+            voltage_expr: "1V".to_string(),
+        });
+        ir.initial_conditions.push(InitialCondition {
+            net: "MISSING".to_string(),
+            voltage: 1.0,
+            voltage_expr: "1V".to_string(),
+        });
+        let diags = check_rules(&ir, &graph);
+        assert!(diags.iter().any(|d| d.code == "KES-E001"));
+        assert!(diags.iter().any(|d| d.code == "KES-E002"));
+        assert!(diags.iter().any(|d| d.code == "KES-C001"));
+    }
+
+    #[test]
+    fn periodic_and_harmonic_assertion_metrics_validate_overloads_and_units() {
+        let prefix = "\
+            param t_start: s = 1ms\n\
+            param t_stop: s = 5ms\n\
+            param f0: Hz = 1kHz\n\
+            param vbad: V = 1V\n\
+            net GND\n\
+            net OUT\n\
+            source V1 5V\n\
+            resistor R1 1k\n\
+            connect V1.plus, R1.p1 to OUT\n\
+            connect V1.minus, R1.p2 to GND\n\
+            simulate tran 10us 10ms\n\
+        ";
+
+        let valid = "\
+            assert frequency(V(OUT)) == 1kHz\n\
+            assert freq(V(OUT)) == 1kHz\n\
+            assert frequency(V(OUT), 1ms, 5ms) == 1kHz\n\
+            assert freq(V(OUT), {t_start}, {t_stop}) == {f0}\n\
+            assert period(V(OUT)) == 1ms\n\
+            assert period(V(OUT), {t_start}, {t_stop}) == 1ms\n\
+            assert duty_cycle(V(OUT)) > 40%\n\
+            assert duty(V(OUT)) < 60%\n\
+            assert duty_cycle(V(OUT), 1ms, 5ms) > 40%\n\
+            assert duty(V(OUT), {t_start}, {t_stop}) < 60%\n\
+            assert thd(V(OUT), 1kHz) < 5%\n\
+            assert thd(V(OUT), {f0}) < 5%\n\
+            assert thd(V(OUT), 1kHz, 1ms, 5ms) < 5%\n\
+            assert thd(V(OUT), {f0}, {t_start}, {t_stop}, hann) < 5%\n\
+        ";
+        let ir = compile_to_ir(&format!("{prefix}{valid}"))
+            .expect("all new periodic and harmonic assertions should compile");
+        assert_eq!(ir.assertions.len(), 14);
+        assert_eq!(ir.assertions[0].threshold.unit, SIUnit::Hertz);
+        assert_eq!(ir.assertions[4].threshold.unit, SIUnit::Second);
+        assert_eq!(ir.assertions[6].threshold.unit, SIUnit::Percent);
+        assert_eq!(ir.assertions[10].threshold.unit, SIUnit::Percent);
+
+        for invalid in [
+            "assert freq(V(OUT), 1ms) == 1kHz\n",
+            "assert frequency(V(OUT), 1V, 2ms) == 1kHz\n",
+            "assert frequency(V(OUT), {vbad}, 2ms) == 1kHz\n",
+            "assert period(V(OUT), 1ms) == 1ms\n",
+            "assert period(V(OUT), {vbad}, {t_stop}) == 1ms\n",
+            "assert duty_cycle(V(OUT), 1ms) > 40%\n",
+            "assert duty(V(OUT), 1ms, 2V) > 40%\n",
+            "assert thd(V(OUT)) < 5%\n",
+            "assert thd(V(OUT), 1kHz, 1ms) < 5%\n",
+            "assert thd(V(OUT), 1V) < 5%\n",
+            "assert thd(V(OUT), {vbad}) < 5%\n",
+            "assert thd(V(OUT), 1kHz, 1V, 2ms) < 5%\n",
+            "assert thd(V(OUT), 1kHz, {vbad}, {t_stop}, hann) < 5%\n",
+            "assert thd(V(OUT), 1kHz, 1ms, 5ms, {t_start}) < 5%\n",
+        ] {
+            let err = compile_to_ir(&format!("{prefix}{invalid}"))
+                .expect_err(&format!("expected assertion failure for: {invalid}"));
+            assert_eq!(
+                err.code, "KES-C006",
+                "unexpected error for {invalid}: {err:?}"
+            );
+        }
+    }
 }

@@ -34,6 +34,30 @@ pub(crate) fn run_tool(
             resistance: resistance.clone(),
             preferred_values,
         },
+        CircuitTool::NonInvertingOpamp {
+            gain,
+            r1,
+            vin,
+            supply,
+        } => ToolRequest::NonInvertingOpamp {
+            target_gain: gain.clone(),
+            input_resistance: r1.clone(),
+            input_voltage: vin.clone(),
+            supply_voltage: supply.clone(),
+            preferred_values,
+        },
+        CircuitTool::ZenerRegulator {
+            vin,
+            vz,
+            iload,
+            iz_min,
+        } => ToolRequest::ZenerRegulator {
+            input_voltage: vin.clone(),
+            zener_voltage: vz.clone(),
+            load_current: iload.clone(),
+            zener_knee_current: iz_min.clone(),
+            preferred_values,
+        },
     };
     let calculation = match calculate_tool(request) {
         Ok(result) => result,

@@ -19,7 +19,7 @@ describe('Kessetsu editor language support', () => {
   it('covers every public declaration and model boundary', () => {
     const labels = topLevelCompletions.map((item) => item.label);
     expect(labels).toEqual(expect.arrayContaining([
-      'param', 'net', 'source', 'current_source', 'resistor', 'capacitor', 'inductor',
+      'param', 'net', 'initial', 'source', 'current_source', 'resistor', 'capacitor', 'inductor',
       'vcvs', 'vccs', 'ccvs', 'cccs', 'switch',
       'diode', 'transistor', 'mosfet', 'jfet', 'opamp', 'connect', 'simulate', 'assert',
       'model_include', 'model', 'subcircuit', 'external_subcircuit', 'module', 'use',
@@ -57,10 +57,17 @@ describe('Kessetsu editor language support', () => {
     }
     expect(metricCompletions.map((item) => item.label)).toEqual(expect.arrayContaining([
       'value', 'min', 'max', 'peak', 'pk2pk', 'p2p', 'vpp', 'average', 'avg', 'rms', 'gain', 'bandwidth',
-      'cutoff', 'frequency', 'phase', 'output_power', 'dissipation', 'efficiency',
+      'cutoff', 'frequency', 'freq', 'period', 'duty_cycle', 'duty', 'phase', 'output_power', 'dissipation', 'efficiency',
       'thd', 'clipping', 'gain_at', 'lower_cutoff', 'upper_cutoff',
       'rise_time', 'fall_time', 'settling_time', 'overshoot', 'energy',
     ]));
+    const rootRules = kessetsuLanguageDefinition.tokenizer.root as Array<[RegExp, string]>;
+    const keywordRegex = rootRules.find((rule) => Array.isArray(rule) && rule[1] === 'keyword')![0];
+    const functionRegex = rootRules.find((rule) => Array.isArray(rule) && rule[1] === 'function')![0];
+    expect(keywordRegex.test('initial')).toBe(true);
+    for (const metric of ['freq', 'period', 'duty_cycle', 'duty']) {
+      expect(functionRegex.test(metric)).toBe(true);
+    }
   });
 
   describe('Dependent sources (vcvs, vccs, ccvs, cccs)', () => {

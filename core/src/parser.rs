@@ -569,6 +569,23 @@ fn parse_statement(
                 numeric_expressions,
             }))
         }
+        Rule::initial_stmt => {
+            let (line, column) = inner.as_span().start_pos().line_col();
+            let mut inner_rules = inner.into_inner();
+            let net = inner_rules.next().unwrap().as_str().to_string();
+            let voltage_pair = inner_rules.next().unwrap();
+            let _ = numeric_expression(&voltage_pair)?;
+            let mut voltage = voltage_pair.as_str().to_string();
+            if voltage.starts_with('"') && voltage.ends_with('"') && voltage.len() >= 2 {
+                voltage = voltage[1..voltage.len() - 1].to_string();
+            }
+            Some(Statement::Initial(InitialStmt {
+                net,
+                voltage,
+                line,
+                column,
+            }))
+        }
         _ => None,
     })
 }

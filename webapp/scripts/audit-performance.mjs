@@ -27,10 +27,10 @@ const stages = [
   {
     id: 'editor_activation',
     description: 'Editor UI, Monaco worker and canonical Core WASM loaded after Open Web Hub',
-    // Reviewed 1.5 SPICE/device domain (dependent sources, switches, Zener, JFET, coupled inductors,
-    // 4-pin MOSFET bulk, EXP, parameter expressions), showcase examples and onboarding growth:
-    // measured 3185 KiB. Retain roughly 35 KiB headroom; landing and Ngspice budgets are unchanged.
-    budget_gzip_bytes: 3220 * 1024,
+    // Phase 6 expansion (initial conditions, differential V(A, B), periodic/harmonic metrics,
+    // 6 built-in semiconductor models, and 2 new engineering calculators in Core/Monaco/Web Hub):
+    // measured 3220 KiB (3297559 B). Retain roughly 40 KiB headroom; landing and Ngspice budgets unchanged.
+    budget_gzip_bytes: 3260 * 1024,
     assets: select('editor activation', [/^WorkspaceApp-.*\.js$/, /^WorkspaceApp-.*\.css$/, /^editor\.worker-.*\.js$/, /^kessetsu_core_bg-.*\.wasm$/]),
   },
   {

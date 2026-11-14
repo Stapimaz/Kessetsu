@@ -95,6 +95,8 @@ struct Elaborator<'a> {
     identities: BTreeMap<String, Vec<String>>,
     work: usize,
     parameter_locations: BTreeMap<String, ParameterLocation>,
+    /// Maps qualified module parameter name -> (origin parameter prefix, unqualified source).
+    module_params: BTreeMap<String, (String, String)>,
 }
 
 impl Elaborator<'_> {
@@ -126,6 +128,126 @@ impl Elaborator<'_> {
         }
         self.output.push(statement);
         Ok(())
+    }
+
+    fn expand_module_initial_expr(
+        &self,
+        origin_prefix: &str,
+        expr: &str,
+        initial: &InitialStmt,
+        depth: usize,
+        active: &mut BTreeSet<String>,
+    ) -> Result<String, ElaborationError> {
+        if depth > crate::expression::MAX_EXPRESSION_DEPTH {
+            return Err(ElaborationError::at(
+                format!(
+                    "Initial condition for net '{}' exceeds maximum parameter expansion depth",
+                    initial.net
+                ),
+                initial.net.clone(),
+                initial.line,
+                initial.column,
+            ));
+        }
+        let mut out = String::with_capacity(expr.len());
+        let bytes = expr.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() {
+            let b = bytes[i];
+            if b.is_ascii_alphabetic() {
+                let start = i;
+                i += 1;
+                while i < bytes.len() && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
+                    i += 1;
+                }
+                let ident = &expr[start..i];
+                if !origin_prefix.is_empty() {
+                    let qual_key = format!("{origin_prefix}{ident}");
+                    if let Some((target_origin, target_src)) =
+                        self.module_params.get(&qual_key).cloned()
+                    {
+                        if !active.insert(qual_key.clone()) {
+                            return Err(ElaborationError::at(
+                                format!(
+                                    "Cycle detected in module parameter '{}' referenced by initial V({})",
+                                    ident, initial.net
+                                ),
+                                initial.net.clone(),
+                                initial.line,
+                                initial.column,
+                            ));
+                        }
+                        let expanded = self.expand_module_initial_expr(
+                            &target_origin,
+                            &target_src,
+                            initial,
+                            depth + 1,
+                            active,
+                        )?;
+                        active.remove(&qual_key);
+                        out.push('(');
+                        out.push_str(&expanded);
+                        out.push(')');
+                        if out.len() > crate::expression::MAX_EXPRESSION_BYTES {
+                            return Err(ElaborationError::at(
+                                format!(
+                                    "Expanded initial condition expression for net '{}' exceeds byte limit",
+                                    initial.net
+                                ),
+                                initial.net.clone(),
+                                initial.line,
+                                initial.column,
+                            ));
+                        }
+                        continue;
+                    }
+                }
+                out.push_str(ident);
+            } else if b.is_ascii_digit() || b == b'.' {
+                let start = i;
+                while i < bytes.len() && bytes[i].is_ascii_digit() {
+                    i += 1;
+                }
+                if i < bytes.len() && bytes[i] == b'.' {
+                    i += 1;
+                    while i < bytes.len() && bytes[i].is_ascii_digit() {
+                        i += 1;
+                    }
+                }
+                if i < bytes.len() && matches!(bytes[i], b'e' | b'E') {
+                    i += 1;
+                    if i < bytes.len() && matches!(bytes[i], b'+' | b'-') {
+                        i += 1;
+                    }
+                    while i < bytes.len() && bytes[i].is_ascii_digit() {
+                        i += 1;
+                    }
+                }
+                while let Some(ch) = expr[i..].chars().next() {
+                    if !(ch.is_ascii_alphabetic() || matches!(ch, 'µ' | 'Ω' | '%')) {
+                        break;
+                    }
+                    i += ch.len_utf8();
+                }
+                out.push_str(&expr[start..i]);
+            } else {
+                let ch = expr[i..].chars().next().unwrap();
+                out.push(ch);
+                i += ch.len_utf8();
+            }
+            if out.len() > crate::expression::MAX_EXPRESSION_BYTES {
+                return Err(ElaborationError::at(
+                    format!(
+                        "Expanded initial condition expression for net '{}' exceeds byte limit",
+                        initial.net
+                    ),
+                    initial.net.clone(),
+                    initial.line,
+                    initial.column,
+                ));
+            }
+        }
+        Ok(out)
     }
 
     fn expand(&mut self, statements: &[Statement], scope: &Scope) -> Result<(), ElaborationError> {
@@ -261,6 +383,7 @@ impl Elaborator<'_> {
                         parameter_locations: BTreeMap::new(),
                     };
                     let mut overrides = BTreeMap::new();
+                    let mut raw_override_sources = BTreeMap::new();
                     for value in &instance.overrides {
                         self.work += value.expression.node_count();
                         if self.work > MAX_EXPRESSION_WORK {
@@ -303,6 +426,8 @@ impl Elaborator<'_> {
                                 value.column,
                             ));
                         }
+                        raw_override_sources
+                            .insert(value.name.clone(), value.expression.source.clone());
                         value
                             .expression
                             .validate_units(&scope.units, *unit)
@@ -330,13 +455,29 @@ impl Elaborator<'_> {
                         return Err("Module expansion exceeds the 100000 statement limit".into());
                     }
                     let mut effective = module.statements.clone();
+                    let child_param_prefix = child.parameter_prefix();
                     for statement in &mut effective {
-                        if let Statement::Param(parameter) = statement
-                            && let Some(expression) = overrides.remove(&parameter.name)
-                        {
-                            parameter.default_expression =
-                                Some(parameter.expression.source.clone());
-                            parameter.expression = expression;
+                        if let Statement::Param(parameter) = statement {
+                            if let Some(expression) = overrides.remove(&parameter.name) {
+                                let raw_source = raw_override_sources
+                                    .remove(&parameter.name)
+                                    .unwrap_or_else(|| expression.source.clone());
+                                self.module_params.insert(
+                                    format!("{child_param_prefix}{}", parameter.name),
+                                    (parameter_prefix.clone(), raw_source),
+                                );
+                                parameter.default_expression =
+                                    Some(parameter.expression.source.clone());
+                                parameter.expression = expression;
+                            } else {
+                                self.module_params.insert(
+                                    format!("{child_param_prefix}{}", parameter.name),
+                                    (
+                                        child_param_prefix.clone(),
+                                        parameter.expression.source.clone(),
+                                    ),
+                                );
+                            }
                         }
                     }
                     self.emit(
@@ -385,6 +526,111 @@ impl Elaborator<'_> {
                         scope.label()
                     ).into());
                 }
+                Statement::Initial(initial) => {
+                    if scope.path.is_empty() {
+                        self.emit(Statement::Initial(initial.clone()), scope)?;
+                    } else {
+                        let net = if initial.net == "0" || initial.net.eq_ignore_ascii_case("gnd") {
+                            initial.net.clone()
+                        } else if let Some(port) = scope
+                            .ports
+                            .iter()
+                            .find(|port| port.eq_ignore_ascii_case(&initial.net))
+                        {
+                            return Err(ElaborationError::at(
+                                format!(
+                                    "Instance '{}': initial condition cannot target module port '{}'; set initial conditions on a declared internal net or connected outer net instead",
+                                    scope.label(),
+                                    port
+                                ),
+                                initial.net.clone(),
+                                initial.line,
+                                initial.column,
+                            ));
+                        } else if let Some(declared_net) = scope
+                            .nets
+                            .iter()
+                            .find(|declared| declared.eq_ignore_ascii_case(&initial.net))
+                        {
+                            format!("{prefix}{declared_net}")
+                        } else {
+                            format!("{prefix}{}", initial.net)
+                        };
+                        let voltage = if let Some(inner) = initial
+                            .voltage
+                            .strip_prefix('{')
+                            .and_then(|s| s.strip_suffix('}'))
+                        {
+                            let parsed = crate::expression::parse_expression(inner).map_err(|cause| {
+                                ElaborationError::at(
+                                    format!(
+                                        "Instance '{}', initial V({}) at {}:{}: {} (expression byte {})",
+                                        scope.label(),
+                                        initial.net,
+                                        initial.line,
+                                        initial.column,
+                                        cause.message,
+                                        cause.offset + 1
+                                    ),
+                                    initial.net.clone(),
+                                    initial.line,
+                                    initial.column,
+                                )
+                            })?;
+                            parsed
+                                .validate_units(&scope.units, SIUnit::Volt)
+                                .map_err(|error| {
+                                    ElaborationError::at(
+                                        format!(
+                                            "Instance '{}', initial V({}) at {}:{}: {error}",
+                                            scope.label(),
+                                            initial.net,
+                                            initial.line,
+                                            initial.column
+                                        ),
+                                        initial.net.clone(),
+                                        initial.line,
+                                        initial.column,
+                                    )
+                                })?;
+                            let expanded = self.expand_module_initial_expr(
+                                &parameter_prefix,
+                                inner,
+                                initial,
+                                0,
+                                &mut BTreeSet::new(),
+                            )?;
+                            crate::expression::parse_expression(&expanded).map_err(|cause| {
+                                ElaborationError::at(
+                                    format!(
+                                        "Instance '{}', initial V({}) at {}:{}: {} (expression byte {})",
+                                        scope.label(),
+                                        initial.net,
+                                        initial.line,
+                                        initial.column,
+                                        cause.message,
+                                        cause.offset + 1
+                                    ),
+                                    initial.net.clone(),
+                                    initial.line,
+                                    initial.column,
+                                )
+                            })?;
+                            format!("{{{expanded}}}")
+                        } else {
+                            initial.voltage.clone()
+                        };
+                        self.emit(
+                            Statement::Initial(InitialStmt {
+                                net,
+                                voltage,
+                                line: initial.line,
+                                column: initial.column,
+                            }),
+                            scope,
+                        )?;
+                    }
+                }
                 _ => self.emit(statement.clone(), scope)?,
             }
         }
@@ -400,6 +646,7 @@ pub(crate) fn flatten(program: &Program) -> Result<ElaboratedProgram, Elaboratio
         identities: BTreeMap::new(),
         work: 0,
         parameter_locations: BTreeMap::new(),
+        module_params: BTreeMap::new(),
     };
     for module in &program.modules {
         if elaborator.modules.insert(&module.name, module).is_some() {

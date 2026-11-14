@@ -1138,6 +1138,16 @@ fn builtin_models() -> Vec<ModelRef> {
             ComponentKind::BJT(BJTPolarity::NPN),
             ".model 2N2222 NPN (Is=14.34f Xti=3 Eg=1.11 Vaf=74.03 Bf=255.9 Ne=1.307 Ise=14.34f Ikf=.2847 Xtb=1.5 Br=6.092 Nc=2 Isc=0 Ikr=0 Rc=1 Cjc=7.306p Mjc=.3416 Vjc=.75 Fc=.5 Cje=22.01p Mje=.377 Vje=.75 Tr=46.91n Tf=411.1p Itf=.6 Vtf=1.7 Xtf=3 Rb=10)",
         ),
+        device_model(
+            "BC547",
+            ComponentKind::BJT(BJTPolarity::NPN),
+            ".model BC547 NPN (IS=1.8e-14 BF=400 NF=0.9955 VAF=80 IKF=0.14 ISE=5e-14 NE=1.46 BR=35.5 NR=1.005 VAR=12.5 IKR=0.03 ISC=1.72e-13 NC=1.27 RB=0.56 RE=0.6 RC=0.25 CJE=13p VJE=0.75 MJE=0.33 CJC=4p VJC=0.54 MJC=0.38 TF=0.64n TR=50n)",
+        ),
+        device_model(
+            "BC557",
+            ComponentKind::BJT(BJTPolarity::PNP),
+            ".model BC557 PNP (IS=1.05e-14 BF=330 NF=0.9908 VAF=38.3 IKF=0.1 ISE=5.03e-14 NE=1.529 BR=11.1 NR=1.003 VAR=20 IKR=0.047 ISC=1e-13 NC=1.2 RB=0.6 RE=0.6 RC=0.3 CJE=12p VJE=0.65 MJE=0.33 CJC=6p VJC=0.55 MJC=0.4 TF=0.6n TR=55n)",
+        ),
         verified_device_model(
             "KESSETSU_POWER_NPN_V1",
             ComponentKind::BJT(BJTPolarity::NPN),
@@ -1161,6 +1171,11 @@ fn builtin_models() -> Vec<ModelRef> {
             ComponentKind::Diode,
             ".model 1N4007 D (Is=7.02767n Rs=0.0341512 N=1.80803 Cjo=10p M=0.3333 VJ=0.75)",
             "1.0.1",
+        ),
+        device_model(
+            "1N5819",
+            ComponentKind::Diode,
+            ".model 1N5819 D (IS=3.16e-5 N=1.08 RS=0.042 BV=40 IBV=1e-4 CJO=110p VJ=0.35 M=0.38 TT=1e-9)",
         ),
         verified_device_model(
             "1N4733A",
@@ -1191,6 +1206,16 @@ fn builtin_models() -> Vec<ModelRef> {
             ComponentKind::MOSFET(FETPolarity::NMOS),
             ".model IRF540 VDMOS (Rg=3 Vto=4.0 Rd=45m Rs=12m Rb=10m Kp=18 Cgdmax=2n Cgdmin=1.3n Cgs=1.7n Cjo=1n Is=2p mfg=IR)",
         ),
+        device_model(
+            "2N7000",
+            ComponentKind::MOSFET(FETPolarity::NMOS),
+            ".model 2N7000 NMOS (LEVEL=1 VTO=2.1 KP=0.15 LAMBDA=0.01 RD=1.2 RS=0.8 CBD=35p CBS=35p CGSO=120p CGDO=30p)",
+        ),
+        device_model(
+            "BSS84",
+            ComponentKind::MOSFET(FETPolarity::PMOS),
+            ".model BSS84 PMOS (LEVEL=1 VTO=-1.7 KP=0.08 LAMBDA=0.015 RD=2.5 RS=1.5 CBD=25p CBS=25p CGSO=90p CGDO=25p)",
+        ),
         verified_device_model(
             "KESSETSU_PMOS_V1",
             ComponentKind::MOSFET(FETPolarity::PMOS),
@@ -1217,6 +1242,11 @@ fn builtin_models() -> Vec<ModelRef> {
             "2N5460",
             ComponentKind::JFET(JFETPolarity::PJF),
             ".model 2N5460 PJF (VTO=-2.5 BETA=1.0m LAMBDA=3.0m RD=15 RS=15 CGS=5p CGD=2p)",
+        ),
+        device_model(
+            "J201",
+            ComponentKind::JFET(JFETPolarity::NJF),
+            ".model J201 NJF (VTO=-0.9 BETA=1.0e-3 LAMBDA=0.005 RD=15 RS=15 CGS=4p CGD=1.5p IS=1e-14)",
         ),
         subcircuit_model(
             "KESSETSU_OPAMP_V1",
@@ -1455,5 +1485,127 @@ fn error(
         message: message.into(),
         component: component.map(str::to_string),
         field: Some(field.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::compiler::{CompileOptions, compile_source};
+
+    #[test]
+    fn builtin_models_include_classic_phase6_semiconductors() {
+        let cases = [
+            ("1N5819", ComponentKind::Diode, "IS=3.16e-5"),
+            ("1n5819", ComponentKind::Diode, "BV=40"),
+            ("BC547", ComponentKind::BJT(BJTPolarity::NPN), "BF=400"),
+            ("BC557", ComponentKind::BJT(BJTPolarity::PNP), "BF=330"),
+            (
+                "2N7000",
+                ComponentKind::MOSFET(FETPolarity::NMOS),
+                "VTO=2.1",
+            ),
+            (
+                "BSS84",
+                ComponentKind::MOSFET(FETPolarity::PMOS),
+                "VTO=-1.7",
+            ),
+            ("J201", ComponentKind::JFET(JFETPolarity::NJF), "VTO=-0.9"),
+        ];
+
+        for (name, expected_kind, expected_param) in cases {
+            let model = builtin_model(name)
+                .unwrap_or_else(|| panic!("expected built-in model '{name}' to exist"));
+            assert_eq!(model.kind, expected_kind, "kind mismatch for {name}");
+            assert_eq!(model.source, ModelSource::Builtin);
+            let ModelDefinition::Device { directive } = &model.definition else {
+                panic!("expected device directive for {name}");
+            };
+            assert!(
+                directive.contains(expected_param),
+                "directive for {name} missing '{expected_param}': {directive}"
+            );
+        }
+    }
+
+    #[test]
+    fn classic_phase6_models_compile_and_generate_spice() {
+        let source = "\
+net GND
+net VCC
+net N1
+net N2
+net N3
+net N4
+net N5
+net N6
+source V1 12V
+diode D1 1N5819
+transistor Q1 npn BC547
+transistor Q2 pnp BC557
+mosfet M1 2N7000
+mosfet M2 BSS84
+jfet J1 J201
+resistor R1 1k
+resistor R2 1k
+resistor R3 1k
+resistor R4 1k
+resistor R5 1k
+resistor R6 1k
+connect V1.plus to VCC
+connect V1.minus to GND
+connect D1.p1 to VCC
+connect D1.p2 to N1
+connect R1.p1 to N1
+connect R1.p2 to GND
+connect Q1.c to N2
+connect Q1.b to N1
+connect Q1.e to GND
+connect R2.p1 to VCC
+connect R2.p2 to N2
+connect Q2.e to VCC
+connect Q2.b to N2
+connect Q2.c to N3
+connect R3.p1 to N3
+connect R3.p2 to GND
+connect M1.d to N4
+connect M1.g to N3
+connect M1.s to GND
+connect R4.p1 to VCC
+connect R4.p2 to N4
+connect M2.s to VCC
+connect M2.g to N4
+connect M2.d to N5
+connect R5.p1 to N5
+connect R5.p2 to GND
+connect J1.d to N6
+connect J1.g to GND
+connect J1.s to R6.p1
+connect R6.p2 to GND
+resistor R7 1k
+connect R7.p1 to VCC
+connect R7.p2 to N6
+simulate op
+";
+        let report = compile_source(source, CompileOptions::default());
+        assert!(!report.has_errors(), "{:?}", report.diagnostics);
+        let ir = report.ir.expect("IR should compile");
+        for model_name in ["1N5819", "BC547", "BC557", "2N7000", "BSS84", "J201"] {
+            assert!(
+                ir.model_manifest
+                    .models
+                    .iter()
+                    .any(|entry| entry.name == model_name),
+                "missing {model_name} in model manifest"
+            );
+        }
+        let spice = report.spice_netlist.expect("SPICE should generate");
+        assert!(spice.contains(".model 1N5819 D ("), "{spice}");
+        assert!(spice.contains(".model BC547 NPN ("), "{spice}");
+        assert!(spice.contains(".model BC557 PNP ("), "{spice}");
+        assert!(spice.contains(".model 2N7000 NMOS ("), "{spice}");
+        assert!(spice.contains(".model BSS84 PMOS ("), "{spice}");
+        assert!(spice.contains(".model J201 NJF ("), "{spice}");
+        assert!(spice.contains("@J_J1[id]"), "{spice}");
     }
 }

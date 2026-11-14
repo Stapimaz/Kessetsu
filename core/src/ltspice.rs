@@ -746,6 +746,13 @@ pub fn generate_ltspice_asc(
         ));
         directive_y += 16;
     }
+    for ic in &circuit.initial_conditions {
+        out.push_str(&format!(
+            "TEXT 32 {directive_y} Left 2 !.ic V({})={}\n",
+            ic.net, ic.voltage_expr
+        ));
+        directive_y += 24;
+    }
     for (index, analysis) in circuit.analyses.iter().enumerate() {
         let mut command = format_analysis(analysis, circuit);
         if let Analysis::DcSweep { source, .. } = analysis {

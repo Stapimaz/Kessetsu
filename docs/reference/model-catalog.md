@@ -72,7 +72,14 @@ statement/nesting counts. These are resource ceilings, not a hard aggregate memo
 
 Kessetsu provides built-in generic JFET models for N-channel and P-channel junction field-effect transistors:
 - **`2N5457`** (alias **`J2N5457`**): Generic N-channel JFET (`NJF`, version `1.0.0`). Characterized with pinch-off voltage `vto = -1.5V`, transconductance parameter `beta = 1.125mA/V²`, channel-length modulation `lambda = 2.25m 1/V`, ohmic resistances `rd = 10 Ω`, `rs = 10 Ω`, and gate capacitances `cgs = 4pF`, `cgd = 1.5pF`.
+- **`J201`**: Generic low-noise N-channel JFET (`NJF`). Characterized with pinch-off voltage `vto = -0.9V`, `beta = 1.0mA/V²`, `lambda = 5.0m 1/V`, `rd = 15 Ω`, `rs = 15 Ω`, `cgs = 4pF`, `cgd = 1.5pF`, and `is = 1e-14 A`.
 - **`2N5460`**: Generic P-channel JFET (`PJF`, version `1.0.0`). Characterized with pinch-off voltage `vto = -2.5V`, transconductance parameter `beta = 1.0mA/V²`, channel-length modulation `lambda = 3.0m 1/V`, ohmic resistances `rd = 15 Ω`, `rs = 15 Ω`, and gate capacitances `cgs = 5pF`, `cgd = 2pF`.
+
+### Built-in diodes, BJTs, and MOSFETs
+
+- **Diodes:** `1N4148` (small-signal), `1N4007` (rectifier), `1N5819` (Schottky barrier diode, `BV=40`, `IS=3.16e-5`, `N=1.08`), and Zeners below.
+- **BJTs:** `2N3904` (`npn`), `2N3906` (`pnp`), `2N2222` (`npn`), `BC547` (`npn`, `BF=400`), `BC557` (`pnp`, `BF=330`), `KESSETSU_POWER_NPN_V1`, and `KESSETSU_POWER_PNP_V1`.
+- **MOSFETs:** `IRF540` (`nmos` power), `2N7000` (`nmos`, `VTO=2.1`, `KP=0.15`), `BSS84` (`pmos`, `VTO=-1.7`, `KP=0.08`), and `KESSETSU_PMOS_V1`.
 
 ### `model jfet` parameter reference
 

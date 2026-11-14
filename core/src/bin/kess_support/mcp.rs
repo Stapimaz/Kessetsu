@@ -225,18 +225,18 @@ fn tool_definitions() -> Vec<Value> {
         json!({
             "name": "kessetsu_tool",
             "title": "Nominal circuit calculator",
-            "description": "Run Kessetsu's nominal analytical circuit calculators (divider for voltage dividers and rc_lowpass for passive RC low-pass filters) with exact, E12, or E24 preferred value selection, returning calculated component values and editable .kess source.",
+            "description": "Run Kessetsu's nominal analytical circuit calculators (divider for voltage dividers, rc_lowpass for passive RC low-pass filters, non_inverting_opamp for non-inverting op-amp gain stages, and zener_regulator for Zener shunt regulators) with exact, E12, or E24 preferred value selection, returning calculated component values and editable .kess source.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "tool": {
                         "type": "string",
-                        "enum": ["divider", "rc_lowpass"],
+                        "enum": ["divider", "rc_lowpass", "non_inverting_opamp", "zener_regulator"],
                         "description": "Calculator to run."
                     },
                     "vin": {
                         "type": "string",
-                        "description": "Input voltage for divider (e.g. '12V')."
+                        "description": "Input voltage for divider (e.g. '12V'), zener_regulator (e.g. '12V'), or optional input voltage for non_inverting_opamp (default '0.5V')."
                     },
                     "target": {
                         "type": "string",
@@ -257,6 +257,34 @@ fn tool_definitions() -> Vec<Value> {
                     "resistance": {
                         "type": "string",
                         "description": "Series resistor value for rc_lowpass (e.g. '10k')."
+                    },
+                    "target_gain": {
+                        "type": "string",
+                        "description": "Target dimensionless voltage gain V/V (> 1) for non_inverting_opamp (e.g. '10')."
+                    },
+                    "input_resistance": {
+                        "type": "string",
+                        "description": "Grounded inverting-input resistor R1 for non_inverting_opamp (e.g. '10k')."
+                    },
+                    "input_voltage": {
+                        "type": "string",
+                        "description": "Input voltage for non_inverting_opamp (optional, default '0.5V') or zener_regulator (e.g. '12V')."
+                    },
+                    "supply_voltage": {
+                        "type": "string",
+                        "description": "Optional symmetric supply rail magnitude ±Vsupply (> 2V, default '15V') for non_inverting_opamp."
+                    },
+                    "zener_voltage": {
+                        "type": "string",
+                        "description": "Target Zener breakdown voltage for zener_regulator ('3.3V', '5.1V', or '12V')."
+                    },
+                    "load_current": {
+                        "type": "string",
+                        "description": "Target load current (> 0) for zener_regulator (e.g. '10mA')."
+                    },
+                    "zener_knee_current": {
+                        "type": "string",
+                        "description": "Optional minimum Zener bias current (> 0, default '5mA') for zener_regulator."
                     },
                     "values": {
                         "type": "string",
@@ -775,7 +803,10 @@ fn tool_command(arguments: &Value) -> Result<CliOutput, String> {
     let tool = arguments
         .get("tool")
         .and_then(Value::as_str)
-        .ok_or_else(|| "tool is required ('divider' or 'rc_lowpass')".to_string())?;
+        .ok_or_else(|| {
+            "tool is required ('divider', 'rc_lowpass', 'non_inverting_opamp', or 'zener_regulator')"
+                .to_string()
+        })?;
 
     let values = arguments
         .get("values")
@@ -785,12 +816,39 @@ fn tool_command(arguments: &Value) -> Result<CliOutput, String> {
         return Err(format!("values must be exact, e12, or e24, not '{values}'"));
     }
 
+    let reject_keys = |tool_name: &str, forbidden: &[&str]| -> Result<(), String> {
+        let present = forbidden
+            .iter()
+            .copied()
+            .filter(|key| arguments.get(*key).is_some_and(|v| !v.is_null()))
+            .collect::<Vec<_>>();
+        if present.is_empty() {
+            Ok(())
+        } else {
+            Err(format!(
+                "{} is not valid parameter(s) for {tool_name}",
+                present.join(", ")
+            ))
+        }
+    };
+
     let mut args = vec!["tool".to_string()];
     match tool {
         "divider" => {
-            if arguments.get("cutoff").is_some() || arguments.get("resistance").is_some() {
-                return Err("cutoff and resistance are not valid parameters for divider".into());
-            }
+            reject_keys(
+                "divider",
+                &[
+                    "cutoff",
+                    "resistance",
+                    "target_gain",
+                    "input_resistance",
+                    "input_voltage",
+                    "supply_voltage",
+                    "zener_voltage",
+                    "load_current",
+                    "zener_knee_current",
+                ],
+            )?;
             let vin = arguments
                 .get("vin")
                 .and_then(Value::as_str)
@@ -818,15 +876,22 @@ fn tool_command(arguments: &Value) -> Result<CliOutput, String> {
             }
         }
         "rc_lowpass" => {
-            if arguments.get("vin").is_some()
-                || arguments.get("target").is_some()
-                || arguments.get("lower").is_some()
-                || arguments.get("load").is_some()
-            {
-                return Err(
-                    "vin, target, lower, and load are not valid parameters for rc_lowpass".into(),
-                );
-            }
+            reject_keys(
+                "rc_lowpass",
+                &[
+                    "vin",
+                    "target",
+                    "lower",
+                    "load",
+                    "target_gain",
+                    "input_resistance",
+                    "input_voltage",
+                    "supply_voltage",
+                    "zener_voltage",
+                    "load_current",
+                    "zener_knee_current",
+                ],
+            )?;
             let cutoff = arguments
                 .get("cutoff")
                 .and_then(Value::as_str)
@@ -842,9 +907,107 @@ fn tool_command(arguments: &Value) -> Result<CliOutput, String> {
             args.push("--resistance".to_string());
             args.push(resistance.to_string());
         }
+        "non_inverting_opamp" | "non-inverting-opamp" | "opamp_gain" | "opamp-gain" => {
+            reject_keys(
+                "non_inverting_opamp",
+                &[
+                    "cutoff",
+                    "target",
+                    "load",
+                    "zener_voltage",
+                    "load_current",
+                    "zener_knee_current",
+                ],
+            )?;
+            if arguments.get("input_voltage").is_some_and(|v| !v.is_null())
+                && arguments.get("vin").is_some_and(|v| !v.is_null())
+            {
+                return Err(
+                    "provide either 'input_voltage' or 'vin' for non_inverting_opamp, not both"
+                        .into(),
+                );
+            }
+            let target_gain = arguments
+                .get("target_gain")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "non_inverting_opamp requires 'target_gain'".to_string())?;
+            let input_resistance = arguments
+                .get("input_resistance")
+                .or_else(|| arguments.get("lower"))
+                .or_else(|| arguments.get("resistance"))
+                .and_then(Value::as_str)
+                .ok_or_else(|| "non_inverting_opamp requires 'input_resistance'".to_string())?;
+
+            args.push("non-inverting-opamp".to_string());
+            args.push("--target-gain".to_string());
+            args.push(target_gain.to_string());
+            args.push("--input-resistance".to_string());
+            args.push(input_resistance.to_string());
+
+            if let Some(vin) = arguments
+                .get("input_voltage")
+                .or_else(|| arguments.get("vin"))
+                .and_then(Value::as_str)
+            {
+                args.push("--input-voltage".to_string());
+                args.push(vin.to_string());
+            }
+            if let Some(supply) = arguments.get("supply_voltage").and_then(Value::as_str) {
+                args.push("--supply-voltage".to_string());
+                args.push(supply.to_string());
+            }
+        }
+        "zener_regulator" | "zener-regulator" => {
+            reject_keys(
+                "zener_regulator",
+                &[
+                    "cutoff",
+                    "resistance",
+                    "target",
+                    "lower",
+                    "load",
+                    "target_gain",
+                    "input_resistance",
+                    "supply_voltage",
+                ],
+            )?;
+            if arguments.get("input_voltage").is_some_and(|v| !v.is_null())
+                && arguments.get("vin").is_some_and(|v| !v.is_null())
+            {
+                return Err(
+                    "provide either 'input_voltage' or 'vin' for zener_regulator, not both".into(),
+                );
+            }
+            let vin = arguments
+                .get("input_voltage")
+                .or_else(|| arguments.get("vin"))
+                .and_then(Value::as_str)
+                .ok_or_else(|| "zener_regulator requires 'input_voltage' (or 'vin')".to_string())?;
+            let vz = arguments
+                .get("zener_voltage")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "zener_regulator requires 'zener_voltage'".to_string())?;
+            let iload = arguments
+                .get("load_current")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "zener_regulator requires 'load_current'".to_string())?;
+
+            args.push("zener-regulator".to_string());
+            args.push("--input-voltage".to_string());
+            args.push(vin.to_string());
+            args.push("--zener-voltage".to_string());
+            args.push(vz.to_string());
+            args.push("--load-current".to_string());
+            args.push(iload.to_string());
+
+            if let Some(iz_min) = arguments.get("zener_knee_current").and_then(Value::as_str) {
+                args.push("--zener-knee-current".to_string());
+                args.push(iz_min.to_string());
+            }
+        }
         _ => {
             return Err(format!(
-                "unknown tool '{tool}', expected divider or rc_lowpass"
+                "unknown tool '{tool}', expected divider, rc_lowpass, non_inverting_opamp, or zener_regulator"
             ));
         }
     }
@@ -1228,6 +1391,42 @@ mod tests {
             "kessetsu_study_run",
         ] {
             assert!(names.iter().any(|name| name == expected), "{expected}");
+        }
+        let tool_def = tool_definitions()
+            .into_iter()
+            .find(|tool| tool["name"] == "kessetsu_tool")
+            .expect("kessetsu_tool must exist");
+        let tool_enum = tool_def["inputSchema"]["properties"]["tool"]["enum"]
+            .as_array()
+            .expect("tool enum")
+            .iter()
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            tool_enum,
+            vec![
+                "divider",
+                "rc_lowpass",
+                "non_inverting_opamp",
+                "zener_regulator"
+            ]
+        );
+        let props = tool_def["inputSchema"]["properties"]
+            .as_object()
+            .expect("properties");
+        for prop in [
+            "target_gain",
+            "input_resistance",
+            "input_voltage",
+            "supply_voltage",
+            "zener_voltage",
+            "load_current",
+            "zener_knee_current",
+        ] {
+            assert!(
+                props.contains_key(prop),
+                "missing kessetsu_tool prop {prop}"
+            );
         }
     }
 }

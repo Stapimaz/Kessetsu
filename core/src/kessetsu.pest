@@ -24,7 +24,7 @@ source_type = { "source" | "current_source" }
 // Waveforms have numeric arguments, not nested waveform calls. Keep the grammar
 // non-recursive; bounded expression parsing owns arithmetic parentheses.
 source_argument = { value_expr | comp_value }
-func_call = { ident ~ "(" ~ source_argument ~ ("," ~ source_argument)* ~ ")" }
+func_call = { ident ~ "(" ~ source_argument ~ (","? ~ source_argument)* ~ ")" }
 source_param = { value_expr | func_call | comp_value }
 source_decl = { source_type ~ ident ~ (value_expr | source_param) }
 
@@ -36,6 +36,8 @@ part_stmt = { "part" ~ ident ~ named_value+ }
 pin_ref = { ident ~ ("." ~ ident)? }
 connect = { "connect" ~ pin_ref ~ ("," ~ pin_ref)* ~ "to" ~ pin_ref }
 couple_stmt = { "couple" ~ ident ~ ident ~ ident+ ~ numeric_value }
+initial_target = @{ ident | ASCII_DIGIT+ }
+initial_stmt = { ^"initial" ~ ^"v" ~ "(" ~ initial_target ~ ")" ~ "=" ~ numeric_value }
 
 // Assertions
 signal_target = @{ pin_ref | ASCII_DIGIT+ }
@@ -62,7 +64,7 @@ external_kind = { "opamp" | "comparator" | "two_terminal" }
 external_subcircuit_decl = { "external_subcircuit" ~ external_kind ~ ident ~ "(" ~ pin_list ~ ")" ~ named_value+ }
 model_include = { "model_include" ~ ident ~ comp_value }
 
-statement = { (param_decl | decl | net_stmt | part_stmt | use_stmt | connect | couple_stmt | assert_stmt | sim_cmd) }
+statement = { (param_decl | decl | net_stmt | part_stmt | use_stmt | connect | couple_stmt | initial_stmt | assert_stmt | sim_cmd) }
 
 pin_list = { ident ~ ("," ~ ident)* }
 module_decl = { "module" ~ ident ~ "(" ~ pin_list? ~ ")" ~ "{" ~ NEWLINE* ~ (statement ~ NEWLINE+)* ~ "}" }

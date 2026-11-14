@@ -49,7 +49,7 @@ Agents with terminal access can also call `kess` directly (`kess check`, `kess t
 - `kessetsu_render_schematic`: Generates a connectivity-proven SVG schematic for visual inspection.
 - `kessetsu_export`: Exports circuits to external EDA targets (`kicad`, `ltspice`, `bom-csv`, `spice`, `json`, `pdf`).
 - `kessetsu_import_spice`: Converts supported SPICE netlists into editable, reviewable `.kess` source.
-- `kessetsu_tool`: Nominal engineering calculators (`divider` for resistive dividers under load, `rc_lowpass` / `rc-lowpass` for first-order filters) with exact, E12, or E24 standard component selection.
+- `kessetsu_tool`: Nominal engineering calculators (`divider` for resistive dividers under load, `rc_lowpass` / `rc-lowpass` for first-order filters, `non_inverting_opamp` / `non-inverting-opamp` for non-inverting op-amp stages, and `zener_regulator` / `zener-regulator` for 3.3 V / 5.1 V / 12 V Zener shunt regulators) with exact, E12, or E24 standard component selection.
 - `kessetsu_study_plan`: Plans deterministic multi-condition parameter studies (parameter sweeps, tolerance corners, temperature grids, seeded Monte Carlo draws) without side effects.
 - `kessetsu_study_run`: Executes multi-condition parameter studies sequentially, evaluating assertions across all cases to verify yield, corners, and feasible design points.
 
@@ -60,9 +60,9 @@ Agents with terminal access can also call `kess` directly (`kess check`, `kess t
    limit to make a design pass; if a limit looks impossible, report it to the human.
 2. **Design in readable source.** Write `design.kess` with named nets for every signal that
    matters (`IN`, `OUT`, `VCC`...), a comment stating the target, and modules for repeated
-   blocks. Initial component values can be sized using `kessetsu_tool` (voltage dividers and
-   RC low-pass filters with exact, E12, or E24 series). SPICE netlists are accepted too (see
-   below), but `.kess` is the reviewable format.
+   blocks. Initial component values can be sized using `kessetsu_tool` (voltage dividers,
+   RC low-pass filters, non-inverting op-amp stages, and Zener shunt regulators with exact,
+   E12, or E24 series). SPICE netlists are accepted too (see below), but `.kess` is the reviewable format.
 3. **Check structure.** Call `kessetsu_check`. Fix every ERC error (floating pins, shorted
    sources, ambiguous ground) before simulating; these are the root cause of most cryptic
    simulator failures.
@@ -115,6 +115,7 @@ simulate ac dec 40 10Hz 100kHz   // also: op | tran 10us 5ms | dc VIN 0V 5V 100m
   `vcvs E1 2.0` / `vccs G1 10mS` / `ccvs H1 1k` / `cccs F1 50.0` (`p_out`,`n_out`,`ctrl_p`,`ctrl_n`),
   `source` / `current_source` (`plus`,`minus`).
 - `net GND` is always SPICE node `0`. Name every net you will measure.
+- Initial conditions: `initial V(OUT) = 2.5V` (or `{v_init}`, emits SPICE `.ic` before `.control`).
 - Parameters: `param fc: Hz = 1kHz`, then `capacitor C1 {1 / (2 * pi * 1k * fc)}`.
 - Reusable blocks: `module LowPass(input,output,gnd) { ... }` and `use LowPass F1(fc=2kHz)`.
 - Custom device models: `model diode D1 version=1.0.0 license=MIT Is=2n Rs=0.5 N=1.75`.
@@ -132,11 +133,12 @@ assert upper_cutoff(V(OUT),V(IN)) < 1050Hz
 assert gain_at(V(OUT),V(IN),100Hz) > 0.99
 ```
 
-Common metrics: `value|min|max|peak|pk2pk|p2p|vpp|average|rms(V(net))`, `gain(out,in)`,
+Common metrics: `value|min|max|peak|pk2pk|p2p|vpp|average|avg|rms(V(net))`, `gain(out,in)`,
 `gain_at(out,in,f)`, `upper_cutoff/lower_cutoff(out,in)`, `phase(out,in,f)`,
-`frequency(V(net))`, `output_power(V(out),RL)`, `efficiency(...)`, `thd(...)`,
-`rise_time/fall_time/settling_time/overshoot(...)`, `dissipation(device)`.
-Signals: `V(net)`, `V(device)`, `I(device)`, `P(device)`. The
+`frequency/freq(V(net)[,start,stop])`, `period(V(net)[,start,stop])`,
+`duty_cycle/duty(V(net)[,start,stop])`, `output_power(V(out),RL)`, `efficiency(...)`,
+`thd(signal,f[,start,stop[,hann]])`, `rise_time/fall_time/settling_time/overshoot(...)`, `dissipation(device)`.
+Signals: `V(net)`, `V(net1,net2)` (differential across OP/TRAN/DC/AC), `V(device)`, `V(component.pin,net)`, `I(device)`, `P(device)`. The
 [measurement reference](../reference/measurements.md) defines exact semantics and the
 analysis each metric needs (for example cutoff metrics need `simulate ac`).
 
@@ -146,9 +148,10 @@ Every circuit command accepts a supported Ngspice-style netlist directly. Kesset
 it through the canonical importer, then applies the same ERC, simulation, assertions,
 schematic and exports. Five-terminal op-amps (`XU1 in_p in_n vcc vee out KESSETSU_OPAMP_V1`
 or `OPAMP`) become native `opamp` components, numeric SPICE nodes can be referenced directly
-in `.kessreq` (`V(1)`, `V(2)`), and inline `.model` cards for D/NPN/PNP/NMOS/PMOS are
-imported as typed models; `.control` blocks and output directives (`.print`, `.plot`, `.meas`,
-`.options`...) are skipped with warnings because Kessetsu owns measurement. Unsupported
+in `.kessreq` (`V(1)`, `V(2)`), inline `.model` cards for D/NPN/PNP/NJF/PJF/NMOS/PMOS/SW are
+imported as typed models, and root-level `.ic V(node)=value` directives convert natively to
+`initial V(NODE) = value`; `.control` blocks and output/node-set directives (`.print`, `.plot`, `.meas`,
+`.nodeset`, `.options`...) are skipped with warnings because Kessetsu owns measurement. Unsupported
 constructs fail with line numbers instead of being dropped. See the
 [SPICE import guide](spice-import.md).
 

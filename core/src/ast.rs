@@ -206,11 +206,20 @@ pub struct CouplingDecl {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct InitialStmt {
+    pub net: String,
+    pub voltage: String,
+    pub line: usize,
+    pub column: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Statement {
     Param(crate::expression::ParameterDecl),
     Decl(ComponentDecl),
     Connect(Connection),
     Couple(CouplingDecl),
+    Initial(InitialStmt),
     Net(NetDecl),
     Part(PartAssignmentDecl),
     Assert(AssertStmt),
@@ -226,6 +235,17 @@ impl Statement {
                 .factor_expression
                 .as_ref()
                 .map_or(0, |e| e.node_count()),
+            Self::Initial(initial) => {
+                if let Some(inner) = initial
+                    .voltage
+                    .strip_prefix('{')
+                    .and_then(|s| s.strip_suffix('}'))
+                {
+                    crate::expression::parse_expression(inner).map_or(0, |expr| expr.node_count())
+                } else {
+                    0
+                }
+            }
             Self::Decl(decl) => {
                 decl.value_expression.as_ref().map_or(0, |e| e.node_count())
                     + decl.waveform_expression.as_ref().map_or(0, |call| {

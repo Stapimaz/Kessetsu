@@ -55,16 +55,17 @@ engineering requirements: pass `--requirements limits.kessreq` in the CLI/MCP wo
 |---|---|
 | `R`, `C`, `L` with literal quantities and European RKM notation (`4k7`, `1u5`) | `resistor`, `capacitor`, `inductor` (trailing parameters like `tc1`, `tol`, `ic` tolerated with `KES-N011`) |
 | `K` coupled inductors (`K1 L1 L2 0.99`, `K1 L1 L2 L3 0.98`) | `couple` statements (two-winding and multi-winding with uniform coupling) |
-| Independent `V` and `I` | DC, AC, three-field SINE, seven-field PULSE, six-field EXP (`exp(...)`), or PWL source, plus combined DC bias + AC (`V1 in 0 DC 5 AC 1 0` -> `ac(1, 5)`) |
+| Independent `V` and `I` | DC, AC, three-field SINE, seven-field PULSE, six-field EXP (`exp(...)`), or comma/space-paired PWL source, plus combined DC bias + AC (`V1 in 0 DC 5 AC 1 0` -> `ac(1, 5)`) |
 | Linear dependent sources: `E` (VCVS), `G` (VCCS), `F` (CCCS), `H` (CCVS) | `vcvs`, `vccs`, `cccs`, `ccvs` (folds independent 0 V sense branches into Kessetsu's canonical 4-pin controlled sources) |
 | Voltage-controlled switch `S` with `.model ... SW` | `switch` component and `model switch` declaration (or default `KESSETSU_SW_V1`) |
-| `D`, `Q`, `J` (JFET), three-terminal `M`, and four-terminal `M` (MOSFET) | built-in models (`1N4148`, `1N4007`, Zener diodes `1N4733A`, `BZX84C*`, `2N3904`, `2N3906`, `2N2222`, `2N5457`, `J2N5457`, `2N5460`, `IRF540`, `KESSETSU_*`) or inline `.model`. Four-terminal MOSFETs (`M1 d g s b model`) with bulk tied to source fold to 3-pin `mosfet`, while explicit separate bulk nodes (`b != s`) import with all 4 pins (`d`, `g`, `s`, `b`) connected. Four-terminal BJTs fold grounded substrate (`0`/`GND`) or emitter with `KES-N011` warning |
+| `D`, `Q`, `J` (JFET), three-terminal `M`, and four-terminal `M` (MOSFET) | built-in models (`1N4148`, `1N4007`, Schottky `1N5819`, Zener diodes `1N4733A`, `BZX84C*`, `2N3904`, `2N3906`, `2N2222`, `BC547`, `BC557`, `2N5457`, `J2N5457`, `J201`, `2N5460`, `IRF540`, `2N7000`, `BSS84`, `KESSETSU_*`) or inline `.model`. Four-terminal MOSFETs (`M1 d g s b model`) with bulk tied to source fold to 3-pin `mosfet`, while explicit separate bulk nodes (`b != s`) import with all 4 pins (`d`, `g`, `s`, `b`) connected. Four-terminal BJTs fold grounded substrate (`0`/`GND`) or emitter with `KES-N011` warning |
 | 5-terminal `X` op-amp (`in_p in_n vcc vee out` with `KESSETSU_OPAMP_V1`, `KESSETSU_OPAMP_V2`, or `OPAMP`) | native `opamp` component (with op-amp ERC and schematic symbol) |
 | Inline `.model NAME D|NPN|PNP|NJF|PJF|NMOS|PMOS|SW(...)` | typed `model` declaration with validated Ngspice parameters, including diode breakdown (`bv`, `ibv`), full JFET parameters, and switch parameters (descriptive vendor fields such as `MFG` or `VCEO` are ignored with `KES-N011` warning) |
 | `.op`, bounded `.tran`, `.ac`, single-source `.dc` | typed `simulate` statements |
+| `.ic V(<node>)=<value>` (space- or comma-separated pairs, literals or `{expr}`) | native `initial V(<NET>) = <value>` declarations (round-trip supported without warning) |
 | `.param NAME=literal` or evaluated arithmetic/math `{...}` | typed editable parameter, evaluating arithmetic and math functions (`+ - * / ^ **`, `pi`, `e`, `sin`, `cos`, `tan`, `sqrt`, `ln`, `log10`, `exp`, `abs`, `min`, `max`, `pow`) with unit inferred from supported uses |
 | Source-embedded `.SUBCKT` plus root `X` instances | editable `module`/`use`, preserving ports, local topology and literal typed overrides |
-| First-line plain title, `.control ... .endc`, `.print`, `.plot`, `.probe`, `.save`, `.meas`, `.options` | tolerated and skipped with informational/warning diagnostics (`KES-N010`..`KES-N012`) because Kessetsu owns simulation runner control and measurement evaluation |
+| First-line plain title, `.control ... .endc`, `.print`, `.plot`, `.probe`, `.save`, `.meas`, `.nodeset`, `.options` | tolerated and skipped with informational/warning diagnostics (`KES-N010`..`KES-N012`) because Kessetsu owns simulation runner control and measurement evaluation |
 
 Continuation lines beginning with `+`, comments, `.title` and `.end` are understood. SPICE node
 `0` becomes the explicit `GND` net. Other node, component and inline-model names are preserved when
@@ -86,6 +87,7 @@ The importer rejects electrical constructs that cannot be represented truthfully
 - transmission lines (`T`, `TX`) and unsupported component families;
 - unknown `.model` families or unsupported model parameters;
 - parameter expressions with conflicting units or unresolved circular definitions;
+- invalid `.ic` directives (empty `.ic`, unknown node, ground node `0`/`GND`, duplicate node, or `I(...)` inductor-current initial conditions fail with `KES-N002`);
 - unknown semiconductor models without an inline `.model`, non-zero AC source phase, or analysis
   options that the typed Kessetsu IR cannot represent.
 

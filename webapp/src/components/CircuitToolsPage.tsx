@@ -28,6 +28,30 @@ const circuitTools = {
     formula: 'C = 1 / (2π × R × cutoff frequency)',
     assumption: 'Nominal R/C values, ideal voltage source and high-impedance output. Extra source resistance, output loading and component tolerances are not included.',
   },
+  non_inverting_opamp: {
+    slug: 'non-inverting-opamp', name: 'Non-inverting op-amp',
+    description: 'Size feedback resistors for a target voltage gain with KESSETSU_OPAMP_V2. Check rail headroom, bandwidth estimate and open for OP/AC simulation.',
+    fields: [
+      { key: 'target_gain', label: 'Target gain (V/V)', value: '10', hint: 'Dimensionless gain > 1, e.g. 10' },
+      { key: 'input_resistance', label: 'Input resistor R1', value: '10k', hint: 'Grounded feedback divider resistor, e.g. 10kΩ' },
+      { key: 'input_voltage', label: 'Input voltage', value: '0.5V', hint: 'Optional DC/peak input voltage (default 0.5V)', optional: true },
+      { key: 'supply_voltage', label: 'Supply rail (±V)', value: '15V', hint: 'Optional symmetric rail magnitude > 2V (default 15V)', optional: true },
+    ],
+    formula: 'R2 = R1 × (gain − 1)  ·  Av = 1 + R2 / R1',
+    assumption: 'Uses built-in KESSETSU_OPAMP_V2 (A_OL = 200k, GBW = 1 MHz, Rout = 50 Ω, 1 V rail drop) with symmetric ±Vsupply rails.',
+  },
+  zener_regulator: {
+    slug: 'zener-regulator', name: 'Zener shunt regulator',
+    description: 'Calculate series and load resistors for a 3.3 V, 5.1 V or 12 V Zener shunt regulator. Inspect diode bias current, power dissipation and simulate in Ngspice.',
+    fields: [
+      { key: 'input_voltage', label: 'Input voltage', value: '12V', hint: 'DC supply greater than Vz + 0.5V, e.g. 12V' },
+      { key: 'zener_voltage', label: 'Zener voltage', value: '5.1V', hint: 'Built-in models support 3.3V, 5.1V or 12V' },
+      { key: 'load_current', label: 'Load current', value: '10mA', hint: 'Target load current > 0, e.g. 10mA' },
+      { key: 'zener_knee_current', label: 'Minimum Zener current', value: '5mA', hint: 'Optional minimum diode bias current (default 5mA)', optional: true },
+    ],
+    formula: 'RS = (Vin − Vz) / (Iload + Iz_min)  ·  RL = Vz / Iload',
+    assumption: 'Ideal DC input source and constant nominal Vz using built-in BZX84C3V3, BZX84C5V1 or BZX84C12 diode models. Verify wattage ratings separately.',
+  },
 } as const;
 
 type ToolId = keyof typeof circuitTools;
@@ -52,16 +76,43 @@ const resultLabels: Record<string, string> = {
   loading_error: 'Change due to load', input_current: 'Supply current', lower_current: 'R2 current',
   load_current: 'Load current', r1_power: 'R1 dissipation', r2_power: 'R2 dissipation',
   load_power: 'Load power', output_resistance: 'Output resistance', cutoff: 'Achieved cutoff', time_constant: 'Time constant',
+  achieved_gain: 'Achieved gain', rail_headroom: 'Rail headroom', bandwidth_estimate: 'Estimated −3 dB bandwidth',
+  series_current: 'Series resistor current', zener_current: 'Zener diode current',
+  rs_power: 'RS dissipation', zener_power: 'Zener dissipation',
 };
 
 function displayQuantity({ value, unit }: Quantity): string {
   const symbols: Record<string, string> = { Ohm: 'Ω', Farad: 'F', Hertz: 'Hz', Volt: 'V', Ampere: 'A', Watt: 'W', Second: 's', Percent: '%' };
   if (unit === 'Percent') return `${Number(value.toPrecision(5))} %`;
+  if (unit === 'Ratio') return `${Number(value.toPrecision(6))} V/V`;
   const exponent = value === 0 ? 0 : Math.floor(Math.log10(Math.abs(value)) / 3) * 3;
   const prefixes: Record<number, string> = { '-12': 'p', '-9': 'n', '-6': 'µ', '-3': 'm', 0: '', 3: 'k', 6: 'M', 9: 'G' };
   return exponent in prefixes
     ? `${Number((value / 10 ** exponent).toPrecision(6))} ${prefixes[exponent]}${symbols[unit] ?? unit}`
     : `${value.toExponential(4)} ${symbols[unit] ?? unit}`;
+}
+
+function buildToolRequest(toolId: ToolId, values: Record<string, string>, series: ValueSeries): Record<string, unknown> {
+  const request: Record<string, unknown> = { tool: toolId, ...values, preferred_values: series };
+  for (const field of circuitTools[toolId].fields) {
+    if ('optional' in field && field.optional && !values[field.key]?.trim()) {
+      delete request[field.key];
+    }
+  }
+  return request;
+}
+
+function formatCliCommand(toolId: ToolId, inputs: Record<string, string>, series: ValueSeries): string {
+  switch (toolId) {
+    case 'divider':
+      return `kess tool divider --vin "${inputs.input_voltage}" --target "${inputs.target_voltage}" --lower "${inputs.lower_resistance}"${inputs.load_resistance?.trim() ? ` --load "${inputs.load_resistance}"` : ''} --values ${series} --output divider.kess`;
+    case 'rc_lowpass':
+      return `kess tool rc-lowpass --cutoff "${inputs.cutoff}" --resistance "${inputs.resistance}" --values ${series} --output rc-lowpass.kess`;
+    case 'non_inverting_opamp':
+      return `kess tool non-inverting-opamp --gain "${inputs.target_gain}" --r1 "${inputs.input_resistance}"${inputs.input_voltage?.trim() ? ` --vin "${inputs.input_voltage}"` : ''}${inputs.supply_voltage?.trim() ? ` --supply "${inputs.supply_voltage}"` : ''} --values ${series} --output non-inverting-opamp.kess`;
+    case 'zener_regulator':
+      return `kess tool zener-regulator --vin "${inputs.input_voltage}" --vz "${inputs.zener_voltage}" --iload "${inputs.load_current}"${inputs.zener_knee_current?.trim() ? ` --iz-min "${inputs.zener_knee_current}"` : ''} --values ${series} --output zener-regulator.kess`;
+  }
 }
 
 function ToolsShell({ children }: { children: ReactNode }) {
@@ -120,8 +171,7 @@ export function CircuitToolsPage({ toolId }: { toolId: ToolId }) {
       setCalculator(() => runCalc);
       try {
         const defaultInputs = Object.fromEntries(definition.fields.map((field) => [field.key, field.value]));
-        const request: Record<string, unknown> = { tool: toolId, ...defaultInputs, preferred_values: 'e24' };
-        if (toolId === 'divider' && !defaultInputs.load_resistance?.trim()) delete request.load_resistance;
+        const request = buildToolRequest(toolId, defaultInputs, 'e24');
         const initialCalculation = runCalc(request);
         if (initialCalculation.schema_version === 'kessetsu.tool.v1') setResult(initialCalculation);
       } catch { /* Initial preview calculation is optional; manual Calculate still reports any error. */ }
@@ -133,8 +183,7 @@ export function CircuitToolsPage({ toolId }: { toolId: ToolId }) {
     event.preventDefault();
     if (!calculator) return;
     try {
-      const request: Record<string, unknown> = { tool: toolId, ...inputs, preferred_values: series };
-      if (toolId === 'divider' && !inputs.load_resistance.trim()) delete request.load_resistance;
+      const request = buildToolRequest(toolId, inputs, series);
       const calculation = calculator(request);
       if (calculation.schema_version !== 'kessetsu.tool.v1') throw new Error('Unsupported calculation contract');
       setResult(calculation); setError(''); setNotice('');
@@ -149,9 +198,7 @@ export function CircuitToolsPage({ toolId }: { toolId: ToolId }) {
       setError('Browser storage is unavailable. Download the .kess source and open it in the editor instead.');
     }
   };
-  const cliCommand = toolId === 'divider'
-    ? `kess tool divider --vin "${inputs.input_voltage}" --target "${inputs.target_voltage}" --lower "${inputs.lower_resistance}"${inputs.load_resistance.trim() ? ` --load "${inputs.load_resistance}"` : ''} --values ${series} --output divider.kess`
-    : `kess tool rc-lowpass --cutoff "${inputs.cutoff}" --resistance "${inputs.resistance}" --values ${series} --output rc-lowpass.kess`;
+  const cliCommand = formatCliCommand(toolId, inputs, series);
 
   return <ToolsShell>
     <a className="text-link tools-back-link" href={`${import.meta.env.BASE_URL}tools/`}>← All calculators</a>

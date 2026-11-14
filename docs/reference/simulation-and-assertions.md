@@ -8,7 +8,7 @@ Kessetsu compiles each source to canonical SPICE and runs the same typed analysi
 |---|---|---|
 | `simulate op` | scalar operating point | bias voltages/currents |
 | `simulate tran <step> <stop>` | time series | waveform, RMS, THD, clipping, dissipation |
-| `simulate tran <step> <stop> uic` | initialized time series | skips DC operating point; applies model capacitor initial conditions |
+| `simulate tran <step> <stop> uic` | initialized time series | skips DC operating point; applies model capacitor and `initial V(NET) = <voltage>` conditions |
 | `simulate ac dec|lin|oct <points> <start> <stop>` | complex frequency series | gain, phase and low-pass cutoff |
 | `simulate dc <source> <start> <stop> <step>` | swept real series | transfer curve |
 
@@ -41,7 +41,17 @@ For supervised agents and CI, the same assertions may live in an evaluator-owned
 
 ## Measurements
 
-Primitive reductions include `value`, `min`, `max`, absolute `peak`, `pk2pk`/`p2p`/`vpp`, `average`/`avg` and `rms`. Derived metrics include gain, low-pass bandwidth/cutoff, frequency, phase, output power, efficiency, THD, clipping and device dissipation. Exact formulas, windows, required datasets, current polarity and power sign are normative in [engineering measurements](measurements.md).
+Primitive reductions include `value`, `min`, `max`, absolute `peak`, `pk2pk`/`p2p`/`vpp`, `average`/`avg` and `rms`. Voltage primitives accept single-ended net or device measurements (`V(OUT)`, `V(Q1)`) as well as differential net voltages `V(A, B)` — comparing two named nets (`V(OUT_P, OUT_N)`), a net against ground (`V(OUT, GND)` or `V(OUT, 0)`), terminal pairs (`V(Q1.c, Q1.e)`), or mixed component-pin and net endpoints (`V(R1.p1, OUT)`) across OP, transient, DC sweep, and AC analyses (where AC metrics compute elementwise complex `V(A) - V(B)` and ground maps to `0 + j0`).
+
+Derived metrics include:
+- AC transfer and edge metrics: `gain`, `gain_at`, `lower_cutoff`, `upper_cutoff`, `bandwidth`/`cutoff`, and `phase`.
+- Periodic and pulse metrics over transient traces (accepting either `signal` or a windowed `signal, start, stop` form):
+  - `frequency` (alias `freq`): dominant frequency in `Hz` from rising mean crossings.
+  - `period`: dominant waveform period `1 / frequency` in seconds (`s`).
+  - `duty_cycle` (alias `duty`): pulse high-time percentage (`%`) above the `(min + max) / 2` midpoint over complete rising-crossing cycles.
+- Power, distortion, and dynamic step metrics: `output_power`, `efficiency`, `clipping`, `dissipation`, `rise_time`, `fall_time`, `settling_time`, `overshoot`, `energy`, and `thd` (accepting 2-argument `thd(signal, fundamental)` over the full trace, 4-argument `thd(signal, fundamental, start, stop)`, or 5-argument `thd(signal, fundamental, start, stop, hann)` with Hann windowing).
+
+Exact formulas, windows, required datasets, current polarity and power sign are normative in [engineering measurements](measurements.md).
 
 ## CLI examples
 

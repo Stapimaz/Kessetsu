@@ -6,17 +6,19 @@ connections and analyses. Do not replace your whole Source with a declaration-on
 
 ## Start from a useful calculation
 
-The Web toolkit offers a loaded voltage divider and an RC low-pass filter. Enter SI quantities,
+The Web toolkit offers a loaded voltage divider, an RC low-pass filter, a non-inverting op-amp stage, and a Zener shunt regulator. Enter SI quantities,
 choose exact/E12/E24 nominal values and inspect the achieved result, equations and assumptions.
 **Open in editor** generates an editable circuit with OP or AC analysis; **Download .kess**
 saves the source. Continue with simulation and the editor's existing exports. The previous
 browser circuit is retained under **File → Restore previous circuit**.
 
-With CLI 1.1.0 or newer:
+With CLI 1.1.0 or newer (`non-inverting-opamp` and `zener-regulator` in current builds):
 
 ```bash
 kess tool divider --vin 12V --target 3V --lower 10k --load 10k --values exact --output divider.kess
 kess tool rc-lowpass --cutoff 1kHz --resistance 1k --values e12 --output filter.kess
+kess tool non-inverting-opamp --gain 10 --r1 10k --values e24 --output opamp.kess
+kess tool zener-regulator --vin 12V --vz 5.1V --iload 10mA --values exact --output zener.kess
 ```
 
 The exact divider above selects R1=15 kΩ and R2=10 kΩ: the 10 kΩ load makes the effective

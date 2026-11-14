@@ -78,9 +78,11 @@ const reviewed = JSON.parse(readFileSync(resolve(repo, 'docs/public-documents.js
 const toolsCss = readdirSync(resolve(dist, 'assets')).find((file) => /^CircuitToolsPage-.*\.css$/.test(file));
 if (!toolsCss) throw new Error('Circuit tools stylesheet is missing.');
 const toolPages = [
-  ['tools/', 'Circuit tools — Kessetsu', 'Free circuit design tools: calculate a loaded voltage divider or RC filter, then open an editable circuit for simulation and schematic export.', surfaces.tools()],
+  ['tools/', 'Circuit tools — Kessetsu', 'Free circuit design tools: calculate a loaded voltage divider, RC filter, non-inverting op-amp stage or Zener shunt regulator, then open an editable circuit for simulation and schematic export.', surfaces.tools()],
   ['tools/voltage-divider/', 'Loaded voltage divider — Kessetsu', 'Calculate a loaded voltage divider with standard resistor values, output error, currents and power. Open the generated circuit for SPICE simulation.', surfaces.tool('divider')],
   ['tools/rc-lowpass/', 'RC low-pass filter — Kessetsu', 'Calculate RC low-pass filter values and achieved cutoff frequency. Choose E12/E24 components and open an editable circuit for AC simulation.', surfaces.tool('rc_lowpass')],
+  ['tools/non-inverting-opamp/', 'Non-inverting op-amp — Kessetsu', 'Calculate feedback resistors, achieved gain, rail headroom and bandwidth estimate for a non-inverting op-amp stage. Open the generated circuit for OP and AC simulation.', surfaces.tool('non_inverting_opamp')],
+  ['tools/zener-regulator/', 'Zener shunt regulator — Kessetsu', 'Calculate series and load resistors, bias current and power dissipation for a 3.3 V, 5.1 V or 12 V Zener shunt regulator. Open the generated circuit for SPICE simulation.', surfaces.tool('zener_regulator')],
 ];
 for (const [route, title, description, body] of toolPages) {
   mkdirSync(resolve(dist, route), { recursive: true });

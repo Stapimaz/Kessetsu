@@ -328,6 +328,37 @@ pub(crate) enum CircuitTool {
         #[arg(long)]
         resistance: String,
     },
+    /// Size a non-inverting op-amp stage using KESSETSU_OPAMP_V2
+    #[command(visible_alias = "opamp-gain")]
+    NonInvertingOpamp {
+        /// Target voltage gain V/V (must be > 1)
+        #[arg(long, alias = "target-gain")]
+        gain: String,
+        /// Grounded resistor R1 value (e.g. 10k)
+        #[arg(long, aliases = ["input-resistance", "lower", "resistance"])]
+        r1: String,
+        /// Omit for 0.5V nominal DC/peak input voltage
+        #[arg(long, alias = "input-voltage")]
+        vin: Option<String>,
+        /// Omit for ±15V symmetric rails (must exceed 2V)
+        #[arg(long, aliases = ["supply-voltage", "vsupply"])]
+        supply: Option<String>,
+    },
+    /// Size a Zener shunt voltage regulator using a built-in BZX84C diode
+    ZenerRegulator {
+        /// DC supply voltage (e.g. 12V)
+        #[arg(long, alias = "input-voltage")]
+        vin: String,
+        /// Target Zener voltage (3.3V, 5.1V, or 12V)
+        #[arg(long, alias = "zener-voltage")]
+        vz: String,
+        /// Target load current (e.g. 10mA)
+        #[arg(long, alias = "load-current")]
+        iload: String,
+        /// Omit for 5mA minimum Zener bias current
+        #[arg(long, aliases = ["zener-knee-current", "iz"])]
+        iz_min: Option<String>,
+    },
 }
 
 #[derive(Clone, Copy, ValueEnum)]

@@ -34,6 +34,7 @@ export type ComponentType = (typeof componentTypes)[number];
 export const topLevelCompletions: readonly KessetsuCompletion[] = [
   { label: 'param', detail: 'Declare a typed quantity in the root or module scope; use {name} in numeric component, waveform, analysis and inline-assertion fields.', insertText: 'param ${1:supply}: ${2|V,A,Ohm,F,H,Hz,s,W,S,ratio,percent,deg|} = ${3:12V}' },
   { label: 'net', detail: 'Declare a named electrical net.', insertText: 'net ${1:GND}' },
+  { label: 'initial', detail: 'Set a transient initial node voltage (.ic): initial V(NET) = 0V.', insertText: 'initial V(${1:OUT}) = ${2:0V}' },
   { label: 'source', detail: 'Declare an independent voltage source.', insertText: 'source ${1:VIN} ${2:5V}' },
   { label: 'current_source', detail: 'Declare an independent current source.', insertText: 'current_source ${1:I1} ${2:1mA}' },
   { label: 'resistor', detail: 'Declare a two-terminal resistor.', insertText: 'resistor ${1:R1} ${2:1k}' },
@@ -87,6 +88,10 @@ export const metricCompletions: readonly KessetsuCompletion[] = [
   { label: 'bandwidth', detail: 'Low-pass -3 dB bandwidth.', insertText: 'bandwidth(${1:V(OUT)},${2:V(IN)}) ${3:>} ${4:10kHz}' },
   { label: 'cutoff', detail: 'Alias of low-pass bandwidth.', insertText: 'cutoff(${1:V(OUT)},${2:V(IN)}) ${3:<} ${4:100kHz}' },
   { label: 'frequency', detail: 'Dominant transient frequency.', insertText: 'frequency(${1:V(OUT)}) ${2:>} ${3:990Hz}' },
+  { label: 'freq', detail: 'Alias of frequency.', insertText: 'freq(${1:V(OUT)}) ${2:>} ${3:990Hz}' },
+  { label: 'period', detail: 'Dominant transient waveform period.', insertText: 'period(${1:V(OUT)}) ${2:>} ${3:1ms}' },
+  { label: 'duty_cycle', detail: 'Transient pulse duty cycle percentage above midpoint.', insertText: 'duty_cycle(${1:V(OUT)}) ${2:>} ${3:45%}' },
+  { label: 'duty', detail: 'Alias of duty_cycle.', insertText: 'duty(${1:V(OUT)}) ${2:>} ${3:45%}' },
   { label: 'phase', detail: 'Output/input AC phase at a frequency.', insertText: 'phase(${1:V(OUT)},${2:V(IN)},${3:1kHz}) ${4:>} ${5:-46deg}' },
   { label: 'output_power', detail: 'Load RMS power, optionally within a transient window.', insertText: 'output_power(${1:V(OUT)},${2:RL},${3:2ms},${4:10ms}) ${5:>} ${6:1W}' },
   { label: 'dissipation', detail: 'Positive device dissipation, optionally within a transient window.', insertText: 'dissipation(${1:Q1},${2:2ms},${3:10ms}) ${4:<} ${5:1W}' },
@@ -136,10 +141,10 @@ export const kessetsuLanguageDefinition: languages.IMonarchLanguage = {
   tokenizer: {
     root: [
       [/\/\/.*$/, 'comment'],
-      [/\b(param|net|connect|couple|simulate|assert|model|model_include|subcircuit|external_subcircuit|module|use)\b/, 'keyword'],
+      [/\b(param|net|initial|connect|couple|simulate|assert|model|model_include|subcircuit|external_subcircuit|module|use)\b/, 'keyword'],
       [new RegExp(`\\b(${componentTypes.join('|')})\\b`), 'type'],
       [/\b(op|tran|ac|dc|dec|oct|lin|sine|sine_ac|pulse|exp|pwl)\b/, 'keyword.control'],
-      [/\b(value|min|max|peak|pk2pk|p2p|vpp|average|avg|rms|gain|gain_at|lower_cutoff|upper_cutoff|bandwidth|cutoff|frequency|phase|output_power|efficiency|thd|clipping|dissipation|rise_time|fall_time|settling_time|overshoot|energy)\b/, 'function'],
+      [/\b(value|min|max|peak|pk2pk|p2p|vpp|average|avg|rms|gain|gain_at|lower_cutoff|upper_cutoff|bandwidth|cutoff|frequency|freq|period|duty_cycle|duty|phase|output_power|efficiency|thd|clipping|dissipation|rise_time|fall_time|settling_time|overshoot|energy)\b/, 'function'],
       [/-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?(?:T|G|meg|M|k|m|u|µ|n|p)?(?:V|A|Ohm|F|H|Hz|s|S|W|J|deg|%)?\b/i, 'number'],
       [/[A-Za-z_][A-Za-z0-9_]*/, 'identifier'],
       [/[(){},.:]/, 'delimiter'],

@@ -19,14 +19,24 @@ const RcPage = lazy(async () => {
   const { CircuitToolsPage } = await import('./components/CircuitToolsPage');
   return { default: () => <CircuitToolsPage toolId="rc_lowpass" /> };
 });
+const OpampPage = lazy(async () => {
+  const { CircuitToolsPage } = await import('./components/CircuitToolsPage');
+  return { default: () => <CircuitToolsPage toolId="non_inverting_opamp" /> };
+});
+const ZenerPage = lazy(async () => {
+  const { CircuitToolsPage } = await import('./components/CircuitToolsPage');
+  return { default: () => <CircuitToolsPage toolId="zener_regulator" /> };
+});
 
-type AppView = 'landing' | 'workspace' | 'install' | 'tools' | 'divider' | 'rc';
+type AppView = 'landing' | 'workspace' | 'install' | 'tools' | 'divider' | 'rc' | 'opamp' | 'zener';
 
 function viewFromLocation(): AppView {
   const hash = globalThis.location.hash;
   if (hash === '#editor' || hash.startsWith('#kessetsu=')) return 'workspace';
   if (/\/tools\/voltage-divider\/?$/.test(globalThis.location.pathname)) return 'divider';
   if (/\/tools\/rc-lowpass\/?$/.test(globalThis.location.pathname)) return 'rc';
+  if (/\/tools\/non-inverting-opamp\/?$/.test(globalThis.location.pathname)) return 'opamp';
+  if (/\/tools\/zener-regulator\/?$/.test(globalThis.location.pathname)) return 'zener';
   if (/\/tools\/?$/.test(globalThis.location.pathname)) return 'tools';
   return hash === '#install' || /\/install\/?$/.test(globalThis.location.pathname) ? 'install' : 'landing';
 }
@@ -46,7 +56,9 @@ function App() {
     <PageLoadBoundary key={view} page={view === 'workspace' ? 'the circuit editor' : view === 'install' ? 'the installation guide' : 'circuit tools'}>
     <Suspense fallback={<div className="workspace-loading" role="status">{view === 'workspace' ? 'Opening circuit editor…' : view === 'install' ? 'Opening installation guide…' : 'Opening circuit tools…'}</div>}>
       {view === 'install' ? <InstallPage /> : view === 'tools' ? <CircuitToolsIndex />
-        : view === 'divider' ? <DividerPage /> : view === 'rc' ? <RcPage /> : <WorkspaceApp />}
+        : view === 'divider' ? <DividerPage /> : view === 'rc' ? <RcPage />
+        : view === 'opamp' ? <OpampPage /> : view === 'zener' ? <ZenerPage />
+        : <WorkspaceApp />}
     </Suspense>
     </PageLoadBoundary>
   );

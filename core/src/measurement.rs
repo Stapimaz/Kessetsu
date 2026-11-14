@@ -21,6 +21,10 @@ pub const SUPPORTED_METRICS: &[&str] = &[
     "bandwidth",
     "cutoff",
     "frequency",
+    "freq",
+    "period",
+    "duty_cycle",
+    "duty",
     "phase",
     "output_power",
     "efficiency",
@@ -49,11 +53,15 @@ pub fn evaluate_assertion_metric(
             evaluate_reduction(&metric, &arguments, circuit, simulation)
         }
         "gain" => evaluate_gain(&arguments, circuit, simulation),
-        "gain_at" => evaluate_gain_at(&arguments, simulation),
-        "lower_cutoff" | "upper_cutoff" => evaluate_cutoff_edge(&metric, &arguments, simulation),
-        "bandwidth" | "cutoff" => evaluate_bandwidth(&arguments, simulation),
-        "frequency" => evaluate_frequency(&arguments, circuit, simulation),
-        "phase" => evaluate_phase(&arguments, simulation),
+        "gain_at" => evaluate_gain_at(&arguments, circuit, simulation),
+        "lower_cutoff" | "upper_cutoff" => {
+            evaluate_cutoff_edge(&metric, &arguments, circuit, simulation)
+        }
+        "bandwidth" | "cutoff" => evaluate_bandwidth(&arguments, circuit, simulation),
+        "frequency" | "freq" => evaluate_frequency(&arguments, circuit, simulation),
+        "period" => evaluate_period(&arguments, circuit, simulation),
+        "duty_cycle" | "duty" => evaluate_duty_cycle(&arguments, circuit, simulation),
+        "phase" => evaluate_phase(&arguments, circuit, simulation),
         "output_power" => evaluate_output_power(&arguments, circuit, simulation),
         "efficiency" => evaluate_efficiency(&arguments, circuit, simulation),
         "thd" => evaluate_thd(&arguments, circuit, simulation),
@@ -361,9 +369,12 @@ fn evaluate_gain(
             _ => None,
         })
     {
-        let output = complex_signal(ac, arguments[0])?;
-        let input = complex_signal(ac, arguments[1])?;
-        return ratio_at(output, input, 0);
+        let output = complex_signal(ac, arguments[0], circuit)?;
+        let input = complex_signal(ac, arguments[1], circuit)?;
+        if output.real.is_empty() || input.real.is_empty() {
+            return Err("AC frequency axis is empty".to_string());
+        }
+        return ratio_at(&output, &input, 0);
     }
     for dataset in &simulation.datasets {
         match &dataset.data {
@@ -384,7 +395,11 @@ fn evaluate_gain(
     Err("gain requires both output and input signals in one dataset".to_string())
 }
 
-fn evaluate_bandwidth(arguments: &[&str], simulation: &SimulationResult) -> Result<f64, String> {
+fn evaluate_bandwidth(
+    arguments: &[&str],
+    circuit: &CircuitIR,
+    simulation: &SimulationResult,
+) -> Result<f64, String> {
     require_count("bandwidth", arguments, 2)?;
     let ac = simulation
         .datasets
@@ -394,13 +409,13 @@ fn evaluate_bandwidth(arguments: &[&str], simulation: &SimulationResult) -> Resu
             _ => None,
         })
         .ok_or_else(|| "bandwidth requires an AC analysis dataset".to_string())?;
-    let output = complex_signal(ac, arguments[0])?;
-    let input = complex_signal(ac, arguments[1])?;
+    let output = complex_signal(ac, arguments[0], circuit)?;
+    let input = complex_signal(ac, arguments[1], circuit)?;
     if ac.frequency_hz.len() < 2 {
         return Err("bandwidth requires at least two AC frequency points".to_string());
     }
     let gains = (0..ac.frequency_hz.len())
-        .map(|index| ratio_at(output, input, index))
+        .map(|index| ratio_at(&output, &input, index))
         .collect::<Result<Vec<_>, _>>()?;
     let reference = gains[0];
     if reference <= 0.0 {
@@ -433,6 +448,7 @@ fn evaluate_bandwidth(arguments: &[&str], simulation: &SimulationResult) -> Resu
 /// the legacy gain/cutoff/phase sampling and analysis-selection semantics.
 fn ac_response<'a>(
     arguments: &[&str],
+    circuit: &CircuitIR,
     simulation: &'a SimulationResult,
 ) -> Result<(&'a [f64], Vec<f64>), String> {
     let ac = simulation
@@ -454,9 +470,9 @@ fn ac_response<'a>(
     {
         return Err("AC frequencies must be finite, positive and strictly increasing".to_string());
     }
-    let output = complex_signal(ac, arguments[0])?;
-    let input = complex_signal(ac, arguments[1])?;
-    for series in [output, input] {
+    let output = complex_signal(ac, arguments[0], circuit)?;
+    let input = complex_signal(ac, arguments[1], circuit)?;
+    for series in [&output, &input] {
         if series.real.len() != frequencies.len() || series.imaginary.len() != frequencies.len() {
             return Err("AC signal samples must align with the frequency axis".to_string());
         }
@@ -528,17 +544,19 @@ fn gain_at_frequency(frequencies: &[f64], gains: &[f64], target: f64) -> Result<
 
 fn evaluate_gain_at(
     arguments: &MetricArguments<'_>,
+    circuit: &CircuitIR,
     simulation: &SimulationResult,
 ) -> Result<f64, String> {
     require_count("gain_at", arguments, 3)?;
     let target = ac_target_frequency(arguments)?;
-    let (frequencies, gains) = ac_response(arguments, simulation)?;
+    let (frequencies, gains) = ac_response(arguments, circuit, simulation)?;
     gain_at_frequency(frequencies, &gains, target)
 }
 
 fn evaluate_cutoff_edge(
     metric: &str,
     arguments: &MetricArguments<'_>,
+    circuit: &CircuitIR,
     simulation: &SimulationResult,
 ) -> Result<f64, String> {
     if !matches!(arguments.len(), 2 | 3) {
@@ -546,7 +564,7 @@ fn evaluate_cutoff_edge(
             "{metric} expects output,input[,reference_frequency]"
         ));
     }
-    let (frequencies, gains) = ac_response(arguments, simulation)?;
+    let (frequencies, gains) = ac_response(arguments, circuit, simulation)?;
     if frequencies.len() < 2 {
         return Err(format!(
             "{metric} requires at least two AC frequency points"
@@ -627,26 +645,63 @@ fn evaluate_cutoff_edge(
     ))
 }
 
-fn evaluate_frequency(
-    arguments: &[&str],
+fn transient_signal_windowed(
+    metric: &str,
+    arguments: &MetricArguments<'_>,
     circuit: &CircuitIR,
     simulation: &SimulationResult,
-) -> Result<f64, String> {
-    require_count("frequency", arguments, 1)?;
+) -> Result<(Vec<f64>, Vec<f64>), String> {
+    if !matches!(arguments.len(), 1 | 3) {
+        return Err(format!(
+            "metric '{metric}' expects signal or signal,start,stop"
+        ));
+    }
     let (axis, values) = transient_signal(arguments[0], circuit, simulation)?;
-    let mean = values.iter().sum::<f64>() / values.len() as f64;
-    let crossings = values
+    let (axis, values) = if arguments.len() == 3 {
+        let [start, stop] = arguments.window(1)?.ok_or("missing measurement window")?;
+        windowed_series(&axis, &values, start, stop)?
+    } else {
+        (axis, values)
+    };
+    if axis.len() < 2 || axis.len() != values.len() {
+        return Err(format!(
+            "{metric} requires at least two aligned transient samples"
+        ));
+    }
+    if axis.iter().chain(&values).any(|value| !value.is_finite()) {
+        return Err(format!("{metric} requires finite transient samples"));
+    }
+    if axis.windows(2).any(|pair| pair[1] <= pair[0]) {
+        return Err(format!(
+            "{metric} requires strictly increasing transient time samples"
+        ));
+    }
+    Ok((axis, values))
+}
+
+fn rising_crossings(axis: &[f64], values: &[f64], threshold: f64) -> Vec<f64> {
+    values
         .windows(2)
         .enumerate()
         .filter_map(|(index, pair)| {
-            let left = pair[0] - mean;
-            let right = pair[1] - mean;
+            let left = pair[0] - threshold;
+            let right = pair[1] - threshold;
             (left <= 0.0 && right > 0.0).then(|| {
                 let fraction = -left / (right - left);
                 axis[index] + fraction * (axis[index + 1] - axis[index])
             })
         })
-        .collect::<Vec<_>>();
+        .collect()
+}
+
+fn evaluate_frequency(
+    arguments: &MetricArguments<'_>,
+    circuit: &CircuitIR,
+    simulation: &SimulationResult,
+) -> Result<f64, String> {
+    let (axis, values) = transient_signal_windowed("frequency", arguments, circuit, simulation)?;
+    let mean = values.iter().sum::<f64>() / values.len() as f64;
+    let crossings = rising_crossings(&axis, &values, mean);
     if crossings.len() < 2 {
         return Err("frequency requires at least two rising mean crossings".to_string());
     }
@@ -658,8 +713,82 @@ fn evaluate_frequency(
     nonzero_divide(1.0, period, "measured period is zero")
 }
 
+fn evaluate_period(
+    arguments: &MetricArguments<'_>,
+    circuit: &CircuitIR,
+    simulation: &SimulationResult,
+) -> Result<f64, String> {
+    if !matches!(arguments.len(), 1 | 3) {
+        return Err("period expects signal or signal,start,stop".to_string());
+    }
+    let frequency = evaluate_frequency(arguments, circuit, simulation)?;
+    if !frequency.is_finite() || frequency <= 0.0 {
+        return Err(format!(
+            "cannot determine period from non-positive or non-finite frequency ({frequency} Hz)"
+        ));
+    }
+    Ok(1.0 / frequency)
+}
+
+fn evaluate_duty_cycle(
+    arguments: &MetricArguments<'_>,
+    circuit: &CircuitIR,
+    simulation: &SimulationResult,
+) -> Result<f64, String> {
+    let (axis, values) = transient_signal_windowed("duty_cycle", arguments, circuit, simulation)?;
+    let min = values.iter().copied().fold(f64::INFINITY, f64::min);
+    let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    if (max - min).abs() <= 1e-12 {
+        return Err("Signal has zero amplitude; cannot determine duty cycle".to_string());
+    }
+    let mid = 0.5 * (max + min);
+    let crossings = rising_crossings(&axis, &values, mid);
+    if crossings.len() < 2 {
+        return Err("duty_cycle requires at least two rising midpoint crossings".to_string());
+    }
+    let t_first = crossings[0];
+    let t_last = *crossings.last().expect("at least two crossings");
+    let total_span = t_last - t_first;
+    if !total_span.is_finite() || total_span <= 0.0 {
+        return Err("duty_cycle crossing span must be positive".to_string());
+    }
+    let mut high_time = 0.0;
+    for (time_pair, value_pair) in axis.windows(2).zip(values.windows(2)) {
+        let (t0, t1) = (time_pair[0], time_pair[1]);
+        let (v0, v1) = (value_pair[0], value_pair[1]);
+        let seg_start = t0.max(t_first);
+        let seg_end = t1.min(t_last);
+        if seg_end <= seg_start {
+            continue;
+        }
+        let value_at = |time: f64| -> f64 {
+            if time <= t0 {
+                v0
+            } else if time >= t1 {
+                v1
+            } else {
+                v0 + (v1 - v0) * (time - t0) / (t1 - t0)
+            }
+        };
+        let d_start = value_at(seg_start) - mid;
+        let d_end = value_at(seg_end) - mid;
+        let dt = seg_end - seg_start;
+        if d_start >= 0.0 && d_end >= 0.0 {
+            if d_start > 0.0 || d_end > 0.0 {
+                high_time += dt;
+            }
+        } else if d_start > 0.0 && d_end < 0.0 {
+            high_time += dt * (d_start / (d_start - d_end));
+        } else if d_start < 0.0 && d_end > 0.0 {
+            high_time += dt * (d_end / (d_end - d_start));
+        }
+    }
+    Ok(((high_time / total_span) * 100.0).clamp(0.0, 100.0))
+}
+
 fn evaluate_phase(
     arguments: &MetricArguments<'_>,
+    circuit: &CircuitIR,
     simulation: &SimulationResult,
 ) -> Result<f64, String> {
     if !matches!(arguments.len(), 2 | 3) {
@@ -673,8 +802,11 @@ fn evaluate_phase(
             _ => None,
         })
         .ok_or_else(|| "phase requires an AC analysis dataset".to_string())?;
-    let output = complex_signal(ac, arguments[0])?;
-    let input = complex_signal(ac, arguments[1])?;
+    let output = complex_signal(ac, arguments[0], circuit)?;
+    let input = complex_signal(ac, arguments[1], circuit)?;
+    if output.real.is_empty() || input.real.is_empty() {
+        return Err("AC frequency axis is empty".to_string());
+    }
     let index = if arguments.get(2).is_some() {
         let target = arguments
             .quantity(2, SIUnit::Hertz)
@@ -840,22 +972,26 @@ fn evaluate_thd(
     circuit: &CircuitIR,
     simulation: &SimulationResult,
 ) -> Result<f64, String> {
-    if arguments.len() != 5 {
-        return Err("thd expects signal,fundamental,start,stop,hann".to_string());
+    if !matches!(arguments.len(), 2 | 4 | 5) {
+        return Err("thd expects signal,fundamental[,start,stop[,hann]]".to_string());
     }
-    if !arguments[4].eq_ignore_ascii_case("hann") {
+    if arguments.len() == 5 && !arguments[4].eq_ignore_ascii_case("hann") {
         return Err("THD window policy must be the explicit 'hann' policy".to_string());
     }
     let fundamental_hz = arguments
         .quantity(1, SIUnit::Hertz)
         .map_err(|error| format!("invalid THD fundamental: {error}"))?
         .value;
-    if fundamental_hz <= 0.0 {
+    if !fundamental_hz.is_finite() || fundamental_hz <= 0.0 {
         return Err("THD fundamental must be positive".to_string());
     }
     let (axis, values) = transient_signal(arguments[0], circuit, simulation)?;
-    let [start, stop] = arguments.window(2)?.ok_or("missing THD window")?;
-    let (axis, values) = windowed_series(&axis, &values, start, stop)?;
+    let (axis, values) = if arguments.len() >= 4 {
+        let [start, stop] = arguments.window(2)?.ok_or("missing THD window")?;
+        windowed_series(&axis, &values, start, stop)?
+    } else {
+        (axis, values)
+    };
     if values.len() < 32 {
         return Err(
             "THD requires at least 32 transient samples in its measurement window".to_string(),
@@ -948,13 +1084,17 @@ fn voltage_signal(
         let (positive, negative) = device_voltage_pins(component)?;
         return component_voltage(dataset, component, circuit, positive, negative);
     }
+    net_voltage_signal(dataset, target)
+}
+
+fn net_voltage_signal(dataset: &Dataset, target: &str) -> Result<Option<SignalData>, String> {
     let key = target.to_ascii_lowercase();
     match dataset {
         Dataset::OperatingPoint { values } => {
-            if let Some(value) = lookup_scalar(values, &key) {
-                Ok(Some(SignalData::Scalar(value)))
-            } else if matches!(key.as_str(), "gnd" | "0") {
+            if matches!(key.as_str(), "gnd" | "0") {
                 Ok(Some(SignalData::Scalar(0.0)))
+            } else if let Some(value) = lookup_scalar(values, &key) {
+                Ok(Some(SignalData::Scalar(value)))
             } else {
                 Ok(None)
             }
@@ -978,32 +1118,95 @@ fn voltage_signal(
     }
 }
 
+fn resolve_endpoint_net(
+    endpoint: &str,
+    circuit: &CircuitIR,
+    graph: &NetlistGraph,
+) -> Result<String, String> {
+    let endpoint = endpoint.trim();
+    if endpoint.is_empty() {
+        return Err("measurement endpoint cannot be empty".to_string());
+    }
+    if let Some((component_name, pin)) = endpoint.split_once('.') {
+        let component = find_component(circuit, component_name)?;
+        let pin_def = crate::component::component_definition(&component.kind)
+            .pins
+            .iter()
+            .find(|definition| definition.name.eq_ignore_ascii_case(pin))
+            .ok_or_else(|| format!("'{}' has no pin '{}'", component.id, pin))?;
+        return graph
+            .get_net(&component.id, pin_def.name)
+            .map(|net| graph.get_net_name(net))
+            .ok_or_else(|| format!("{}.{} is not connected", component.id, pin_def.name));
+    }
+    if endpoint.eq_ignore_ascii_case("0") || endpoint.eq_ignore_ascii_case("gnd") {
+        return Ok("0".to_string());
+    }
+    if let Some(net_name) = circuit
+        .nets
+        .iter()
+        .find(|net| net.eq_ignore_ascii_case(endpoint))
+    {
+        if let Some(net) = graph.pin_to_net.get(net_name) {
+            return Ok(graph.get_net_name(*net));
+        }
+        return Ok(net_name.clone());
+    }
+    if let Some(net_name) = graph
+        .net_names
+        .values()
+        .find(|name| name.eq_ignore_ascii_case(endpoint))
+    {
+        return Ok(net_name.clone());
+    }
+    if let Some((_, net)) = graph
+        .pin_to_net
+        .iter()
+        .find(|(pin, _)| !pin.contains('.') && pin.eq_ignore_ascii_case(endpoint))
+    {
+        return Ok(graph.get_net_name(*net));
+    }
+    if endpoint.bytes().all(|byte| byte.is_ascii_digit()) {
+        let mapped = format!("n_{endpoint}");
+        if let Some(net_name) = circuit
+            .nets
+            .iter()
+            .find(|net| net.eq_ignore_ascii_case(&mapped))
+        {
+            if let Some(net) = graph.pin_to_net.get(net_name) {
+                return Ok(graph.get_net_name(*net));
+            }
+            return Ok(net_name.clone());
+        }
+        if let Some(net_name) = graph
+            .net_names
+            .values()
+            .find(|name| name.eq_ignore_ascii_case(&mapped))
+        {
+            return Ok(net_name.clone());
+        }
+    }
+    Err(format!(
+        "measurement endpoint net '{endpoint}' does not exist in circuit"
+    ))
+}
+
 fn terminal_pair_voltage(
     dataset: &Dataset,
     positive: &str,
     negative: &str,
     circuit: &CircuitIR,
 ) -> Result<Option<SignalData>, String> {
+    if negative.contains(',') {
+        return Err(format!(
+            "differential voltage V({positive}, {negative}) expects two endpoints"
+        ));
+    }
     let graph = NetlistGraph::build(circuit);
-    let endpoint_net = |endpoint: &str| -> Result<String, String> {
-        let (component_name, pin) = endpoint.split_once('.').ok_or_else(|| {
-            format!("terminal-pair voltage endpoint '{endpoint}' must use component.pin")
-        })?;
-        let component = find_component(circuit, component_name)?;
-        let pin_exists = crate::component::component_definition(&component.kind)
-            .pins
-            .iter()
-            .any(|definition| definition.name.eq_ignore_ascii_case(pin));
-        if !pin_exists {
-            return Err(format!("'{}' has no pin '{}'", component.id, pin));
-        }
-        graph
-            .get_net(&component.id, pin)
-            .map(|net| graph.get_net_name(net))
-            .ok_or_else(|| format!("{}.{} is not connected", component.id, pin))
-    };
-    let positive = voltage_signal(dataset, &endpoint_net(positive)?, circuit)?;
-    let negative = voltage_signal(dataset, &endpoint_net(negative)?, circuit)?;
+    let positive_net = resolve_endpoint_net(positive, circuit, &graph)?;
+    let negative_net = resolve_endpoint_net(negative, circuit, &graph)?;
+    let positive = net_voltage_signal(dataset, &positive_net)?;
+    let negative = net_voltage_signal(dataset, &negative_net)?;
     match (positive, negative) {
         (Some(positive), Some(negative)) => Ok(Some(subtract_signal(positive, negative)?)),
         _ => Ok(None),
@@ -1134,8 +1337,8 @@ fn component_voltage(
         .get_net(&component.id, negative_pin)
         .map(|net| graph.get_net_name(net))
         .ok_or_else(|| format!("{}.{} is not connected", component.id, negative_pin))?;
-    let positive = voltage_signal(dataset, &positive, circuit)?;
-    let negative = voltage_signal(dataset, &negative, circuit)?;
+    let positive = net_voltage_signal(dataset, &positive)?;
+    let negative = net_voltage_signal(dataset, &negative)?;
     match (positive, negative) {
         (Some(positive), Some(negative)) => Ok(Some(subtract_signal(positive, negative)?)),
         _ => Ok(None),
@@ -1212,8 +1415,32 @@ fn source_value_at(value: &SourceValue, time: f64) -> Result<f64, String> {
             };
             Ok(val)
         }
-        SourceValue::Waveform(Waveform::Pulse { .. } | Waveform::PWL { .. }) => {
-            Err("typed current measurement for pulse/PWL source is not implemented".to_string())
+        SourceValue::Waveform(Waveform::PWL { points }) => {
+            if points.is_empty() {
+                return Ok(0.0);
+            }
+            if time <= points[0].0.value {
+                return Ok(points[0].1.value);
+            }
+            let last = points.last().expect("non-empty PWL points");
+            if time >= last.0.value {
+                return Ok(last.1.value);
+            }
+            for pair in points.windows(2) {
+                let (t0, v0) = (pair[0].0.value, pair[0].1.value);
+                let (t1, v1) = (pair[1].0.value, pair[1].1.value);
+                if time <= t1 {
+                    let dt = t1 - t0;
+                    if dt <= 0.0 {
+                        return Ok(v1);
+                    }
+                    return Ok(v0 + (v1 - v0) * (time - t0) / dt);
+                }
+            }
+            Ok(last.1.value)
+        }
+        SourceValue::Waveform(Waveform::Pulse { .. }) => {
+            Err("typed current measurement for pulse source is not implemented".to_string())
         }
     }
 }
@@ -1252,27 +1479,102 @@ fn transient_signal(
     Err(format!("'{signal}' requires a transient dataset"))
 }
 
-fn complex_signal<'a>(
-    dataset: &'a crate::simulation::ComplexSeriesDataset,
+fn lookup_complex_net(
+    dataset: &crate::simulation::ComplexSeriesDataset,
+    net: &str,
     signal: &str,
-) -> Result<&'a ComplexSeries, String> {
+) -> Result<ComplexSeries, String> {
+    if net.eq_ignore_ascii_case("0") || net.eq_ignore_ascii_case("gnd") {
+        return Ok(ComplexSeries {
+            real: vec![0.0; dataset.frequency_hz.len()],
+            imaginary: vec![0.0; dataset.frequency_hz.len()],
+        });
+    }
+    let key = net.to_ascii_lowercase();
+    dataset
+        .signals
+        .get(&key)
+        .or_else(|| {
+            dataset
+                .signals
+                .iter()
+                .find(|(name, _)| name.eq_ignore_ascii_case(&key))
+                .map(|(_, series)| series)
+        })
+        .or_else(|| {
+            key.bytes()
+                .all(|byte| byte.is_ascii_digit())
+                .then(|| {
+                    let mapped = format!("n_{key}");
+                    dataset.signals.get(&mapped).or_else(|| {
+                        dataset
+                            .signals
+                            .iter()
+                            .find(|(name, _)| name.eq_ignore_ascii_case(&mapped))
+                            .map(|(_, series)| series)
+                    })
+                })
+                .flatten()
+        })
+        .cloned()
+        .ok_or_else(|| format!("AC signal '{signal}' was not produced"))
+}
+
+fn complex_signal(
+    dataset: &crate::simulation::ComplexSeriesDataset,
+    signal: &str,
+    circuit: &CircuitIR,
+) -> Result<ComplexSeries, String> {
     let (function, target) = parse_signal(signal)?;
     if !function.eq_ignore_ascii_case("V") {
         return Err(format!(
             "AC engineering metric currently requires voltage signals, got '{signal}'"
         ));
     }
-    let key = target.to_ascii_lowercase();
-    dataset
-        .signals
-        .get(&key)
-        .or_else(|| {
-            key.bytes()
-                .all(|byte| byte.is_ascii_digit())
-                .then(|| dataset.signals.get(&format!("n_{key}")))
-                .flatten()
-        })
-        .ok_or_else(|| format!("AC signal '{signal}' was not produced"))
+    let graph = NetlistGraph::build(circuit);
+    if let Some((left, right)) = target.split_once(',') {
+        let left = left.trim();
+        let right = right.trim();
+        if right.contains(',') {
+            return Err(format!(
+                "differential AC voltage '{signal}' expects two endpoints"
+            ));
+        }
+        let left_net = resolve_endpoint_net(left, circuit, &graph)?;
+        let right_net = resolve_endpoint_net(right, circuit, &graph)?;
+        let left_series = lookup_complex_net(dataset, &left_net, signal)?;
+        let right_series = lookup_complex_net(dataset, &right_net, signal)?;
+        if left_series.real.len() != right_series.real.len()
+            || left_series.imaginary.len() != right_series.imaginary.len()
+        {
+            return Err(format!(
+                "AC differential signal '{signal}' endpoints have mismatched sample counts"
+            ));
+        }
+        return Ok(ComplexSeries {
+            real: left_series
+                .real
+                .iter()
+                .zip(&right_series.real)
+                .map(|(l, r)| l - r)
+                .collect(),
+            imaginary: left_series
+                .imaginary
+                .iter()
+                .zip(&right_series.imaginary)
+                .map(|(l, r)| l - r)
+                .collect(),
+        });
+    }
+    let trimmed = target.trim();
+    if trimmed.contains('.') {
+        let net = resolve_endpoint_net(trimmed, circuit, &graph)?;
+        return lookup_complex_net(dataset, &net, signal);
+    }
+    match resolve_endpoint_net(trimmed, circuit, &graph) {
+        Ok(net) => lookup_complex_net(dataset, &net, signal),
+        Err(_) => lookup_complex_net(dataset, trimmed, signal),
+    }
 }
 
 fn ratio_at(output: &ComplexSeries, input: &ComplexSeries, index: usize) -> Result<f64, String> {
@@ -1697,5 +1999,505 @@ fn nonzero_divide(numerator: f64, denominator: f64, message: &str) -> Result<f64
         Err(message.to_string())
     } else {
         Ok(numerator / denominator)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::Cmp;
+    use crate::ir::{Analysis, ast_to_ir};
+    use crate::parser::parse_program;
+    use crate::simulation::{
+        AnalysisDataset, ComplexSeriesDataset, SeriesAxis, SimulationStatus, SimulatorInfo,
+        SimulatorLog, SimulatorProcessStatus,
+    };
+    use std::collections::BTreeMap;
+
+    fn test_circuit(extra: &str) -> CircuitIR {
+        let source = format!(
+            "net GND\nnet IN\nnet OUT\nnet OUT_P\nnet OUT_N\n\
+             source VIN 1V\nresistor R1 1k\n\
+             connect VIN.plus to IN\nconnect VIN.minus to GND\n\
+             connect R1.p1 to OUT_P\nconnect R1.p2 to OUT_N\n{extra}"
+        );
+        let program = parse_program(&source).expect("test circuit should parse");
+        ast_to_ir(&program).expect("test circuit should reach IR")
+    }
+
+    fn sim_with(analysis: Analysis, data: Dataset) -> SimulationResult {
+        SimulationResult {
+            schema_version: "kessetsu.simulation.v1".to_string(),
+            status: SimulationStatus::Succeeded,
+            analyses: vec![analysis.clone()],
+            simulator: SimulatorInfo {
+                executable: "fixture".to_string(),
+                version: "fixture-1".to_string(),
+            },
+            process: SimulatorProcessStatus {
+                exit_code: Some(0),
+                success: true,
+            },
+            measurements: BTreeMap::new(),
+            datasets: vec![AnalysisDataset {
+                index: 0,
+                analysis,
+                data,
+            }],
+            diagnostics: vec![],
+            warnings: vec![],
+            errors: vec![],
+            raw_log: SimulatorLog {
+                stdout: String::new(),
+                stderr: String::new(),
+            },
+            artifacts: vec![],
+        }
+    }
+
+    fn eval(
+        metric: &str,
+        signal: &str,
+        circuit: &CircuitIR,
+        sim: &SimulationResult,
+    ) -> Result<f64, String> {
+        let assertion = Assertion {
+            metric: metric.to_string(),
+            signal: signal.to_string(),
+            cmp: Cmp::Gt,
+            threshold: Quantity {
+                value: 0.0,
+                unit: SIUnit::Volt,
+            },
+            numeric_arguments: Vec::new(),
+        };
+        evaluate_assertion_metric(&assertion, circuit, sim)
+    }
+
+    fn tran_sim(axis: Vec<f64>, signals: BTreeMap<String, Vec<f64>>) -> SimulationResult {
+        sim_with(
+            Analysis::Transient {
+                step: Quantity {
+                    value: 1e-6,
+                    unit: SIUnit::Second,
+                },
+                stop: Quantity {
+                    value: *axis.last().unwrap_or(&1e-3),
+                    unit: SIUnit::Second,
+                },
+                use_initial_conditions: false,
+            },
+            Dataset::Transient(RealSeriesDataset {
+                axis: SeriesAxis {
+                    name: "time".to_string(),
+                    values: axis,
+                },
+                signals,
+            }),
+        )
+    }
+
+    fn pulse_wave(
+        start: f64,
+        stop: f64,
+        samples: usize,
+        period: f64,
+        duty: f64,
+        phase_offset: f64,
+        low: f64,
+        high: f64,
+    ) -> (Vec<f64>, Vec<f64>) {
+        let mut axis = Vec::with_capacity(samples);
+        let mut values = Vec::with_capacity(samples);
+        let edge = period * 0.002;
+        for i in 0..samples {
+            let t = start + (stop - start) * i as f64 / (samples - 1) as f64;
+            let phase = (t + phase_offset).rem_euclid(period) / period;
+            let high_frac = duty;
+            let edge_frac = edge / period;
+            let v = if phase < edge_frac {
+                low + (high - low) * (phase / edge_frac)
+            } else if phase < high_frac {
+                high
+            } else if phase < high_frac + edge_frac {
+                high - (high - low) * ((phase - high_frac) / edge_frac)
+            } else {
+                low
+            };
+            axis.push(t);
+            values.push(v);
+        }
+        (axis, values)
+    }
+
+    #[test]
+    fn differential_net_voltage_works_across_op_transient_dc_and_ac() {
+        let circuit = test_circuit("");
+
+        let op = sim_with(
+            Analysis::OperatingPoint,
+            Dataset::OperatingPoint {
+                values: BTreeMap::from([
+                    ("out_p".to_string(), 3.25),
+                    ("out_n".to_string(), 1.25),
+                    ("in".to_string(), 1.0),
+                ]),
+            },
+        );
+        assert!((eval("value", "V(OUT_P, OUT_N)", &circuit, &op).unwrap() - 2.0).abs() < 1e-12);
+        assert!((eval("value", "V(out_p, gnd)", &circuit, &op).unwrap() - 3.25).abs() < 1e-12);
+        assert!((eval("value", "V(0, OUT_N)", &circuit, &op).unwrap() + 1.25).abs() < 1e-12);
+        assert!((eval("value", "V(R1.p1, OUT_N)", &circuit, &op).unwrap() - 2.0).abs() < 1e-12);
+        assert!(
+            eval("value", "V(NOPE, OUT_N)", &circuit, &op)
+                .unwrap_err()
+                .contains("NOPE")
+        );
+
+        let tran = tran_sim(
+            vec![0.0, 1e-3, 2e-3, 3e-3],
+            BTreeMap::from([
+                ("out_p".to_string(), vec![1.0, 3.0, 1.0, -1.0]),
+                ("out_n".to_string(), vec![1.0, 1.0, 2.0, 1.0]),
+            ]),
+        );
+        assert!((eval("max", "V(OUT_P, OUT_N)", &circuit, &tran).unwrap() - 2.0).abs() < 1e-12);
+        assert!((eval("min", "V(OUT_P, OUT_N)", &circuit, &tran).unwrap() + 2.0).abs() < 1e-12);
+        assert!((eval("pk2pk", "V(R1.p1, OUT_N)", &circuit, &tran).unwrap() - 4.0).abs() < 1e-12);
+
+        let dc = sim_with(
+            Analysis::DcSweep {
+                source: "VIN".to_string(),
+                start: Quantity {
+                    value: 0.0,
+                    unit: SIUnit::Volt,
+                },
+                stop: Quantity {
+                    value: 2.0,
+                    unit: SIUnit::Volt,
+                },
+                step: Quantity {
+                    value: 1.0,
+                    unit: SIUnit::Volt,
+                },
+            },
+            Dataset::DcSweep(RealSeriesDataset {
+                axis: SeriesAxis {
+                    name: "v-sweep".to_string(),
+                    values: vec![0.0, 1.0, 2.0],
+                },
+                signals: BTreeMap::from([
+                    ("out_p".to_string(), vec![0.5, 2.5, 4.5]),
+                    ("out_n".to_string(), vec![0.5, 0.5, 0.5]),
+                ]),
+            }),
+        );
+        assert!((eval("max", "V(OUT_P, OUT_N)", &circuit, &dc).unwrap() - 4.0).abs() < 1e-12);
+
+        let ac = sim_with(
+            Analysis::Ac {
+                scale: crate::ir::AcScale::Decade,
+                points: 10,
+                start: Quantity {
+                    value: 10.0,
+                    unit: SIUnit::Hertz,
+                },
+                stop: Quantity {
+                    value: 10_000.0,
+                    unit: SIUnit::Hertz,
+                },
+            },
+            Dataset::Ac(ComplexSeriesDataset {
+                frequency_hz: vec![10.0, 100.0, 1_000.0, 10_000.0],
+                signals: BTreeMap::from([
+                    (
+                        "out_p".to_string(),
+                        ComplexSeries {
+                            real: vec![2.0, 2.0, 1.0, 0.2],
+                            imaginary: vec![0.0, 0.0, -1.0, -0.4],
+                        },
+                    ),
+                    (
+                        "out_n".to_string(),
+                        ComplexSeries {
+                            real: vec![-2.0, -2.0, -1.0, -0.2],
+                            imaginary: vec![0.0, 0.0, 1.0, 0.4],
+                        },
+                    ),
+                    (
+                        "in".to_string(),
+                        ComplexSeries {
+                            real: vec![1.0; 4],
+                            imaginary: vec![0.0; 4],
+                        },
+                    ),
+                ]),
+            }),
+        );
+        assert!(
+            (eval("gain", "V(OUT_P, OUT_N), V(IN)", &circuit, &ac).unwrap() - 4.0).abs() < 1e-12
+        );
+        assert!(
+            (eval("gain", "V(out_p, out_n), V(IN)", &circuit, &ac).unwrap() - 4.0).abs() < 1e-12
+        );
+        assert!(
+            (eval("gain", "V(R1.p1, OUT_N), V(IN)", &circuit, &ac).unwrap() - 4.0).abs() < 1e-12
+        );
+        assert!(
+            (eval("gain", "V(OUT_P, 0), V(IN, GND)", &circuit, &ac).unwrap() - 2.0).abs() < 1e-12
+        );
+        assert!(
+            (eval("gain_at", "V(OUT_P, OUT_N), V(IN), 1kHz", &circuit, &ac).unwrap()
+                - 8.0_f64.sqrt())
+            .abs()
+                < 1e-12
+        );
+        assert!(
+            (eval("phase", "V(OUT_P, OUT_N), V(IN), 1kHz", &circuit, &ac).unwrap() + 45.0).abs()
+                < 1e-12
+        );
+        assert!(
+            (eval("upper_cutoff", "V(OUT_P, OUT_N), V(IN)", &circuit, &ac).unwrap() - 1_000.0)
+                .abs()
+                < 1e-9
+        );
+        assert!(
+            (eval("bandwidth", "V(OUT_P, OUT_N), V(IN)", &circuit, &ac).unwrap() - 1_000.0).abs()
+                < 1e-9
+        );
+        assert!(eval("gain", "V(UNKNOWN, OUT_N), V(IN)", &circuit, &ac).is_err());
+    }
+
+    #[test]
+    fn frequency_freq_and_period_support_full_and_windowed_transient_signals() {
+        let circuit = test_circuit("");
+        let n = 1001;
+        let axis: Vec<f64> = (0..n).map(|i| i as f64 * 1e-5).collect();
+        let values: Vec<f64> = axis
+            .iter()
+            .map(|&t| {
+                if t < 4e-3 {
+                    (std::f64::consts::TAU * 500.0 * t).sin()
+                } else {
+                    (std::f64::consts::TAU * 2_000.0 * (t - 4e-3)).sin()
+                }
+            })
+            .collect();
+        let sim = tran_sim(axis.clone(), BTreeMap::from([("out".to_string(), values)]));
+
+        let f_early = eval("frequency", "V(OUT), 0ms, 4ms", &circuit, &sim).unwrap();
+        let f_late = eval("freq", "V(OUT), 4ms, 10ms", &circuit, &sim).unwrap();
+        let p_late = eval("period", "V(OUT), 4ms, 10ms", &circuit, &sim).unwrap();
+        assert!((f_early - 500.0).abs() < 2.0, "got {f_early}");
+        assert!((f_late - 2_000.0).abs() < 5.0, "got {f_late}");
+        assert!((p_late - 0.0005).abs() < 2e-6, "got {p_late}");
+
+        let clean_values: Vec<f64> = axis
+            .iter()
+            .map(|&t| (std::f64::consts::TAU * 1_000.0 * t).sin())
+            .collect();
+        let clean_sim = tran_sim(axis, BTreeMap::from([("out".to_string(), clean_values)]));
+        assert!((eval("freq", "V(OUT)", &circuit, &clean_sim).unwrap() - 1_000.0).abs() < 1.0);
+        assert!((eval("period", "V(OUT)", &circuit, &clean_sim).unwrap() - 1e-3).abs() < 1e-6);
+
+        let dc_tran = tran_sim(
+            vec![0.0, 1e-3, 2e-3, 3e-3],
+            BTreeMap::from([("out".to_string(), vec![2.5; 4])]),
+        );
+        assert!(eval("freq", "V(OUT)", &circuit, &dc_tran).is_err());
+        assert!(eval("period", "V(OUT)", &circuit, &dc_tran).is_err());
+    }
+
+    #[test]
+    fn duty_cycle_and_duty_measure_pulses_and_windows() {
+        let circuit = test_circuit("");
+
+        let (axis50, vals50) = pulse_wave(0.0, 5e-3, 5001, 1e-3, 0.50, 0.0, 0.0, 5.0);
+        let sim50 = tran_sim(axis50, BTreeMap::from([("out".to_string(), vals50)]));
+        assert!((eval("duty_cycle", "V(OUT)", &circuit, &sim50).unwrap() - 50.0).abs() < 0.2);
+        assert!((eval("duty", "V(OUT)", &circuit, &sim50).unwrap() - 50.0).abs() < 0.2);
+
+        let (axis25, vals25) = pulse_wave(0.0, 5e-3, 5001, 1e-3, 0.25, 0.1e-3, 0.0, 3.3);
+        let sim25 = tran_sim(axis25, BTreeMap::from([("out".to_string(), vals25)]));
+        assert!((eval("duty_cycle", "V(OUT)", &circuit, &sim25).unwrap() - 25.0).abs() < 0.2);
+        assert!((eval("duty", "V(OUT), 1ms, 5ms", &circuit, &sim25).unwrap() - 25.0).abs() < 0.2);
+
+        // Waveform starting mid-high (partial pulse before first rising crossing) should still report 30%.
+        let (axis30, vals30) = pulse_wave(0.0, 5e-3, 5001, 1e-3, 0.30, 0.15e-3, 0.0, 5.0);
+        assert!(vals30[0] > 4.0);
+        let sim30 = tran_sim(axis30, BTreeMap::from([("out".to_string(), vals30)]));
+        assert!((eval("duty_cycle", "V(OUT)", &circuit, &sim30).unwrap() - 30.0).abs() < 0.2);
+
+        let (axis_mix, mut vals_mix) = pulse_wave(0.0, 10e-3, 10001, 1e-3, 0.25, 0.0, 0.0, 5.0);
+        let (_, vals_late) = pulse_wave(0.0, 10e-3, 10001, 1e-3, 0.75, 0.0, 0.0, 5.0);
+        for (i, &t) in axis_mix.iter().enumerate() {
+            if t >= 4e-3 {
+                vals_mix[i] = vals_late[i];
+            }
+        }
+        let sim_mix = tran_sim(axis_mix, BTreeMap::from([("out".to_string(), vals_mix)]));
+        assert!(
+            (eval("duty_cycle", "V(OUT), 0ms, 4ms", &circuit, &sim_mix).unwrap() - 25.0).abs()
+                < 0.3
+        );
+        assert!(
+            (eval("duty", "V(OUT), 4ms, 10ms", &circuit, &sim_mix).unwrap() - 75.0).abs() < 0.3
+        );
+
+        let flat = tran_sim(
+            vec![0.0, 1e-3, 2e-3],
+            BTreeMap::from([("out".to_string(), vec![1.5; 3])]),
+        );
+        assert_eq!(
+            eval("duty_cycle", "V(OUT)", &circuit, &flat).unwrap_err(),
+            "Signal has zero amplitude; cannot determine duty cycle"
+        );
+    }
+
+    #[test]
+    fn thd_supports_two_four_and_five_argument_forms() {
+        let circuit = test_circuit("");
+        let axis: Vec<f64> = (0..501).map(|i| i as f64 * 1e-5).collect();
+        let values: Vec<f64> = axis
+            .iter()
+            .map(|&t| {
+                let w = std::f64::consts::TAU * 1_000.0 * t;
+                w.sin() + 0.1 * (2.0 * w).sin()
+            })
+            .collect();
+        let sim = tran_sim(axis, BTreeMap::from([("out".to_string(), values)]));
+
+        let thd2 = eval("thd", "V(OUT), 1kHz", &circuit, &sim).unwrap();
+        let thd5_full = eval("thd", "V(OUT), 1kHz, 0ms, 5ms, hann", &circuit, &sim).unwrap();
+        assert!((thd2 - thd5_full).abs() < 1e-12);
+        assert!((thd2 - 10.0).abs() < 0.1, "got {thd2}");
+
+        let thd4 = eval("thd", "V(OUT), 1kHz, 1ms, 5ms", &circuit, &sim).unwrap();
+        let thd5_win = eval("thd", "V(OUT), 1kHz, 1ms, 5ms, hann", &circuit, &sim).unwrap();
+        assert!((thd4 - thd5_win).abs() < 1e-12);
+        assert!((thd4 - 10.0).abs() < 0.1, "got {thd4}");
+
+        assert!(eval("thd", "V(OUT), 1kHz, 1ms, 5ms, rect", &circuit, &sim).is_err());
+        assert!(eval("thd", "V(OUT), 1kHz, 1ms", &circuit, &sim).is_err());
+        assert!(eval("freq", "V(OUT), 1ms", &circuit, &sim).is_err());
+        assert!(eval("period", "V(OUT), 1ms", &circuit, &sim).is_err());
+        assert!(eval("duty_cycle", "V(OUT), 1ms", &circuit, &sim).is_err());
+    }
+
+    #[test]
+    fn pwl_current_source_interpolates_time_points() {
+        let pwl = SourceValue::Waveform(Waveform::PWL {
+            points: vec![
+                (
+                    Quantity {
+                        value: 0.0,
+                        unit: SIUnit::Second,
+                    },
+                    Quantity {
+                        value: 0.0,
+                        unit: SIUnit::Ampere,
+                    },
+                ),
+                (
+                    Quantity {
+                        value: 1e-3,
+                        unit: SIUnit::Second,
+                    },
+                    Quantity {
+                        value: 0.01,
+                        unit: SIUnit::Ampere,
+                    },
+                ),
+                (
+                    Quantity {
+                        value: 2e-3,
+                        unit: SIUnit::Second,
+                    },
+                    Quantity {
+                        value: 0.01,
+                        unit: SIUnit::Ampere,
+                    },
+                ),
+                (
+                    Quantity {
+                        value: 3e-3,
+                        unit: SIUnit::Second,
+                    },
+                    Quantity {
+                        value: 0.0,
+                        unit: SIUnit::Ampere,
+                    },
+                ),
+            ],
+        });
+        assert!((source_value_at(&pwl, -1e-4).unwrap() - 0.0).abs() < 1e-12);
+        assert!((source_value_at(&pwl, 0.0).unwrap() - 0.0).abs() < 1e-12);
+        assert!((source_value_at(&pwl, 5e-4).unwrap() - 0.005).abs() < 1e-12);
+        assert!((source_value_at(&pwl, 1.5e-3).unwrap() - 0.01).abs() < 1e-12);
+        assert!((source_value_at(&pwl, 2.5e-3).unwrap() - 0.005).abs() < 1e-12);
+        assert!((source_value_at(&pwl, 5e-3).unwrap() - 0.0).abs() < 1e-12);
+
+        let empty = SourceValue::Waveform(Waveform::PWL { points: vec![] });
+        assert!((source_value_at(&empty, 1e-3).unwrap() - 0.0).abs() < 1e-12);
+
+        let circuit = test_circuit(
+            "current_source I1 pwl(0s, 0A, 1ms, 10mA, 2ms, 10mA, 3ms, 0A)\n\
+             connect I1.plus to OUT\nconnect I1.minus to GND\n",
+        );
+        let sim = tran_sim(
+            vec![0.0, 0.5e-3, 1.0e-3, 2.0e-3, 2.5e-3, 3.0e-3],
+            BTreeMap::from([("out".to_string(), vec![0.0; 6])]),
+        );
+        assert!((eval("peak", "I(I1)", &circuit, &sim).unwrap() - 0.01).abs() < 1e-12);
+        assert!((eval("average", "I(I1)", &circuit, &sim).unwrap() - (0.03 / 6.0)).abs() < 1e-12);
+    }
+
+    #[test]
+    fn compiled_assertions_evaluate_new_periodic_thd_and_differential_metrics() {
+        let source = "\
+net GND
+net IN
+net OUT
+net OUT_P
+net OUT_N
+source VIN 1V
+resistor R1 1k
+connect VIN.plus to IN
+connect VIN.minus to GND
+connect R1.p1 to OUT_P
+connect R1.p2 to OUT_N
+simulate tran 10us 5ms
+assert freq(V(OUT)) > 990Hz
+assert frequency(V(OUT), 1ms, 5ms) < 1010Hz
+assert period(V(OUT)) > 0.99ms
+assert period(V(OUT), 1ms, 5ms) < 1.01ms
+assert duty_cycle(V(OUT)) > 49%
+assert duty(V(OUT), 1ms, 5ms) < 51%
+assert thd(V(OUT), 1kHz) < 10.5%
+assert thd(V(OUT), 1kHz, 1ms, 5ms) < 10.5%
+assert max(V(OUT_P, OUT_N)) > 1.9V
+";
+        let program = parse_program(source).expect("assertions should parse");
+        let circuit = ast_to_ir(&program).expect("assertions should compile to IR");
+        let axis: Vec<f64> = (0..501).map(|i| i as f64 * 1e-5).collect();
+        let out: Vec<f64> = axis
+            .iter()
+            .map(|&t| {
+                let w = std::f64::consts::TAU * 1_000.0 * t;
+                w.sin() + 0.1 * (2.0 * w).sin()
+            })
+            .collect();
+        let out_p = vec![2.0; axis.len()];
+        let out_n = vec![0.0; axis.len()];
+        let sim = tran_sim(
+            axis,
+            BTreeMap::from([
+                ("out".to_string(), out),
+                ("out_p".to_string(), out_p),
+                ("out_n".to_string(), out_n),
+            ]),
+        );
+        let report = crate::sim_result::evaluate_assertions(&circuit, &sim);
+        assert!(report.all_passed(), "{:?}", report.assertions);
     }
 }

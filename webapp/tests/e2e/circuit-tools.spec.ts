@@ -7,6 +7,10 @@ test('calculates the loaded divider, downloads source and restores the prior wor
     name: 'My prior circuit', source: 'net GND\nnet OUT\nsource V1 5V\nresistor R1 1000\nconnect V1.plus, R1.p1 to OUT\nconnect V1.minus, R1.p2 to GND\nsimulate op\n', dirty: true,
   })));
   await page.getByRole('navigation', { name: 'Footer navigation' }).getByRole('link', { name: 'Calculators', exact: true }).click();
+  await expect(page.getByRole('link', { name: /Loaded voltage divider/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /RC low-pass filter/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Non-inverting op-amp/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Zener shunt regulator/ })).toBeVisible();
   await page.getByRole('link', { name: /Loaded voltage divider/ }).click();
   await expect(page.getByRole('link', { name: '← All calculators' })).toHaveAttribute('href', '/tools/');
   await expect(page.getByRole('navigation', { name: 'Calculators footer navigation' })).toBeVisible();
@@ -72,4 +76,33 @@ test('RC rounding changes achieved cutoff, rejects wrong units and stays usable 
   await expect(page.getByTestId('simulation-summary')).toHaveAttribute('data-state', 'succeeded', { timeout: 20_000 });
   await expect(page.getByLabel('Signal', { exact: true })).toHaveValue('out');
   await expect(page.locator('.result-plot')).toHaveCount(2);
+});
+
+test('calculates non-inverting op-amp and Zener shunt regulator and opens valid circuits in editor', async ({ page }) => {
+  await page.goto('/tools/');
+  await expect(page.getByRole('link', { name: /Loaded voltage divider/ })).toHaveAttribute('href', '/tools/voltage-divider/');
+  await expect(page.getByRole('link', { name: /RC low-pass filter/ })).toHaveAttribute('href', '/tools/rc-lowpass/');
+  await expect(page.getByRole('link', { name: /Non-inverting op-amp/ })).toHaveAttribute('href', '/tools/non-inverting-opamp/');
+  await expect(page.getByRole('link', { name: /Zener shunt regulator/ })).toHaveAttribute('href', '/tools/zener-regulator/');
+
+  await page.getByRole('link', { name: /Non-inverting op-amp/ }).click();
+  await expect(page.getByRole('heading', { name: 'Non-inverting op-amp', exact: true })).toBeVisible();
+  await page.getByLabel('Component values', { exact: true }).selectOption('e24');
+  await page.getByRole('button', { name: 'Calculate circuit' }).click();
+  const opampOutput = page.getByRole('region', { name: 'Calculation results' });
+  await expect(opampOutput).toContainText('91 kΩ');
+  await expect(opampOutput).toContainText('10.1 V/V');
+  await page.getByRole('button', { name: 'Open in editor' }).click();
+  await expect(page.getByTestId('compile-status')).toContainText('Source valid');
+
+  await page.goto('/tools/zener-regulator/');
+  await expect(page.getByRole('heading', { name: 'Zener shunt regulator', exact: true })).toBeVisible();
+  await page.getByLabel('Component values', { exact: true }).selectOption('exact');
+  await page.getByRole('button', { name: 'Calculate circuit' }).click();
+  const zenerOutput = page.getByRole('region', { name: 'Calculation results' });
+  await expect(zenerOutput).toContainText('460 Ω');
+  await expect(zenerOutput).toContainText('510 Ω');
+  await expect(zenerOutput).toContainText('5.1 V');
+  await page.getByRole('button', { name: 'Open in editor' }).click();
+  await expect(page.getByTestId('compile-status')).toContainText('Source valid');
 });

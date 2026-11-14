@@ -139,7 +139,12 @@ pub fn capability_manifest(cli_schema_version: &str) -> CapabilityManifest {
         },
         contracts,
         commands: command_capabilities(),
-        calculators: vec!["divider".into(), "rc-lowpass".into()],
+        calculators: vec![
+            "divider".into(),
+            "rc-lowpass".into(),
+            "non-inverting-opamp".into(),
+            "zener-regulator".into(),
+        ],
         language: LanguageCapability {
             component_keywords: [
                 "resistor",
@@ -164,6 +169,7 @@ pub fn capability_manifest(cli_schema_version: &str) -> CapabilityManifest {
             .collect(),
             structural_keywords: [
                 "net",
+                "initial",
                 "param",
                 "connect",
                 "couple",

@@ -35,6 +35,20 @@ Post-1.5.0 Web Hub UX enhancements, streamlined external device model workflows,
   - Add `pk2pk` (with aliases `p2p` and `vpp`) as a reduction metric (`max - min` over transient or DC-sweep series data, supporting optional `[start, stop]` transient windows).
   - Position negative-rail supply labels on top pins and positive-rail supply labels on bottom pins outside the vertical lead stub so label text never overlaps the supply lead wire.
 
+### Language, measurements, built-in models, and calculators
+
+- **Differential net voltages and periodic/harmonic assertions:**
+  - Support differential net voltage `V(NET_A, NET_B)` (including ground and mixed `component.pin`/net endpoints) across OP, Transient, DC Sweep, and AC frequency-domain metrics (`gain`, `gain_at`, `lower_cutoff`, `upper_cutoff`, `bandwidth`/`cutoff`, `phase`).
+  - Add `freq` (alias of `frequency`, 1 or 3 args), `period` (1 or 3 args), and `duty_cycle` / `duty` (1 or 3 args) periodic transient metrics, and extend `thd` to accept 2-argument (`thd(signal, fundamental)`), 4-argument (`thd(signal, fundamental, start, stop)`), and 5-argument (`thd(signal, fundamental, start, stop, hann)`) forms.
+- **Node initial conditions (`initial`) and flexible `pwl` syntax:**
+  - Add `initial V(NET) = <voltage>` (literal or `{expr}`, including module-local nets) with ERC validation, SPICE `.ic V(<net>)=<voltage>` generation before `.control`, LTspice `!.ic` export, and round-trip SPICE `.ic` import.
+  - Accept comma- or space-separated `pwl(0s 0V, 1ms 5V)` / `pwl(0s 0V 1ms 5V)` source waveform pairs (including `{expr}` expressions) and implement linear time interpolation for `current_source` PWL waveforms.
+- **Six classic built-in semiconductor models and JFET current saving:**
+  - Add built-in `1N5819` (Schottky diode), `BC547` (NPN BJT), `BC557` (PNP BJT), `2N7000` (NMOS), `BSS84` (PMOS), and `J201` (NJF JFET) models across Core and SPICE import collision handling, plus native Ngspice `@J_<id>[id]` drain current saving.
+- **Engineering calculators and Monaco editor support:**
+  - Add `non_inverting_opamp` (`/tools/non-inverting-opamp/`) and `zener_regulator` (`/tools/zener-regulator/`) calculators alongside `divider` and `rc-lowpass` across Core, `kess tool` CLI, `kessetsu_tool` MCP, and Web Hub `/tools/`.
+  - Add Monaco syntax highlighting and completions for `initial`, `freq`, `period`, `duty_cycle`, and `duty`.
+
 ## [1.5.0] — 2026-11-01
 
 Expanded SPICE and semiconductor device coverage (`vcvs`, `vccs`, `ccvs`, `cccs`, `switch`, Zener breakdown diodes, `jfet`, `couple` magnetic coupling, 4-terminal MOSFET bulk pin `b`, `exp` transient waveform, biased `ac` sources, `.param` math expressions, and RKM notation), physical op-amp macromodeling (`KESSETSU_OPAMP_V2`), deterministic parameter studies (`kess study`) and engineering calculators (`kess tool`), canonical 1.5 showcase circuits, and a progressive-disclosure public website and onboarding experience.

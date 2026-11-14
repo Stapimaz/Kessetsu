@@ -253,6 +253,67 @@ pub fn check_rules(circuit: &CircuitIR, graph: &NetlistGraph) -> Vec<ErcDiagnost
         });
     }
 
+    // 8. Node initial conditions validation.
+    let mut known_nets_lower: HashSet<String> = circuit
+        .nets
+        .iter()
+        .map(|net| net.to_ascii_lowercase())
+        .collect();
+    for conn in &circuit.connections {
+        for pin in &conn.pins {
+            if pin.component.is_empty() {
+                known_nets_lower.insert(pin.pin.to_ascii_lowercase());
+            }
+        }
+    }
+    let mut seen_initial_nets = HashSet::new();
+    for ic in &circuit.initial_conditions {
+        if !ic.voltage.is_finite() {
+            errors.push(ErcDiagnostic {
+                code: "KES-C001".to_string(),
+                severity: Severity::Error,
+                message: format!(
+                    "Initial condition voltage for net '{}' must be finite.",
+                    ic.net
+                ),
+                component: None,
+                pin: Some(ic.net.clone()),
+            });
+        }
+        if ic.net == "0" || ic.net.eq_ignore_ascii_case("gnd") {
+            errors.push(ErcDiagnostic {
+                code: "KES-C001".to_string(),
+                severity: Severity::Error,
+                message: format!("Cannot set initial condition on ground net '{}'.", ic.net),
+                component: None,
+                pin: Some(ic.net.clone()),
+            });
+            continue;
+        }
+        let lower_net = ic.net.to_ascii_lowercase();
+        if !seen_initial_nets.insert(lower_net.clone()) {
+            errors.push(ErcDiagnostic {
+                code: "KES-E001".to_string(),
+                severity: Severity::Error,
+                message: format!("Duplicate initial condition for net '{}'.", ic.net),
+                component: None,
+                pin: Some(ic.net.clone()),
+            });
+        }
+        if !known_nets_lower.contains(&lower_net) {
+            errors.push(ErcDiagnostic {
+                code: "KES-E002".to_string(),
+                severity: Severity::Error,
+                message: format!(
+                    "Initial condition references undeclared or unconnected net '{}'.",
+                    ic.net
+                ),
+                component: None,
+                pin: Some(ic.net.clone()),
+            });
+        }
+    }
+
     errors.sort_by(|left, right| {
         left.code
             .cmp(&right.code)

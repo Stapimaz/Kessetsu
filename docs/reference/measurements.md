@@ -85,15 +85,17 @@ The contract requires `0 <= start < stop` and at least one sample inside the win
 | `lower_cutoff(out,in[,reference_frequency])` | Lower half-power edge of the band containing the reference | AC with an observed lower edge | Hz |
 | `upper_cutoff(out,in[,reference_frequency])` | Upper half-power edge of the band containing the reference | AC with an observed upper edge | Hz |
 | `bandwidth(out,in)` / `cutoff(out,in)` | Log-frequency interpolation of the first `-3 dB` crossing relative to the first AC gain point | AC, at least two points and a crossing | Hz |
-| `frequency(signal)` | Reciprocal of the mean period between rising mean crossings | Transient, at least two crossings | Hz |
+| `frequency(signal[,start,stop])` / `freq(signal[,start,stop])` | Reciprocal of the mean period between rising mean crossings; optional `[start, stop]` window | Transient, at least two crossings | Hz |
+| `period(signal[,start,stop])` | Reciprocal of dominant `frequency(signal[,start,stop])`; optional `[start, stop]` window | Transient, positive finite frequency | s |
+| `duty_cycle(signal[,start,stop])` / `duty(signal[,start,stop])` | Percentage of time `signal > (min + max) / 2` across complete rising midpoint-crossing cycles; optional `[start, stop]` window | Transient, nonzero swing and at least two crossings | % |
 | `phase(out,in[,frequency])` | Wrapped complex phase difference in `(-180, 180]`; optional frequency selects the nearest AC point | AC | degree |
 | `output_power(V(out),load[,start,stop])` | `Vrms²/Rload`; optional bounds isolate steady state | Transient voltage and resistor load | W |
 | `efficiency(V(out),load,V(supply),I(source)[,...][,start,stop])` | `100 × Pout / Σ|average(Vsupply × Isource)|`; accepts one or two supply pairs and an optional shared steady-state window | Transient | % |
-| `thd(signal,fundamental,start,stop,hann)` | Explicit-frequency Hann-windowed projection after deterministic linear resampling; `100 × sqrt(Σ H₂..H₅²)/H₁` | Transient data, at least 32 samples and two fundamental periods | % |
+| `thd(signal,fundamental[,start,stop[,hann]])` | Explicit-frequency Hann-windowed projection after deterministic linear resampling; `100 × sqrt(Σ H₂..H₅²)/H₁` (2 args uses full trace + Hann; 4 args uses `[start, stop]` + Hann; 5 args specifies explicit `hann`) | Transient data, at least 32 samples and two fundamental periods | % |
 | `clipping(signal,lower,upper)` | Percentage of samples within `0.1%` of either explicit rail | Transient | % |
 | `dissipation(device[,start,stop])` | Mean of `max(P(device), 0)`; optional bounds isolate steady state | Transient device voltage/current | W |
 
-`V(component.pin,component.pin)` is the explicit terminal-pair primitive for stress checks. It validates both component pins against the shared catalog and preserves the written polarity; for example `V(Q1.c,Q1.e)` is VCE and `V(M1.g,M1.s)` is VGS. The shorthand `V(Q1)` remains the device's canonical main terminal pair for compatibility.
+`V(A, B)` supports differential net voltages (`V(OUT_P, OUT_N)`, `V(OUT, GND)`), explicit terminal-pair stress checks (`V(Q1.c, Q1.e)` is VCE and `V(M1.g, M1.s)` is VGS), and mixed component-pin/net endpoints (`V(R1.p1, OUT)`). Component pins are validated against the shared catalog and written polarity is preserved. Differential `V(A, B)` works across OP, transient, DC sweep, and AC metrics (`gain`, `gain_at`, `lower_cutoff`, `upper_cutoff`, `bandwidth`/`cutoff`, `phase`), computing elementwise `V(A) - V(B)` with ground mapped to `0`. The shorthand `V(Q1)` remains the device's canonical main terminal pair for compatibility.
 
 `bandwidth`/`cutoff` remains intentionally low-pass-only in v2, preserving v1 behavior: the first AC point must be within 1% of the maximum response and a later downward −3 dB crossing must exist. Band-pass, high-pass or multi-peak responses still fail closed for these legacy metrics. Existing `gain`, `phase`, and all other legacy metrics are unchanged.
 
@@ -106,7 +108,7 @@ assert lower_cutoff(V(OUT),V(IN),1kHz) < 110Hz
 assert upper_cutoff(V(OUT),V(IN),1kHz) > 8kHz
 ```
 
-These three metrics accept node-voltage primitives `V(net)` only, not device voltages, terminal pairs, currents or powers. They use the first AC dataset, even when transient datasets or further AC analyses are present. Frequencies must be positive and inside that sweep; no extrapolation or nearest-point substitution occurs. Magnitude is interpolated linearly along log frequency, not linearly in dB.
+These metrics accept single-ended (`V(net)`) or differential (`V(net1, net2)`) voltage primitives, not device currents or powers. They use the first AC dataset, even when transient datasets or further AC analyses are present. Frequencies must be positive and inside that sweep; no extrapolation or nearest-point substitution occurs. Magnitude is interpolated linearly along log frequency, not linearly in dB.
 
 Cutoff edges use `reference_gain / sqrt(2)` as the half-power threshold. An explicit reference frequency selects the connected above-threshold band containing that frequency. Without a reference, the sampled global peak supplies the reference; multiple disjoint above-threshold bands produce `ERROR` requesting an explicit reference rather than selecting a band silently. This is a response-based rule, not a filter-topology classifier.
 

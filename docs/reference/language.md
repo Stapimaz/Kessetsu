@@ -48,7 +48,7 @@ Source waveforms are typed:
 - Sine with AC: `sine_ac(offset, amplitude, frequency, ac_amplitude)`
 - Pulse: `pulse(low, high, delay, rise, fall, width, period)`
 - Exponential transient: `exp(v1, v2, td1, tau1, td2, tau2)` where `v1` is initial value, `v2` is pulsed value, `td1` is rise delay, `tau1` is rise time constant, `td2` is fall delay, and `tau2` is fall time constant.
-- Piecewise linear: `pwl(time, value, ...)` with non-negative, strictly increasing times.
+- Piecewise linear: `pwl(time, value, ...)` or space-paired `pwl(time value, ...)` (for example `pwl(0s 0V, 1ms 5V)` or `pwl(0s 0V 1ms 5V)`) with at least two pairs and non-negative, strictly increasing times. Supported on both `source` and `current_source` (with linear time interpolation for current-source measurements).
 
 See [supported domain](supported-domain.md) for component and model limits.
 
@@ -78,6 +78,17 @@ couple K1 L1 L2 L3 0.98
 ```
 
 Coupling coefficients must satisfy `0 < coefficient <= 1` and accept braced parameter expressions (e.g. `couple K1 L1 L2 {coupling_factor}`). In SPICE netlist generation, this maps directly to `K<name> <ind1> <ind2> ... <coefficient>`.
+
+### Node initial conditions (`initial`)
+
+The `initial` statement sets a starting node voltage for transient simulation (SPICE `.ic`):
+
+```kessetsu
+initial V(OUT) = 2.5V
+initial V(CAP_NODE) = {v_init}
+```
+
+Both `initial` and `V(...)` are case-insensitive. The target net must be a declared or connected non-ground net (case-insensitive lookup; `0` and `GND` are rejected, and duplicate `initial` statements for the same net fail compilation). Inside a `module`, `initial` may target a module-local net (qualified during flattening and evaluated in the module's parameter scope), but cannot target a module port directly. The voltage must resolve to a finite `Volt` quantity. In SPICE netlist generation, each declaration emits `.ic V(<net>)=<voltage>` before `.control` (commonly paired with `simulate tran <step> <stop> uic` when skipping the DC operating point), and LTspice `.asc` export emits `!.ic V(<net>)=<expr>`.
 
 ## Named quantities and arithmetic
 
@@ -218,9 +229,12 @@ includes connections and fixed requirements. One frequency controls the excitati
 AC range and a ten-period transient window without duplicating numbers. Existing literal
 syntax remains valid; use braces only where a formula or parameter is useful.
 
-All numeric arguments of unquoted `ac`, `sine`, `sine_ac`, `pulse` and `pwl` calls accept
+All numeric arguments of unquoted `ac`, `sine`, `sine_ac`, `pulse`, `exp` and `pwl` calls accept
 expressions. Voltage/current levels use the source's unit, frequency uses Hz, and times
-use seconds. PWL keeps its alternating time/value arguments and increasing-time checks.
+use seconds. PWL accepts comma-separated arguments (`pwl(0s,0V,1ms,5V)`), comma-separated
+time/value pairs (`pwl(0s 0V, 1ms 5V)`), or space-separated pairs (`pwl(0s 0V 1ms 5V)`),
+including braced expressions such as `pwl(0s 0V, {t1} {v1})`, while keeping alternating
+time/value arguments and strictly-increasing-time checks.
 Legacy quoted SPICE-style waveforms remain literal-only: do not put `{name}` inside quotes.
 Module waveform expressions use the module's own parameter scope, including overrides.
 
@@ -351,9 +365,9 @@ external_subcircuit opamp OPA197 (in_p,in_n,vcc,vee,out) file="models/OPAx197.LI
 ```
 
 Raw `.include`, `.model`, `.subckt` and `.control` injection is intentionally rejected. Model kinds have parameter allowlists:
-- **`model diode <name>`**: parameters include `is`, `rs`, `n`, `tt`, `cjo`, `vj`, `m`, `eg`, `xti`, `fc`, plus breakdown parameters `bv` (reverse breakdown voltage), `ibv` (current at breakdown voltage), `nbv` (breakdown emission coefficient), `ibvl` (low-level reverse breakdown knee current), and `nbvl` (low-level breakdown emission coefficient). Built-in Zener diodes: `1N4733A` (5.1 V), `BZX84C3V3` (3.3 V), `BZX84C5V1` (5.1 V), and `BZX84C12` (12 V).
-- **`model bjt <name> npn|pnp`**: standard Gummel-Poon BJT parameters (`is`, `bf`, `nf`, `vaf`, `ikf`, `ise`, `ne`, `br`, `nr`, `var`, `ikr`, `isc`, `nc`, `rb`, `rc`, `re`, `cje`, `vje`, `mje`, `tf`, `cjc`, `vjc`, `mjc`, `tr`, `xtb`, `xti`, `eg`).
-- **`model jfet <name> njf|pjf`**: junction field-effect transistor models (`njf` for N-channel, `pjf` for P-channel). Parameters include `vto` (pinch-off/threshold voltage), `beta` (transconductance parameter in A/V²), `lambda` (channel-length modulation in 1/V), `rd` (drain resistance in Ω), `rs` (source resistance in Ω), `cgs` (zero-bias G-S capacitance in F), `cgd` (zero-bias G-D capacitance in F), `pb` (gate junction potential in V), `is` (gate saturation current in A), `fc` (forward-bias depletion capacitance coefficient), `b` (doping tail parameter), `kf` (flicker noise coefficient), `af` (flicker noise exponent), and `tnom` (parameter measurement temperature in °C). Built-in models: `2N5457` (and `J2N5457`) `njf`, and `2N5460` `pjf`.
+- **`model diode <name>`**: parameters include `is`, `rs`, `n`, `tt`, `cjo`, `vj`, `m`, `eg`, `xti`, `fc`, plus breakdown parameters `bv` (reverse breakdown voltage), `ibv` (current at breakdown voltage), `nbv` (breakdown emission coefficient), `ibvl` (low-level reverse breakdown knee current), and `nbvl` (low-level breakdown emission coefficient). Built-in diodes: `1N4148`, `1N4007`, Schottky `1N5819`, and Zener diodes `1N4733A` (5.1 V), `BZX84C3V3` (3.3 V), `BZX84C5V1` (5.1 V), and `BZX84C12` (12 V).
+- **`model bjt <name> npn|pnp`**: standard Gummel-Poon BJT parameters (`is`, `bf`, `nf`, `vaf`, `ikf`, `ise`, `ne`, `br`, `nr`, `var`, `ikr`, `isc`, `nc`, `rb`, `rc`, `re`, `cje`, `vje`, `mje`, `tf`, `cjc`, `vjc`, `mjc`, `tr`, `xtb`, `xti`, `eg`). Built-in BJTs: `2N3904`, `2N3906`, `2N2222`, `BC547` (`npn`), `BC557` (`pnp`), `KESSETSU_POWER_NPN_V1`, and `KESSETSU_POWER_PNP_V1`.
+- **`model jfet <name> njf|pjf`**: junction field-effect transistor models (`njf` for N-channel, `pjf` for P-channel). Parameters include `vto` (pinch-off/threshold voltage), `beta` (transconductance parameter in A/V²), `lambda` (channel-length modulation in 1/V), `rd` (drain resistance in Ω), `rs` (source resistance in Ω), `cgs` (zero-bias G-S capacitance in F), `cgd` (zero-bias G-D capacitance in F), `pb` (gate junction potential in V), `is` (gate saturation current in A), `fc` (forward-bias depletion capacitance coefficient), `b` (doping tail parameter), `kf` (flicker noise coefficient), `af` (flicker noise exponent), and `tnom` (parameter measurement temperature in °C). Built-in models: `2N5457` (and `J2N5457`) `njf`, `J201` `njf`, and `2N5460` `pjf`. Built-in MOSFETs include `IRF540`, `2N7000` (`nmos`), `BSS84` (`pmos`), and `KESSETSU_PMOS_V1`.
 - **`model switch <name>`**: voltage-controlled switch model mapping to SPICE `SW`. Parameters: `vt` (threshold voltage in V), `vh` (hysteresis voltage in V), `ron` (on-state resistance in Ω), and `roff` (off-state resistance in Ω). Default generic model: `KESSETSU_SW_V1` (`vt=0.5`, `vh=0`, `ron=1`, `roff=1Meg`).
 
 Package imports require an exact version and produce a provenance-bearing `kessetsu.lock`. External declarations bind a user-owned source-relative file by exact SHA-256, entry name, canonical pin order, provenance, simulator mode, and redistribution policy. Ordinary reports/exports never embed its body. Native stdin cannot bind files; native file commands resolve contained local files. The [model cookbook](../guides/cookbook.md#choose-and-verify-a-component-model) shows the complete directory, hash and command workflow.

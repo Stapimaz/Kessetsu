@@ -9,10 +9,10 @@ Unsupported constructs produce diagnostics rather than silently approximate resu
 |---|---|---|---|
 | Resistor, capacitor, inductor | Supported | `p1`, `p2` | Ideal lumped element; studies can vary values explicitly, but no implicit tolerance, temperature coefficient or parasitic model |
 | Coupled inductors (`couple`) | Supported | Referenced inductor IDs | Magnetic mutual coupling statement: `couple <id> <ind1> <ind2> [<ind3> ...] <k>` (SPICE `K`), supporting two-winding and uniform multi-winding transformers with `0 < k <= 1` and `{...}` coefficient expressions |
-| Diode | Supported | `p1`, `p2` | Built-in (including Zeners) or typed allowlisted model with breakdown parameters |
-| BJT NPN/PNP | Supported | `c`, `b`, `e` | Three-terminal model; grounded-substrate 4-terminal SPICE cards fold to 3 terminals |
-| JFET NJF/PJF | Supported | `d`, `g`, `s` | Three-terminal JFET device family (`jfet <id> [model]`, SPICE `J`), built-in models `2N5457`, `J2N5457`, `2N5460` or typed allowlisted `model jfet` |
-| MOSFET NMOS/PMOS | Supported | `d`, `g`, `s` (optional `b`) | Four-terminal or three-terminal model; optional bulk terminal `b` defaults to `s` when omitted in `.kess` or folds `b == s` on SPICE import; explicit separate bulk supported in both `.kess` and SPICE import (`M... d g s b model`) |
+| Diode | Supported | `p1`, `p2` | Built-in (`1N4148`, `1N4007`, Schottky `1N5819`, Zeners) or typed allowlisted model with breakdown parameters |
+| BJT NPN/PNP | Supported | `c`, `b`, `e` | Three-terminal model (`2N3904`, `2N3906`, `2N2222`, `BC547`, `BC557`, power models); grounded-substrate 4-terminal SPICE cards fold to 3 terminals |
+| JFET NJF/PJF | Supported | `d`, `g`, `s` | Three-terminal JFET device family (`jfet <id> [model]`, SPICE `J`), built-in models `2N5457`, `J2N5457`, `J201`, `2N5460` or typed allowlisted `model jfet`; native Ngspice drain current saving (`@J_<id>[id]`) |
+| MOSFET NMOS/PMOS | Supported | `d`, `g`, `s` (optional `b`) | Four-terminal or three-terminal model (`IRF540`, `2N7000`, `BSS84`, `KESSETSU_PMOS_V1`); optional bulk terminal `b` defaults to `s` when omitted in `.kess` or folds `b == s` on SPICE import; explicit separate bulk supported in both `.kess` and SPICE import (`M... d g s b model`) |
 | Op-amp | Supported | `in_p`, `in_n`, `vcc`, `vee`, `out` | Safe canonical template (`KESSETSU_OPAMP_V1`, `KESSETSU_OPAMP_V2`) or hash-bound external subcircuit; browser portable-profile restrictions apply; no arbitrary raw directives |
 | External comparator | Supported | `in_p`, `in_n`, `vcc`, `vee`, `out` | Exact local model; browser portable-profile restrictions apply |
 | External two-terminal device | Supported | `p1`, `p2` | Exact local subcircuit, e.g. the characterized memristor demonstration; no universal device fidelity |
@@ -34,7 +34,8 @@ Independent voltage (`source`) and current (`current_source`) elements support t
 - Sine with AC: `sine_ac(offset, amplitude, frequency, ac_amplitude)` for combined transient and AC frequency-domain sweeps.
 - Pulse: `pulse(low, high, delay, rise, fall, width, period)`
 - Exponential transient: `exp(v1, v2, td1, tau1, td2, tau2)` (mapping to SPICE `EXP(...)`) for exponential rise/fall stimulus.
-- Piecewise linear: `pwl(time, value, ...)` with non-negative, strictly increasing times.
+- Piecewise linear: `pwl(time, value, ...)` or space-paired `pwl(time value, ...)` (`pwl(0s 0V, 1ms 5V)`) with non-negative, strictly increasing times (with linear time interpolation for `current_source` measurements).
+- Node initial conditions: `initial V(NET) = <voltage>` (literal or `{expr}`) emits SPICE `.ic V(<net>)=<voltage>` before `.control` and LTspice `!.ic V(<net>)=<expr>`.
 
 ## Model scope
 
@@ -44,12 +45,12 @@ profile. The [model catalog](model-catalog.md) defines the characterized compara
 threshold-memristor and native-only manufacturer op-amp cases. This does not imply
 arbitrary vendor, memristor or research-device support.
 
-- Built-ins: `2N3904`, `2N3906`, `2N2222`, `KESSETSU_POWER_NPN_V1`, `KESSETSU_POWER_PNP_V1`, `1N4148`, `1N4007`, built-in Zener breakdown diodes (`1N4733A`, `BZX84C3V3`, `BZX84C5V1`, `BZX84C12`), built-in JFETs (`2N5457`, `J2N5457`, `2N5460`), `IRF540`, `KESSETSU_PMOS_V1`, `KESSETSU_SW_V1`, `KESSETSU_OPAMP_V1`, and `KESSETSU_OPAMP_V2`.
+- Built-ins: `2N3904`, `2N3906`, `2N2222`, `BC547`, `BC557`, `KESSETSU_POWER_NPN_V1`, `KESSETSU_POWER_PNP_V1`, `1N4148`, `1N4007`, `1N5819` (Schottky), built-in Zener breakdown diodes (`1N4733A`, `BZX84C3V3`, `BZX84C5V1`, `BZX84C12`), built-in JFETs (`2N5457`, `J2N5457`, `J201`, `2N5460`), `IRF540`, `2N7000`, `BSS84`, `KESSETSU_PMOS_V1`, `KESSETSU_SW_V1`, `KESSETSU_OPAMP_V1`, and `KESSETSU_OPAMP_V2`.
 - Builtin `1N4148`/`1N4007` use portable electrical directives in 1.2.0, repairing an
   issue in older downloads. Provenance version `1.0.1` records the repaired hashes without
   changing electrical coefficients. Descriptive ratings are not enforced device limits.
 - Built-in Zener diodes and breakdown parameters: built-in models `1N4733A`, `BZX84C3V3`, `BZX84C5V1`, and `BZX84C12` provide characterized Zener breakdown behavior. Typed `model diode` declarations accept breakdown parameters `bv`, `ibv`, `nbv`, `ibvl`, and `nbvl`.
-- Verified generic JFETs: `2N5457@1.0.0` and `J2N5457@1.0.0` (generic N-channel JFET), `2N5460@1.0.0` (generic P-channel JFET) with verified pinch-off and transconductance parameters.
+- Verified generic JFETs: `2N5457@1.0.0`, `J2N5457@1.0.0`, and `J201` (N-channel JFETs), `2N5460@1.0.0` (P-channel JFET) with pinch-off and transconductance parameters. Native SPICE runs save JFET drain currents via `@J_<id>[id]`.
 - Verified generic switch: `KESSETSU_SW_V1@1.0.0`, a SPICE `SW` model with `vt=0.5`, `vh=0`, `ron=1`, and `roff=1Meg`. Typed user switch models use `model switch <name> version=... license=... vt=... vh=... ron=... roff=...`.
 - Verified generic PMOS: `KESSETSU_PMOS_V1@1.0.1`, a portable Ngspice `MOS1` DC model with no manufacturer, datasheet, or parasitic-model claim.
 - Verified generic op-amps: `KESSETSU_OPAMP_V1@1.1.0` (anti-windup supply-rail output clamping to `vcc`/`vee`, with safe symmetric clamping when `V(vcc) <= V(vee)`) and `KESSETSU_OPAMP_V2@1.0.0` (differential input stage, dominant-pole gain-bandwidth product `gbw` with `gain=200k` and `bandwidth=1MHz`, slew-rate limiting `slew_rate=500k` V/s, supply-rail output saturation headroom `rail_headroom=1V`, and linear output resistance `rout=50` Ω; does not model a hard nonlinear output-current limit).
@@ -72,8 +73,9 @@ The canonical SPICE importer (`kess import`, CLI `--input auto|spice`, and `kess
 - Independent sources: DC, AC, SINE, PULSE, EXP, and PWL `V` and `I` sources, including combined DC bias + AC stimulus (`V1 in 0 DC 5 AC 1 0` -> `ac(1, 5)`) and `EXP(...)` transient waveforms.
 - Linear dependent sources: linear `E` (VCVS), `G` (VCCS), `F` (CCCS), and `H` (CCVS) sources; current-controlled sources fold 0 V sense branches into Kessetsu's canonical 4-pin dependent sources.
 - Switches: `S` cards with `.model <name> SW` parameters (`vt`, `vh`, `ron`, `roff`) or default `KESSETSU_SW_V1`.
-- Diodes and transistors: `D`, `Q`, `J` (JFET), and three- or four-terminal `M` (MOSFET) cards, using built-in models (including Zener diodes `1N4733A`, `BZX84C3V3`, `BZX84C5V1`, `BZX84C12` and JFETs `2N5457`, `J2N5457`, `2N5460`) or typed inline `.model` definitions (including breakdown parameters `bv`, `ibv`, `nbv`, `ibvl`, `nbvl` and JFET parameters). Four-terminal BJT cards automatically fold the substrate terminal when tied to ground (`0`/`GND`) or emitter (emitting advisory warning `KES-N011`). Four-terminal MOSFET cards with bulk tied to source fold to 3-pin `mosfet`, while explicit separate bulk nodes (`b != s`) import with all 4 pins (`d`, `g`, `s`, `b`) connected. Trailing MOSFET instance parameters (`W`, `L`, `AD`, `AS`, `PD`, `PS`, `M`) are tolerated with `KES-N011` warnings.
+- Diodes and transistors: `D`, `Q`, `J` (JFET), and three- or four-terminal `M` (MOSFET) cards, using built-in models (including Schottky `1N5819`, Zener diodes `1N4733A`, `BZX84C3V3`, `BZX84C5V1`, `BZX84C12`, BJTs `2N3904`, `2N3906`, `2N2222`, `BC547`, `BC557`, MOSFETs `IRF540`, `2N7000`, `BSS84`, and JFETs `2N5457`, `J2N5457`, `J201`, `2N5460`) or typed inline `.model` definitions (including breakdown parameters `bv`, `ibv`, `nbv`, `ibvl`, `nbvl` and JFET parameters). Four-terminal BJT cards automatically fold the substrate terminal when tied to ground (`0`/`GND`) or emitter (emitting advisory warning `KES-N011`). Four-terminal MOSFET cards with bulk tied to source fold to 3-pin `mosfet`, while explicit separate bulk nodes (`b != s`) import with all 4 pins (`d`, `g`, `s`, `b`) connected. Trailing MOSFET instance parameters (`W`, `L`, `AD`, `AS`, `PD`, `PS`, `M`) are tolerated with `KES-N011` warnings.
 - Operational amplifiers: 5-terminal `X` cards (`in_p in_n vcc vee out`) referencing `KESSETSU_OPAMP_V1`, `KESSETSU_OPAMP_V2`, or `OPAMP`.
+- Initial conditions: root-level `.ic V(<node>)=<value>` directives (one or more space- or comma-separated pairs, including `{expr}` expressions) import cleanly into `initial V(<NET>) = <value>`.
 - Parameter evaluation: bounded `.param` assignments and `{...}` expressions evaluate constant arithmetic and math functions (`+`, `-`, `*`, `/`, `^`, `**`, `pi`, `e`, `sqrt`, `sin`, `cos`, `tan`, `exp`, `ln`, `log10`, `abs`, `min`, `max`, `pow`).
 - Direct node testing: `.kessreq` and inline assertions can reference imported numeric SPICE node numbers directly (such as `V(1)` and `V(2)`).
 - Unsupported constructs (fail closed): non-linear behavioral sources (`VALUE`, `POLY`, `TABLE`, `LAPLACE`, `FREQ`, or `B` cards), arbitrary `.include`/`.lib` file paths, `.step` parameter sweeps, transmission lines (`T`, `TX`), and unknown devices fail closed with source-located diagnostics.
@@ -85,9 +87,10 @@ The canonical SPICE importer (`kess import`, CLI `--input auto|spice`, and `kess
 | Single-run analysis | OP, transient, AC decade/linear/octave, independent voltage/current DC sweep | No native noise or sensitivity analysis; multi-condition sampling and temperature are handled by studies below |
 | Parameter study | Finite grids, revisions, temperature cases, tolerance corners and seeded uniform/Gaussian samples | Explicit quantities/distributions and finite evaluation budgets; no automatic manufacturing-yield or global-optimum claim |
 | Dataset | OP scalar; transient/DC real series; AC complex series | Simulator raw format is not a public contract |
-| Primitive | `V(net/device)`, `I(device)`, `P(device)` | Safe op-amp internal/output branch current fails closed |
+| Primitive | `V(net/device)`, `V(A, B)`, `I(device)`, `P(device)` | `V(A, B)` supports net pairs, terminal pairs, and mixed `component.pin`/net endpoints across OP, TRAN, DC, and AC; safe op-amp internal/output branch current fails closed |
 | Reduction | `value`, `min`, `max`, absolute `peak`, `pk2pk` (`p2p`, `vpp`), `average`, `rms` | No real reduction over complex AC data |
-| Derived | gain, gain_at, bandwidth/cutoff, lower_cutoff, upper_cutoff, frequency, phase, output power, efficiency, THD, clipping, dissipation, rise/fall/settling time, overshoot, energy | Only under documented analysis, signal and window conditions |
+| Derived | `gain`, `gain_at`, `bandwidth`/`cutoff`, `lower_cutoff`, `upper_cutoff`, `frequency`/`freq`, `period`, `duty_cycle`/`duty`, `phase`, `output_power`, `efficiency`, `thd` (2/4/5-arg), `clipping`, `dissipation`, `rise_time`/`fall_time`/`settling_time`, `overshoot`, `energy` | Only under documented analysis, signal and window conditions |
+| Engineering calculators | `divider`, `rc-lowpass`, `non-inverting-opamp`, `zener-regulator` | Analytical sizing with `exact`/`e12`/`e24` selection across Core, `kess tool`, `kessetsu_tool` MCP, and Web Hub `/tools/`; generates `.kess` for Ngspice verification |
 | Assertion | `<`, `>`, `==`, `<=`, `>=`; PASS/FAIL/ERROR/SKIPPED | Missing data is never treated as `0` or PASS |
 | Provided part limits | Condition-qualified peak voltage/current and average dissipation | User-supplied advisory comparison; no SOA, thermal or datasheet-compliance inference |
 

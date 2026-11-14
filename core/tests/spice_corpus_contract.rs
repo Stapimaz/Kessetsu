@@ -614,11 +614,11 @@ R2 out 0 3k
     SpiceCorpusFixture {
         id: "C28_DIRECTIVE_INITIAL_CONDITIONS_IC",
         category: "8. Analysis, Initial Conditions & Measurement Directives",
-        construct: "Initial condition directive (.ic V(out)=2.5 or .nodeset) skipped with warning",
+        construct: "Initial condition directive (.ic V(out)=2.5) imported to initial V(OUT) = 2.5",
         real_world_frequency: FrequencyTier::High,
         engineering_impact: ImpactTier::Medium,
         spice_netlist: "\
-* Clean-room synthetic fixture: Initial condition directive skipped with warning
+* Clean-room synthetic fixture: Initial condition directive imported as initial V(OUT)
 V1 in 0 5
 R1 in out 1k
 C1 out 0 100n
@@ -626,9 +626,7 @@ C1 out 0 100n
 .tran 10u 2m
 .end
 ",
-        expected: ExpectedOutcome::SupportedWithWarning {
-            expected_warning_code: "KES-N011",
-        },
+        expected: ExpectedOutcome::SupportedRoundTrip,
     },
     SpiceCorpusFixture {
         id: "C29_DIRECTIVE_MEASURE_STATEMENT",
@@ -891,8 +889,8 @@ fn spice_corpus_all_fixtures_match_declared_disposition() {
         unsupported_compile_count
     );
 
-    assert_eq!(supported_roundtrip_count, 20);
-    assert_eq!(supported_warning_count, 5);
+    assert_eq!(supported_roundtrip_count, 21);
+    assert_eq!(supported_warning_count, 4);
     assert_eq!(supported_roundtrip_count + supported_warning_count, 25);
     assert_eq!(unsupported_import_count, 5);
     assert_eq!(unsupported_compile_count, 0);

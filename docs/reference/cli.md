@@ -82,6 +82,8 @@ commands require **CLI 1.1.0 or newer**. Older installations can use the install
 ```bash
 kess tool divider --vin 12V --target 3V --lower 10k --load 10k --values exact --output divider.kess
 kess tool rc-lowpass --cutoff 1kHz --resistance 1k --values e12 --output filter.kess
+kess tool non-inverting-opamp --gain 10 --r1 10k --vin 0.5V --supply 15V --values e24 --output opamp.kess
+kess tool zener-regulator --vin 12V --vz 5.1V --iload 10mA --values exact --output zener.kess
 kess simulate divider.kess
 kess export filter.kess --target kicad
 ```

@@ -214,7 +214,6 @@ pub(crate) const OUTPUT_DIRECTIVES: &[&str] = &[
     ".temp",
     ".backanno",
     ".nodeset",
-    ".ic",
 ];
 
 pub(crate) fn push_unsupported(report: &mut SpiceImportReport, line: usize, message: &str) {

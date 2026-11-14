@@ -663,6 +663,17 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
         }
     }
 
+    if !circuit.initial_conditions.is_empty() {
+        spice.push('\n');
+        for ic in &circuit.initial_conditions {
+            spice.push_str(&format!(
+                ".ic V({})={}\n",
+                ic.net.to_ascii_lowercase(),
+                format_spice_number(ic.voltage)
+            ));
+        }
+    }
+
     let mut has_sim = false;
     let mut control_block = String::from("\n.control\n");
     if !circuit.analyses.is_empty() {
@@ -674,6 +685,7 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
                 ComponentKind::Diode => Some(format!("@D_{}[id]", component.id)),
                 ComponentKind::BJT(_) => Some(format!("@Q_{}[ic]", component.id)),
                 ComponentKind::MOSFET(_) => Some(format!("@M_{}[id]", component.id)),
+                ComponentKind::JFET(_) => Some(format!("@J_{}[id]", component.id)),
                 _ => None,
             })
             .collect::<BTreeSet<_>>()
@@ -730,6 +742,10 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
             }
             let signal = arguments[0];
             let target = &signal[2..signal.len() - 1];
+            // Differential V(A, B) is evaluated by Kessetsu's measurement engine, not Ngspice .meas.
+            if target.contains(',') {
+                continue;
+            }
             let component = circuit
                 .components
                 .iter()
@@ -817,4 +833,61 @@ pub fn generate_spice(circuit: &CircuitIR, graph: &NetlistGraph) -> String {
         spice.push_str(&control_block);
     }
     spice
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::compiler::{CompileOptions, compile_source};
+
+    #[test]
+    fn generate_spice_and_browser_netlist_emit_ic_jfet_save_and_skip_differential_meas() {
+        let source = "\
+net GND
+net VCC
+net OUT_P
+net OUT_N
+source V1 12V
+jfet J1 J201
+resistor R1 1k
+capacitor C1 100nF
+connect V1.plus to VCC
+connect V1.minus to GND
+connect J1.d to OUT_P
+connect J1.g to GND
+connect J1.s to OUT_N
+connect R1.p1 to VCC
+connect R1.p2 to OUT_P
+connect C1.p1 to OUT_N
+connect C1.p2 to GND
+initial V(OUT_N) = 0.5V
+assert max(V(OUT_P, OUT_N)) < 20V
+assert max(V(OUT_P)) < 20V
+simulate tran 10us 1ms uic
+";
+        let report = compile_source(source, CompileOptions::default());
+        assert!(!report.has_errors(), "{:?}", report.diagnostics);
+        let ir = report.ir.expect("IR");
+        let graph = NetlistGraph::build(&ir);
+
+        let spice = generate_spice(&ir, &graph);
+        let ic_pos = spice.find(".ic V(out_n)=0.5\n").expect("missing .ic line");
+        let ctrl_pos = spice.find("\n.control\n").expect("missing .control");
+        assert!(ic_pos < ctrl_pos, "{spice}");
+        assert!(spice.contains("save all @J_J1[id]\n"), "{spice}");
+        assert!(
+            spice.contains("meas tran max_v_out_p MAX V(OUT_P)"),
+            "{spice}"
+        );
+        assert!(
+            !spice.contains("meas tran max_v_out_p, out_n")
+                && !spice.contains("MAX V(OUT_P, OUT_N)"),
+            "differential V(A, B) must not emit raw Ngspice .meas:\n{spice}"
+        );
+
+        let browser = generate_browser_analysis_netlist(&ir, &graph, &ir.analyses[0]);
+        assert!(browser.contains(".ic V(out_n)=0.5\n"), "{browser}");
+        assert!(browser.contains("\n.save all @J_J1[id]\n"), "{browser}");
+        assert!(browser.contains("\n.tran 1e-5 0.001 uic\n"), "{browser}");
+    }
 }
