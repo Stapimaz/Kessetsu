@@ -21,6 +21,7 @@ import {
   writeWorkspaceDraft,
 } from '../document';
 import { useKessetsuWorkspace, examples, type ExampleId } from '../hooks/useKessetsuWorkspace';
+import { signalUnit } from '../simulation/plot';
 import { ArtifactBar } from './ArtifactBar';
 import { AgentProposalDialog } from './AgentProposalDialog';
 import { BrandWordmark } from './BrandWordmark';
@@ -43,7 +44,7 @@ const ResearchDataDialog = lazy(async () => {
 
 export function WorkspaceApp() {
   const {
-    state, setCode, loadExample, newDocument, openDocument, importSpiceDocument, applyConvertedSpice, markSaved, saveBrowserDocument, renameDocument,
+    state, setCode, tweakCode, documentRevision, loadExample, newDocument, openDocument, importSpiceDocument, applyConvertedSpice, markSaved, saveBrowserDocument, renameDocument,
     run, cancel, createExport, share,
     captureDocumentRevision, isCurrentDocument, isCurrentDocumentRevision,
     modelRequirements, boundModelResources, bindModelFile, bindBundledModel, clearModelFiles,
@@ -55,6 +56,10 @@ export function WorkspaceApp() {
   const [layoutCommand, setLayoutCommand] = useState<WorkspaceLayoutCommand | null>(null);
   const [sourceRevealRequest, setSourceRevealRequest] = useState(0);
   const [symbolRevealRequest, setSymbolRevealRequest] = useState<{ id: number; symbol: string } | null>(null);
+  const [datasetIndex, setDatasetIndex] = useState(0);
+  const [selectedSignal, setSelectedSignal] = useState<string | null>(null);
+  const [overlaySignals, setOverlaySignals] = useState<string[]>([]);
+  const [extraPlotSignals, setExtraPlotSignals] = useState<string[]>([]);
   const [circuitDetailsOpen, setCircuitDetailsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -191,6 +196,50 @@ export function WorkspaceApp() {
       window.removeEventListener('keydown', closeWithEscape);
     };
   }, []);
+
+  useEffect(() => {
+    setDatasetIndex(0);
+    setSelectedSignal(null);
+    setOverlaySignals([]);
+    setExtraPlotSignals([]);
+  }, [documentRevision]);
+
+  const registerExtraPlotSignal = useCallback((signal: string) => {
+    if (!/^v\([^(),]+,\s*[^(),]+\)$/i.test(signal.trim())) return;
+    setExtraPlotSignals((current) => (
+      current.some((item) => item.toLowerCase() === signal.toLowerCase()) ? current : [...current, signal]
+    ));
+  }, []);
+
+  const ensurePlottableDatasetIndex = useCallback((signal: string) => {
+    const datasets = state.evaluation?.simulation.datasets ?? [];
+    const needsPower = signalUnit(signal) === 'W';
+    const isCompatible = (kind: string) => kind !== 'operating_point' && !(needsPower && kind === 'ac');
+    const current = datasets[datasetIndex];
+    if (current && isCompatible(current.data.kind)) return datasetIndex;
+    const found = datasets.findIndex((entry) => isCompatible(entry.data.kind));
+    return found >= 0 ? found : datasetIndex;
+  }, [datasetIndex, state.evaluation]);
+
+  const handlePlotSignal = useCallback((signal: string) => {
+    registerExtraPlotSignal(signal);
+    const nextIdx = ensurePlottableDatasetIndex(signal);
+    setDatasetIndex(nextIdx);
+    setSelectedSignal(signal);
+    setOverlaySignals((current) => current.filter((item) => item.toLowerCase() !== signal.toLowerCase()));
+    setLayoutCommand((current) => ({ id: (current?.id ?? 0) + 1, action: 'ensure-results' }));
+  }, [ensurePlottableDatasetIndex, registerExtraPlotSignal]);
+
+  const handleCompareSignal = useCallback((signal: string) => {
+    registerExtraPlotSignal(signal);
+    const nextIdx = ensurePlottableDatasetIndex(signal);
+    setDatasetIndex(nextIdx);
+    setOverlaySignals((current) => {
+      if (current.some((item) => item.toLowerCase() === signal.toLowerCase())) return current;
+      return [...current, signal].slice(0, 4);
+    });
+    setLayoutCommand((current) => ({ id: (current?.id ?? 0) + 1, action: 'ensure-results' }));
+  }, [ensurePlottableDatasetIndex, registerExtraPlotSignal]);
 
   useEffect(() => {
     const runShortcut = (event: KeyboardEvent) => {
@@ -684,6 +733,11 @@ export function WorkspaceApp() {
           schematic={state.schematic}
           circuitIr={state.circuitIr}
           svg={state.schematicSvg}
+          code={state.code}
+          documentRevision={documentRevision}
+          onTweakCode={tweakCode}
+          onPlotSignal={handlePlotSignal}
+          onCompareSignal={handleCompareSignal}
           panelControls={panelControls}
           sourceFeedback={sourceFeedback}
           onResolveSource={resolveSource}
@@ -701,6 +755,15 @@ export function WorkspaceApp() {
           compileSucceeded={state.compileSucceeded}
           sourceFeedback={sourceFeedback}
           simulationConfigured={Boolean(state.circuitIr?.analyses.length)}
+          circuitIr={state.circuitIr}
+          schematic={state.schematic}
+          extraPlotSignals={extraPlotSignals}
+          datasetIndex={datasetIndex}
+          onDatasetIndexChange={setDatasetIndex}
+          selectedSignal={selectedSignal}
+          onSelectedSignalChange={setSelectedSignal}
+          overlaySignals={overlaySignals}
+          onOverlaySignalsChange={setOverlaySignals}
           onResolveSource={resolveSource}
           onRun={() => void run()}
           onCancel={cancel}

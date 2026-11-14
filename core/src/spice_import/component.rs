@@ -385,14 +385,14 @@ pub(crate) fn parse_component(
                 }
                 None if matches!(
                     model.to_ascii_uppercase().as_str(),
-                    "IRF540" | "2N7000" | "BSS84" | "KESSETSU_PMOS_V1"
+                    "IRF540" | "IRF9540" | "2N7000" | "BSS84" | "KESSETSU_PMOS_V1"
                 ) =>
                 {
                     model
                 }
                 None => {
                     return Err(format!(
-                        "MOSFET model '{model}' is neither built in nor defined by an inline .model NMOS/PMOS card"
+                        "MOSFET model '{model}' is neither built in nor defined by an inline .model NMOS/PMOS/VDMOS card"
                     ));
                 }
             };

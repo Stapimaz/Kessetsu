@@ -126,6 +126,8 @@ export function useKessetsuWorkspace() {
   const [modelResources, setModelResources] = useState<Record<string, number[]>>({});
   const [modelRequirements, setModelRequirements] = useState<LocalModelRequirement[]>([]);
   const revisionRef = useRef(0);
+  const pendingAutoRerunRef = useRef(false);
+  const [documentRevision, setDocumentRevision] = useState(0);
   const documentRevisionRef = useRef<DocumentRevision>({ document: 0, edit: 0 });
   const captureDocumentRevision = useCallback(() => ({ ...documentRevisionRef.current }), []);
   const isCurrentDocument = useCallback((snapshot: DocumentRevision) =>
@@ -134,6 +136,7 @@ export function useKessetsuWorkspace() {
     snapshot.document === documentRevisionRef.current.document && snapshot.edit === documentRevisionRef.current.edit, []);
   const beginDocument = useCallback(() => {
     documentRevisionRef.current = { document: documentRevisionRef.current.document + 1, edit: 0 };
+    setDocumentRevision((current) => current + 1);
   }, []);
   const runnerRef = useRef<BrowserSimulationRunner | null>(null);
   const sharedEnvelopeRef = useRef<ShareEnvelope | null>(null);
@@ -241,6 +244,8 @@ export function useKessetsuWorkspace() {
       }
       const hasErrors = result.diagnostics.some((diagnostic) => diagnostic.severity === 'error');
       const verified = Boolean(result.schematic?.connectivity.verified && result.schematic_svg);
+      const valid = !hasErrors && verified;
+      if (!valid) pendingAutoRerunRef.current = false;
       if (!hasErrors && sharedEnvelopeRef.current) {
         assertSharedPackages(sharedEnvelopeRef.current, result.ir?.model_manifest ?? null);
         sharedEnvelopeRef.current = null;
@@ -248,16 +253,22 @@ export function useKessetsuWorkspace() {
       setState((current) => ({
         ...current,
         diagnostics: result.diagnostics,
-        compileState: !hasErrors && verified ? 'valid' : 'invalid',
-        compileSucceeded: !hasErrors && verified,
+        compileState: valid ? 'valid' : 'invalid',
+        compileSucceeded: valid,
         schematic: !hasErrors ? result.schematic : null,
         circuitIr: !hasErrors ? result.ir ?? null : null,
         schematicSvg: !hasErrors ? result.schematic_svg ?? '' : '',
         spiceNetlist: !hasErrors ? result.spice_netlist ?? '' : '',
         kicadSch: !hasErrors ? result.kicad_sch ?? '' : '',
         modelManifest: !hasErrors ? result.ir?.model_manifest ?? null : null,
+        evaluation: valid ? current.evaluation : null,
+        simulationState: valid ? current.simulationState : 'idle',
+        simulationMessage: valid
+          ? current.simulationMessage
+          : (current.hasSimulationAttempt ? 'Simulation results are out of date. Run again.' : 'Run the simulation to inspect plots and requirements.'),
       }));
     } catch (error: unknown) {
+      pendingAutoRerunRef.current = false;
       setState((current) => ({
         ...current,
         compileSucceeded: false,
@@ -269,6 +280,9 @@ export function useKessetsuWorkspace() {
         spiceNetlist: '',
         kicadSch: '',
         modelManifest: null,
+        evaluation: null,
+        simulationState: 'idle',
+        simulationMessage: current.hasSimulationAttempt ? 'Simulation results are out of date. Run again.' : 'Run the simulation to inspect plots and requirements.',
       }));
     }
   }, [state.code, state.wasmLoaded, modelResources]);
@@ -279,6 +293,7 @@ export function useKessetsuWorkspace() {
   }, [compile]);
 
   const setCode = useCallback((code: string) => {
+    pendingAutoRerunRef.current = false;
     documentRevisionRef.current.edit += 1;
     revisionRef.current += 1;
     leaveSharedUrl();
@@ -304,7 +319,34 @@ export function useKessetsuWorkspace() {
     }));
   }, [leaveSharedUrl]);
 
+  const tweakCode = useCallback((code: string) => {
+    documentRevisionRef.current.edit += 1;
+    revisionRef.current += 1;
+    leaveSharedUrl();
+    runnerRef.current?.cancel();
+    setState((current) => {
+      const willAutoRerun = Boolean(current.hasSimulationAttempt && current.circuitIr?.analyses.length);
+      pendingAutoRerunRef.current = willAutoRerun;
+      return {
+        ...current,
+        code,
+        isDirty: true,
+        draftRestored: false,
+        compileState: 'checking',
+        compileSucceeded: false,
+        diagnostics: [],
+        evaluation: willAutoRerun ? current.evaluation : null,
+        simulationState: willAutoRerun ? current.simulationState : 'idle',
+        simulationMessage: willAutoRerun
+          ? 'Updating schematic & simulation…'
+          : (current.hasSimulationAttempt ? 'Simulation results are out of date. Run again.' : 'Run the simulation to inspect plots and requirements.'),
+        exportMessage: '',
+      };
+    });
+  }, [leaveSharedUrl]);
+
   const loadExample = useCallback((id: ExampleId) => {
+    pendingAutoRerunRef.current = false;
     beginDocument();
     revisionRef.current += 1;
     if (id === 'comparator') {
@@ -340,6 +382,7 @@ export function useKessetsuWorkspace() {
   }, [beginDocument, leaveSharedUrl]);
 
   const newDocument = useCallback(() => {
+    pendingAutoRerunRef.current = false;
     beginDocument();
     revisionRef.current += 1;
     setModelResources({});
@@ -377,6 +420,7 @@ export function useKessetsuWorkspace() {
       throw new Error('Circuit source exceeds the 1 MiB browser file limit');
     }
     const name = documentNameFromFile(file.name);
+    pendingAutoRerunRef.current = false;
     beginDocument();
     revisionRef.current += 1;
     setModelResources({});
@@ -406,6 +450,7 @@ export function useKessetsuWorkspace() {
   }, [beginDocument, captureDocumentRevision, isCurrentDocumentRevision, leaveSharedUrl]);
 
   const applyConvertedSpice = useCallback((kessSource: string, name: string | null = null) => {
+    pendingAutoRerunRef.current = false;
     beginDocument();
     revisionRef.current += 1;
     setModelResources({});
@@ -471,10 +516,16 @@ export function useKessetsuWorkspace() {
     setState((current) => ({ ...current, circuitName: normalized, isDirty: true, draftRestored: false }));
   }, []);
 
-  const run = useCallback(async () => {
+  const executeRun = useCallback(async (preserveEvaluation: boolean) => {
     if (!state.wasmLoaded || !state.compileSucceeded || !state.circuitIr?.analyses.length || !runnerRef.current) return;
     const revision = ++revisionRef.current;
-    setState((current) => ({ ...current, evaluation: null, simulationState: 'running', hasSimulationAttempt: true, simulationMessage: 'Preparing simulation…' }));
+    setState((current) => ({
+      ...current,
+      evaluation: preserveEvaluation ? current.evaluation : null,
+      simulationState: 'running',
+      hasSimulationAttempt: true,
+      simulationMessage: preserveEvaluation ? 'Updating simulation…' : 'Preparing simulation…',
+    }));
     try {
       const plan = prepare_browser_simulation_with_resources(state.code, modelResources) as BrowserSimulationPlan;
       if (plan.analyses.length === 0) throw new Error('The circuit has no simulation command to run');
@@ -495,14 +546,29 @@ export function useKessetsuWorkspace() {
     } catch (error: unknown) {
       if (revision !== revisionRef.current) return;
       if (error instanceof SimulationCancelledError) {
-        setState((current) => ({ ...current, simulationState: 'cancelled', simulationMessage: 'Simulation cancelled' }));
+        setState((current) => ({ ...current, evaluation: null, simulationState: 'cancelled', simulationMessage: 'Simulation cancelled' }));
       } else {
-        setState((current) => ({ ...current, simulationState: 'failed', simulationMessage: errorMessage(error) }));
+        setState((current) => ({ ...current, evaluation: null, simulationState: 'failed', simulationMessage: errorMessage(error) }));
       }
     }
   }, [state.code, state.compileSucceeded, state.circuitIr, state.wasmLoaded, modelResources]);
 
+  const run = useCallback(() => executeRun(false), [executeRun]);
+
+  useEffect(() => {
+    if (!pendingAutoRerunRef.current) return;
+    if (state.compileState === 'invalid') {
+      pendingAutoRerunRef.current = false;
+      return;
+    }
+    if (state.compileState === 'valid' && state.compileSucceeded) {
+      pendingAutoRerunRef.current = false;
+      void executeRun(true);
+    }
+  }, [executeRun, state.compileState, state.compileSucceeded]);
+
   const cancel = useCallback(() => {
+    pendingAutoRerunRef.current = false;
     revisionRef.current += 1;
     runnerRef.current?.cancel();
     setState((current) => ({ ...current, simulationState: 'cancelled', simulationMessage: 'Simulation cancelled' }));
@@ -527,6 +593,7 @@ export function useKessetsuWorkspace() {
   }, [state.code, state.compileSucceeded, state.wasmLoaded, modelResources]);
 
   const invalidateBindings = useCallback(() => {
+    pendingAutoRerunRef.current = false;
     revisionRef.current += 1;
     runnerRef.current?.cancel();
     setState((current) => ({ ...current, compileState: 'checking', compileSucceeded: false,
@@ -591,6 +658,8 @@ export function useKessetsuWorkspace() {
     bindBundledModel,
     clearModelFiles,
     setCode,
+    tweakCode,
+    documentRevision,
     loadExample,
     newDocument,
     openDocument,

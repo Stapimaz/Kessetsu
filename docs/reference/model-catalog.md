@@ -56,17 +56,21 @@ statement/nesting counts. These are resource ceilings, not a hard aggregate memo
 
 ## Built-in device models and macromodels
 
-### Kessetsu generic op-amp v2 (`KESSETSU_OPAMP_V2`)
+### Kessetsu generic op-amp v2 (`KESSETSU_OPAMP_V2`) and everyday op-amp macromodels (`LM358`, `TL072`)
 
 - **Interface:** Five terminals (`in_p`, `in_n`, `vcc`, `vee`, `out`).
 - **Version:** `1.0.0`.
-- **Modeled physical behavior:**
+- **`KESSETSU_OPAMP_V2` modeled physical behavior:**
   - High-impedance differential input stage with open-loop gain `gain = 200k` (106 dB).
   - Dominant-pole gain-bandwidth product compensation (`gbw = 1MHz`).
   - Slew-rate limiting stage (`slew_rate = 500k` V/s or `0.5 V/µs`).
-  - Supply-rail saturation headroom (`vdrop = 1V` / `rail_headroom` relative to `vcc` and `vee`).
+  - Symmetric supply-rail saturation headroom (`vdrop = 1V` / `rail_headroom` relative to `vcc` and `vee`).
   - Linear output resistance (`rout = 50 Ω`).
-- **Boundary note:** `KESSETSU_OPAMP_V2` accurately models rail headroom, dominant pole, slew rate, and linear output resistance (`rout = 50 Ω`). It does **not** model a hard nonlinear output-current limit, quiescent supply bias currents, or thermal/SOA shutdown.
+- **`LM358` (single-supply / ground-sensing op-amp macromodel):**
+  - Open-loop gain `gain = 100k` (100 dB), dominant-pole gain-bandwidth product `gbw = 1MHz` (`GBW=1MHz`), slew-rate limiting `slew_rate = 500k` V/s (`SR=0.5V/us`), asymmetric supply-rail saturation headroom (`vdrop_high=1.5V` below `vcc`, `vdrop_low=20mV` above `vee` for single-supply ground-sensing operation), and linear output resistance `rout = 50 Ω`.
+- **`TL072` (JFET-input op-amp macromodel):**
+  - Open-loop gain `gain = 200k` (106 dB), dominant-pole gain-bandwidth product `gbw = 3MHz` (`GBW=3MHz`), slew-rate limiting `slew_rate = 13M` V/s (`SR=13V/us`), symmetric supply-rail saturation headroom (`vdrop_high=1.5V` below `vcc`, `vdrop_low=1.5V` above `vee`), and linear output resistance `rout = 50 Ω`.
+- **Boundary note:** `KESSETSU_OPAMP_V2`, `LM358`, and `TL072` accurately model asymmetric/symmetric rail saturation headroom, mid-supply internal reference (`0.5*(V(vcc)+V(vee))`), dominant pole (`GBW`), slew rate (`SR`), and linear output resistance (`rout = 50 Ω`). They are behavioral macromodels, not transistor-level manufacturer netlists: they do **not** model a hard nonlinear output-current limit, input bias/offset currents, crossover distortion, common-mode phase reversal, quiescent supply bias currents, or thermal/SOA shutdown.
 
 ### Built-in generic JFET models
 
@@ -75,11 +79,11 @@ Kessetsu provides built-in generic JFET models for N-channel and P-channel junct
 - **`J201`**: Generic low-noise N-channel JFET (`NJF`). Characterized with pinch-off voltage `vto = -0.9V`, `beta = 1.0mA/V²`, `lambda = 5.0m 1/V`, `rd = 15 Ω`, `rs = 15 Ω`, `cgs = 4pF`, `cgd = 1.5pF`, and `is = 1e-14 A`.
 - **`2N5460`**: Generic P-channel JFET (`PJF`, version `1.0.0`). Characterized with pinch-off voltage `vto = -2.5V`, transconductance parameter `beta = 1.0mA/V²`, channel-length modulation `lambda = 3.0m 1/V`, ohmic resistances `rd = 15 Ω`, `rs = 15 Ω`, and gate capacitances `cgs = 5pF`, `cgd = 2pF`.
 
-### Built-in diodes, BJTs, and MOSFETs
+### Built-in diodes, LEDs, BJTs, and MOSFETs
 
-- **Diodes:** `1N4148` (small-signal), `1N4007` (rectifier), `1N5819` (Schottky barrier diode, `BV=40`, `IS=3.16e-5`, `N=1.08`), and Zeners below.
+- **Diodes and LEDs:** `1N4148` (small-signal), `1N4007` (rectifier), `1N5819` (Schottky barrier diode, `BV=40`, `IS=3.16e-5`, `N=1.08`), indicator LEDs (`LED_RED` ~1.8 V forward drop with `IS=9.3e-20`, `N=1.8`, `RS=4.2`, `EG=1.9`, `BV=5`; `LED_GREEN` ~2.1 V with `IS=1.2e-22`, `N=1.95`, `RS=4.5`, `EG=2.2`, `BV=5`; `LED_BLUE` ~3.0 V with `IS=2.5e-28`, `N=2.2`, `RS=6.0`, `EG=2.8`, `BV=5`; `LED_WHITE` ~3.1 V with `IS=1.0e-28`, `N=2.25`, `RS=6.5`, `EG=2.85`, `BV=5`), and Zeners below.
 - **BJTs:** `2N3904` (`npn`), `2N3906` (`pnp`), `2N2222` (`npn`), `BC547` (`npn`, `BF=400`), `BC557` (`pnp`, `BF=330`), `KESSETSU_POWER_NPN_V1`, and `KESSETSU_POWER_PNP_V1`.
-- **MOSFETs:** `IRF540` (`nmos` power), `2N7000` (`nmos`, `VTO=2.1`, `KP=0.15`), `BSS84` (`pmos`, `VTO=-1.7`, `KP=0.08`), and `KESSETSU_PMOS_V1`.
+- **MOSFETs:** `IRF540` (`nmos` power VDMOS), `IRF9540` (`pmos` power VDMOS, `pchan`, `Vto=-3.5`, `Kp=7.5`, `Lambda=0.015`, `Rd=0.11`, `Rs=0.06`), `2N7000` (`nmos`, `VTO=2.1`, `KP=0.15`), `BSS84` (`pmos`, `VTO=-1.7`, `KP=0.08`), and `KESSETSU_PMOS_V1`.
 
 ### `model jfet` parameter reference
 

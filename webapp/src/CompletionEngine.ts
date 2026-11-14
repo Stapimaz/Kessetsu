@@ -18,7 +18,7 @@ export const PIN_MAP: Record<string, readonly string[]> = {
   inductor: ['p1', 'p2'],
   source: ['plus', 'minus'],
   current_source: ['plus', 'minus'],
-  diode: ['p1', 'p2'],
+  diode: ['p1', 'p2', 'anode', 'cathode'],
   device: ['p1', 'p2'],
   transistor: ['b', 'c', 'e'],
   bjt: ['b', 'c', 'e'],
@@ -223,4 +223,217 @@ export const waveformCompletions: readonly KessetsuCompletion[] = [
 
 export const WAVEFORM_COMPLETIONS = waveformCompletions;
 export const COMPONENT_PINS = PIN_MAP;
+
+export interface BuiltinModelEntry {
+  name: string;
+  kind: 'diode' | 'bjt' | 'mosfet' | 'jfet' | 'opamp' | 'switch';
+  polarity?: 'npn' | 'pnp';
+  detail: string;
+}
+
+export const BUILTIN_MODELS: readonly BuiltinModelEntry[] = [
+  { name: '1N4148', kind: 'diode', detail: 'Fast small-signal silicon switching diode.' },
+  { name: '1N4007', kind: 'diode', detail: '1000 V / 1 A silicon rectifier diode.' },
+  { name: '1N5819', kind: 'diode', detail: '40 V / 1 A low-Vf Schottky barrier diode.' },
+  { name: 'LED_RED', kind: 'diode', detail: 'Standard red LED (~1.8–2.0 V forward drop).' },
+  { name: 'LED_GREEN', kind: 'diode', detail: 'Standard green LED (~2.1 V forward drop).' },
+  { name: 'LED_BLUE', kind: 'diode', detail: 'High-Vf blue LED (~3.0–3.2 V forward drop).' },
+  { name: 'LED_WHITE', kind: 'diode', detail: 'White phosphor LED (~3.1 V forward drop).' },
+  { name: '2N3904', kind: 'bjt', polarity: 'npn', detail: 'General-purpose NPN small-signal BJT.' },
+  { name: '2N2222', kind: 'bjt', polarity: 'npn', detail: 'High-current NPN switching BJT.' },
+  { name: 'BC547', kind: 'bjt', polarity: 'npn', detail: 'Low-noise NPN small-signal BJT.' },
+  { name: '2N3906', kind: 'bjt', polarity: 'pnp', detail: 'General-purpose PNP small-signal BJT.' },
+  { name: 'BC557', kind: 'bjt', polarity: 'pnp', detail: 'Low-noise PNP small-signal BJT.' },
+  { name: 'IRF540', kind: 'mosfet', detail: '100 V N-channel power MOSFET.' },
+  { name: '2N7000', kind: 'mosfet', detail: '60 V N-channel small-signal MOSFET.' },
+  { name: 'BSS84', kind: 'mosfet', detail: '50 V P-channel small-signal MOSFET.' },
+  { name: 'IRF9540', kind: 'mosfet', detail: '100 V P-channel power MOSFET.' },
+  { name: '2N5457', kind: 'jfet', detail: 'N-channel general-purpose JFET.' },
+  { name: 'J201', kind: 'jfet', detail: 'Low-cutoff N-channel audio/analog JFET.' },
+  { name: 'KESSETSU_OPAMP_V1', kind: 'opamp', detail: 'Idealized Kessetsu 5-pin operational amplifier.' },
+  { name: 'LM358', kind: 'opamp', detail: 'Single-supply dual operational amplifier macro model.' },
+  { name: 'TL072', kind: 'opamp', detail: 'Low-noise JFET-input dual operational amplifier.' },
+  { name: 'KESSETSU_SW_V1', kind: 'switch', detail: 'Default Kessetsu voltage-controlled switch.' },
+];
+
+export function extractNets(code: string): string[] {
+  if (!code) return [];
+  const decls = extractDeclarations(code);
+  const nets = new Set<string>();
+  const lines = code.split(/\r?\n/);
+
+  for (const rawLine of lines) {
+    const trimmed = rawLine.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    const netMatch = /^net\s+([A-Za-z_][A-Za-z0-9_]*)\b/i.exec(trimmed);
+    if (netMatch && !/^(0|gnd)$/i.test(netMatch[1])) {
+      nets.add(netMatch[1]);
+      continue;
+    }
+
+    const connectMatch = /^connect\s+(.+?)\s+to\s+([A-Za-z0-9_.]+)\s*$/i.exec(trimmed);
+    if (connectMatch) {
+      const lhsTokens = connectMatch[1].split(',').map((token) => token.trim());
+      for (const token of [...lhsTokens, connectMatch[2].trim()]) {
+        if (
+          /^[A-Za-z_][A-Za-z0-9_]*$/.test(token)
+          && !decls.has(token)
+          && !/^(0|gnd)$/i.test(token)
+        ) {
+          nets.add(token);
+        }
+      }
+    }
+  }
+
+  return [...nets];
+}
+
+export function getModelCompletions(lineBeforeCursor: string): readonly KessetsuCompletion[] | null {
+  const line = lineBeforeCursor.trimStart();
+  const bjtMatch = /^(?:transistor|bjt)\s+[A-Za-z_][A-Za-z0-9_]*(?:\s+(npn|pnp))?\s+[A-Za-z0-9_]*$/i.exec(line);
+  if (bjtMatch) {
+    const polarityHint = bjtMatch[1]?.toLowerCase() as 'npn' | 'pnp' | undefined;
+    const models = BUILTIN_MODELS
+      .filter((m) => m.kind === 'bjt' && (!polarityHint || m.polarity === polarityHint))
+      .map((m) => ({
+        label: m.name,
+        detail: `Built-in ${m.polarity?.toUpperCase() ?? 'BJT'} model`,
+        documentation: m.detail,
+        insertText: m.name,
+      }));
+    if (!polarityHint) {
+      return [
+        { label: 'npn', detail: 'NPN BJT polarity hint', insertText: 'npn ${1:2N3904}' },
+        { label: 'pnp', detail: 'PNP BJT polarity hint', insertText: 'pnp ${1:2N3906}' },
+        ...models,
+      ];
+    }
+    return models;
+  }
+
+  const deviceMatch = /^(diode|mosfet|jfet|opamp|switch)\s+[A-Za-z_][A-Za-z0-9_]*\s+[A-Za-z0-9_]*$/i.exec(line);
+  if (!deviceMatch) return null;
+  const kind = deviceMatch[1].toLowerCase() as BuiltinModelEntry['kind'];
+  return BUILTIN_MODELS
+    .filter((m) => m.kind === kind)
+    .map((m) => ({
+      label: m.name,
+      detail: `Built-in ${kind} model`,
+      documentation: m.detail,
+      insertText: m.name,
+    }));
+}
+
+export function getInitialCompletions(
+  lineBeforeCursor: string,
+  fullCode = '',
+): readonly KessetsuCompletion[] | null {
+  const line = lineBeforeCursor.trimStart();
+  if (/^initial\s+v\(\s*[A-Za-z0-9_]*$/i.test(line)) {
+    const nets = extractNets(fullCode);
+    const choices = nets.length > 0 ? nets : ['OUT', 'VCC'];
+    return choices.map((net) => ({
+      label: net,
+      detail: `Initial condition net ${net}`,
+      documentation: `Set initial voltage on net '${net}' for transient analysis.`,
+      insertText: net,
+    }));
+  }
+  if (/^initial\s+[A-Za-z0-9_]*$/i.test(line)) {
+    const nets = extractNets(fullCode);
+    const items: KessetsuCompletion[] = nets.map((net) => ({
+      label: `V(${net})`,
+      detail: `initial V(${net}) = 0V`,
+      documentation: `Set initial transient voltage on net '${net}'.`,
+      insertText: `V(${net}) = \${1:0V}`,
+    }));
+    items.push({
+      label: 'V(<net>)',
+      detail: 'initial V(<net>) = 0V',
+      documentation: 'Set initial transient node voltage (.ic).',
+      insertText: 'V(${1:OUT}) = ${2:0V}',
+    });
+    return items;
+  }
+  return null;
+}
+
+const CURRENT_CAPABLE_KINDS = new Set([
+  'resistor', 'source', 'current_source', 'inductor', 'diode',
+  'transistor', 'bjt', 'mosfet', 'jfet', 'vcvs', 'ccvs',
+]);
+
+export function getAssertSignalCompletions(
+  lineBeforeCursor: string,
+  fullCode = '',
+): readonly KessetsuCompletion[] | null {
+  const line = lineBeforeCursor.trimStart();
+  const assertMatch = /^assert\s+([A-Za-z_][A-Za-z0-9_]*)\(([^)]*)$/i.exec(line);
+  if (!assertMatch) return null;
+
+  const metricName = assertMatch[1].toLowerCase();
+  const innerBefore = assertMatch[2];
+  const nets = extractNets(fullCode);
+  const decls = extractDeclarations(fullCode);
+  const components = [...decls.entries()]
+    .filter(([, kind]) => CURRENT_CAPABLE_KINDS.has(kind))
+    .map(([name]) => name);
+
+  if (/\bV\(\s*(?:[A-Za-z0-9_]+\s*,\s*)?[A-Za-z0-9_]*$/i.test(innerBefore)) {
+    const choices = nets.length > 0 ? nets : ['OUT', 'IN'];
+    return choices.map((net) => ({
+      label: net,
+      detail: `Net ${net}`,
+      documentation: `Node voltage net '${net}'.`,
+      insertText: net,
+    }));
+  }
+
+  if (/\b[IP]\(\s*[A-Za-z0-9_]*$/i.test(innerBefore) || (metricName === 'dissipation' && !innerBefore.includes(','))) {
+    const choices = components.length > 0 ? components : ['R1', 'VIN'];
+    return choices.map((comp) => ({
+      label: comp,
+      detail: `Component ${comp}`,
+      documentation: `Reference component '${comp}'.`,
+      insertText: comp,
+    }));
+  }
+
+  const completions: KessetsuCompletion[] = [];
+  for (const net of nets.length > 0 ? nets : ['OUT', 'IN']) {
+    completions.push({
+      label: `V(${net})`,
+      detail: `Node voltage on ${net}`,
+      insertText: `V(${net})`,
+    });
+  }
+  if (nets.length >= 2) {
+    completions.push({
+      label: `V(${nets[0]}, ${nets[1]})`,
+      detail: 'Differential node voltage V(A, B)',
+      insertText: `V(${nets[0]}, ${nets[1]})`,
+    });
+  } else {
+    completions.push({
+      label: 'V(A, B)',
+      detail: 'Differential node voltage V(A, B)',
+      insertText: 'V(${1:A}, ${2:B})',
+    });
+  }
+  for (const comp of components.length > 0 ? components : ['R1']) {
+    completions.push({
+      label: `I(${comp})`,
+      detail: `Current through ${comp}`,
+      insertText: `I(${comp})`,
+    });
+    completions.push({
+      label: `P(${comp})`,
+      detail: `Power dissipation of ${comp}`,
+      insertText: `P(${comp})`,
+    });
+  }
+  return completions;
+}
 

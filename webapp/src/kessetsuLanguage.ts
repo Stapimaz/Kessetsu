@@ -1,15 +1,31 @@
 import type { languages } from 'monaco-editor';
 import {
+  BUILTIN_MODELS,
   COMPONENT_TYPES,
   PIN_MAP,
   extractDeclarations,
+  extractNets,
+  getAssertSignalCompletions,
   getConnectPinCompletions,
+  getInitialCompletions,
+  getModelCompletions,
   getPinCompletions,
   type KessetsuCompletion,
 } from './CompletionEngine';
 
 export type { KessetsuCompletion };
-export { COMPONENT_TYPES, PIN_MAP, extractDeclarations, getConnectPinCompletions, getPinCompletions };
+export {
+  BUILTIN_MODELS,
+  COMPONENT_TYPES,
+  PIN_MAP,
+  extractDeclarations,
+  extractNets,
+  getAssertSignalCompletions,
+  getConnectPinCompletions,
+  getInitialCompletions,
+  getModelCompletions,
+  getPinCompletions,
+};
 
 export const componentTypes = [
   'source',
@@ -129,6 +145,7 @@ const hoverEntries = [
   { label: 'pmos', detail: 'PMOS polarity for a typed MOSFET model declaration.' },
   { label: 'njf', detail: 'NJF polarity for a typed JFET model declaration.' },
   { label: 'pjf', detail: 'PJF polarity for a typed JFET model declaration.' },
+  ...BUILTIN_MODELS.map((m) => ({ label: m.name, detail: `${m.detail} (${m.kind})` })),
 ] as const;
 
 export const hoverDocumentation = new Map<string, string>();
@@ -157,6 +174,12 @@ export function completionsForLine(lineBeforeCursor: string, fullCode?: string):
   const line = lineBeforeCursor.trimStart();
   if (/^simulate\s+[^\s]*$/i.test(line)) return analysisCompletions;
   if (/^assert\s+[A-Za-z_]*$/i.test(line)) return metricCompletions;
+  const assertSignal = getAssertSignalCompletions(lineBeforeCursor, fullCode);
+  if (assertSignal) return assertSignal;
+  const initialCompletions = getInitialCompletions(lineBeforeCursor, fullCode);
+  if (initialCompletions) return initialCompletions;
+  const modelCompletions = getModelCompletions(lineBeforeCursor);
+  if (modelCompletions) return modelCompletions;
   if (/^(?:source|current_source)\s+[A-Za-z_][A-Za-z0-9_]*\s+[^\s]*$/i.test(line)) {
     return waveformCompletions;
   }

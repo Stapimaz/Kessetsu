@@ -1,7 +1,18 @@
-import { Boxes, CircuitBoard, Code2, Focus, Grid3X3, Minus, Plus, Search, X } from 'lucide-react';
+import { Activity, Boxes, CircuitBoard, Code2, Focus, Grid3X3, Minus, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CircuitIrSummary, SchematicComponent, SchematicSummary, SourceFeedback } from '../domain';
-import { summarizeAcSeries, summarizeWaveformSeries } from '../simulation/plot';
+import {
+  augmentDatasetWithDerivedSignals,
+  componentKindName,
+  componentVoltageSignalKey,
+  findComponentCurrentSignalKey,
+  findComponentPinNets,
+  findLiteralComponentValueSpan,
+  formatKessQuantity,
+  parseKessQuantity,
+  summarizeAcSeries,
+  summarizeWaveformSeries,
+} from '../simulation/plot';
 import type { BrowserEvaluation } from '../simulation/types';
 import { PanelHeader, type PanelWindowControls } from './PanelHeader';
 
@@ -9,6 +20,11 @@ interface Props {
   schematic: SchematicSummary | null;
   circuitIr: CircuitIrSummary | null;
   svg: string;
+  code?: string;
+  documentRevision?: number;
+  onTweakCode?(nextCode: string): void;
+  onPlotSignal?(signal: string): void;
+  onCompareSignal?(signal: string): void;
   panelControls: PanelWindowControls;
   sourceFeedback: SourceFeedback | null;
   onResolveSource(): void;
@@ -44,6 +60,97 @@ function netAtTarget(target: EventTarget | null) {
   const value = target.closest('[data-net]')?.getAttribute('data-net');
   if (value === null || value === undefined || !/^\d+$/.test(value)) return null;
   return Number(value);
+}
+
+function pointToSegmentDistance(
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+): number {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return Math.hypot(px - ax, py - ay);
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+
+function parseSvgPoints(raw: string | null): Array<[number, number]> {
+  if (!raw) return [];
+  const nums = raw.trim().split(/[\s,]+/).map(Number).filter((v) => Number.isFinite(v));
+  const points: Array<[number, number]> = [];
+  for (let i = 0; i + 1 < nums.length; i += 2) {
+    points.push([nums[i], nums[i + 1]]);
+  }
+  return points;
+}
+
+function netAtPointer(
+  target: EventTarget | null,
+  surface: HTMLDivElement,
+  clientX: number,
+  clientY: number,
+): number | null {
+  const direct = netAtTarget(target);
+  if (direct !== null) return direct;
+
+  let bestNet: number | null = null;
+  let bestDistance = 8;
+
+  for (const wire of surface.querySelectorAll<SVGPolylineElement>('polyline[data-net]')) {
+    const attr = wire.getAttribute('data-net');
+    if (!attr || !/^\d+$/.test(attr)) continue;
+    const netId = Number(attr);
+    const ctm = typeof wire.getScreenCTM === 'function' ? wire.getScreenCTM() : null;
+    const pts = parseSvgPoints(wire.getAttribute('points'));
+    if (ctm && pts.length >= 2) {
+      const screenPts = pts.map(([x, y]) => [
+        ctm.a * x + ctm.c * y + ctm.e,
+        ctm.b * x + ctm.d * y + ctm.f,
+      ] as const);
+      for (let i = 0; i + 1 < screenPts.length; i += 1) {
+        const dist = pointToSegmentDistance(
+          clientX,
+          clientY,
+          screenPts[i][0],
+          screenPts[i][1],
+          screenPts[i + 1][0],
+          screenPts[i + 1][1],
+        );
+        if (dist <= bestDistance) {
+          bestDistance = dist;
+          bestNet = netId;
+        }
+      }
+      continue;
+    }
+    const bounds = wire.getBoundingClientRect();
+    const dx = Math.max(bounds.left - clientX, 0, clientX - bounds.right);
+    const dy = Math.max(bounds.top - clientY, 0, clientY - bounds.bottom);
+    const dist = Math.hypot(dx, dy);
+    if (dist <= bestDistance) {
+      bestDistance = dist;
+      bestNet = netId;
+    }
+  }
+
+  for (const elem of surface.querySelectorAll<Element>('[data-net]:not(polyline)')) {
+    const attr = elem.getAttribute('data-net');
+    if (!attr || !/^\d+$/.test(attr)) continue;
+    const bounds = elem.getBoundingClientRect();
+    const dx = Math.max(bounds.left - clientX, 0, clientX - bounds.right);
+    const dy = Math.max(bounds.top - clientY, 0, clientY - bounds.bottom);
+    const dist = Math.hypot(dx, dy);
+    if (dist <= 6 && dist <= bestDistance) {
+      bestDistance = dist;
+      bestNet = Number(attr);
+    }
+  }
+
+  return bestNet;
 }
 
 function componentAtPointer(
@@ -93,6 +200,11 @@ export function SchematicPanel({
   schematic,
   circuitIr,
   svg,
+  code = '',
+  documentRevision = 0,
+  onTweakCode,
+  onPlotSignal,
+  onCompareSignal,
   panelControls,
   sourceFeedback,
   onResolveSource,
@@ -106,6 +218,7 @@ export function SchematicPanel({
   const [selection, setSelection] = useState<Selection | null>(null);
   const [navigatorOpen, setNavigatorOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [tweakDraft, setTweakDraft] = useState('');
   const documentRef = useRef<HTMLDivElement>(null);
   const { zoom, pan } = view;
   const activeComponent = hoveredComponent ?? (selection?.type === 'component' ? selection.id : null);
@@ -171,20 +284,83 @@ export function SchematicPanel({
 
   const componentSimulationSummary = useMemo(() => {
     if (!selectedComponent || !evaluation) return null;
-    const opDataset = evaluation.simulation.datasets.find((d) => d.data.kind === 'operating_point')?.data;
-    const pinVoltages: Array<{ label: string; value: string }> = [];
-    if (opDataset?.kind === 'operating_point') {
-      for (const pin of selectedComponent.pins) {
-        const net = nets.find((candidate) => candidate.id === pin.net);
-        if (!net) continue;
-        const key = net.name.toLocaleLowerCase('en-US');
-        if (net.kind === 'ground' || key === 'gnd' || key === '0') {
-          pinVoltages.push({ label: `V(${pin.name})`, value: '0 V' });
-        } else if (key in opDataset.values) {
-          pinVoltages.push({ label: `V(${pin.name})`, value: formatEngineering(opDataset.values[key], 'V') });
+    const metrics: Array<{ label: string; value: string }> = [];
+    const irComp = irComponents.get(selectedComponent.id);
+    const kindName = componentKindName(irComp?.kind ?? '');
+    const pins = findComponentPinNets(selectedComponent.id, kindName, schematic, circuitIr);
+
+    const opRaw = evaluation.simulation.datasets.find((d) => d.data.kind === 'operating_point')?.data;
+    const tranRaw = evaluation.simulation.datasets.find((d) => d.data.kind === 'transient')?.data;
+
+    if (opRaw?.kind === 'operating_point') {
+      const augOp = augmentDatasetWithDerivedSignals(opRaw, circuitIr, schematic);
+      if (augOp.kind === 'operating_point') {
+        const opKeys = Object.keys(augOp.values);
+        const readNetV = (netName: string): number | null => {
+          const lower = netName.toLowerCase();
+          if (lower === '0' || lower === 'gnd') return 0;
+          const hit = opKeys.find((k) => k.toLowerCase() === lower);
+          return hit !== undefined ? augOp.values[hit] : null;
+        };
+        if (pins) {
+          const va = readNetV(pins.posNet);
+          const vb = readNetV(pins.negNet);
+          if (va !== null && vb !== null) {
+            metrics.push({ label: 'ΔV', value: formatEngineering(va - vb, 'V') });
+          }
+        }
+        const currKey = findComponentCurrentSignalKey(selectedComponent.id, kindName, opKeys);
+        if (currKey) {
+          metrics.push({ label: 'I', value: formatEngineering(augOp.values[currKey], 'A') });
+        }
+        const powerKey = opKeys.find((k) => k.toLowerCase() === `p(${selectedComponent.id.toLowerCase()})`);
+        if (powerKey) {
+          metrics.push({ label: 'P', value: formatEngineering(augOp.values[powerKey], 'W') });
+        }
+        for (const pin of selectedComponent.pins) {
+          const net = nets.find((candidate) => candidate.id === pin.net);
+          if (!net) continue;
+          const key = net.name.toLocaleLowerCase('en-US');
+          if (net.kind === 'ground' || key === 'gnd' || key === '0') {
+            metrics.push({ label: `V(${pin.name})`, value: '0 V' });
+          } else {
+            const v = readNetV(net.name);
+            if (v !== null) metrics.push({ label: `V(${pin.name})`, value: formatEngineering(v, 'V') });
+          }
+        }
+      }
+    } else if (tranRaw?.kind === 'transient') {
+      const augTran = augmentDatasetWithDerivedSignals(tranRaw, circuitIr, schematic);
+      if (augTran.kind === 'transient') {
+        const tranKeys = Object.keys(augTran.signals);
+        const readNetSeries = (netName: string): number[] | null => {
+          const lower = netName.toLowerCase();
+          if (lower === '0' || lower === 'gnd') return new Array<number>(augTran.axis.values.length).fill(0);
+          const hit = tranKeys.find((k) => k.toLowerCase() === lower);
+          return hit ? augTran.signals[hit] : null;
+        };
+        if (pins) {
+          const sa = readNetSeries(pins.posNet);
+          const sb = readNetSeries(pins.negNet);
+          if (sa && sb && sa.length === sb.length) {
+            const diff = sa.map((v, idx) => v - sb[idx]);
+            const summary = summarizeWaveformSeries(augTran.axis.values, diff);
+            if (summary) metrics.push({ label: 'ΔV (RMS)', value: formatEngineering(summary.rms, 'V') });
+          }
+        }
+        const currKey = findComponentCurrentSignalKey(selectedComponent.id, kindName, tranKeys);
+        if (currKey) {
+          const summary = summarizeWaveformSeries(augTran.axis.values, augTran.signals[currKey]);
+          if (summary) metrics.push({ label: 'I (RMS)', value: formatEngineering(summary.rms, 'A') });
+        }
+        const powerKey = tranKeys.find((k) => k.toLowerCase() === `p(${selectedComponent.id.toLowerCase()})`);
+        if (powerKey) {
+          const summary = summarizeWaveformSeries(augTran.axis.values, augTran.signals[powerKey]);
+          if (summary) metrics.push({ label: 'P (avg)', value: formatEngineering(summary.average, 'W') });
         }
       }
     }
+
     const stresses = evaluation.part_stress.results.filter(
       (r) => r.component === selectedComponent.id || r.component === selectedComponent.reference,
     );
@@ -193,14 +369,109 @@ export function SchematicPanel({
         const unitMap: Record<string, string> = { volt: 'V', ampere: 'A', watt: 'W' };
         const unit = unitMap[stress.limit.unit.toLowerCase()] ?? stress.limit.unit;
         const util = stress.utilization_percent != null ? ` (${stress.utilization_percent.toPrecision(3)}%)` : '';
-        pinVoltages.push({
+        metrics.push({
           label: stress.rating.replaceAll('_', ' '),
           value: `${formatEngineering(stress.actual, unit)}${util}`,
         });
       }
     }
-    return pinVoltages.length > 0 ? pinVoltages : null;
-  }, [evaluation, nets, selectedComponent]);
+    return metrics.length > 0 ? metrics : null;
+  }, [circuitIr, evaluation, irComponents, nets, schematic, selectedComponent]);
+
+  const plottableComponentSignals = useMemo(() => {
+    if (!selectedComponent || !evaluation) return null;
+    const plottable = evaluation.simulation.datasets.filter((d) => d.data.kind !== 'operating_point');
+    if (plottable.length === 0) return null;
+
+    const irComp = irComponents.get(selectedComponent.id);
+    const kindName = componentKindName(irComp?.kind ?? '');
+    const pins = findComponentPinNets(selectedComponent.id, kindName, schematic, circuitIr);
+
+    let voltageSignal: string | null = null;
+    let currentSignal: string | null = null;
+    let powerSignal: string | null = null;
+
+    if (pins) {
+      const posGround = /^(0|gnd)$/i.test(pins.posNet);
+      const negGround = /^(0|gnd)$/i.test(pins.negNet);
+      if (!(posGround && negGround)) {
+        const vCandidate = componentVoltageSignalKey(pins.posNet, pins.negNet);
+        for (const entry of plottable) {
+          const aug = augmentDatasetWithDerivedSignals(entry.data, circuitIr, schematic, [vCandidate]);
+          if (aug.kind === 'operating_point') continue;
+          const hit = Object.keys(aug.signals).find((k) => k.toLowerCase() === vCandidate.toLowerCase());
+          if (hit) {
+            voltageSignal = hit;
+            break;
+          }
+        }
+      }
+    }
+
+    for (const entry of plottable) {
+      const aug = augmentDatasetWithDerivedSignals(entry.data, circuitIr, schematic);
+      if (aug.kind === 'operating_point') continue;
+      const keys = Object.keys(aug.signals);
+      if (!currentSignal) {
+        currentSignal = findComponentCurrentSignalKey(selectedComponent.id, kindName, keys);
+      }
+      if (!powerSignal && entry.data.kind !== 'ac') {
+        powerSignal = keys.find((k) => k.toLowerCase() === `p(${selectedComponent.id.toLowerCase()})`) ?? null;
+      }
+    }
+
+    if (!voltageSignal && !currentSignal && !powerSignal) return null;
+    return { voltageSignal, currentSignal, powerSignal };
+  }, [circuitIr, evaluation, irComponents, schematic, selectedComponent]);
+
+  const literalSpan = useMemo(() => {
+    if (!selectedComponent || !code) return null;
+    if ((irComponents.get(selectedComponent.id)?.instance_path?.length ?? 0) > 0) return null;
+    return findLiteralComponentValueSpan(code, selectedComponent.id);
+  }, [code, irComponents, selectedComponent]);
+
+  useEffect(() => {
+    setTweakDraft(literalSpan?.rawValue ?? '');
+  }, [literalSpan?.componentId, literalSpan?.rawValue]);
+
+  const isSelectedNetPlottable = useMemo(() => {
+    if (!selectedNet || !evaluation) return false;
+    const key = selectedNet.name.toLowerCase();
+    if (selectedNet.kind === 'ground' || key === '0' || key === 'gnd') return false;
+    return evaluation.simulation.datasets.some(
+      (entry) => entry.data.kind !== 'operating_point'
+        && Object.keys(entry.data.signals).some((sig) => sig.toLowerCase() === key),
+    );
+  }, [evaluation, selectedNet]);
+
+  const parsedDraft = useMemo(() => parseKessQuantity(tweakDraft), [tweakDraft]);
+  const isDraftValid = Boolean(
+    literalSpan
+    && parsedDraft
+    && (
+      literalSpan.kind === 'source'
+      || literalSpan.kind === 'current_source'
+      || parsedDraft.value > 0
+    ),
+  );
+
+  const applyScaledTweak = (multiplier: number) => {
+    if (!literalSpan || !onTweakCode || !code) return;
+    const nextValue = literalSpan.value * multiplier;
+    if (!Number.isFinite(nextValue)) return;
+    if (
+      (literalSpan.kind === 'resistor' || literalSpan.kind === 'capacitor' || literalSpan.kind === 'inductor')
+      && nextValue <= 0
+    ) return;
+    const nextToken = formatKessQuantity(nextValue, literalSpan.suffix);
+    onTweakCode(`${code.slice(0, literalSpan.start)}${nextToken}${code.slice(literalSpan.end)}`);
+  };
+
+  const applyDraftTweak = () => {
+    if (!literalSpan || !onTweakCode || !code || !parsedDraft || !isDraftValid) return;
+    const nextToken = tweakDraft.trim();
+    onTweakCode(`${code.slice(0, literalSpan.start)}${nextToken}${code.slice(literalSpan.end)}`);
+  };
 
   const focusSelector = (selector: string) => {
     globalThis.requestAnimationFrame(() => {
@@ -244,7 +515,28 @@ export function SchematicPanel({
     setSelection(null);
     setNavigatorOpen(false);
     setQuery('');
-  }, [svg]);
+  }, [documentRevision]);
+
+  useEffect(() => {
+    setHoveredComponent(null);
+    if (!svg || !schematic) {
+      setSelection(null);
+      return;
+    }
+    setSelection((current) => {
+      if (!current) return null;
+      if (current.type === 'component') {
+        return schematic.components.some((c) => c.id === current.id) ? current : null;
+      }
+      if (current.type === 'net') {
+        return schematic.nets.some((n) => n.id === current.id) ? current : null;
+      }
+      const hasGroup = (circuitIr?.components ?? []).some(
+        (c) => (c.instance_path?.length ?? 0) > 0 && pathStartsWith(c.instance_path!, current.path),
+      );
+      return hasGroup ? current : null;
+    });
+  }, [circuitIr, schematic, svg]);
 
   useEffect(() => {
     const root = documentRef.current;
@@ -346,7 +638,8 @@ export function SchematicPanel({
         onDoubleClick={(event) => {
           if (!onRevealSymbol) return;
           const directNet = netAtTarget(event.target);
-          const component = componentAtTarget(event.target)
+          const directComp = componentAtTarget(event.target);
+          const component = directComp
             ?? (directNet === null
               ? componentAtPointer(event.target, event.currentTarget, event.clientX, event.clientY)
               : null);
@@ -354,15 +647,17 @@ export function SchematicPanel({
             onRevealSymbol(component);
             return;
           }
-          if (directNet !== null) {
-            const net = nets.find((item) => item.id === directNet);
+          const netId = directNet ?? netAtPointer(event.target, event.currentTarget, event.clientX, event.clientY);
+          if (netId !== null) {
+            const net = nets.find((item) => item.id === netId);
             if (net) onRevealSymbol(net.name);
           }
         }}
         onPointerDown={(event) => {
           event.currentTarget.focus();
           const directNet = netAtTarget(event.target);
-          const component = componentAtTarget(event.target)
+          const directComp = componentAtTarget(event.target);
+          const component = directComp
             ?? (directNet === null
               ? componentAtPointer(event.target, event.currentTarget, event.clientX, event.clientY)
               : null);
@@ -371,8 +666,9 @@ export function SchematicPanel({
             setNavigatorOpen(true);
             return;
           }
-          if (directNet !== null) {
-            setSelection((current) => current?.type === 'net' && current.id === directNet ? null : { type: 'net', id: directNet });
+          const netId = directNet ?? netAtPointer(event.target, event.currentTarget, event.clientX, event.clientY);
+          if (netId !== null) {
+            setSelection((current) => current?.type === 'net' && current.id === netId ? null : { type: 'net', id: netId });
             setNavigatorOpen(true);
             return;
           }
@@ -424,7 +720,7 @@ export function SchematicPanel({
           {selectedComponent && <div className="inspector-content">
             <div className="inspector-heading">
               <strong>{selectedComponent.reference}</strong>
-              <span>{componentKind(irComponents.get(selectedComponent.id)?.kind)}</span>
+              <span className="inspector-badge">{componentKind(irComponents.get(selectedComponent.id)?.kind)}</span>
               {onRevealSymbol && (
                 <button
                   type="button"
@@ -438,15 +734,38 @@ export function SchematicPanel({
             </div>
             {irComponents.get(selectedComponent.id)?.instance_path?.length
               ? <button className="group-breadcrumb" onClick={() => chooseGroup(irComponents.get(selectedComponent.id)!.instance_path!)}><Boxes size={12} />{irComponents.get(selectedComponent.id)!.instance_path!.join(' / ')}</button>
-              : <small>Top-level circuit</small>}
-            <dl>
+              : <small className="inspector-scope-label">Top-level circuit</small>}
+            <dl className="inspector-meta-list">
               {selectedComponent.value && <><dt>Value</dt><dd>{selectedComponent.value}</dd></>}
               {selectedComponent.model && <><dt>Model</dt><dd>{selectedComponent.model}</dd></>}
               {Object.entries(selectedComponent.instance_parameters ?? {}).map(([name, value]) => <span className="inspector-pair" key={name}><dt>{name}</dt><dd>{value}</dd></span>)}
             </dl>
+            {literalSpan && onTweakCode && (
+              <div className="inspector-tweak-section">
+                <h4><SlidersHorizontal size={10} /> Quick tweak</h4>
+                <div className="inspector-tweak-bar" role="group" aria-label="Quick value tweak">
+                  <button type="button" className="inspector-tweak-step" onClick={() => applyScaledTweak(0.9)}>-10%</button>
+                  <input
+                    type="text"
+                    className={`inspector-tweak-input${isDraftValid ? '' : ' is-invalid'}`}
+                    aria-label="Component value"
+                    value={tweakDraft}
+                    onChange={(event) => setTweakDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        applyDraftTweak();
+                      }
+                    }}
+                  />
+                  <button type="button" className="inspector-tweak-step" onClick={() => applyScaledTweak(1.1)}>+10%</button>
+                  <button type="button" className="inspector-tweak-apply" disabled={!isDraftValid} onClick={applyDraftTweak}>Apply</button>
+                </div>
+              </div>
+            )}
             {componentSimulationSummary && (
-              <>
-                <h4>Simulated</h4>
+              <div className="inspector-sim-block">
+                <h4><Activity size={10} /> Simulated</h4>
                 <dl className="inspector-sim-metrics">
                   {componentSimulationSummary.map((item) => (
                     <span className="inspector-pair" key={item.label}>
@@ -455,7 +774,20 @@ export function SchematicPanel({
                     </span>
                   ))}
                 </dl>
-              </>
+              </div>
+            )}
+            {plottableComponentSignals && onPlotSignal && (
+              <div className="inspector-action-row" role="group" aria-label="Plot component waveforms">
+                {plottableComponentSignals.voltageSignal && (
+                  <button type="button" className="inspector-plot-btn" onClick={() => onPlotSignal(plottableComponentSignals.voltageSignal!)}>Plot V</button>
+                )}
+                {plottableComponentSignals.currentSignal && (
+                  <button type="button" className="inspector-plot-btn" onClick={() => onPlotSignal(plottableComponentSignals.currentSignal!)}>Plot I</button>
+                )}
+                {plottableComponentSignals.powerSignal && (
+                  <button type="button" className="inspector-plot-btn" onClick={() => onPlotSignal(plottableComponentSignals.powerSignal!)}>Plot P</button>
+                )}
+              </div>
             )}
             <h4>Pins</h4>
             <div className="inspector-pin-list">{selectedComponent.pins.map((pin) => {
@@ -468,7 +800,7 @@ export function SchematicPanel({
           {selectedNet && <div className="inspector-content">
             <div className="inspector-heading">
               <strong>{selectedNet.name}</strong>
-              <span>{selectedNet.kind} net</span>
+              <span className="inspector-badge">{selectedNet.kind} net</span>
               {onRevealSymbol && (
                 <button
                   type="button"
@@ -481,8 +813,8 @@ export function SchematicPanel({
               )}
             </div>
             {netSimulationSummary && (
-              <>
-                <h4>Simulated</h4>
+              <div className="inspector-sim-block">
+                <h4><Activity size={10} /> Simulated</h4>
                 <dl className="inspector-sim-metrics">
                   {netSimulationSummary.map((item) => (
                     <span className="inspector-pair" key={item.label}>
@@ -491,7 +823,15 @@ export function SchematicPanel({
                     </span>
                   ))}
                 </dl>
-              </>
+              </div>
+            )}
+            {isSelectedNetPlottable && onPlotSignal && (
+              <div className="inspector-action-row" role="group" aria-label="Plot net waveform">
+                <button type="button" className="inspector-plot-btn" onClick={() => onPlotSignal(selectedNet.name)}>Plot</button>
+                {onCompareSignal && (
+                  <button type="button" className="inspector-plot-btn is-secondary" onClick={() => onCompareSignal(selectedNet.name)}>+ Compare</button>
+                )}
+              </div>
             )}
             <h4>Connected pins</h4>
             <div className="inspector-pin-list">{selectedNet.pins.map((pin) => <button key={`${pin.component}.${pin.pin}`} onClick={() => chooseComponent(pin.component, true)}><span>{pin.pin}</span><strong>{pin.component}</strong></button>)}</div>

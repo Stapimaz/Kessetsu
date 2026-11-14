@@ -16,6 +16,8 @@ name = "kess"
 path = "src/bin/kess.rs"
 
 [dependencies]
+base64 = "0.22.1"
+flate2 = "1.1.9"
 pest = "2.7"
 pest_derive = "2.7"
 wasm-bindgen = "=0.2.126"

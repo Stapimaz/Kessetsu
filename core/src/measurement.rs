@@ -1,7 +1,7 @@
 use crate::graph::NetlistGraph;
 use crate::ir::{
-    Assertion, CircuitIR, ComponentKind, ComponentParams, IRComponent, Quantity, ResolvedArgument,
-    SIUnit, SourceValue, Waveform, parse_quantity,
+    Assertion, CircuitIR, ComponentKind, ComponentParams, IRComponent, ModelDefinition, Quantity,
+    ResolvedArgument, SIUnit, SourceValue, Waveform, parse_quantity, parse_si_value,
 };
 use crate::simulation::{ComplexSeries, Dataset, RealSeriesDataset, SimulationResult};
 
@@ -1028,13 +1028,13 @@ fn evaluate_dissipation(
     if !matches!(arguments.len(), 1 | 3) {
         return Err("dissipation expects device or device,start,stop".to_string());
     }
-    let signal = format!("P({})", arguments[0]);
+    let target = arguments[0];
     for dataset in simulation
         .datasets
         .iter()
         .filter(|dataset| matches!(dataset.data, Dataset::Transient(_)))
     {
-        if let Some(power) = resolve_signal(&dataset.data, &signal, circuit)? {
+        if let Some(power) = power_signal(&dataset.data, target, circuit)? {
             let power = maybe_window_signal(power, arguments.window(1)?)?;
             return match power {
                 SignalData::Scalar(value) => Ok(value.max(0.0)),
@@ -1046,6 +1046,17 @@ fn evaluate_dissipation(
                         .collect::<Vec<_>>(),
                 ),
             };
+        }
+    }
+    if arguments.len() == 1 {
+        for dataset in simulation
+            .datasets
+            .iter()
+            .filter(|dataset| matches!(dataset.data, Dataset::OperatingPoint { .. }))
+        {
+            if let Some(SignalData::Scalar(value)) = power_signal(&dataset.data, target, circuit)? {
+                return Ok(value.max(0.0));
+            }
         }
     }
     Err(format!(
@@ -1129,10 +1140,21 @@ fn resolve_endpoint_net(
     }
     if let Some((component_name, pin)) = endpoint.split_once('.') {
         let component = find_component(circuit, component_name)?;
+        let canonical_pin = if matches!(component.kind, ComponentKind::Diode) {
+            if pin.eq_ignore_ascii_case("anode") || pin.eq_ignore_ascii_case("a") {
+                "p1"
+            } else if pin.eq_ignore_ascii_case("cathode") || pin.eq_ignore_ascii_case("k") {
+                "p2"
+            } else {
+                pin
+            }
+        } else {
+            pin
+        };
         let pin_def = crate::component::component_definition(&component.kind)
             .pins
             .iter()
-            .find(|definition| definition.name.eq_ignore_ascii_case(pin))
+            .find(|definition| definition.name.eq_ignore_ascii_case(canonical_pin))
             .ok_or_else(|| format!("'{}' has no pin '{}'", component.id, pin))?;
         return graph
             .get_net(&component.id, pin_def.name)
@@ -1238,14 +1260,22 @@ fn current_signal(
             let capacitance = passive_value(component)?;
             match voltage {
                 Some(SignalData::Series { axis, values }) => {
-                    let derivative = derivative(&axis, &values)?;
-                    Ok(Some(SignalData::Series {
-                        axis,
-                        values: derivative
-                            .into_iter()
-                            .map(|value| value * capacitance)
-                            .collect(),
-                    }))
+                    if matches!(dataset, Dataset::Transient(_)) {
+                        let derivative = derivative(&axis, &values)?;
+                        Ok(Some(SignalData::Series {
+                            axis,
+                            values: derivative
+                                .into_iter()
+                                .map(|value| value * capacitance)
+                                .collect(),
+                        }))
+                    } else {
+                        let len = axis.len();
+                        Ok(Some(SignalData::Series {
+                            axis,
+                            values: vec![0.0; len],
+                        }))
+                    }
                 }
                 Some(SignalData::Scalar(_)) => Ok(Some(SignalData::Scalar(0.0))),
                 None => Ok(None),
@@ -1274,10 +1304,20 @@ fn current_signal(
             "dependent current source terminal currents require an explicit measurement source; use a series 0 V source"
                 .to_string(),
         ),
-        ComponentKind::Switch => Err(
-            "switch terminal currents require an explicit measurement source; use a series 0 V source"
-                .to_string(),
-        ),
+        ComponentKind::Switch => {
+            let v_drop = component_voltage(dataset, component, circuit, "p1", "p2")?;
+            let v_ctrl = component_voltage(dataset, component, circuit, "ctrl_p", "ctrl_n")?;
+            let (vt, ron, roff) = switch_model_parameters(component);
+            match (v_drop, v_ctrl) {
+                (Some(v_drop), Some(v_ctrl)) => {
+                    Ok(Some(combine_signal(v_drop, v_ctrl, |vd, vc| {
+                        let resistance = if vc >= vt { ron } else { roff };
+                        vd / resistance
+                    })?))
+                }
+                _ => Ok(None),
+            }
+        }
         ComponentKind::ExternalDevice(_) => Err("external subcircuit terminal currents require an explicit measurement source; use a series 0 V source".to_string()),
         ComponentKind::ModulePort => Err("module ports have no device current".to_string()),
     }
@@ -1345,6 +1385,53 @@ fn component_voltage(
     }
 }
 
+fn switch_model_parameters(component: &IRComponent) -> (f64, f64, f64) {
+    let mut vt = 0.5;
+    let mut ron = 1.0;
+    let mut roff = 1.0e9;
+    if let Some(model) = &component.model
+        && let ModelDefinition::Device { directive } = &model.definition
+    {
+        let body = directive
+            .find('(')
+            .and_then(|start| {
+                directive[start + 1..]
+                    .rfind(')')
+                    .map(|end| &directive[start + 1..start + 1 + end])
+            })
+            .unwrap_or(directive.as_str());
+        for token in body.split(|character: char| character.is_whitespace() || character == ',') {
+            let token = token.trim();
+            if let Some((name, raw_value)) = token.split_once('=')
+                && let Ok(parsed) = parse_si_value(raw_value.trim())
+                && parsed.is_finite()
+            {
+                let name = name.trim();
+                if name.eq_ignore_ascii_case("vt") {
+                    vt = parsed;
+                } else if name.eq_ignore_ascii_case("ron") && parsed > 0.0 {
+                    ron = parsed;
+                } else if name.eq_ignore_ascii_case("roff") && parsed > 0.0 {
+                    roff = parsed;
+                }
+            }
+        }
+    }
+    (vt, ron, roff)
+}
+
+fn dc_source_value(value: &SourceValue) -> f64 {
+    match value {
+        SourceValue::Dc(quantity) => quantity.value,
+        SourceValue::Waveform(waveform) => match waveform {
+            Waveform::Ac { offset, .. } => offset.as_ref().map_or(0.0, |quantity| quantity.value),
+            Waveform::Sine { offset, .. } | Waveform::SineAc { offset, .. } => offset.value,
+            Waveform::Pulse { v1, .. } | Waveform::Exp { v1, .. } => v1.value,
+            Waveform::PWL { points } => points.first().map_or(0.0, |(_, value)| value.value),
+        },
+    }
+}
+
 fn source_current(
     dataset: &Dataset,
     component: &IRComponent,
@@ -1360,7 +1447,7 @@ fn source_current(
                     .to_string(),
             ),
         },
-        Dataset::Transient(series) | Dataset::DcSweep(series) => Ok(Some(SignalData::Series {
+        Dataset::Transient(series) => Ok(Some(SignalData::Series {
             axis: series.axis.values.clone(),
             values: series
                 .axis
@@ -1369,6 +1456,13 @@ fn source_current(
                 .map(|time| source_value_at(value, *time))
                 .collect::<Result<Vec<_>, _>>()?,
         })),
+        Dataset::DcSweep(series) => {
+            let dc_value = dc_source_value(value);
+            Ok(Some(SignalData::Series {
+                axis: series.axis.values.clone(),
+                values: vec![dc_value; series.axis.values.len()],
+            }))
+        }
         Dataset::Ac(_) => Err("current-source AC current reduction is unsupported".to_string()),
     }
 }
@@ -1439,8 +1533,49 @@ fn source_value_at(value: &SourceValue, time: f64) -> Result<f64, String> {
             }
             Ok(last.1.value)
         }
-        SourceValue::Waveform(Waveform::Pulse { .. }) => {
-            Err("typed current measurement for pulse source is not implemented".to_string())
+        SourceValue::Waveform(Waveform::Pulse {
+            v1,
+            v2,
+            delay,
+            rise,
+            fall,
+            width,
+            period,
+        }) => {
+            let (v1, v2, delay, rise, fall, width, period) = (
+                v1.value,
+                v2.value,
+                delay.value,
+                rise.value,
+                fall.value,
+                width.value,
+                period.value,
+            );
+            if time < delay {
+                return Ok(v1);
+            }
+            let dt = if period > 0.0 {
+                (time - delay).rem_euclid(period)
+            } else {
+                time - delay
+            };
+            if dt < rise {
+                Ok(if rise > 0.0 {
+                    v1 + (v2 - v1) * (dt / rise)
+                } else {
+                    v2
+                })
+            } else if dt < rise + width {
+                Ok(v2)
+            } else if dt < rise + width + fall {
+                Ok(if fall > 0.0 {
+                    v2 + (v1 - v2) * ((dt - rise - width) / fall)
+                } else {
+                    v1
+                })
+            } else {
+                Ok(v1)
+            }
         }
     }
 }
@@ -2499,5 +2634,330 @@ assert max(V(OUT_P, OUT_N)) > 1.9V
         );
         let report = crate::sim_result::evaluate_assertions(&circuit, &sim);
         assert!(report.all_passed(), "{:?}", report.assertions);
+    }
+
+    fn dc_sim(axis: Vec<f64>, signals: BTreeMap<String, Vec<f64>>) -> SimulationResult {
+        sim_with(
+            Analysis::DcSweep {
+                source: "VIN".to_string(),
+                start: Quantity {
+                    value: *axis.first().unwrap_or(&0.0),
+                    unit: SIUnit::Volt,
+                },
+                stop: Quantity {
+                    value: *axis.last().unwrap_or(&5.0),
+                    unit: SIUnit::Volt,
+                },
+                step: Quantity {
+                    value: 1.0,
+                    unit: SIUnit::Volt,
+                },
+            },
+            Dataset::DcSweep(RealSeriesDataset {
+                axis: SeriesAxis {
+                    name: "v-sweep".to_string(),
+                    values: axis,
+                },
+                signals,
+            }),
+        )
+    }
+
+    #[test]
+    fn diode_anode_cathode_aliases_resolve_endpoint_nets() {
+        let circuit = test_circuit(
+            "diode D1\n\
+             connect D1.p1 to IN\n\
+             connect D1.p2 to OUT\n",
+        );
+        let op = sim_with(
+            Analysis::OperatingPoint,
+            Dataset::OperatingPoint {
+                values: BTreeMap::from([("in".to_string(), 1.2), ("out".to_string(), 0.5)]),
+            },
+        );
+        assert!(
+            (eval("value", "V(D1.anode, D1.cathode)", &circuit, &op).unwrap() - 0.7).abs() < 1e-12
+        );
+        assert!((eval("value", "V(D1.a, D1.k)", &circuit, &op).unwrap() - 0.7).abs() < 1e-12);
+        assert!((eval("value", "V(D1.ANODE, D1.K)", &circuit, &op).unwrap() - 0.7).abs() < 1e-12);
+        assert!((eval("value", "V(D1.p1, D1.p2)", &circuit, &op).unwrap() - 0.7).abs() < 1e-12);
+        assert!(
+            eval("value", "V(R1.anode, OUT)", &circuit, &op)
+                .unwrap_err()
+                .contains("has no pin 'anode'")
+        );
+
+        let tran = tran_sim(
+            vec![0.0, 1e-3, 2e-3],
+            BTreeMap::from([
+                ("in".to_string(), vec![0.0, 1.5, 2.0]),
+                ("out".to_string(), vec![0.0, 0.8, 1.2]),
+            ]),
+        );
+        assert!(
+            (eval("max", "V(D1.anode, D1.cathode)", &circuit, &tran).unwrap() - 0.8).abs() < 1e-12
+        );
+        assert!((eval("min", "V(D1.a, D1.k)", &circuit, &tran).unwrap() - 0.0).abs() < 1e-12);
+
+        let ac = sim_with(
+            Analysis::Ac {
+                scale: crate::ir::AcScale::Decade,
+                points: 10,
+                start: Quantity {
+                    value: 10.0,
+                    unit: SIUnit::Hertz,
+                },
+                stop: Quantity {
+                    value: 100.0,
+                    unit: SIUnit::Hertz,
+                },
+            },
+            Dataset::Ac(ComplexSeriesDataset {
+                frequency_hz: vec![10.0, 100.0],
+                signals: BTreeMap::from([
+                    (
+                        "in".to_string(),
+                        ComplexSeries {
+                            real: vec![3.0, 3.0],
+                            imaginary: vec![0.0, 0.0],
+                        },
+                    ),
+                    (
+                        "out".to_string(),
+                        ComplexSeries {
+                            real: vec![1.0, 1.0],
+                            imaginary: vec![0.0, 0.0],
+                        },
+                    ),
+                ]),
+            }),
+        );
+        assert!(
+            (eval("gain", "V(D1.anode, D1.cathode), V(IN)", &circuit, &ac).unwrap() - (2.0 / 3.0))
+                .abs()
+                < 1e-12
+        );
+    }
+
+    #[test]
+    fn evaluate_dissipation_supports_operating_point() {
+        let source = "\
+net GND
+net IN
+net OUT_P
+net OUT_N
+source VIN 10V
+resistor R1 1k
+connect VIN.plus to OUT_P
+connect VIN.minus to GND
+connect R1.p1 to OUT_P
+connect R1.p2 to OUT_N
+simulate op
+assert dissipation(R1) < 250mW
+assert dissipation(VIN) == 0W
+";
+        let program = parse_program(source).expect("op dissipation source should parse");
+        let circuit = ast_to_ir(&program).expect("op dissipation source should reach IR");
+        let op = sim_with(
+            Analysis::OperatingPoint,
+            Dataset::OperatingPoint {
+                values: BTreeMap::from([
+                    ("out_p".to_string(), 10.0),
+                    ("out_n".to_string(), 0.0),
+                    ("v_vin#branch".to_string(), -0.01),
+                ]),
+            },
+        );
+        assert!((eval("dissipation", "R1", &circuit, &op).unwrap() - 0.1).abs() < 1e-12);
+        assert!((eval("dissipation", "VIN", &circuit, &op).unwrap() - 0.0).abs() < 1e-12);
+        assert!(eval("dissipation", "R1, 0ms, 1ms", &circuit, &op).is_err());
+
+        let report = crate::sim_result::evaluate_assertions(&circuit, &op);
+        assert!(report.all_passed(), "{:?}", report.assertions);
+
+        let mut mixed = tran_sim(
+            vec![0.0, 1e-3, 2e-3],
+            BTreeMap::from([
+                ("out_p".to_string(), vec![20.0; 3]),
+                ("out_n".to_string(), vec![0.0; 3]),
+            ]),
+        );
+        mixed.datasets.insert(
+            0,
+            AnalysisDataset {
+                index: 0,
+                analysis: Analysis::OperatingPoint,
+                data: op.datasets[0].data.clone(),
+            },
+        );
+        assert!((eval("dissipation", "R1", &circuit, &mixed).unwrap() - 0.4).abs() < 1e-12);
+    }
+
+    #[test]
+    fn dc_sweep_capacitor_and_current_source_use_steady_state_dc_values() {
+        let circuit = test_circuit(
+            "capacitor C1 1uF\n\
+             current_source I_dc 5mA\n\
+             current_source I_sine sine(3mA, 2mA, 1kHz)\n\
+             current_source I_pulse pulse(1mA, 5mA, 1ms, 100us, 100us, 400us, 2ms)\n\
+             current_source I_pwl pwl(0.5ms, 2mA, 1.5ms, 8mA)\n\
+             current_source I_exp exp(4mA, 9mA, 1ms, 1ms, 2ms, 1ms)\n\
+             connect C1.p1 to OUT_P\nconnect C1.p2 to OUT_N\n\
+             connect I_dc.plus, I_sine.plus, I_pulse.plus, I_pwl.plus, I_exp.plus to OUT\n\
+             connect I_dc.minus, I_sine.minus, I_pulse.minus, I_pwl.minus, I_exp.minus to GND\n",
+        );
+
+        let dc_asc = dc_sim(
+            vec![0.0, 2.5, 5.0],
+            BTreeMap::from([
+                ("out_p".to_string(), vec![0.0, 2.5, 5.0]),
+                ("out_n".to_string(), vec![0.0, 0.0, 0.0]),
+                ("out".to_string(), vec![1.0, 2.0, 3.0]),
+            ]),
+        );
+        assert!((eval("peak", "I(C1)", &circuit, &dc_asc).unwrap() - 0.0).abs() < 1e-12);
+        assert!((eval("max", "P(C1)", &circuit, &dc_asc).unwrap() - 0.0).abs() < 1e-12);
+        assert!((eval("value", "I(I_dc)", &circuit, &dc_asc).unwrap() - 5e-3).abs() < 1e-12);
+        assert!((eval("max", "I(I_sine)", &circuit, &dc_asc).unwrap() - 3e-3).abs() < 1e-12);
+        assert!((eval("min", "I(I_sine)", &circuit, &dc_asc).unwrap() - 3e-3).abs() < 1e-12);
+        assert!((eval("max", "I(I_pulse)", &circuit, &dc_asc).unwrap() - 1e-3).abs() < 1e-12);
+        assert!((eval("max", "I(I_pwl)", &circuit, &dc_asc).unwrap() - 2e-3).abs() < 1e-12);
+        assert!((eval("max", "I(I_exp)", &circuit, &dc_asc).unwrap() - 4e-3).abs() < 1e-12);
+
+        // Descending DC sweep must also return 0 A for C1 instead of failing derivative axis check.
+        let dc_desc = dc_sim(
+            vec![5.0, 2.5, 0.0],
+            BTreeMap::from([
+                ("out_p".to_string(), vec![5.0, 2.5, 0.0]),
+                ("out_n".to_string(), vec![0.0, 0.0, 0.0]),
+            ]),
+        );
+        assert!((eval("peak", "I(C1)", &circuit, &dc_desc).unwrap() - 0.0).abs() < 1e-12);
+
+        // Transient must still differentiate C * dV/dt and evaluate time-domain waveforms.
+        let tran = tran_sim(
+            vec![0.0, 1.3e-3, 2e-3],
+            BTreeMap::from([
+                ("out_p".to_string(), vec![0.0, 1.3, 2.0]),
+                ("out_n".to_string(), vec![0.0, 0.0, 0.0]),
+                ("out".to_string(), vec![0.0, 0.0, 0.0]),
+            ]),
+        );
+        assert!((eval("average", "I(C1)", &circuit, &tran).unwrap() - 1e-3).abs() < 1e-12);
+        assert!((eval("max", "I(I_pulse)", &circuit, &tran).unwrap() - 5e-3).abs() < 1e-12);
+    }
+
+    #[test]
+    fn pulse_source_and_switch_current_and_power_work_across_analyses() {
+        let q = |value: f64, unit: SIUnit| Quantity { value, unit };
+        let pulse = SourceValue::Waveform(Waveform::Pulse {
+            v1: q(1.0, SIUnit::Ampere),
+            v2: q(5.0, SIUnit::Ampere),
+            delay: q(1e-3, SIUnit::Second),
+            rise: q(2e-4, SIUnit::Second),
+            fall: q(2e-4, SIUnit::Second),
+            width: q(6e-4, SIUnit::Second),
+            period: q(2e-3, SIUnit::Second),
+        });
+        assert!((source_value_at(&pulse, 0.0).unwrap() - 1.0).abs() < 1e-12);
+        assert!((source_value_at(&pulse, 1.1e-3).unwrap() - 3.0).abs() < 1e-12);
+        assert!((source_value_at(&pulse, 1.5e-3).unwrap() - 5.0).abs() < 1e-12);
+        assert!((source_value_at(&pulse, 1.9e-3).unwrap() - 3.0).abs() < 1e-12);
+        assert!((source_value_at(&pulse, 2.5e-3).unwrap() - 1.0).abs() < 1e-12);
+        assert!((source_value_at(&pulse, 3.5e-3).unwrap() - 5.0).abs() < 1e-12);
+
+        let single_pulse = SourceValue::Waveform(Waveform::Pulse {
+            v1: q(0.0, SIUnit::Ampere),
+            v2: q(4.0, SIUnit::Ampere),
+            delay: q(1e-3, SIUnit::Second),
+            rise: q(0.0, SIUnit::Second),
+            fall: q(0.0, SIUnit::Second),
+            width: q(5e-4, SIUnit::Second),
+            period: q(0.0, SIUnit::Second),
+        });
+        assert!((source_value_at(&single_pulse, 0.5e-3).unwrap() - 0.0).abs() < 1e-12);
+        assert!((source_value_at(&single_pulse, 1.2e-3).unwrap() - 4.0).abs() < 1e-12);
+        assert!((source_value_at(&single_pulse, 2.0e-3).unwrap() - 0.0).abs() < 1e-12);
+
+        let mut circuit = test_circuit(
+            "model switch CustomSw version=1.0.0 license=MIT vt=2.0 ron=0.5 roff=10Meg\n\
+             net CTRL\n\
+             switch S_def\n\
+             switch S_custom CustomSw\n\
+             current_source I_pulse pulse(0A, 10mA, 1ms, 0s, 0s, 1ms, 2ms)\n\
+             connect S_def.p1, S_custom.p1 to OUT_P\n\
+             connect S_def.p2, S_custom.p2 to OUT_N\n\
+             connect S_def.ctrl_p, S_custom.ctrl_p to CTRL\n\
+             connect S_def.ctrl_n, S_custom.ctrl_n to GND\n\
+             connect I_pulse.plus to OUT\nconnect I_pulse.minus to GND\n",
+        );
+
+        // OP: default KESSETSU_SW_V1 has vt=0.5, ron=1, roff=1e6
+        let op_off = sim_with(
+            Analysis::OperatingPoint,
+            Dataset::OperatingPoint {
+                values: BTreeMap::from([
+                    ("out_p".to_string(), 10.0),
+                    ("out_n".to_string(), 0.0),
+                    ("ctrl".to_string(), 0.0),
+                ]),
+            },
+        );
+        assert!((eval("value", "I(S_def)", &circuit, &op_off).unwrap() - 1e-5).abs() < 1e-12);
+        assert!((eval("value", "P(S_def)", &circuit, &op_off).unwrap() - 1e-4).abs() < 1e-12);
+        assert!((eval("dissipation", "S_def", &circuit, &op_off).unwrap() - 1e-4).abs() < 1e-12);
+
+        let op_on = sim_with(
+            Analysis::OperatingPoint,
+            Dataset::OperatingPoint {
+                values: BTreeMap::from([
+                    ("out_p".to_string(), 10.0),
+                    ("out_n".to_string(), 0.0),
+                    ("ctrl".to_string(), 2.0),
+                ]),
+            },
+        );
+        assert!((eval("value", "I(S_def)", &circuit, &op_on).unwrap() - 10.0).abs() < 1e-12);
+        assert!((eval("value", "P(S_def)", &circuit, &op_on).unwrap() - 100.0).abs() < 1e-12);
+        assert!((eval("value", "I(S_custom)", &circuit, &op_on).unwrap() - 20.0).abs() < 1e-12);
+
+        // DC sweep across custom switch threshold vt=2.0
+        let dc = dc_sim(
+            vec![0.0, 1.9, 2.0, 5.0],
+            BTreeMap::from([
+                ("out_p".to_string(), vec![10.0; 4]),
+                ("out_n".to_string(), vec![0.0; 4]),
+                ("ctrl".to_string(), vec![0.0, 1.9, 2.0, 5.0]),
+            ]),
+        );
+        assert!((eval("min", "I(S_custom)", &circuit, &dc).unwrap() - 1e-6).abs() < 1e-12);
+        assert!((eval("max", "I(S_custom)", &circuit, &dc).unwrap() - 20.0).abs() < 1e-12);
+        assert!((eval("max", "P(S_custom)", &circuit, &dc).unwrap() - 200.0).abs() < 1e-12);
+
+        // Transient with pulse current source and switch
+        let tran = tran_sim(
+            vec![0.0, 1.5e-3, 2.5e-3],
+            BTreeMap::from([
+                ("out_p".to_string(), vec![5.0, 5.0, 5.0]),
+                ("out_n".to_string(), vec![0.0, 0.0, 0.0]),
+                ("ctrl".to_string(), vec![0.0, 3.0, 0.0]),
+                ("out".to_string(), vec![2.0, 2.0, 2.0]),
+            ]),
+        );
+        assert!((eval("max", "I(I_pulse)", &circuit, &tran).unwrap() - 10e-3).abs() < 1e-12);
+        assert!((eval("max", "P(I_pulse)", &circuit, &tran).unwrap() - 20e-3).abs() < 1e-12);
+        assert!((eval("max", "I(S_custom)", &circuit, &tran).unwrap() - 10.0).abs() < 1e-12);
+        assert!(eval("dissipation", "S_custom", &circuit, &tran).unwrap() > 10.0);
+
+        // Model-less switch fallback uses defaults vt=0.5, ron=1.0, roff=1e9
+        circuit
+            .components
+            .iter_mut()
+            .find(|component| component.id == "S_def")
+            .unwrap()
+            .model = None;
+        assert!((eval("value", "I(S_def)", &circuit, &op_off).unwrap() - 1e-8).abs() < 1e-18);
+        assert!((eval("value", "I(S_def)", &circuit, &op_on).unwrap() - 10.0).abs() < 1e-12);
     }
 }

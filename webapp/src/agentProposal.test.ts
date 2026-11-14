@@ -6,6 +6,7 @@ import {
   createAgentCorrectionTask,
   describeProposalDiagnostic,
   lineDiff,
+  looksLikeKessSource,
   parseAgentProposal,
   summarizeProposalChanges,
 } from './agentProposal';
@@ -94,5 +95,36 @@ describe('agent proposal contracts', () => {
     expect(looksLikeSpiceNetlist('V1 in 0 5\nR1 in out 1k\nR2 out 0 2k\n.op\n.end\n')).toBe(true);
     expect(looksLikeSpiceNetlist('* Filter\nR1 in out 1k\nC1 out 0 100n\n.ac dec 40 10 100k\n.end\n')).toBe(true);
     expect(looksLikeSpiceNetlist('.subckt STAGE in out\nR1 in out 1k\n.ends\n')).toBe(true);
+  });
+
+  it('extracts prose-fenced JSON proposals and wraps pasted .kess source into valid proposals', async () => {
+    const task = await createAgentTask(source, 'Divider', 'Keep OUT below 3.3 V.', '1.6.0', 'kessetsu.compile.v9');
+    const jsonBody = JSON.stringify({
+      schema_version: AGENT_PROPOSAL_SCHEMA,
+      base_source_sha256: task.circuit.source_sha256,
+      proposed_source: `${source}resistor R1 2k\n`,
+      summary: 'Updated R1 to 2k.',
+    });
+    const proseWrappedJson = `Here is the updated circuit proposal:\n\n\`\`\`json\n${jsonBody}\n\`\`\`\n\nApply it in the workspace.`;
+    const fromProseJson = await parseAgentProposal(proseWrappedJson, source);
+    expect(fromProseJson.proposed_source).toContain('resistor R1 2k');
+    expect(fromProseJson.summary).toBe('Updated R1 to 2k.');
+
+    const rawKess = 'net GND\nsource V1 5V\nresistor R1 4.7k\nconnect R1.p1 to GND\nsimulate op\n';
+    expect(looksLikeKessSource(rawKess)).toBe(true);
+    expect(looksLikeKessSource('Just some casual prose without netlist lines.')).toBe(false);
+
+    const fromRawKess = await parseAgentProposal(rawKess, source);
+    expect(fromRawKess.schema_version).toBe(AGENT_PROPOSAL_SCHEMA);
+    expect(fromRawKess.base_source_sha256).toBe(task.circuit.source_sha256);
+    expect(fromRawKess.proposed_source).toBe(rawKess);
+
+    const proseWrappedKess = `Try this divider:\n\`\`\`kess\n${rawKess}\`\`\`\n`;
+    const fromFencedKess = await parseAgentProposal(proseWrappedKess, source);
+    expect(fromFencedKess.base_source_sha256).toBe(task.circuit.source_sha256);
+    expect(fromFencedKess.proposed_source).toBe(rawKess);
+
+    await expect(parseAgentProposal('Hello world, this is neither JSON nor .kess', source))
+      .rejects.toThrow(/valid JSON/);
   });
 });

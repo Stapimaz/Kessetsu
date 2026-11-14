@@ -526,6 +526,7 @@ fn compile_user_subcircuit(declaration: &SubcircuitDecl) -> Result<ModelRef, Sem
         gain,
         bandwidth,
         rail_headroom,
+        rail_headroom,
         slew_rate,
         rout,
     ))
@@ -1202,9 +1203,34 @@ fn builtin_models() -> Vec<ModelRef> {
             "1.0.0",
         ),
         device_model(
+            "LED_RED",
+            ComponentKind::Diode,
+            ".model LED_RED D (IS=9.3e-20 N=1.8 RS=4.2 BV=5 IBV=1e-5 CJO=15p VJ=1.8 M=0.33 EG=1.9)",
+        ),
+        device_model(
+            "LED_GREEN",
+            ComponentKind::Diode,
+            ".model LED_GREEN D (IS=1.2e-22 N=1.95 RS=4.5 BV=5 IBV=1e-5 CJO=15p VJ=2.1 M=0.33 EG=2.2)",
+        ),
+        device_model(
+            "LED_BLUE",
+            ComponentKind::Diode,
+            ".model LED_BLUE D (IS=2.5e-28 N=2.2 RS=6.0 BV=5 IBV=1e-5 CJO=20p VJ=3.0 M=0.33 EG=2.8)",
+        ),
+        device_model(
+            "LED_WHITE",
+            ComponentKind::Diode,
+            ".model LED_WHITE D (IS=1.0e-28 N=2.25 RS=6.5 BV=5 IBV=1e-5 CJO=22p VJ=3.1 M=0.33 EG=2.85)",
+        ),
+        device_model(
             "IRF540",
             ComponentKind::MOSFET(FETPolarity::NMOS),
             ".model IRF540 VDMOS (Rg=3 Vto=4.0 Rd=45m Rs=12m Rb=10m Kp=18 Cgdmax=2n Cgdmin=1.3n Cgs=1.7n Cjo=1n Is=2p mfg=IR)",
+        ),
+        device_model(
+            "IRF9540",
+            ComponentKind::MOSFET(FETPolarity::PMOS),
+            ".model IRF9540 VDMOS (pchan Vto=-3.5 Kp=7.5 Lambda=0.015 Rd=0.11 Rs=0.06 Cgdmax=1.2n Cgdmin=60p Cgs=1.3n Cjo=800p Is=1e-12 Rb=0.08)",
         ),
         device_model(
             "2N7000",
@@ -1266,7 +1292,34 @@ fn builtin_models() -> Vec<ModelRef> {
             200_000.0,
             1_000_000.0,
             1.0,
+            1.0,
             Some(500_000.0),
+            Some(50.0),
+        ),
+        opamp_subcircuit_model_with_options(
+            "LM358",
+            ModelSource::Builtin,
+            "Kessetsu generic LM358 single-supply dual opamp".to_string(),
+            "Apache-2.0".to_string(),
+            "1.0.0".to_string(),
+            100_000.0,
+            1_000_000.0,
+            1.5,
+            0.02,
+            Some(500_000.0),
+            Some(50.0),
+        ),
+        opamp_subcircuit_model_with_options(
+            "TL072",
+            ModelSource::Builtin,
+            "Kessetsu generic TL072 JFET-input opamp".to_string(),
+            "Apache-2.0".to_string(),
+            "1.0.0".to_string(),
+            200_000.0,
+            3_000_000.0,
+            1.5,
+            1.5,
+            Some(13_000_000.0),
             Some(50.0),
         ),
     ]
@@ -1354,6 +1407,7 @@ fn subcircuit_model_with_metadata(
         gain,
         bandwidth,
         0.0,
+        0.0,
         None,
         None,
     )
@@ -1368,39 +1422,53 @@ fn opamp_subcircuit_model_with_options(
     version: String,
     gain: f64,
     bandwidth: f64,
-    rail_headroom: f64,
+    vdrop_high: f64,
+    vdrop_low: f64,
     slew_rate: Option<f64>,
     rout: Option<f64>,
 ) -> ModelRef {
-    let pole_capacitance = gain / (std::f64::consts::TAU * bandwidth);
+    let rpole = 1.0e6;
+    let pole_capacitance = gain / (std::f64::consts::TAU * bandwidth * rpole);
     let pole_node = if rout.is_some() { "n_pole" } else { "out" };
     let gain_str = format_spice_number(gain);
     let pole_cap_str = format_spice_number(pole_capacitance);
 
     let gain_stage = if let Some(sr) = slew_rate {
-        let imax = sr * pole_capacitance;
-        let imax_str = format_spice_number(imax);
+        let slew_drive = sr * pole_capacitance * rpole;
+        let slew_drive_str = format_spice_number(slew_drive);
         format!(
-            "BGAIN n_int 0 V=v({pole_node})+{imax_str}*tanh(({gain_str}*(v(in_p)-v(in_n))-v({pole_node}))/{imax_str})"
+            "BGAIN n_int mid V=(v({pole_node})-v(mid))+{slew_drive_str}*tanh(({gain_str}*(v(in_p)-v(in_n))-(v({pole_node})-v(mid)))/{slew_drive_str})"
         )
     } else {
-        format!("EGAIN n_int 0 in_p in_n {gain_str}")
+        format!("EGAIN n_int mid in_p in_n {gain_str}")
     };
 
-    let pole_stage = format!("RPOLE n_int {pole_node} 1\nCPOLE {pole_node} 0 {pole_cap_str}");
+    let pole_stage = format!("RPOLE n_int {pole_node} 1e6\nCPOLE {pole_node} mid {pole_cap_str}");
 
     let clamp_stage = {
-        let rails = if rail_headroom > 0.0 {
-            let hr_str = format_spice_number(rail_headroom);
-            let min_span_str = format_spice_number(2.0 * rail_headroom);
+        let min_span = vdrop_high + vdrop_low;
+        let rails = if vdrop_high > 0.0 || vdrop_low > 0.0 {
+            let vdrop_high_str = format_spice_number(vdrop_high);
+            let vdrop_low_str = format_spice_number(vdrop_low);
+            let min_span_str = format_spice_number(min_span);
+            let high_expr = if vdrop_high > 0.0 {
+                format!("v(vcc)-{vdrop_high_str}")
+            } else {
+                "v(vcc)".to_string()
+            };
+            let low_expr = if vdrop_low > 0.0 {
+                format!("v(vee)+{vdrop_low_str}")
+            } else {
+                "v(vee)".to_string()
+            };
             format!(
-                "BRAIL_P vcc_lim 0 V=v(vcc)-v(vee)>{min_span_str}?v(vcc)-{hr_str}:0.5*(v(vcc)+v(vee))\nBRAIL_N vee_lim 0 V=v(vcc)-v(vee)>{min_span_str}?v(vee)+{hr_str}:0.5*(v(vcc)+v(vee))"
+                "BRAIL_P vcc_lim 0 V=v(vcc)-v(vee)>{min_span_str}?{high_expr}:0.5*(v(vcc)+v(vee))\nBRAIL_N vee_lim 0 V=v(vcc)-v(vee)>{min_span_str}?{low_expr}:0.5*(v(vcc)+v(vee))"
             )
         } else {
             "BRAIL_P vcc_lim 0 V=v(vcc)>v(vee)?v(vcc):0.5*(v(vcc)+v(vee))\nBRAIL_N vee_lim 0 V=v(vcc)>v(vee)?v(vee):0.5*(v(vcc)+v(vee))".to_string()
         };
         format!(
-            "DCLP_P {pole_node} vcc_lim DCLAMP\nDCLP_N vee_lim {pole_node} DCLAMP\n{rails}\n.model DCLAMP D (Is=1e-15 N=0.001)"
+            "DCLP_P {pole_node} vcc_lim DCLAMP\nDCLP_N vee_lim {pole_node} DCLAMP\n{rails}\n.model DCLAMP D (Is=1e-15 N=0.01)"
         )
     };
 
@@ -1412,7 +1480,7 @@ fn opamp_subcircuit_model_with_options(
     };
 
     let directive = format!(
-        ".subckt {name} in_p in_n vcc vee out\n{gain_stage}\n{pole_stage}\n{clamp_stage}{rout_stage}\nRLOAD out 0 1e9\n.ends {name}"
+        ".subckt {name} in_p in_n vcc vee out\nBMID mid 0 V=0.5*(v(vcc)+v(vee))\n{gain_stage}\n{pole_stage}\n{clamp_stage}{rout_stage}\nRLOAD out 0 1e9\n.ends {name}"
     );
 
     model_ref(
@@ -1607,5 +1675,102 @@ simulate op
         assert!(spice.contains(".model BSS84 PMOS ("), "{spice}");
         assert!(spice.contains(".model J201 NJF ("), "{spice}");
         assert!(spice.contains("@J_J1[id]"), "{spice}");
+    }
+
+    #[test]
+    fn everyday_leds_irf9540_and_asymmetric_opamps_compile_and_generate_spice() {
+        let source = "\
+net GND
+net VCC
+net N_LED
+net N_PMOS
+net OUT_LM
+net OUT_TL
+source V1 5V
+diode D1 LED_RED
+diode D2 LED_GREEN
+diode D3 LED_BLUE
+diode D4 LED_WHITE
+mosfet M1 IRF9540
+opamp U1 LM358
+opamp U2 TL072
+resistor R1 220
+resistor R2 1k
+resistor RF1 10k
+resistor RG1 10k
+connect V1.plus to VCC
+connect V1.minus to GND
+connect D1.p1 to VCC
+connect D1.p2 to N_LED
+connect D2.p1 to VCC
+connect D2.p2 to N_LED
+connect D3.p1 to VCC
+connect D3.p2 to N_LED
+connect D4.p1 to VCC
+connect D4.p2 to N_LED
+connect R1.p1 to N_LED
+connect R1.p2 to GND
+connect M1.s to VCC
+connect M1.g to GND
+connect M1.d to N_PMOS
+connect R2.p1 to N_PMOS
+connect R2.p2 to GND
+connect U1.in_p to N_LED
+connect U1.in_n to N_PMOS
+connect U1.vcc to VCC
+connect U1.vee to GND
+connect U1.out to OUT_LM
+connect RF1.p1 to OUT_LM
+connect RF1.p2 to N_PMOS
+connect RG1.p1 to OUT_LM
+connect RG1.p2 to GND
+connect U2.in_p to N_LED
+connect U2.in_n to OUT_TL
+connect U2.vcc to VCC
+connect U2.vee to GND
+connect U2.out to OUT_TL
+simulate op
+";
+        let report = compile_source(source, CompileOptions::default());
+        assert!(!report.has_errors(), "{:?}", report.diagnostics);
+        let ir = report.ir.expect("IR should compile");
+        for model_name in [
+            "LED_RED",
+            "LED_GREEN",
+            "LED_BLUE",
+            "LED_WHITE",
+            "IRF9540",
+            "LM358",
+            "TL072",
+        ] {
+            assert!(
+                ir.model_manifest
+                    .models
+                    .iter()
+                    .any(|entry| entry.name == model_name),
+                "missing {model_name} in model manifest"
+            );
+        }
+        let spice = report.spice_netlist.expect("SPICE should generate");
+        assert!(spice.contains(".model LED_RED D ("), "{spice}");
+        assert!(spice.contains(".model LED_GREEN D ("), "{spice}");
+        assert!(spice.contains(".model LED_BLUE D ("), "{spice}");
+        assert!(spice.contains(".model LED_WHITE D ("), "{spice}");
+        assert!(spice.contains(".model IRF9540 VDMOS (pchan "), "{spice}");
+        assert!(
+            spice.contains(".subckt LM358 in_p in_n vcc vee out"),
+            "{spice}"
+        );
+        assert!(
+            spice.contains("BMID mid 0 V=0.5*(v(vcc)+v(vee))"),
+            "{spice}"
+        );
+        assert!(spice.contains("v(vee)+0.02"), "{spice}");
+        assert!(
+            spice.contains(".subckt TL072 in_p in_n vcc vee out"),
+            "{spice}"
+        );
+        assert!(spice.contains("v(vee)+1.5"), "{spice}");
+        assert!(spice.contains("@M_M1[id]"), "{spice}");
     }
 }

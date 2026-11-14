@@ -40,18 +40,19 @@ After installing the CLI (`kess --version`), register Kessetsu's built-in stdio 
   }
   ```
 
-Agents with terminal access can also call `kess` directly (`kess check`, `kess test`, `kess tool`, `kess study`, `kess render`, `kess export` with `--format json`). The MCP server exposes native tools for every phase:
+Agents with terminal access can also call `kess` directly (`kess check`, `kess simulate`, `kess test`, `kess tool`, `kess study`, `kess render`, `kess share`, `kess export` with `--format json`). The MCP server exposes native tools for every phase:
 - `kessetsu_guide`: Returns this workflow guide and engineering constraints.
 - `kessetsu_capabilities`: Introspects installed CLI capabilities, supported metrics, commands, and limits.
 - `kessetsu_check`: Runs fast static ERC (floating pins, shorts, naming) and semantic validation without launching a simulator.
-- `kessetsu_simulate`: Runs Ngspice simulation (OP, TRAN, AC, DC) and returns dataset vectors and measurements.
-- `kessetsu_test`: Verifies circuit performance against human-locked `.kessreq` requirement contracts.
+- `kessetsu_simulate`: Runs Ngspice simulation (OP, TRAN, AC, DC), evaluates optional `measure` expressions (`measure: ["rms(V(OUT))", ...]`), and returns dataset vectors and measurements (automatically populating OP node voltages and branch currents when no explicit measurements are requested).
+- `kessetsu_test`: Verifies circuit performance against human-locked `.kessreq` requirement contracts (automatically stripping any inline `assert` lines from `.kess` source when external `requirements` or `requirements_path` is supplied).
 - `kessetsu_render_schematic`: Generates a connectivity-proven SVG schematic for visual inspection.
 - `kessetsu_export`: Exports circuits to external EDA targets (`kicad`, `ltspice`, `bom-csv`, `spice`, `json`, `pdf`).
-- `kessetsu_import_spice`: Converts supported SPICE netlists into editable, reviewable `.kess` source.
-- `kessetsu_tool`: Nominal engineering calculators (`divider` for resistive dividers under load, `rc_lowpass` / `rc-lowpass` for first-order filters, `non_inverting_opamp` / `non-inverting-opamp` for non-inverting op-amp stages, and `zener_regulator` / `zener-regulator` for 3.3 V / 5.1 V / 12 V Zener shunt regulators) with exact, E12, or E24 standard component selection.
+- `kessetsu_import_spice`: Converts supported SPICE netlists into editable, reviewable `.kess` source and returns the full `kessetsu.spice-import.v1` report (`kess_source`, `names`, `summary`, `diagnostics`).
+- `kessetsu_tool`: Nominal engineering calculators (`divider` for resistive dividers under load, `rc_lowpass` / `rc-lowpass` for first-order filters, `non_inverting_opamp` / `non-inverting-opamp` for non-inverting op-amp stages, and `zener_regulator` / `zener-regulator` for 3.3 V / 5.1 V / 12 V Zener shunt regulators) with exact, E12, or E24 standard component selection, returning editable `.kess` source and a clickable `share_url`.
 - `kessetsu_study_plan`: Plans deterministic multi-condition parameter studies (parameter sweeps, tolerance corners, temperature grids, seeded Monte Carlo draws) without side effects.
 - `kessetsu_study_run`: Executes multi-condition parameter studies sequentially, evaluating assertions across all cases to verify yield, corners, and feasible design points.
+- `kessetsu_share_link`: Generates a self-contained, clickable `https://kessetsu.com/#kessetsu=1...` Web Hub URL (`kessetsu.share_link.v1`) from `.kess` or SPICE source so the user can open, inspect, and simulate the circuit in one click.
 
 ## The disciplined loop
 
@@ -74,8 +75,8 @@ Agents with terminal access can also call `kess` directly (`kess check`, `kess t
    analysis, or Monte Carlo distributions, call `kessetsu_study_plan` and `kessetsu_study_run`.
 5. **Show the human.** Call `kessetsu_render_schematic` and save `schematic.svg` next to the
    design. A person can review a schematic; nobody reviews a netlist.
-6. **Hand off.** Export what the next step needs (`kicad`, `ltspice`, `bom-csv`, `spice`).
-7. **Report honestly.** Summarize: requirements, final PASS table, assumptions (ideal
+6. **Hand off and share.** Export what the next step needs (`kicad`, `ltspice`, `bom-csv`, `spice`) and call `kessetsu_share_link` (or `kess share`) to generate a self-contained `https://kessetsu.com/#kessetsu=1...` Web Hub link.
+7. **Report honestly.** Summarize: requirements, final PASS table, clickable Web Hub share link, assumptions (ideal
    sources, generic models, no tolerances unless studied), and open risks.
 
 Recommended project layout:
@@ -108,10 +109,13 @@ connect VIN.minus, C1.p2 to GND
 simulate ac dec 40 10Hz 100kHz   // also: op | tran 10us 5ms | dc VIN 0V 5V 100mV
 ```
 
-- Components and pins: `resistor|capacitor|inductor|diode` (`p1`,`p2`),
-  `transistor Q1 npn 2N3904` (`c`,`b`,`e`), `mosfet M1 IRF540` (`d`,`g`,`s`),
+- Components and pins: `resistor|capacitor|inductor` (`p1`,`p2`),
+  `diode D1 1N4148` (`p1`,`p2` or aliases `anode`/`a`, `cathode`/`k`; built-ins include `1N4148`, `1N4007`, `1N5819`, `LED_RED`, `LED_GREEN`, `LED_BLUE`, `LED_WHITE`, `1N4733A`, `BZX84C3V3`, `BZX84C5V1`, `BZX84C12`),
+  `transistor Q1 npn 2N3904` (`c`,`b`,`e`; built-ins include `2N3904`, `2N3906`, `2N2222`, `BC547`, `BC557`),
+  `jfet J1 2N5457` (`d`,`g`,`s`; built-ins `2N5457`, `J201`, `2N5460`),
+  `mosfet M1 IRF540` (`d`,`g`,`s`, optional `b`; built-ins include `IRF540`, `IRF9540`, `2N7000`, `BSS84`),
   `switch S1 [model]` (`p1`,`p2`,`ctrl_p`,`ctrl_n`),
-  `opamp U1` (`in_p`,`in_n`,`vcc`,`vee`,`out`),
+  `opamp U1 [KESSETSU_OPAMP_V1|KESSETSU_OPAMP_V2|LM358|TL072]` (`in_p`,`in_n`,`vcc`,`vee`,`out`),
   `vcvs E1 2.0` / `vccs G1 10mS` / `ccvs H1 1k` / `cccs F1 50.0` (`p_out`,`n_out`,`ctrl_p`,`ctrl_n`),
   `source` / `current_source` (`plus`,`minus`).
 - `net GND` is always SPICE node `0`. Name every net you will measure.

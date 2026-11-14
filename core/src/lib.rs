@@ -31,6 +31,7 @@ pub mod research_package;
 pub mod schematic;
 mod schematic_geometry;
 pub mod schematic_svg;
+pub mod share;
 pub mod sim_result;
 pub mod simulation;
 pub mod simulation_parser;

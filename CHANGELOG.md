@@ -37,6 +37,21 @@ Post-1.5.0 Web Hub UX enhancements, streamlined external device model workflows,
 
 ### Language, measurements, built-in models, and calculators
 
+- **Everyday LEDs, P-channel power VDMOS, asymmetric op-amp macromodels, and diode pin aliases:**
+  - Add built-in indicator LED diode models (`LED_RED`, `LED_GREEN`, `LED_BLUE`, `LED_WHITE`), P-channel power VDMOS `IRF9540`, and asymmetric/symmetric rail-headroom op-amp macromodels `LM358` (`vdrop_high=1.5V`, `vdrop_low=20mV`, `GBW=1MHz`, `SR=0.5V/us`, `rout=50Ohm`) and `TL072` (`vdrop_high=1.5V`, `vdrop_low=1.5V`, `GBW=3MHz`, `SR=13V/us`, `rout=50Ohm`) across Core and SPICE import (`X... LM358|TL072` and inline `.model ... VDMOS` with `pchan`/`nchan`).
+  - Support case-insensitive diode pin aliases `anode` / `a` (`-> p1`) and `cathode` / `k` (`-> p2`) in `connect` statements, `part` `pin_map` strings, and `V(D1.anode, D1.cathode)` / `V(D1.a, D1.k)` measurements across all analyses.
+  - Enrich `KES-C003` unknown-model diagnostics with available built-in model names and typed `model` / `external_subcircuit` syntax hints.
+- **Measurement completeness across OP, DC Sweep, Pulse sources, and Switches:**
+  - Support `dissipation(dev)` on Operating Point (`Dataset::OperatingPoint`) analyses when no transient dataset is present.
+  - Guard `Dataset::DcSweep` current evaluation so capacitors (`I(C1)`) return steady-state zero current rather than differentiating against the swept voltage/current axis, and `current_source` uses its steady-state DC level.
+  - Implement `Waveform::Pulse` current evaluation and `I(Switch)` / `P(Switch)` branch current and power evaluation across analyses.
+- **CLI & MCP share links (`kess share`, `kessetsu_share_link`) and `--measure` simulation queries:**
+  - Add `core/src/share.rs` (`kessetsu.share.v1` / `kessetsu.share_link.v1`), `kess share` CLI command, `kessetsu_share_link` MCP tool, `share_url` in `kess tool` / `kessetsu_tool` calculator outputs, and **Copy share link** on Web Hub `/tools/`.
+  - Add repeatable `--measure <EXPR>` on `kess simulate` and `measure: string[]` on `kessetsu_simulate`, plus automatic `V(<net>)` and `I(<comp>)` operating-point summary population when `measurements` would otherwise be empty.
+  - Return the full `kessetsu.spice-import.v1` report from `kessetsu_import_spice`, and automatically strip inline `assert` lines in `kessetsu_test` when external `requirements` or `requirements_path` is provided.
+- **Interactive schematic inspector, quick-tweak, derived plot traces, and Monaco completions:**
+  - Upgrade the Web Hub `.schematic-navigator` (`SchematicPanel.tsx`) with live simulated `ΔV`, `I`, and `P` readouts, 1-click `Plot V` / `Plot I` / `Plot P` and `+ Compare` waveform overlays, wire segment click hit-testing, and inline `-10%` / `+10%` component value quick-tweak with automatic simulation rerun.
+  - Synthesize derived `I(...)`, `P(...)`, and differential `V(A, B)` plot traces in `plot.ts` and `ResultsPanel.tsx`, preserve selected dataset tabs and trace overlays across reruns, expand context-aware Monaco completions and hover docs, and accept markdown-fenced or raw `.kess` source in **Work with an AI agent…** proposal paste.
 - **Differential net voltages and periodic/harmonic assertions:**
   - Support differential net voltage `V(NET_A, NET_B)` (including ground and mixed `component.pin`/net endpoints) across OP, Transient, DC Sweep, and AC frequency-domain metrics (`gain`, `gain_at`, `lower_cutoff`, `upper_cutoff`, `bandwidth`/`cutoff`, `phase`).
   - Add `freq` (alias of `frequency`, 1 or 3 args), `period` (1 or 3 args), and `duty_cycle` / `duty` (1 or 3 args) periodic transient metrics, and extend `thd` to accept 2-argument (`thd(signal, fundamental)`), 4-argument (`thd(signal, fundamental, start, stop)`), and 5-argument (`thd(signal, fundamental, start, stop, hann)`) forms.

@@ -1,6 +1,8 @@
-import { ArrowRight, Download, Terminal } from 'lucide-react';
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { ArrowRight, Download, Share2, Terminal } from 'lucide-react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import type { CompileReport, ModelManifest } from '../domain';
 import { downloadTextFile, stageToolCircuit } from '../document';
+import { encodeShareFragment } from '../share';
 import { BrandWordmark } from './BrandWordmark';
 import '../landing.css';
 import '../tools.css';
@@ -160,6 +162,11 @@ export function CircuitToolsPage({ toolId }: { toolId: ToolId }) {
   const [result, setResult] = useState<ToolResult | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [shareNotice, setShareNotice] = useState('');
+  const shareCoreRef = useRef<{
+    schemaVersion: string;
+    modelManifestFor(source: string): ModelManifest | null;
+  } | null>(null);
 
   useEffect(() => {
     document.title = `${definition.name} — Kessetsu`;
@@ -167,6 +174,13 @@ export function CircuitToolsPage({ toolId }: { toolId: ToolId }) {
     void import('kessetsu-core').then(async (core) => {
       await core.default();
       if (!mounted) return;
+      shareCoreRef.current = {
+        schemaVersion: core.compile_schema_version(),
+        modelManifestFor: (source: string) => {
+          const compiled = core.compile_kessetsu_with_resources(source, {}) as CompileReport;
+          return compiled.ir?.model_manifest ?? null;
+        },
+      };
       const runCalc: ToolCalculator = (request: Record<string, unknown>) => core.calculate_circuit_tool(request) as ToolResult;
       setCalculator(() => runCalc);
       try {
@@ -186,7 +200,7 @@ export function CircuitToolsPage({ toolId }: { toolId: ToolId }) {
       const request = buildToolRequest(toolId, inputs, series);
       const calculation = calculator(request);
       if (calculation.schema_version !== 'kessetsu.tool.v1') throw new Error('Unsupported calculation contract');
-      setResult(calculation); setError(''); setNotice('');
+      setResult(calculation); setError(''); setNotice(''); setShareNotice('');
     } catch (cause: unknown) { setResult(null); setError(String(cause)); }
   };
   const openInEditor = () => {
@@ -196,6 +210,19 @@ export function CircuitToolsPage({ toolId }: { toolId: ToolId }) {
       globalThis.location.assign(`${import.meta.env.BASE_URL}#editor`);
     } catch {
       setError('Browser storage is unavailable. Download the .kess source and open it in the editor instead.');
+    }
+  };
+  const copyShareLink = async () => {
+    if (!result || !shareCoreRef.current) return;
+    try {
+      const manifest = shareCoreRef.current.modelManifestFor(result.source);
+      const fragment = await encodeShareFragment(result.source, shareCoreRef.current.schemaVersion, manifest, result.name);
+      const shareUrl = new URL(import.meta.env.BASE_URL || '/', globalThis.location.href);
+      shareUrl.hash = fragment.slice(1);
+      await navigator.clipboard.writeText(shareUrl.href);
+      setShareNotice('Share link copied.');
+    } catch {
+      setShareNotice('Could not copy link automatically. Open in editor to share.');
     }
   };
   const cliCommand = formatCliCommand(toolId, inputs, series);
@@ -212,12 +239,12 @@ export function CircuitToolsPage({ toolId }: { toolId: ToolId }) {
           <span>{field.label}</span>
           <input type="text" aria-label={field.label} value={inputs[field.key]} required={!('optional' in field && field.optional)}
             spellCheck={false} aria-describedby={`${field.key}-hint`} onChange={(event) => {
-              setInputs((current) => ({ ...current, [field.key]: event.target.value })); setResult(null); setError(''); setNotice('');
+              setInputs((current) => ({ ...current, [field.key]: event.target.value })); setResult(null); setError(''); setNotice(''); setShareNotice('');
             }} />
           <small id={`${field.key}-hint`}>{field.hint}</small>
         </label>)}
         <label className="tool-field"><span>Component values</span>
-          <select aria-label="Component values" value={series} onChange={(event) => { setSeries(event.target.value as ValueSeries); setResult(null); setError(''); }}>
+          <select aria-label="Component values" value={series} onChange={(event) => { setSeries(event.target.value as ValueSeries); setResult(null); setError(''); setShareNotice(''); }}>
             <option value="e24">E24 standard values</option><option value="e12">E12 standard values</option><option value="exact">Exact calculated values</option>
           </select><small>Nearest nominal values. This does not apply component tolerances.</small>
         </label>
@@ -238,6 +265,8 @@ export function CircuitToolsPage({ toolId }: { toolId: ToolId }) {
           <div className="tool-actions">
             <button className="button button-primary" onClick={openInEditor}>Open in editor <ArrowRight size={16} /></button>
             <button className="button button-secondary" onClick={() => downloadTextFile(result.source, `${definition.slug}.kess`)}><Download size={16} /> Download .kess</button>
+            <button className="button button-secondary" type="button" onClick={() => void copyShareLink()}><Share2 size={16} /> Copy share link</button>
+            {shareNotice && <span className="tool-notice" role="status">{shareNotice}</span>}
           </div>
           <p className="tool-caption">Your previous browser circuit is retained under File → Restore previous circuit.</p>
           <details className="tool-source"><summary>Generated circuit source</summary><pre>{result.source}</pre></details>
@@ -250,7 +279,7 @@ export function CircuitToolsPage({ toolId }: { toolId: ToolId }) {
         {result ? <ul>{result.assumptions.map((assumption) => <li key={assumption}>{assumption}</li>)}</ul> : <p>{definition.assumption}</p>}
       </section>
       <section className="tool-cli"><h2><Terminal size={18} /> Use the same tool locally</h2>
-        <p>Use Kessetsu CLI 1.1.0 or newer. Add <code>--format json</code> for an AI agent.
+        <p>Use Kessetsu CLI 1.6.0 or newer. Add <code>--format json</code> for an AI agent.
           {' '}<a href={`${import.meta.env.BASE_URL}install/`}>Install or update the CLI</a>.</p>
         <pre>{cliCommand}</pre>
         <button className="button button-compact button-secondary" onClick={() => {

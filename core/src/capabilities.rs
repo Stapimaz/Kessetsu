@@ -105,6 +105,11 @@ pub fn capability_manifest(cli_schema_version: &str) -> CapabilityManifest {
         ("requirements".into(), REQUIREMENTS_SCHEMA_VERSION.into()),
         ("research_data".into(), DATA_SCHEMA.into()),
         ("schematic".into(), SCHEMATIC_SCHEMA_VERSION.into()),
+        ("share".into(), crate::share::SHARE_SCHEMA_VERSION.into()),
+        (
+            "share_link".into(),
+            crate::share::SHARE_LINK_REPORT_SCHEMA_VERSION.into(),
+        ),
         ("simulation".into(), SIMULATION_SCHEMA_VERSION.into()),
         ("spice_import".into(), SPICE_IMPORT_SCHEMA_VERSION.into()),
         ("tools".into(), TOOL_SCHEMA_VERSION.into()),
@@ -364,6 +369,13 @@ fn command_capabilities() -> Vec<CommandCapability> {
             false,
             "explicit_or_path_derived_output",
         ),
+        (
+            "share",
+            "Compile circuit source and encode a shareable web workbench URL",
+            true,
+            false,
+            "stdout_only",
+        ),
     ]
     .into_iter()
     .map(
@@ -399,6 +411,12 @@ mod tests {
                 .commands
                 .iter()
                 .any(|command| command.name == "test")
+        );
+        assert!(
+            manifest
+                .commands
+                .iter()
+                .any(|command| command.name == "share")
         );
         assert_eq!(manifest.limits.experiment_cases, MAX_CASES);
     }

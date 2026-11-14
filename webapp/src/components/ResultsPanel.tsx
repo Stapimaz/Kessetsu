@@ -1,8 +1,9 @@
 import { Activity, RotateCcw, Square, X, Zap } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { SimulationState, SourceFeedback } from '../domain';
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import type { CircuitIrSummary, SchematicSummary, SimulationState, SourceFeedback } from '../domain';
 import type { Analysis, AssertionResult, BrowserEvaluation, Dataset } from '../simulation/types';
 import {
+  augmentDatasetWithDerivedSignals,
   nearestSampleIndex,
   preferredSignal,
   signalLabel,
@@ -30,6 +31,15 @@ interface Props {
   compileSucceeded: boolean;
   sourceFeedback: SourceFeedback | null;
   simulationConfigured: boolean;
+  circuitIr?: CircuitIrSummary | null;
+  schematic?: SchematicSummary | null;
+  extraPlotSignals?: string[];
+  datasetIndex?: number;
+  onDatasetIndexChange?: (index: number) => void;
+  selectedSignal?: string | null;
+  onSelectedSignalChange?: (signal: string | null) => void;
+  overlaySignals?: string[];
+  onOverlaySignalsChange?: Dispatch<SetStateAction<string[]>>;
   onResolveSource(): void;
   onRun(): void;
   onCancel(): void;
@@ -315,20 +325,55 @@ function LinePlot({
   );
 }
 
-function DatasetView({ dataset, analysis, assertions }: { dataset: Dataset; analysis: Analysis; assertions: AssertionResult[] }) {
+function DatasetView({
+  dataset,
+  analysis,
+  assertions,
+  selectedSignal: controlledSignal,
+  onSelectedSignalChange,
+  overlaySignals: controlledOverlays,
+  onOverlaySignalsChange,
+}: {
+  dataset: Dataset;
+  analysis: Analysis;
+  assertions: AssertionResult[];
+  selectedSignal?: string | null;
+  onSelectedSignalChange?: (signal: string | null) => void;
+  overlaySignals?: string[];
+  onOverlaySignalsChange?: Dispatch<SetStateAction<string[]>>;
+}) {
   const signalNames = dataset.kind === 'operating_point' ? Object.keys(dataset.values) : Object.keys(dataset.signals);
   const preferred = preferredSignal(signalNames, assertions);
-  const [signal, setSignal] = useState(preferred);
-  const [overlaySignals, setOverlaySignals] = useState<string[]>([]);
+  const [internalSignal, setInternalSignal] = useState(preferred);
+  const [internalOverlays, setInternalOverlays] = useState<string[]>([]);
   const [pinnedIndices, setPinnedIndices] = useState<number[]>([]);
 
-  useEffect(() => {
-    setSignal(preferred);
-    setOverlaySignals([]);
-    setPinnedIndices([]);
-  }, [dataset, preferred]);
+  const requestedSignal = controlledSignal !== undefined ? controlledSignal : internalSignal;
+  const setSignal = onSelectedSignalChange ?? setInternalSignal;
+  const rawOverlaySignals = controlledOverlays ?? internalOverlays;
+  const setOverlaySignals = onOverlaySignalsChange ?? setInternalOverlays;
 
-  const selectedSignal = signalNames.includes(signal) ? signal : preferred;
+  const sampleCount = dataset.kind === 'operating_point'
+    ? 0
+    : dataset.kind === 'ac'
+      ? dataset.frequency_hz.length
+      : dataset.axis.values.length;
+
+  useEffect(() => {
+    setPinnedIndices((current) => {
+      const next = current.filter((idx) => idx >= 0 && idx < sampleCount);
+      return next.length === current.length ? current : next;
+    });
+  }, [sampleCount]);
+
+  const resolveExistingSignal = useCallback((candidate: string | null | undefined): string | undefined => {
+    if (!candidate) return undefined;
+    if (signalNames.includes(candidate)) return candidate;
+    const lower = candidate.trim().toLowerCase();
+    return signalNames.find((name) => name.toLowerCase() === lower);
+  }, [signalNames]);
+
+  const selectedSignal = resolveExistingSignal(requestedSignal) ?? preferred;
   const primaryUnit = signalUnit(selectedSignal);
   const compatibleOverlays = useMemo(
     () => signalNames
@@ -337,14 +382,20 @@ function DatasetView({ dataset, analysis, assertions }: { dataset: Dataset; anal
     [primaryUnit, selectedSignal, signalNames],
   );
   const activeOverlays = useMemo(
-    () => overlaySignals.filter((name) => compatibleOverlays.includes(name)).slice(0, OVERLAY_COLORS.length),
-    [compatibleOverlays, overlaySignals],
+    () => rawOverlaySignals
+      .map((item) => compatibleOverlays.find((name) => name.toLowerCase() === item.toLowerCase()))
+      .filter((name): name is string => Boolean(name))
+      .filter((name, idx, arr) => arr.indexOf(name) === idx)
+      .slice(0, OVERLAY_COLORS.length),
+    [compatibleOverlays, rawOverlaySignals],
   );
 
   const toggleOverlay = (name: string) => {
-    setOverlaySignals((current) =>
-      current.includes(name) ? current.filter((item) => item !== name) : [...current, name].slice(0, OVERLAY_COLORS.length),
-    );
+    setOverlaySignals((current) => {
+      const has = current.some((item) => item.toLowerCase() === name.toLowerCase());
+      if (has) return current.filter((item) => item.toLowerCase() !== name.toLowerCase());
+      return [...current, name].slice(0, OVERLAY_COLORS.length);
+    });
   };
 
   const togglePinIndex = useCallback((index: number) => {
@@ -407,8 +458,9 @@ function DatasetView({ dataset, analysis, assertions }: { dataset: Dataset; anal
           aria-label="Signal"
           value={selectedSignal}
           onChange={(event) => {
-            setSignal(event.target.value);
-            setOverlaySignals((current) => current.filter((item) => item !== event.target.value));
+            const next = event.target.value;
+            setSignal(next);
+            setOverlaySignals((current) => current.filter((item) => item.toLowerCase() !== next.toLowerCase()));
           }}
         >
           {signalNames.map((name) => <option key={name} value={name}>{signalLabel(name)}</option>)}
@@ -623,11 +675,40 @@ function DatasetView({ dataset, analysis, assertions }: { dataset: Dataset; anal
   );
 }
 
-export function ResultsPanel({ state, hasSimulationAttempt, message, evaluation, compileSucceeded, sourceFeedback, simulationConfigured, onResolveSource, onRun, onCancel, panelControls }: Props) {
-  const [datasetIndex, setDatasetIndex] = useState(0);
+export function ResultsPanel({
+  state,
+  hasSimulationAttempt,
+  message,
+  evaluation,
+  compileSucceeded,
+  sourceFeedback,
+  simulationConfigured,
+  circuitIr,
+  schematic,
+  extraPlotSignals = [],
+  datasetIndex: controlledDatasetIndex,
+  onDatasetIndexChange,
+  selectedSignal,
+  onSelectedSignalChange,
+  overlaySignals,
+  onOverlaySignalsChange,
+  onResolveSource,
+  onRun,
+  onCancel,
+  panelControls,
+}: Props) {
+  const [internalDatasetIndex, setInternalDatasetIndex] = useState(0);
   const datasets = evaluation?.simulation.datasets ?? [];
+  const rawDatasetIndex = controlledDatasetIndex ?? internalDatasetIndex;
+  const datasetIndex = rawDatasetIndex >= 0 && rawDatasetIndex < datasets.length ? rawDatasetIndex : 0;
+  const setDatasetIndex = onDatasetIndexChange ?? setInternalDatasetIndex;
   const selected = datasets[datasetIndex] ?? datasets[0];
-  useEffect(() => setDatasetIndex(0), [evaluation]);
+  const augmentedSelectedData = useMemo(
+    () => (selected
+      ? augmentDatasetWithDerivedSignals(selected.data, circuitIr ?? null, schematic ?? null, extraPlotSignals)
+      : null),
+    [circuitIr, extraPlotSignals, schematic, selected],
+  );
   const summary = evaluation?.assertions.summary;
   const showFirstRunGuide = !sourceFeedback && simulationConfigured && state === 'idle'
     && (message.startsWith('Run the simulation') || message.startsWith('This starter circuit') || message.startsWith('Imported from SPICE'));
@@ -674,7 +755,18 @@ export function ResultsPanel({ state, hasSimulationAttempt, message, evaluation,
                 >{dataset.data.kind.replace('_', ' ')}</button>
               ))}
             </div>
-            {selected && <DatasetView key={selected.index} dataset={selected.data} analysis={selected.analysis} assertions={evaluation?.assertions.assertions ?? []} />}
+            {selected && augmentedSelectedData && (
+              <DatasetView
+                key={selected.index}
+                dataset={augmentedSelectedData}
+                analysis={selected.analysis}
+                assertions={evaluation?.assertions.assertions ?? []}
+                selectedSignal={selectedSignal}
+                onSelectedSignalChange={onSelectedSignalChange}
+                overlaySignals={overlaySignals}
+                onOverlaySignalsChange={onOverlaySignalsChange}
+              />
+            )}
           </>
         ) : <div className={`result-empty result-${state}`}>
           <Activity size={28} className={state === 'running' ? 'simulation-running-icon' : undefined} />

@@ -14,7 +14,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 const PROTOCOL_VERSIONS: &[&str] = &["2025-11-25", "2025-06-18"];
 const DEFAULT_PROTOCOL_VERSION: &str = "2025-06-18";
 const GUIDE: &str = include_str!("../../../../docs/guides/agent-workflow.md");
-const INSTRUCTIONS: &str = "Kessetsu verifies analog circuits. Workflow: (1) write measurable requirements as .kessreq assertion lines before designing; (2) write readable .kess source (or a supported SPICE netlist) with named nets; (3) kessetsu_check and fix ERC errors; (4) kessetsu_test with the unchanged requirements and iterate on the design only; (5) kessetsu_render_schematic for human review; (6) kessetsu_export for handoff; (7) report the PASS table and assumptions honestly. Call kessetsu_guide once for syntax and metrics.";
+const INSTRUCTIONS: &str = "Kessetsu verifies analog circuits. Available tools: kessetsu_guide, kessetsu_capabilities, kessetsu_tool (calculators returning components, editable .kess, and share_url), kessetsu_import_spice, kessetsu_check, kessetsu_simulate (supports measure expressions), kessetsu_test, kessetsu_render_schematic, kessetsu_export, kessetsu_study_plan, kessetsu_study_run, and kessetsu_share_link. Workflow: (1) write measurable requirements as .kessreq assertion lines before designing; (2) write readable .kess source (or import SPICE via kessetsu_import_spice, or start from kessetsu_tool) with named nets; (3) kessetsu_check and fix ERC errors; (4) kessetsu_test with the unchanged requirements (and optional kessetsu_study_plan / kessetsu_study_run sweeps or tolerances) iterating on the design only; (5) kessetsu_render_schematic for human review; (6) kessetsu_export for handoff and call kessetsu_share_link so you include the clickable https://kessetsu.com/#kessetsu=1... link when presenting a verified circuit; (7) report the PASS table, share URL, and assumptions honestly. Call kessetsu_guide once for syntax and metrics.";
 
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -154,8 +154,13 @@ fn tool_definitions() -> Vec<Value> {
         tool(
             "kessetsu_simulate",
             "Simulate circuit",
-            "Runs the declared analyses (op/tran/ac/dc) through Ngspice and returns typed results and any inline assertion outcomes.",
+            "Runs the declared analyses (op/tran/ac/dc) through Ngspice and returns typed results, requested measurement expressions, OP summaries, and any inline assertion outcomes.",
             json!({
+                "measure": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Optional measurement metric expressions to evaluate after simulation (e.g. ['value(V(OUT))', 'max(P(R1))', 'bandwidth(V(OUT),V(IN))'])."
+                },
                 "include": {
                     "type": "array",
                     "items": { "type": "string", "enum": ["spice", "datasets", "simulation", "models", "raw-log", "effective-source", "ir", "graph"] },
@@ -394,6 +399,23 @@ fn tool_definitions() -> Vec<Value> {
                 "additionalProperties": false
             }
         }),
+        tool(
+            "kessetsu_share_link",
+            "Generate clickable share URL",
+            "Compiles the circuit (converting SPICE if needed) to validate ERC and extract the model manifest, returning a kessetsu.share_link.v1 payload with a clickable https://kessetsu.com/#kessetsu=1... web workbench URL.",
+            json!({
+                "name": {
+                    "type": "string",
+                    "description": "Optional display name embedded in the share link (1..=80 characters, no control characters)."
+                },
+                "input_format": {
+                    "type": "string",
+                    "enum": ["auto", "kess", "spice"],
+                    "description": "Alias for 'input' selecting circuit language ('auto', 'kess', or 'spice')."
+                }
+            }),
+            &[],
+        ),
     ]
 }
 
@@ -418,7 +440,7 @@ fn get_prompt(params: &Value) -> Result<Value, (i64, String)> {
         .and_then(Value::as_str)
         .unwrap_or("(describe the circuit)");
     let text = format!(
-        "Design this circuit with Kessetsu: {goal}\n\nFollow the Kessetsu workflow exactly:\n1. Call kessetsu_guide.\n2. Write measurable requirements (.kessreq) first and show them to me before designing; save them as requirements.kessreq.\n3. Write design.kess with named nets and a target comment.\n4. kessetsu_check, then kessetsu_test with the unchanged requirements; iterate on the design only.\n5. Render and save schematic.svg; export anything needed for handoff.\n6. Finish with NOTES.md: requirements, final PASS table, assumptions and open risks."
+        "Design this circuit with Kessetsu: {goal}\n\nAvailable MCP tools: kessetsu_guide, kessetsu_capabilities, kessetsu_tool, kessetsu_import_spice, kessetsu_check, kessetsu_simulate, kessetsu_test, kessetsu_render_schematic, kessetsu_export, kessetsu_study_plan, kessetsu_study_run, kessetsu_share_link.\n\nFollow the Kessetsu workflow exactly:\n1. Call kessetsu_guide.\n2. Write measurable requirements (.kessreq) first and show them to me before designing; save them as requirements.kessreq.\n3. Write design.kess with named nets and a target comment (you may seed components via kessetsu_tool or import SPICE via kessetsu_import_spice).\n4. kessetsu_check, then kessetsu_test with the unchanged requirements (and kessetsu_study_plan / kessetsu_study_run if sweeps/tolerances are needed); iterate on the design only.\n5. Render and save schematic.svg; export anything needed for handoff and call kessetsu_share_link so you include the clickable https://kessetsu.com/#kessetsu=1... link when presenting the verified circuit.\n6. Finish with NOTES.md: requirements, final PASS table, clickable share URL, assumptions and open risks."
     );
     Ok(json!({
         "description": "Kessetsu requirement-driven design",
@@ -436,6 +458,24 @@ fn call_tool(params: &Value) -> Result<Value, (i64, String)> {
         "kessetsu_check" => circuit_command("check", arguments, &[]),
         "kessetsu_simulate" => {
             let mut extra = Vec::new();
+            if let Some(measures) = arguments.get("measure") {
+                let Some(items) = measures.as_array() else {
+                    return Ok(text_result(
+                        "'measure' must be an array of strings".into(),
+                        true,
+                    ));
+                };
+                for item in items {
+                    let Some(expr) = item.as_str() else {
+                        return Ok(text_result(
+                            "every item in 'measure' must be a string".into(),
+                            true,
+                        ));
+                    };
+                    extra.push("--measure".to_string());
+                    extra.push(expr.to_string());
+                }
+            }
             if let Some(include) = arguments.get("include").and_then(Value::as_array) {
                 let joined = include
                     .iter()
@@ -452,10 +492,11 @@ fn call_tool(params: &Value) -> Result<Value, (i64, String)> {
         "kessetsu_test" => test_command(arguments),
         "kessetsu_render_schematic" => return render_command(arguments),
         "kessetsu_export" => return export_command(arguments),
-        "kessetsu_import_spice" => import_command(arguments),
+        "kessetsu_import_spice" => return Ok(import_command(arguments)),
         "kessetsu_tool" => tool_command(arguments),
         "kessetsu_study_plan" => study_plan_command(arguments),
         "kessetsu_study_run" => study_run_command(arguments),
+        "kessetsu_share_link" => return Ok(share_link_command(arguments)),
         _ => return Err((-32602, format!("unknown tool '{name}'"))),
     };
     Ok(match outcome {
@@ -623,6 +664,26 @@ impl Drop for TempDir {
     }
 }
 
+fn is_inline_assert_line(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    trimmed
+        .strip_prefix("assert")
+        .is_some_and(|rest| rest.chars().next().is_some_and(char::is_whitespace))
+}
+
+fn strip_inline_assert_lines(source: &str) -> String {
+    let ends_with_newline = source.ends_with('\n');
+    let kept: Vec<&str> = source
+        .lines()
+        .filter(|line| !is_inline_assert_line(line))
+        .collect();
+    let mut result = kept.join("\n");
+    if ends_with_newline && !result.is_empty() {
+        result.push('\n');
+    }
+    result
+}
+
 fn test_command(arguments: &Value) -> Result<CliOutput, String> {
     if arguments
         .get("requirements")
@@ -649,6 +710,7 @@ fn test_command(arguments: &Value) -> Result<CliOutput, String> {
             .and_then(Value::as_str)
             .map(PathBuf::from)
     };
+    let has_external_requirements = requirements_path.is_some();
     if let Some(path) = requirements_path {
         extra.push("--requirements".to_string());
         extra.push(path.display().to_string());
@@ -657,7 +719,16 @@ fn test_command(arguments: &Value) -> Result<CliOutput, String> {
             extra.push(hash.to_string());
         }
     }
-    circuit_command("test", arguments, &extra)
+    let (mut source, input) = circuit_source(arguments)?;
+    let looks_like_spice = input == "spice"
+        || (input == "auto" && source.lines().any(|l| l.trim_start().starts_with('.')));
+    if has_external_requirements && !looks_like_spice {
+        source = strip_inline_assert_lines(&source);
+    }
+    let mut args = base_arguments("test", arguments, &input);
+    args.extend(extra);
+    let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
+    run_cli(&refs, Some(&source))
 }
 
 type FileCommandOutput = (CliOutput, Option<Vec<u8>>, Option<String>);
@@ -772,31 +843,173 @@ fn export_command(arguments: &Value) -> Result<Value, (i64, String)> {
     }))
 }
 
-fn import_command(arguments: &Value) -> Result<CliOutput, String> {
+fn import_command(arguments: &Value) -> Value {
     if arguments.get("netlist").and_then(Value::as_str).is_some()
         && arguments.get("path").and_then(Value::as_str).is_some()
     {
-        return Err("provide either 'netlist' or 'path', not both".into());
+        return text_result("provide either 'netlist' or 'path', not both".into(), true);
     }
     let netlist = if let Some(text) = arguments.get("netlist").and_then(Value::as_str) {
         text.to_string()
     } else if let Some(path) = arguments.get("path").and_then(Value::as_str) {
-        fs::read_to_string(path).map_err(|error| format!("cannot read '{path}': {error}"))?
+        match fs::read_to_string(path) {
+            Ok(text) => text,
+            Err(error) => return text_result(format!("cannot read '{path}': {error}"), true),
+        }
     } else {
-        return Err("provide 'netlist' or 'path'".into());
+        return text_result("provide 'netlist' or 'path'".into(), true);
     };
-    // `check --include effective-source` returns the canonical .kess text without writing files.
-    run_cli(
-        &[
-            "check",
-            "-",
-            "--input",
-            "spice",
-            "--include",
-            "effective-source",
-        ],
-        Some(&netlist),
-    )
+
+    let report = kessetsu_core::spice_import::import_spice(&netlist);
+    let is_error = report.has_errors();
+    let structured = match serde_json::to_value(&report) {
+        Ok(value) => value,
+        Err(error) => {
+            return text_result(
+                format!("failed to serialize SPICE import report: {error}"),
+                true,
+            );
+        }
+    };
+    let text = serde_json::to_string_pretty(&structured).unwrap_or_default();
+    json!({
+        "content": [ { "type": "text", "text": text } ],
+        "structuredContent": structured,
+        "isError": is_error
+    })
+}
+
+fn share_link_command(arguments: &Value) -> Value {
+    let mut normalized = arguments.clone();
+    if let (Some(input), Some(input_format)) = (
+        arguments.get("input").and_then(Value::as_str),
+        arguments.get("input_format").and_then(Value::as_str),
+    ) && input != input_format
+    {
+        return text_result(
+            format!("conflicting 'input' ('{input}') and 'input_format' ('{input_format}')"),
+            true,
+        );
+    }
+    if arguments.get("input").is_none()
+        && let Some(input_format) = arguments.get("input_format").and_then(Value::as_str)
+        && let Some(obj) = normalized.as_object_mut()
+    {
+        obj.insert("input".to_string(), Value::String(input_format.to_string()));
+    }
+    if let Some(name_value) = arguments.get("name")
+        && !name_value.is_null()
+        && !name_value.is_string()
+    {
+        return text_result("'name' must be a string".into(), true);
+    }
+    let name = arguments.get("name").and_then(Value::as_str);
+
+    let (source, input) = match circuit_source(&normalized) {
+        Ok(pair) => pair,
+        Err(message) => return text_result(message, true),
+    };
+    let looks_like_spice = input == "spice"
+        || (input == "auto"
+            && source
+                .lines()
+                .any(|line| line.trim_start().starts_with('.')));
+    let kess_source = if looks_like_spice {
+        let imported = kessetsu_core::spice_import::import_spice(&source);
+        match imported.kess_source {
+            Some(kess) if !imported.has_errors() => kess,
+            _ => {
+                let messages = imported
+                    .diagnostics
+                    .iter()
+                    .map(|diag| format!("{}: {}", diag.code, diag.message))
+                    .collect::<Vec<_>>()
+                    .join("; ");
+                let detail = if messages.is_empty() {
+                    "SPICE input could not be converted into canonical Kessetsu source".to_string()
+                } else {
+                    format!("SPICE input failed conversion: {messages}")
+                };
+                return text_result(detail, true);
+            }
+        }
+    } else {
+        source
+    };
+
+    let mut inputs = kessetsu_core::compile_inputs::CompileInputs::default();
+    if let Some(parameters) = arguments.get("parameters").and_then(Value::as_object) {
+        for (param_name, param_value) in parameters {
+            let value_str = param_value
+                .as_str()
+                .map(str::to_string)
+                .unwrap_or_else(|| param_value.to_string());
+            inputs
+                .parameters
+                .push(kessetsu_core::compile_inputs::ParameterInput {
+                    name: param_name.clone(),
+                    value: value_str,
+                });
+        }
+    }
+    let (source_path, source_is_stdin) = match arguments.get("path").and_then(Value::as_str) {
+        Some(path) => (Path::new(path), false),
+        None => (Path::new("-"), true),
+    };
+    let external_resources =
+        match crate::load_external_model_resources(source_path, source_is_stdin, &kess_source) {
+            Ok(resources) => resources,
+            Err(diag) => {
+                return text_result(format!("{}: {}", diag.code, diag.message), true);
+            }
+        };
+    let report = kessetsu_core::compiler::compile_source_with_inputs(
+        &kess_source,
+        kessetsu_core::compiler::CompileOptions::default(),
+        &inputs,
+        &external_resources,
+    );
+    if report.has_errors() {
+        let messages = report
+            .diagnostics
+            .iter()
+            .filter(|diag| {
+                matches!(
+                    diag.severity,
+                    kessetsu_core::compiler::DiagnosticSeverity::Error
+                )
+            })
+            .map(|diag| format!("{}: {}", diag.code, diag.message))
+            .collect::<Vec<_>>()
+            .join("; ");
+        return text_result(format!("circuit failed validation: {messages}"), true);
+    }
+
+    let manifest = report.ir.as_ref().map(|ir| &ir.model_manifest);
+    let share_report = match kessetsu_core::share::encode_share_url(
+        &kess_source,
+        kessetsu_core::compiler::COMPILE_SCHEMA_VERSION,
+        manifest,
+        name,
+    ) {
+        Ok(report) => report,
+        Err(message) => return text_result(message, true),
+    };
+    let structured = match serde_json::to_value(&share_report) {
+        Ok(value) => value,
+        Err(error) => {
+            return text_result(
+                format!("failed to serialize share link report: {error}"),
+                true,
+            );
+        }
+    };
+    let text = serde_json::to_string_pretty(&structured).unwrap_or_default();
+    json!({
+        "content": [ { "type": "text", "text": text } ],
+        "structuredContent": structured,
+        "isError": false
+    })
 }
 
 fn tool_command(arguments: &Value) -> Result<CliOutput, String> {
@@ -875,7 +1088,7 @@ fn tool_command(arguments: &Value) -> Result<CliOutput, String> {
                 args.push(load.to_string());
             }
         }
-        "rc_lowpass" => {
+        "rc_lowpass" | "rc-lowpass" => {
             reject_keys(
                 "rc_lowpass",
                 &[
@@ -1428,5 +1641,137 @@ mod tests {
                 "missing kessetsu_tool prop {prop}"
             );
         }
+
+        assert!(names.iter().any(|name| name == "kessetsu_share_link"));
+        let sim_def = tool_definitions()
+            .into_iter()
+            .find(|tool| tool["name"] == "kessetsu_simulate")
+            .expect("kessetsu_simulate must exist");
+        assert!(
+            sim_def["inputSchema"]["properties"]
+                .as_object()
+                .unwrap()
+                .contains_key("measure")
+        );
+    }
+
+    #[test]
+    fn share_link_and_import_spice_return_structured_reports() {
+        let kess_src = "\
+net GND\n\
+net IN\n\
+net OUT\n\
+source VIN 10V\n\
+resistor R1 1k\n\
+resistor R2 1k\n\
+connect VIN.plus, R1.p1 to IN\n\
+connect R1.p2, R2.p1 to OUT\n\
+connect VIN.minus, R2.p2 to GND\n\
+simulate op\n";
+        let share_res = handle_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 10,
+            "method": "tools/call",
+            "params": {
+                "name": "kessetsu_share_link",
+                "arguments": {
+                    "source": kess_src,
+                    "name": "Divider",
+                    "input_format": "kess"
+                }
+            }
+        }))
+        .unwrap();
+        let structured = &share_res["result"]["structuredContent"];
+        assert_eq!(share_res["result"]["isError"], false);
+        assert_eq!(structured["schema_version"], "kessetsu.share_link.v1");
+        assert_eq!(structured["name"], "Divider");
+        let url = structured["url"].as_str().unwrap();
+        assert!(url.starts_with("https://kessetsu.com/#kessetsu=1."));
+
+        let spice = "Simple divider\nV1 in 0 DC 5\nR1 in out 1k\nR2 out 0 1k\n.op\n.end\n";
+        let import_res = handle_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 11,
+            "method": "tools/call",
+            "params": {
+                "name": "kessetsu_import_spice",
+                "arguments": { "netlist": spice }
+            }
+        }))
+        .unwrap();
+        let imported = &import_res["result"]["structuredContent"];
+        assert_eq!(import_res["result"]["isError"], false);
+        assert!(imported["names"].is_array());
+        assert!(!imported["names"].as_array().unwrap().is_empty());
+        assert!(imported["summary"].is_object());
+        assert!(imported["diagnostics"].is_array());
+        assert!(
+            imported["kess_source"]
+                .as_str()
+                .unwrap()
+                .contains("resistor")
+        );
+
+        let spice_share = handle_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 12,
+            "method": "tools/call",
+            "params": {
+                "name": "kessetsu_share_link",
+                "arguments": {
+                    "source": spice,
+                    "input_format": "spice"
+                }
+            }
+        }))
+        .unwrap();
+        assert_eq!(spice_share["result"]["isError"], false);
+        assert!(
+            spice_share["result"]["structuredContent"]["url"]
+                .as_str()
+                .unwrap()
+                .starts_with("https://kessetsu.com/#kessetsu=1.")
+        );
+    }
+
+    #[test]
+    fn strip_inline_assert_lines_removes_calculator_asserts_cleanly() {
+        let calc_res = kessetsu_core::tools::calculate_tool(
+            kessetsu_core::tools::ToolRequest::NonInvertingOpamp {
+                target_gain: "5".into(),
+                input_resistance: "10k".into(),
+                input_voltage: None,
+                supply_voltage: None,
+                preferred_values: kessetsu_core::tools::PreferredValues::E24,
+            },
+        )
+        .unwrap();
+        assert!(calc_res.source.contains("assert value(V(OUT))"));
+        let stripped = strip_inline_assert_lines(&calc_res.source);
+        assert!(!stripped.contains("assert "));
+        assert!(stripped.contains("simulate ac"));
+        let compiled = kessetsu_core::compiler::compile_source(
+            &stripped,
+            kessetsu_core::compiler::CompileOptions::default(),
+        );
+        assert!(!compiled.has_errors(), "{:?}", compiled.diagnostics);
+        assert!(compiled.ir.unwrap().assertions.is_empty());
+    }
+
+    #[test]
+    fn instructions_and_prompt_document_share_links_and_tools() {
+        assert!(INSTRUCTIONS.contains("kessetsu_share_link"));
+        assert!(INSTRUCTIONS.contains("https://kessetsu.com/#kessetsu=1"));
+        assert!(INSTRUCTIONS.contains("kessetsu_tool"));
+        assert!(INSTRUCTIONS.contains("kessetsu_import_spice"));
+        let prompt = get_prompt(&json!({
+            "name": "design_circuit",
+            "arguments": { "goal": "1kHz low-pass" }
+        }))
+        .unwrap();
+        let prompt_text = prompt["messages"][0]["content"]["text"].as_str().unwrap();
+        assert!(prompt_text.contains("kessetsu_share_link"));
+        assert!(prompt_text.contains("https://kessetsu.com/#kessetsu=1"));
     }
 }

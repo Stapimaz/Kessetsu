@@ -293,11 +293,24 @@ fn builtin_model_defaults_are_explicit_in_typed_ir() {
 
 #[test]
 fn unsupported_and_incompatible_models_fail_closed_with_codes() {
+    for (source, expected_model) in [("opamp U1 LM358\n", "LM358"), ("opamp U2 TL072\n", "TL072")] {
+        let program = parse_program(source).expect("opamp syntax should parse");
+        let circuit = ast_to_ir(&program).expect("builtin opamp model should resolve");
+        assert_eq!(
+            circuit.components[0]
+                .model
+                .as_ref()
+                .expect("model must be explicit in IR")
+                .name,
+            expected_model
+        );
+    }
+
     for (source, expected_code) in [
         ("transistor Q1 NOT_A_MODEL\n", "KES-C003"),
         ("mosfet M1 NOT_A_MODEL\n", "KES-C003"),
         ("diode D1 NOT_A_MODEL\n", "KES-C003"),
-        ("opamp U1 LM358\n", "KES-C003"),
+        ("opamp U1 UNKNOWN_OPAMP\n", "KES-C003"),
         ("transistor Q1 1N4148\n", "KES-C004"),
         ("transistor Q1 pnp 2N3904\n", "KES-C004"),
         ("diode D1 2N3904\n", "KES-C004"),

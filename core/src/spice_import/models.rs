@@ -18,7 +18,12 @@ pub(crate) const BUILTIN_MODEL_NAMES: &[&str] = &[
     "BZX84C3V3",
     "BZX84C5V1",
     "BZX84C12",
+    "LED_RED",
+    "LED_GREEN",
+    "LED_BLUE",
+    "LED_WHITE",
     "IRF540",
+    "IRF9540",
     "2N7000",
     "BSS84",
     "2N5457",
@@ -31,6 +36,30 @@ pub(crate) const BUILTIN_MODEL_NAMES: &[&str] = &[
     "KESSETSU_SW_V1",
     "KESSETSU_OPAMP_V1",
     "KESSETSU_OPAMP_V2",
+    "LM358",
+    "TL072",
+];
+
+/// VDMOS-specific parameters that Ngspice Level 1 `NMOS`/`PMOS` user models do not accept.
+const VDMOS_DROPPED_PARAMETERS: &[&str] = &[
+    "rg",
+    "rb",
+    "rc",
+    "cgdmax",
+    "cgdmin",
+    "a",
+    "cjo",
+    "vj",
+    "m",
+    "tt",
+    "mtriode",
+    "ksubthres",
+    "theta",
+    "bv",
+    "ibv",
+    "n",
+    "tcvth",
+    "mu",
 ];
 
 /// Vendor/LTspice descriptive fields that carry no Ngspice electrical meaning.
@@ -120,19 +149,24 @@ pub(crate) fn parse_inline_model(
         .find(|character: char| !character.is_ascii_alphanumeric())
         .unwrap_or(rest.len());
     let model_type = rest[..type_end].to_ascii_uppercase();
-    let kind = match model_type.as_str() {
+    let mut is_vdmos = false;
+    let mut kind = match model_type.as_str() {
         "D" => InlineModelKind::Diode,
         "NPN" => InlineModelKind::Bjt("npn"),
         "PNP" => InlineModelKind::Bjt("pnp"),
         "NMOS" => InlineModelKind::Mosfet("nmos"),
         "PMOS" => InlineModelKind::Mosfet("pmos"),
+        "VDMOS" => {
+            is_vdmos = true;
+            InlineModelKind::Mosfet("nmos")
+        }
         "NJF" => InlineModelKind::Jfet("njf"),
         "PJF" => InlineModelKind::Jfet("pjf"),
         "SW" => InlineModelKind::Switch,
         "" => return Err(format!("model '{original}' has no model type")),
         other => {
             return Err(format!(
-                "model '{original}' type '{other}' is outside the typed subset (D, NPN, PNP, NMOS, PMOS, NJF, PJF, SW)"
+                "model '{original}' type '{other}' is outside the typed subset (D, NPN, PNP, NMOS, PMOS, VDMOS, NJF, PJF, SW)"
             ));
         }
     };
@@ -153,7 +187,32 @@ pub(crate) fn parse_inline_model(
     let mut parameters = Vec::new();
     let mut dropped = Vec::new();
     let mut seen = BTreeSet::new();
+    let mut vdmos_channel: Option<&'static str> = None;
     for assignment in normalize_assignments(&body.replace(',', " ")).split_whitespace() {
+        if is_vdmos
+            && (assignment.eq_ignore_ascii_case("pchan")
+                || assignment.eq_ignore_ascii_case("nchan"))
+        {
+            let polarity = if assignment.eq_ignore_ascii_case("pchan") {
+                "pmos"
+            } else {
+                "nmos"
+            };
+            if let Some(previous) = vdmos_channel
+                && previous != polarity
+            {
+                return Err(format!(
+                    "VDMOS model '{original}' specifies conflicting channel flags (nchan and pchan)"
+                ));
+            }
+            vdmos_channel = Some(polarity);
+            kind = InlineModelKind::Mosfet(polarity);
+            continue;
+        }
+        if is_vdmos && assignment.eq_ignore_ascii_case("noiseless") {
+            dropped.push("noiseless".to_string());
+            continue;
+        }
         let (key, value) = assignment.split_once('=').ok_or_else(|| {
             format!("model '{original}' parameter '{assignment}' is not a NAME=value assignment")
         })?;
@@ -169,6 +228,15 @@ pub(crate) fn parse_inline_model(
             return Err(format!(
                 "model '{original}' uses level={value}; only Ngspice level 1 cards are importable"
             ));
+        }
+        if is_vdmos
+            && !allowed.contains(&key.as_str())
+            && VDMOS_DROPPED_PARAMETERS.contains(&key.as_str())
+        {
+            let _ = canonical_number(value)
+                .map_err(|message| format!("model '{original}' parameter '{key}': {message}"))?;
+            dropped.push(key);
+            continue;
         }
         if !allowed.contains(&key.as_str()) {
             return Err(format!(
@@ -281,4 +349,95 @@ pub(crate) fn render_inline_model(model: &InlineModel) -> String {
         "model {kind} {}{polarity} version=0.0.0 license=unspecified source=spice-import {parameters}",
         model.mapped
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::spice_import::import_spice;
+    use crate::{CompileOptions, compile_source};
+
+    #[test]
+    fn spice_import_recognizes_new_builtin_models_and_vdmos_inline_models() {
+        let builtin_spice = "\
+* Phase 6 Wave 2 built-in models
+V1 vcc 0 12
+D1 vcc n_led LED_RED
+D2 vcc n_led LED_GREEN
+D3 vcc n_led LED_BLUE
+D4 vcc n_led LED_WHITE
+Rled n_led 0 1k
+M1 out_p 0 vcc vcc IRF9540
+Rp out_p 0 1k
+Vin in 0 5
+XU1 in out_lm vcc 0 out_lm LM358
+XU2 n_led out_tl vcc 0 out_tl TL072
+.op
+.end
+";
+        let report = import_spice(builtin_spice);
+        assert!(!report.has_errors(), "{:?}", report.diagnostics);
+        let kess = report.kess_source.expect("emitted kess source");
+        assert!(kess.contains("diode D1 LED_RED"), "{kess}");
+        assert!(kess.contains("mosfet M1 IRF9540"), "{kess}");
+        assert!(kess.contains("opamp XU1 LM358"), "{kess}");
+        assert!(kess.contains("opamp XU2 TL072"), "{kess}");
+        let compiled = compile_source(&kess, CompileOptions::default());
+        assert!(!compiled.has_errors(), "{:?}", compiled.diagnostics);
+
+        let vdmos_spice = "\
+* Phase 6 Wave 2 VDMOS inline and builtin collision rename
+V1 vcc 0 12
+M1 out_p 0 vcc vcc IRF9540
+Rp out_p 0 1k
+M2 out_u in 0 0 MY_VDMOS_N
+Ru vcc out_u 1k
+Vin in 0 5
+.model MY_VDMOS_N VDMOS (nchan Rg=3 Vto=2.5 Kp=10 Rd=0.05 Rs=0.02 Cgdmax=1n Cgs=1n mfg=Test)
+.model IRF9540 VDMOS (pchan Vto=-3.5 Kp=7.5 Lambda=0.015 Rd=0.11 Rs=0.06 Cgdmax=1.2n)
+.op
+.end
+";
+        let vdmos_report = import_spice(vdmos_spice);
+        assert!(!vdmos_report.has_errors(), "{:?}", vdmos_report.diagnostics);
+        let vdmos_kess = vdmos_report.kess_source.expect("emitted vdmos kess source");
+        assert!(
+            vdmos_kess.contains("model mosfet MY_VDMOS_N nmos")
+                && vdmos_kess.contains("model mosfet SPICE_IRF9540 pmos")
+                && vdmos_kess.contains("mosfet M1 SPICE_IRF9540"),
+            "{vdmos_kess}"
+        );
+        let vdmos_compiled = compile_source(&vdmos_kess, CompileOptions::default());
+        assert!(
+            !vdmos_compiled.has_errors(),
+            "{:?}",
+            vdmos_compiled.diagnostics
+        );
+    }
+
+    #[test]
+    fn spice_import_rejects_conflicting_vdmos_flags_and_unknown_params() {
+        let conflicting = "\
+V1 vcc 0 5
+M1 out 0 0 0 BAD_VDMOS
+R1 vcc out 1k
+.model BAD_VDMOS VDMOS (nchan pchan Vto=2 Kp=1)
+.op
+.end
+";
+        let report = import_spice(conflicting);
+        assert!(report.has_errors());
+        assert!(report.diagnostics.iter().any(|d| d.code == "KES-N012"));
+
+        let unknown_param = "\
+V1 vcc 0 5
+M1 out 0 0 0 BAD_PARAM
+R1 vcc out 1k
+.model BAD_PARAM VDMOS (Vto=2 Kp=1 bogus_param=42)
+.op
+.end
+";
+        let report = import_spice(unknown_param);
+        assert!(report.has_errors());
+        assert!(report.diagnostics.iter().any(|d| d.code == "KES-N012"));
+    }
 }

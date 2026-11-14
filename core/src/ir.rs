@@ -1274,7 +1274,7 @@ pub fn ast_to_ir_with_resources(
                             semantic_error(
                                 "KES-C003",
                                 format!(
-                                    "unsupported BJT model '{requested_model}'; user-defined models are not yet declared by the language"
+                                    "unsupported BJT model '{requested_model}'; available built-in BJT models: 2N3904, 2N3906, 2N2222, BC547, BC557, KESSETSU_POWER_NPN_V1, KESSETSU_POWER_PNP_V1; or declare it with 'model bjt {requested_model} npn|pnp ...'"
                                 ),
                                 Some(&decl.name),
                                 Some("model"),
@@ -1318,7 +1318,7 @@ pub fn ast_to_ir_with_resources(
                             semantic_error(
                                 "KES-C003",
                                 format!(
-                                    "unsupported MOSFET model '{requested_model}'; user-defined models are not yet declared by the language"
+                                    "unsupported MOSFET model '{requested_model}'; available built-in MOSFET models: IRF540, IRF9540, 2N7000, BSS84, KESSETSU_PMOS_V1; or declare it with 'model mosfet {requested_model} nmos|pmos ...'"
                                 ),
                                 Some(&decl.name),
                                 Some("model"),
@@ -1397,7 +1397,7 @@ pub fn ast_to_ir_with_resources(
                             semantic_error(
                                 "KES-C003",
                                 format!(
-                                    "unsupported diode model '{requested_model}'; user-defined models are not yet declared by the language"
+                                    "unsupported diode model '{requested_model}'; available built-in diode models: 1N4148, 1N4007, 1N5819, 1N4733A, BZX84C3V3, BZX84C5V1, BZX84C12, LED_RED, LED_GREEN, LED_BLUE, LED_WHITE; or declare it with 'model diode {requested_model} ...'"
                                 ),
                                 Some(&decl.name),
                                 Some("model"),
@@ -1424,7 +1424,7 @@ pub fn ast_to_ir_with_resources(
                             semantic_error(
                                 "KES-C003",
                                 format!(
-                                    "unsupported switch model '{requested_model}'; declare it with 'model switch {requested_model} ...' or use 'KESSETSU_SW_V1'"
+                                    "unsupported switch model '{requested_model}'; available built-in switch models: KESSETSU_SW_V1; or declare it with 'model switch {requested_model} ...'"
                                 ),
                                 Some(&decl.name),
                                 Some("model"),
@@ -1450,7 +1450,9 @@ pub fn ast_to_ir_with_resources(
                         let resolved = model_library.resolve(requested_model).ok_or_else(|| {
                             semantic_error(
                                 "KES-C003",
-                                format!("unsupported op-amp model '{requested_model}'"),
+                                format!(
+                                    "unsupported op-amp model '{requested_model}'; available built-in op-amp models: KESSETSU_OPAMP_V1, KESSETSU_OPAMP_V2, LM358, TL072; or declare it with 'model opamp {requested_model} ...' or 'external_subcircuit opamp {requested_model} ...'"
+                                ),
                                 Some(&decl.name),
                                 Some("model"),
                             )
@@ -1482,7 +1484,7 @@ pub fn ast_to_ir_with_resources(
                             semantic_error(
                                 "KES-C003",
                                 format!(
-                                    "device '{}' requires a declared external device model",
+                                    "device '{}' references undeclared external device model '{val_str}'; declare it with 'external_subcircuit comparator|two_terminal {val_str} ...'",
                                     decl.name
                                 ),
                                 Some(&decl.name),
@@ -1745,6 +1747,25 @@ pub fn ast_to_ir_with_resources(
                     None,
                     None,
                 ));
+            }
+        }
+    }
+
+    // Normalize diode terminal aliases after all declarations/connections are collected so forward
+    // connections before a `diode` declaration canonicalize to `p1`/`p2` identically.
+    let diode_ids = components
+        .iter()
+        .filter(|component| component.kind == ComponentKind::Diode)
+        .map(|component| component.id.as_str())
+        .collect::<std::collections::HashSet<_>>();
+    if !diode_ids.is_empty() {
+        for connection in &mut connections {
+            for pin_ref in &mut connection.pins {
+                if diode_ids.contains(pin_ref.component.as_str())
+                    && let Some(canonical) = canonical_diode_pin(&pin_ref.pin)
+                {
+                    pin_ref.pin = canonical.to_string();
+                }
             }
         }
     }
@@ -2283,6 +2304,16 @@ fn compile_physical_parts(
     })
 }
 
+fn canonical_diode_pin(pin: &str) -> Option<&'static str> {
+    if pin.eq_ignore_ascii_case("anode") || pin.eq_ignore_ascii_case("a") {
+        Some("p1")
+    } else if pin.eq_ignore_ascii_case("cathode") || pin.eq_ignore_ascii_case("k") {
+        Some("p2")
+    } else {
+        None
+    }
+}
+
 fn parse_physical_pin_map(
     component_id: &str,
     input: &str,
@@ -2305,7 +2336,12 @@ fn parse_physical_pin_map(
                 Some("pin_map"),
             ));
         };
-        let logical = logical.trim();
+        let raw_logical = logical.trim();
+        let logical = if component.kind == ComponentKind::Diode {
+            canonical_diode_pin(raw_logical).unwrap_or(raw_logical)
+        } else {
+            raw_logical
+        };
         let pad = pad.trim();
         if !expected.contains(&logical) {
             return Err(semantic_error(
@@ -2940,5 +2976,122 @@ mod tests {
                 "unexpected error for {invalid}: {err:?}"
             );
         }
+    }
+
+    #[test]
+    fn diode_pin_aliases_normalize_forward_and_part_mappings() {
+        let source = "\
+net GND
+net IN
+net OUT1
+net OUT2
+source V1 5V
+connect V1.plus to IN
+connect V1.minus to GND
+connect D1.ANODE to IN
+connect D1.cathode to OUT1
+connect D2.a to IN
+connect D2.K to OUT2
+diode D1 LED_RED
+diode D2 1N4148
+resistor R1 220
+resistor R2 220
+connect R1.p1 to OUT1
+connect R1.p2 to GND
+connect R2.p1 to OUT2
+connect R2.p2 to GND
+part D1 mpn=\"LED-RED\" footprint=\"LED_SMD:LED_0805_2012Metric\" pin_map=\"anode:2, k:1\"
+simulate op
+";
+        let report = crate::compile_source(source, crate::CompileOptions::default());
+        assert!(!report.has_errors(), "{:?}", report.diagnostics);
+        let ir = report.ir.expect("IR should compile");
+        assert!(
+            ir.connections
+                .iter()
+                .any(|c| { c.pins.iter().any(|p| p.component == "D1" && p.pin == "p1") })
+        );
+        assert!(
+            ir.connections
+                .iter()
+                .any(|c| { c.pins.iter().any(|p| p.component == "D1" && p.pin == "p2") })
+        );
+        assert!(
+            ir.connections
+                .iter()
+                .any(|c| { c.pins.iter().any(|p| p.component == "D2" && p.pin == "p1") })
+        );
+        assert!(
+            ir.connections
+                .iter()
+                .any(|c| { c.pins.iter().any(|p| p.component == "D2" && p.pin == "p2") })
+        );
+        let part_d1 = ir
+            .physical_parts
+            .assignments
+            .iter()
+            .find(|a| a.component == "D1")
+            .expect("part D1 assignment");
+        assert_eq!(part_d1.pin_map.get("p1").map(String::as_str), Some("2"));
+        assert_eq!(part_d1.pin_map.get("p2").map(String::as_str), Some("1"));
+
+        let dup_pin_map = "\
+net GND
+net IN
+diode D1 1N4148
+connect D1.anode to IN
+connect D1.cathode to GND
+part D1 mpn=\"1N4148\" footprint=\"Diode_SMD:D_SOD-123\" pin_map=\"anode:1, p1:2\"
+simulate op
+";
+        let err = compile_to_ir(dup_pin_map).expect_err("duplicate canonical pin_map should fail");
+        assert_eq!(err.code, "KES-C024");
+    }
+
+    #[test]
+    fn irf9540_resolves_as_pmos_and_kes_c003_hints_include_builtins() {
+        let ir = compile_to_ir("mosfet M1 IRF9540\n").expect("IRF9540 should resolve");
+        assert_eq!(
+            ir.components[0].kind,
+            ComponentKind::MOSFET(FETPolarity::PMOS)
+        );
+
+        let bjt_err = compile_to_ir("transistor Q1 UNKNOWN_BJT\n").unwrap_err();
+        assert_eq!(bjt_err.code, "KES-C003");
+        assert!(bjt_err.message.contains("2N3904") && bjt_err.message.contains("model bjt"));
+
+        let mos_err = compile_to_ir("mosfet M1 UNKNOWN_MOS\n").unwrap_err();
+        assert_eq!(mos_err.code, "KES-C003");
+        assert!(
+            mos_err.message.contains("IRF540")
+                && mos_err.message.contains("IRF9540")
+                && mos_err.message.contains("model mosfet")
+        );
+
+        let diode_err = compile_to_ir("diode D1 UNKNOWN_D\n").unwrap_err();
+        assert_eq!(diode_err.code, "KES-C003");
+        assert!(
+            diode_err.message.contains("LED_RED")
+                && diode_err.message.contains("1N4148")
+                && diode_err.message.contains("model diode")
+        );
+
+        let sw_err = compile_to_ir("switch S1 UNKNOWN_SW\n").unwrap_err();
+        assert_eq!(sw_err.code, "KES-C003");
+        assert!(
+            sw_err.message.contains("KESSETSU_SW_V1") && sw_err.message.contains("model switch")
+        );
+
+        let opamp_err = compile_to_ir("opamp U1 UNKNOWN_OP\n").unwrap_err();
+        assert_eq!(opamp_err.code, "KES-C003");
+        assert!(
+            opamp_err.message.contains("LM358")
+                && opamp_err.message.contains("TL072")
+                && opamp_err.message.contains("external_subcircuit")
+        );
+
+        let ext_err = compile_to_ir("device X1 UNKNOWN_DEV\n").unwrap_err();
+        assert_eq!(ext_err.code, "KES-C003");
+        assert!(ext_err.message.contains("external_subcircuit"));
     }
 }

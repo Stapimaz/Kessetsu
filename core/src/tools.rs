@@ -78,6 +78,7 @@ pub struct ToolResult {
     pub equations: Vec<String>,
     pub assumptions: Vec<String>,
     pub source: String,
+    pub share_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -164,7 +165,7 @@ fn select_value(value: f64, series: PreferredValues) -> Result<f64, ToolError> {
 }
 
 pub fn calculate_tool(request: ToolRequest) -> Result<ToolResult, ToolError> {
-    let report = match request {
+    let mut report = match request {
         ToolRequest::Divider {
             input_voltage,
             target_voltage,
@@ -264,6 +265,7 @@ pub fn calculate_tool(request: ToolRequest) -> Result<ToolResult, ToolError> {
                     "Nominal dissipation is not a component wattage rating or a tolerance analysis.".into()],
                 source: format!("// Kessetsu voltage divider: target {} V; nominal, ideal source.\nnet GND\nnet IN\nnet OUT\nsource VIN {}V\nresistor R1 {}\nresistor R2 {}\nconnect VIN.plus, R1.p1 to IN\nconnect R1.p2, R2.p1 to OUT\nconnect VIN.minus, R2.p2 to GND\n{}simulate op\n",
                     format_spice_number(target), format_spice_number(vin), format_spice_number(r1), format_spice_number(r2), load_source),
+                share_url: String::new(),
             }
         }
         ToolRequest::RcLowpass {
@@ -326,6 +328,7 @@ pub fn calculate_tool(request: ToolRequest) -> Result<ToolResult, ToolError> {
                     format_spice_number(start),
                     format_spice_number(stop)
                 ),
+                share_url: String::new(),
             }
         }
         ToolRequest::NonInvertingOpamp {
@@ -444,6 +447,7 @@ pub fn calculate_tool(request: ToolRequest) -> Result<ToolResult, ToolError> {
                     format_spice_number(g_low),
                     format_spice_number(g_high),
                 ),
+                share_url: String::new(),
             }
         }
         ToolRequest::ZenerRegulator {
@@ -555,6 +559,7 @@ pub fn calculate_tool(request: ToolRequest) -> Result<ToolResult, ToolError> {
                     format_spice_number(v_low),
                     format_spice_number(v_high),
                 ),
+                share_url: String::new(),
             }
         }
     };
@@ -568,6 +573,14 @@ pub fn calculate_tool(request: ToolRequest) -> Result<ToolResult, ToolError> {
             ));
         }
     }
+    report.share_url = crate::share::encode_share_url(
+        &report.source,
+        crate::compiler::COMPILE_SCHEMA_VERSION,
+        None,
+        Some(&report.name),
+    )
+    .map_err(|message| error("source", message))?
+    .url;
     Ok(report)
 }
 
@@ -713,5 +726,55 @@ mod tests {
             })
             .is_err()
         );
+    }
+
+    #[test]
+    fn all_calculators_emit_valid_round_tripping_share_urls() {
+        let requests = [
+            ToolRequest::Divider {
+                input_voltage: "12V".into(),
+                target_voltage: "3.3V".into(),
+                lower_resistance: "10k".into(),
+                load_resistance: None,
+                preferred_values: PreferredValues::E24,
+            },
+            ToolRequest::RcLowpass {
+                cutoff: "1kHz".into(),
+                resistance: "10k".into(),
+                preferred_values: PreferredValues::E24,
+            },
+            ToolRequest::NonInvertingOpamp {
+                target_gain: "5".into(),
+                input_resistance: "10k".into(),
+                input_voltage: None,
+                supply_voltage: None,
+                preferred_values: PreferredValues::E24,
+            },
+            ToolRequest::ZenerRegulator {
+                input_voltage: "12V".into(),
+                zener_voltage: "5.1V".into(),
+                load_current: "10mA".into(),
+                zener_knee_current: None,
+                preferred_values: PreferredValues::E24,
+            },
+        ];
+        for request in requests {
+            let result = calculate_tool(request).expect("calculator should succeed");
+            assert!(
+                result
+                    .share_url
+                    .starts_with("https://kessetsu.com/#kessetsu=1."),
+                "unexpected share_url: {}",
+                result.share_url
+            );
+            let decoded = crate::share::decode_share_fragment(
+                &result.share_url,
+                crate::compiler::COMPILE_SCHEMA_VERSION,
+            )
+            .expect("share URL should decode")
+            .expect("share payload should exist");
+            assert_eq!(decoded.source, result.source);
+            assert_eq!(decoded.name.as_deref(), Some(result.name.as_str()));
+        }
     }
 }

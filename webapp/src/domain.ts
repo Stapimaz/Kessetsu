@@ -48,10 +48,24 @@ export interface SchematicNet {
 
 export interface CircuitIrSummary {
   analyses: Analysis[];
+  assertions?: Array<{
+    code?: string;
+    metric: string;
+    signal: string;
+  }>;
+  connections?: Array<{
+    pins: Array<{
+      component: string;
+      pin: string;
+    }>;
+  }>;
+  nets?: string[];
   components: Array<{
     id: string;
     instance_path?: string[];
     kind: string | Record<string, unknown>;
+    parameters?: Record<string, unknown> | string;
+    model?: string | { name: string } | null;
   }>;
   model_manifest: ModelManifest;
 }

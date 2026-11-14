@@ -195,17 +195,78 @@ function objectValue(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+const KESS_STATEMENT_LINE = /^\s*(?:param|net|initial|source|current_source|resistor|capacitor|inductor|diode|transistor|bjt|mosfet|jfet|opamp|vcvs|vccs|ccvs|cccs|switch|part|connect|couple|simulate|assert|model|model_include|subcircuit|external_subcircuit|module|use)\b/;
+const KESS_CIRCUIT_SIGNAL_LINE = /^\s*(?:resistor|capacitor|inductor|diode|transistor|bjt|mosfet|jfet|opamp|source|current_source|vcvs|vccs|ccvs|cccs|switch|connect|simulate|assert)\b/;
+
+export function looksLikeKessSource(input: string): boolean {
+  const lines = input.replace(/^\uFEFF/, '').split(/\r?\n/);
+  let statementCount = 0;
+  let hasCircuitLine = false;
+  for (const rawLine of lines) {
+    const trimmed = rawLine.trim();
+    if (!trimmed || trimmed.startsWith('//') || trimmed === '}') continue;
+    if (KESS_STATEMENT_LINE.test(trimmed)) {
+      statementCount += 1;
+      if (KESS_CIRCUIT_SIGNAL_LINE.test(trimmed)) hasCircuitLine = true;
+    }
+  }
+  return statementCount >= 2 && hasCircuitLine;
+}
+
+interface FencedBlock {
+  lang: string;
+  body: string;
+}
+
+function extractFencedBlocks(input: string): FencedBlock[] {
+  const blocks: FencedBlock[] = [];
+  const pattern = /```([a-z0-9_-]*)[ \t]*\r?\n([\s\S]*?)\r?\n```/gi;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(input)) !== null) {
+    blocks.push({ lang: match[1].toLowerCase(), body: match[2].trim() });
+  }
+  return blocks;
+}
+
 function stripOuterJsonFence(input: string): string {
   const trimmed = input.replace(/^\uFEFF/, '').trim();
   const match = /^```(?:json)?\s*\r?\n([\s\S]*?)\r?\n```$/i.exec(trimmed);
-  return match ? match[1].trim() : trimmed;
+  if (match) return match[1].trim();
+  const blocks = extractFencedBlocks(trimmed);
+  const jsonBlock = blocks.find((b) => b.lang === 'json' || (!b.lang && b.body.startsWith('{')));
+  return jsonBlock ? jsonBlock.body : trimmed;
 }
 
 export async function parseAgentProposal(text: string, currentSource: string): Promise<AgentProposalEnvelope> {
   if (utf8Length(text) > MAX_AGENT_PROPOSAL_BYTES) throw new Error('Proposal file is too large');
+  const trimmed = text.replace(/^\uFEFF/, '').trim();
+  const blocks = extractFencedBlocks(trimmed);
+  const jsonCandidate = stripOuterJsonFence(trimmed);
   let parsed: Record<string, unknown>;
-  try { parsed = objectValue(JSON.parse(stripOuterJsonFence(text))); }
-  catch (cause) { throw new Error(`Proposal is not valid JSON: ${cause instanceof Error ? cause.message : String(cause)}`); }
+  try {
+    parsed = objectValue(JSON.parse(jsonCandidate));
+  } catch (cause) {
+    const kessBlock = blocks.find(
+      (b) => (b.lang === 'kess' || b.lang === 'kessetsu' || b.lang === '') && looksLikeKessSource(b.body),
+    );
+    const rawKess = !blocks.some((b) => b.lang === 'json') && !trimmed.startsWith('{') && looksLikeKessSource(trimmed)
+      ? trimmed
+      : null;
+    const kessCandidate = kessBlock?.body ?? rawKess;
+    if (kessCandidate) {
+      const normalized = kessCandidate.endsWith('\n') ? kessCandidate : `${kessCandidate}\n`;
+      if (utf8Length(normalized) > MAX_DOCUMENT_SOURCE_BYTES) {
+        throw new Error('Proposed source exceeds the 1 MiB browser document limit');
+      }
+      return {
+        schema_version: AGENT_PROPOSAL_SCHEMA,
+        base_source_sha256: await sha256Text(currentSource),
+        proposed_source: normalized,
+        summary: 'Pasted .kess circuit source',
+      };
+    }
+    throw new Error(`Proposal is not valid JSON: ${cause instanceof Error ? cause.message : String(cause)}`);
+  }
   if (parsed.schema_version !== AGENT_PROPOSAL_SCHEMA) {
     throw new Error(`Unsupported proposal schema. Expected ${AGENT_PROPOSAL_SCHEMA}`);
   }

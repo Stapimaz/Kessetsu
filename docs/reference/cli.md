@@ -96,8 +96,8 @@ No file is written unless `--output path.kess` is supplied. Existing outputs req
 Invalid units, nonpositive values, an impossible divider target and unrepresentable calculations
 produce exit code `2`. `--format json` uses the existing CLI envelope with an additional
 `calculation` field (`kessetsu.tool.v1`): normalized inputs, ideal/selected components, results
-with units, equations, assumptions and editable source. Calculations are analytical, not
-simulation PASS claims. Use normal `simulate`, `test`, `render` and `export` commands on the
+with units, equations, assumptions, editable source, and a ready-to-open `share_url` (`https://kessetsu.com/#kessetsu=1...`). Calculations are analytical, not
+simulation PASS claims. Use normal `simulate`, `test`, `render`, `share` and `export` commands on the
 generated source to continue. Source builds expose command details through `kess tool --help`.
 
 ## Research data
@@ -215,7 +215,10 @@ The language supports `op`, `tran`, `ac`, and `dc` sweeps of independent voltage
 
 ```bash
 kess simulate examples/rc_low_pass.kess --force
+kess simulate examples/rc_low_pass.kess --measure "upper_cutoff(V(OUT),V(IN))" --measure "gain_at(V(OUT),V(IN),100Hz)" --format json --force
 ```
+
+Repeatable `--measure <EXPR>` flags evaluate supported measurement expressions (using the same syntax and Core evaluator as `assert` metrics, without a comparator or threshold) directly into the top-level `measurements` map. When a circuit runs an Operating Point (`simulate op`) analysis and `measurements` would otherwise be empty, JSON output automatically populates `V(<net>)` and `I(<comp>)` scalars from the operating-point dataset.
 
 ### `test`
 
@@ -275,9 +278,21 @@ represent a required feature. Replacing an existing file requires `--force`. Wit
 artifacts report schema/version, MIME type, SHA-256, byte length, connectivity, capability,
 warnings, and known losses. See the [export matrix](exports.md) for format boundaries.
 
+### `share`
+
+Compiles and validates `.kess` source or a supported SPICE netlist (`--input auto|kess|spice`, file path or `-` stdin) and encodes a self-contained Web Hub share link (`https://kessetsu.com/#kessetsu=1.<base64url-gzip>`):
+
+```bash
+kess share examples/rc_low_pass.kess --name "1 kHz RC Low-Pass"
+kess share filter.cir --format json
+kess share - --name "Divider" --format json < divider.kess
+```
+
+In `human` or `text` mode, `kess share` prints the share URL (followed by any advisory warnings on stderr, such as external local model files that are not embedded in URLs or URLs exceeding 8,192 characters). With `--format json`, it returns the `kessetsu.share_link.v1` report (`url`, `fragment`, `name`, `source_sha256`, `compressed_bytes`, `url_length`, `packages`, and `warnings`) inside the `kessetsu.cli.v1` envelope.
+
 ### `mcp`
 
-Starts a stdio Model Context Protocol (MCP) server exposing Kessetsu's verification, simulation, schematic, calculation, study, and export tools (`kessetsu_guide`, `kessetsu_capabilities`, `kessetsu_check`, `kessetsu_simulate`, `kessetsu_test`, `kessetsu_render_schematic`, `kessetsu_export`, `kessetsu_import_spice`, `kessetsu_tool`, `kessetsu_study_plan`, `kessetsu_study_run`) and the `design_circuit` prompt:
+Starts a stdio Model Context Protocol (MCP) server exposing Kessetsu's verification, simulation, schematic, calculation, study, share-link, and export tools (`kessetsu_guide`, `kessetsu_capabilities`, `kessetsu_check`, `kessetsu_simulate`, `kessetsu_test`, `kessetsu_render_schematic`, `kessetsu_export`, `kessetsu_import_spice`, `kessetsu_tool`, `kessetsu_study_plan`, `kessetsu_study_run`, `kessetsu_share_link`) and the `design_circuit` prompt:
 
 ```bash
 kess mcp

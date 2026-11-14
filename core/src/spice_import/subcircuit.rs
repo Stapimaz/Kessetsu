@@ -390,7 +390,7 @@ pub(crate) fn try_parse_builtin_opamp(
     let upper_module = requested_module.to_ascii_uppercase();
     if !matches!(
         upper_module.as_str(),
-        "KESSETSU_OPAMP_V1" | "KESSETSU_OPAMP_V2" | "OPAMP"
+        "KESSETSU_OPAMP_V1" | "KESSETSU_OPAMP_V2" | "OPAMP" | "LM358" | "TL072"
     ) {
         return None;
     }
@@ -422,10 +422,11 @@ pub(crate) fn try_parse_builtin_opamp(
             column: Some(1),
         });
     }
-    let resolved_opamp = if upper_module == "KESSETSU_OPAMP_V2" {
-        "KESSETSU_OPAMP_V2"
-    } else {
-        "KESSETSU_OPAMP_V1"
+    let resolved_opamp = match upper_module.as_str() {
+        "KESSETSU_OPAMP_V2" => "KESSETSU_OPAMP_V2",
+        "LM358" => "LM358",
+        "TL072" => "TL072",
+        _ => "KESSETSU_OPAMP_V1",
     };
     Some(Ok(ImportedComponent {
         original_name: fields[0].clone(),
@@ -463,7 +464,7 @@ pub(crate) fn parse_instance(
         .ok_or_else(|| {
             if fields[1..module_index].len() == 5 {
                 format!(
-                    "subcircuit instance '{}' references unknown embedded .SUBCKT '{}'; for a built-in 5-pin op-amp (in_p in_n vcc vee out), use model 'KESSETSU_OPAMP_V1' or 'OPAMP'",
+                    "subcircuit instance '{}' references unknown embedded .SUBCKT '{}'; for a built-in 5-pin op-amp (in_p in_n vcc vee out), use model 'KESSETSU_OPAMP_V1', 'KESSETSU_OPAMP_V2', 'LM358', 'TL072', or 'OPAMP'",
                     fields[0], requested_module
                 )
             } else {

@@ -1,4 +1,6 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
+use kessetsu_core::ast::Cmp;
+use kessetsu_core::ast::Statement;
 use kessetsu_core::capabilities::{
     CAPABILITIES_SCHEMA_VERSION, CapabilityManifest, capability_manifest,
 };
@@ -11,7 +13,8 @@ use kessetsu_core::exporter::{
     EXPORT_SCHEMA_VERSION, ExportArtifact, ExportCapability, ExportFormat, ExportOptions,
     RenderBackground, export_report,
 };
-use kessetsu_core::measurement::MEASUREMENT_SCHEMA_VERSION;
+use kessetsu_core::ir::{Assertion, CircuitIR, Quantity, SIUnit};
+use kessetsu_core::measurement::{MEASUREMENT_SCHEMA_VERSION, evaluate_assertion_metric};
 use kessetsu_core::models::{
     ExternalModelResources, MAX_EXTERNAL_MODEL_BYTES, validate_external_resource_reference,
 };
@@ -19,12 +22,13 @@ use kessetsu_core::parse_program;
 use kessetsu_core::requirements::{
     REQUIREMENTS_SCHEMA_VERSION, RequirementSet, compile_requirements,
 };
+use kessetsu_core::share::{SHARE_LINK_REPORT_SCHEMA_VERSION, ShareLinkReport, encode_share_url};
 use kessetsu_core::sim_result::{
     ASSERTION_SCHEMA_VERSION, AssertionReport, AssertionResult, AssertionStatus, AssertionSummary,
     TolerancePolicy, format_quantity,
 };
 use kessetsu_core::simulation::{
-    CancellationToken, NativeSimulationContext, NgspiceRunner, SIMULATION_SCHEMA_VERSION,
+    CancellationToken, Dataset, NativeSimulationContext, NgspiceRunner, SIMULATION_SCHEMA_VERSION,
     SimulationRequest, SimulationResult,
 };
 use kessetsu_core::spice_import::{ImportDiagnostic, ImportSeverity, import_spice};
@@ -111,7 +115,9 @@ enum Commands {
     /// Parse, ERC, and generate a SPICE netlist
     Compile(OutputCommand),
     /// Parse, ERC, generate a netlist, and run Ngspice
-    Simulate(OutputCommand),
+    Simulate(SimulateCommand),
+    /// Compile circuit source and encode a shareable web workbench URL
+    Share(ShareCommand),
     /// Parse, ERC, generate a netlist, simulate, and evaluate assertions
     Test(TestCommand),
     /// Render the canonical schematic to SVG, PNG, or PDF
@@ -430,6 +436,26 @@ struct OutputCommand {
 }
 
 #[derive(Args)]
+struct ShareCommand {
+    /// Circuit path (.kess or supported SPICE netlist), or - for stdin
+    file: PathBuf,
+
+    /// Optional display name embedded in the share link (1..=80 chars)
+    #[arg(long)]
+    name: Option<String>,
+}
+
+#[derive(Args)]
+struct SimulateCommand {
+    #[command(flatten)]
+    output: OutputCommand,
+
+    /// Evaluate a measurement metric expression against simulation results
+    #[arg(long = "measure")]
+    measures: Vec<String>,
+}
+
+#[derive(Args)]
 struct TestCommand {
     #[command(flatten)]
     output: OutputCommand,
@@ -445,6 +471,7 @@ struct TestCommand {
 
 #[derive(Clone, Copy, ValueEnum, PartialEq, Eq)]
 pub(crate) enum Format {
+    #[value(alias = "text")]
     Human,
     Json,
 }
@@ -526,6 +553,8 @@ pub(crate) struct JsonOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) fit: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) share: Option<ShareLinkReport>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) capabilities: Option<CapabilityManifest>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) debug: Option<BTreeMap<String, Value>>,
@@ -543,6 +572,8 @@ pub(crate) struct DomainVersions {
     pub(crate) part_stress: Option<&'static str>,
     pub(crate) requirements: Option<&'static str>,
     pub(crate) export: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) share: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) tool: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -850,7 +881,7 @@ fn run(cli: Cli) -> i32 {
         source
     };
 
-    let needs_spice = !matches!(cli.command, Commands::Check { .. });
+    let needs_spice = !matches!(cli.command, Commands::Check { .. } | Commands::Share(_));
     let needs_schematic = matches!(cli.command, Commands::Render(_) | Commands::Export(_));
     let options = CompileOptions {
         include_ast: includes.contains(&Include::Ast),
@@ -941,6 +972,16 @@ fn run(cli: Cli) -> i32 {
             );
         }
         return 0;
+    }
+
+    if let Commands::Share(share) = &cli.command {
+        return run_share(
+            &cli.format,
+            &includes,
+            report,
+            &source,
+            share.name.as_deref(),
+        );
     }
 
     if let Commands::Render(render) = &cli.command {
@@ -1144,7 +1185,7 @@ fn run(cli: Cli) -> i32 {
         return 0;
     }
 
-    if matches!(cli.command, Commands::Simulate(_)) {
+    if let Commands::Simulate(simulate) = &cli.command {
         return run_simulate(
             &cli.format,
             command,
@@ -1153,6 +1194,7 @@ fn run(cli: Cli) -> i32 {
             spice_file,
             &spice,
             &external_resources,
+            &simulate.measures,
         );
     }
 
@@ -1232,6 +1274,7 @@ fn command_name(command: &Commands) -> &'static str {
         Commands::Check { .. } => "check",
         Commands::Compile(_) => "compile",
         Commands::Simulate(_) => "simulate",
+        Commands::Share(_) => "share",
         Commands::Test(_) => "test",
         Commands::Render(_) => "render",
         Commands::Export(_) => "export",
@@ -1391,16 +1434,19 @@ fn command_path(command: &Commands) -> &Path {
             unreachable!("non-circuit commands are handled before reading source")
         }
         Commands::Check { file } => file,
+        Commands::Share(command) => &command.file,
         Commands::Render(command) => &command.file,
         Commands::Export(command) => &command.file,
-        Commands::Compile(command) | Commands::Simulate(command) => &command.file,
+        Commands::Compile(command) => &command.file,
+        Commands::Simulate(command) => &command.output.file,
         Commands::Test(command) => &command.output.file,
     }
 }
 
 fn output_command(command: &Commands) -> Option<&OutputCommand> {
     match command {
-        Commands::Compile(command) | Commands::Simulate(command) => Some(command),
+        Commands::Compile(command) => Some(command),
+        Commands::Simulate(command) => Some(&command.output),
         Commands::Test(command) => Some(&command.output),
         Commands::Data(_)
         | Commands::Capabilities
@@ -1408,6 +1454,7 @@ fn output_command(command: &Commands) -> Option<&OutputCommand> {
         | Commands::Fit(_)
         | Commands::Study(_)
         | Commands::Check { .. }
+        | Commands::Share(_)
         | Commands::Render(_)
         | Commands::Export(_)
         | Commands::Tool(_)
@@ -1863,6 +1910,136 @@ fn validate_external_model_output_location(
     }
 }
 
+fn run_share(
+    format: &Format,
+    includes: &BTreeSet<Include>,
+    mut report: CompileReport,
+    source: &str,
+    name: Option<&str>,
+) -> i32 {
+    let manifest = report.ir.as_ref().map(|ir| &ir.model_manifest);
+    let share_report = match encode_share_url(source, COMPILE_SCHEMA_VERSION, manifest, name) {
+        Ok(report) => report,
+        Err(message) => {
+            report
+                .diagnostics
+                .push(diagnostic("KES-X018", DiagnosticStage::Cli, message));
+            emit(format, "share", includes, "error", report, None, None, None);
+            return 2;
+        }
+    };
+
+    if *format == Format::Json {
+        let mut output = build_json_output(
+            "share", includes, "success", &report, None, None, None, None,
+        );
+        output.domain_versions.share = Some(SHARE_LINK_REPORT_SCHEMA_VERSION);
+        output.share = Some(share_report);
+        match serde_json::to_string_pretty(&output) {
+            Ok(json) => println!("{json}"),
+            Err(error) => {
+                eprintln!("[ERROR] Could not serialize {CLI_SCHEMA_VERSION} JSON output: {error}")
+            }
+        }
+    } else {
+        emit_human_diagnostics(&report);
+        for warning in &share_report.warnings {
+            eprintln!("[WARNING] {warning}");
+        }
+        println!("{}", share_report.url);
+    }
+    0
+}
+
+pub(crate) fn parse_measure_expression(expr: &str) -> Result<(String, Assertion), String> {
+    let trimmed = expr.trim();
+    if trimmed.is_empty() || trimmed.contains('\n') || trimmed.contains('\r') {
+        return Err(format!(
+            "invalid measurement expression '{expr}': expected metric(args)"
+        ));
+    }
+    let synthetic = format!("assert {trimmed} == 0\n");
+    let program = parse_program(&synthetic)
+        .map_err(|error| format!("invalid measurement expression '{trimmed}': {error}"))?;
+    if program.statements.len() != 1 {
+        return Err(format!("invalid measurement expression '{trimmed}'"));
+    }
+    let Statement::Assert(assert_stmt) = &program.statements[0] else {
+        return Err(format!("invalid measurement expression '{trimmed}'"));
+    };
+    Ok((
+        trimmed.to_string(),
+        Assertion {
+            metric: assert_stmt.metric.to_ascii_lowercase(),
+            signal: assert_stmt.signal.clone(),
+            cmp: Cmp::Eq,
+            threshold: Quantity {
+                value: 0.0,
+                unit: SIUnit::Ratio,
+            },
+            numeric_arguments: Vec::new(),
+        },
+    ))
+}
+
+pub(crate) fn populate_op_measurements(circuit: &CircuitIR, simulation: &mut SimulationResult) {
+    if !simulation.measurements.is_empty() {
+        return;
+    }
+    let Some(values) = simulation
+        .datasets
+        .iter()
+        .find_map(|dataset| match &dataset.data {
+            Dataset::OperatingPoint { values } => Some(values),
+            _ => None,
+        })
+    else {
+        return;
+    };
+
+    let net_names: BTreeMap<String, String> = circuit
+        .nets
+        .iter()
+        .filter(|net| !net.eq_ignore_ascii_case("gnd"))
+        .map(|net| (net.to_ascii_lowercase(), net.clone()))
+        .collect();
+    let component_names: BTreeMap<String, String> = circuit
+        .components
+        .iter()
+        .map(|component| (component.id.to_ascii_lowercase(), component.id.clone()))
+        .collect();
+
+    for (raw_key, &value) in values {
+        if !value.is_finite() {
+            continue;
+        }
+        if let Some(stem) = raw_key.strip_suffix("#branch") {
+            let component_key = stem
+                .strip_prefix("v_sense_")
+                .or_else(|| stem.strip_prefix("v_"))
+                .or_else(|| stem.strip_prefix("l_"))
+                .unwrap_or(stem);
+            let label = component_names
+                .get(component_key)
+                .cloned()
+                .unwrap_or_else(|| component_key.to_ascii_uppercase());
+            simulation.measurements.insert(format!("I({label})"), value);
+        } else if !raw_key.contains('#')
+            && !raw_key.starts_with('@')
+            && !raw_key.starts_with("int_")
+            && raw_key != "0"
+            && raw_key != "gnd"
+        {
+            let label = net_names
+                .get(raw_key)
+                .cloned()
+                .unwrap_or_else(|| raw_key.to_ascii_uppercase());
+            simulation.measurements.insert(format!("V({label})"), value);
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn run_simulate(
     format: &Format,
     command: &'static str,
@@ -1871,12 +2048,29 @@ fn run_simulate(
     spice_file: Option<String>,
     spice: &str,
     external_resources: &ExternalModelResources,
+    measures: &[String],
 ) -> i32 {
+    let mut parsed_measures = Vec::with_capacity(measures.len());
+    for expr in measures {
+        match parse_measure_expression(expr) {
+            Ok(parsed) => parsed_measures.push(parsed),
+            Err(message) => {
+                report
+                    .diagnostics
+                    .push(diagnostic("KES-X019", DiagnosticStage::Parse, message));
+                emit(
+                    format, command, includes, "error", report, spice_file, None, None,
+                );
+                return 2;
+            }
+        }
+    }
+
     if *format == Format::Human {
         println!("[INFO] Running ngspice simulation...");
     }
 
-    let simulation = match run_simulation(&report, spice, external_resources) {
+    let mut simulation = match run_simulation(&report, spice, external_resources) {
         Ok(simulation) => simulation,
         Err(error) => {
             report.diagnostics.push(diagnostic(
@@ -1924,11 +2118,45 @@ fn run_simulate(
         return 3;
     }
 
+    let circuit = report
+        .ir
+        .as_ref()
+        .expect("successful compile report must preserve typed IR");
+
+    let mut evaluated_measures = Vec::with_capacity(parsed_measures.len());
+    for (key, assertion) in &parsed_measures {
+        match evaluate_assertion_metric(assertion, circuit, &simulation) {
+            Ok(value) => {
+                simulation.measurements.insert(key.clone(), value);
+                evaluated_measures.push((key.clone(), value));
+            }
+            Err(message) => {
+                report.diagnostics.push(diagnostic(
+                    "KES-S003",
+                    DiagnosticStage::Simulation,
+                    format!("--measure '{key}' failed: {message}"),
+                ));
+                emit(
+                    format,
+                    command,
+                    includes,
+                    "simulation_error",
+                    report,
+                    spice_file,
+                    Some(simulation),
+                    None,
+                );
+                return 3;
+            }
+        }
+    }
+
+    populate_op_measurements(circuit, &mut simulation);
+
     if *format == Format::Human {
-        let circuit = report
-            .ir
-            .as_ref()
-            .expect("successful compile report must preserve typed IR");
+        for (key, value) in &evaluated_measures {
+            println!("[MEASURE] {key} = {value}");
+        }
         print_part_stress_report(&evaluate_part_stress(circuit, &simulation));
     }
 
@@ -2398,6 +2626,7 @@ pub(crate) fn build_json_output(
             part_stress: part_stress.as_ref().map(|_| PART_STRESS_SCHEMA_VERSION),
             requirements: requirements.as_ref().map(|_| REQUIREMENTS_SCHEMA_VERSION),
             export: None,
+            share: None,
             tool: None,
             experiment: None,
             research_data: None,
@@ -2414,6 +2643,7 @@ pub(crate) fn build_json_output(
         study: None,
         data: None,
         fit: None,
+        share: None,
         capabilities: None,
         debug: build_debug(includes, report, simulation),
     }
@@ -2514,5 +2744,140 @@ pub(crate) fn emit_human_diagnostics(report: &CompileReport) {
             "[{} {:?}] {}: {}",
             severity, diagnostic.stage, diagnostic.code, diagnostic.message
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use kessetsu_core::compiler::compile_source;
+    use kessetsu_core::ir::Analysis;
+    use kessetsu_core::simulation::{
+        AnalysisDataset, SimulationStatus, SimulatorInfo, SimulatorLog, SimulatorProcessStatus,
+    };
+
+    #[test]
+    fn cli_parses_share_text_and_simulate_measure_flags() {
+        let share_cli = Cli::try_parse_from([
+            "kess",
+            "share",
+            "-",
+            "--name",
+            "My Divider",
+            "--format",
+            "text",
+        ])
+        .expect("kess share should parse");
+        assert!(share_cli.format == Format::Human);
+        match share_cli.command {
+            Commands::Share(share) => {
+                assert_eq!(share.file, Path::new("-"));
+                assert_eq!(share.name.as_deref(), Some("My Divider"));
+            }
+            _ => panic!("expected Share command"),
+        }
+
+        let sim_cli = Cli::try_parse_from([
+            "kess",
+            "simulate",
+            "-",
+            "--measure",
+            "value(V(OUT))",
+            "--measure",
+            "max(P(R1))",
+            "--format",
+            "json",
+        ])
+        .expect("kess simulate --measure should parse");
+        assert!(sim_cli.format == Format::Json);
+        match sim_cli.command {
+            Commands::Simulate(sim) => {
+                assert_eq!(
+                    sim.measures,
+                    vec!["value(V(OUT))".to_string(), "max(P(R1))".to_string()]
+                );
+            }
+            _ => panic!("expected Simulate command"),
+        }
+    }
+
+    #[test]
+    fn parse_measure_expression_handles_metrics_and_evaluates() {
+        let source = "\
+net GND\n\
+net IN\n\
+net OUT\n\
+source VIN 10V\n\
+resistor R1 1k\n\
+resistor R2 1k\n\
+connect VIN.plus, R1.p1 to IN\n\
+connect R1.p2, R2.p1 to OUT\n\
+connect VIN.minus, R2.p2 to GND\n\
+simulate op\n";
+        let compiled = compile_source(source, CompileOptions::default());
+        assert!(!compiled.has_errors(), "{:?}", compiled.diagnostics);
+        let circuit = compiled.ir.as_ref().unwrap();
+
+        let (key_v, assert_v) = parse_measure_expression("value(V(OUT))").unwrap();
+        assert_eq!(key_v, "value(V(OUT))");
+        assert_eq!(assert_v.metric, "value");
+        assert_eq!(assert_v.signal, "V(OUT)");
+
+        let (_, assert_bw) = parse_measure_expression("bandwidth(V(OUT),V(IN))").unwrap();
+        assert_eq!(assert_bw.metric, "bandwidth");
+
+        let (_, assert_gain) = parse_measure_expression("gain_at(V(OUT), V(IN), 1kHz)").unwrap();
+        assert_eq!(assert_gain.metric, "gain_at");
+
+        assert!(parse_measure_expression("").is_err());
+        assert!(parse_measure_expression("value(V(OUT)").is_err());
+
+        let mut simulation = SimulationResult {
+            schema_version: SIMULATION_SCHEMA_VERSION.to_string(),
+            status: SimulationStatus::Succeeded,
+            analyses: vec![Analysis::OperatingPoint],
+            simulator: SimulatorInfo {
+                executable: "ngspice".to_string(),
+                version: "42".to_string(),
+            },
+            process: SimulatorProcessStatus {
+                exit_code: Some(0),
+                success: true,
+            },
+            measurements: BTreeMap::new(),
+            datasets: vec![AnalysisDataset {
+                index: 0,
+                analysis: Analysis::OperatingPoint,
+                data: Dataset::OperatingPoint {
+                    values: BTreeMap::from([
+                        ("in".to_string(), 10.0),
+                        ("out".to_string(), 5.0),
+                        ("v_vin#branch".to_string(), -0.005),
+                    ]),
+                },
+            }],
+            diagnostics: Vec::new(),
+            warnings: Vec::new(),
+            errors: Vec::new(),
+            raw_log: SimulatorLog {
+                stdout: String::new(),
+                stderr: String::new(),
+            },
+            artifacts: Vec::new(),
+        };
+
+        let measured_v = evaluate_assertion_metric(&assert_v, circuit, &simulation).unwrap();
+        assert!((measured_v - 5.0).abs() < 1e-12);
+
+        populate_op_measurements(circuit, &mut simulation);
+        assert_eq!(simulation.measurements.get("V(IN)"), Some(&10.0));
+        assert_eq!(simulation.measurements.get("V(OUT)"), Some(&5.0));
+        assert_eq!(simulation.measurements.get("I(VIN)"), Some(&-0.005));
+
+        // Non-empty measurements are never overwritten by OP fallback.
+        simulation.measurements = BTreeMap::from([("observed_current".to_string(), 0.2)]);
+        populate_op_measurements(circuit, &mut simulation);
+        assert_eq!(simulation.measurements.len(), 1);
+        assert_eq!(simulation.measurements.get("observed_current"), Some(&0.2));
     }
 }

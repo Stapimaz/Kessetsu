@@ -412,8 +412,10 @@ dependencies = [
 name = "kessetsu-core"
 version = "1.5.0"
 dependencies = [
+ "base64",
  "clap",
  "ctrlc",
+ "flate2",
  "pest",
  "pest_derive",
  "resvg",

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BUILTIN_MODELS,
   COMPONENT_TYPES,
   PIN_MAP,
   analysisCompletions,
@@ -264,6 +265,57 @@ describe('Kessetsu editor language support', () => {
       expect(typeRule).toBeDefined();
       const typeRegex = typeRule![0];
       expect(typeRegex.test('jfet')).toBe(true);
+    });
+  });
+
+  describe('Phase 6 built-in model, initial condition, and assertion signal completions', () => {
+    it('offers new built-in models by device kind and exposes hover docs', () => {
+      const diodeLabels = completionsForLine('diode D1 ').map((c) => c.label);
+      expect(diodeLabels).toEqual(expect.arrayContaining(['LED_RED', 'LED_GREEN', 'LED_BLUE', 'LED_WHITE', '1N5819']));
+
+      const bjtNpn = completionsForLine('transistor Q1 npn ').map((c) => c.label);
+      expect(bjtNpn).toContain('BC547');
+      expect(bjtNpn).not.toContain('BC557');
+      const bjtPnp = completionsForLine('transistor Q2 pnp ').map((c) => c.label);
+      expect(bjtPnp).toContain('BC557');
+
+      const mosLabels = completionsForLine('mosfet M1 ').map((c) => c.label);
+      expect(mosLabels).toEqual(expect.arrayContaining(['2N7000', 'BSS84', 'IRF9540']));
+
+      expect(completionsForLine('jfet J1 ').map((c) => c.label)).toContain('J201');
+      expect(completionsForLine('opamp U1 ').map((c) => c.label)).toEqual(expect.arrayContaining(['LM358', 'TL072']));
+
+      for (const expected of ['LED_RED', 'LED_GREEN', 'LED_BLUE', 'LED_WHITE', '1N5819', 'BC547', 'BC557', '2N7000', 'BSS84', 'J201', 'IRF9540', 'LM358', 'TL072']) {
+        expect(BUILTIN_MODELS.some((m) => m.name === expected)).toBe(true);
+        expect(hoverDocumentation.get(expected)).toBeTruthy();
+      }
+
+      expect(PIN_MAP.diode).toEqual(expect.arrayContaining(['p1', 'p2', 'anode', 'cathode']));
+    });
+
+    it('completes net names for initial conditions and signals inside assert metrics', () => {
+      const code = [
+        'net in',
+        'net out',
+        'source VIN 5V',
+        'resistor R1 1k',
+        'connect VIN.plus to in',
+        'connect R1.p1 to in',
+        'connect R1.p2 to out',
+      ].join('\n');
+
+      const initNets = completionsForLine('initial V(', code).map((c) => c.label);
+      expect(initNets).toEqual(expect.arrayContaining(['in', 'out']));
+
+      const initSnippets = completionsForLine('initial ', code).map((c) => c.label);
+      expect(initSnippets).toEqual(expect.arrayContaining(['V(in)', 'V(out)', 'V(<net>)']));
+
+      const assertSignals = completionsForLine('assert peak(', code).map((c) => c.label);
+      expect(assertSignals).toEqual(expect.arrayContaining(['V(in)', 'V(out)', 'V(in, out)', 'I(R1)', 'P(R1)', 'I(VIN)']));
+
+      expect(completionsForLine('assert max(V(', code).map((c) => c.label)).toEqual(['in', 'out']);
+      expect(completionsForLine('assert avg(I(', code).map((c) => c.label)).toEqual(expect.arrayContaining(['VIN', 'R1']));
+      expect(completionsForLine('assert dissipation(', code).map((c) => c.label)).toEqual(expect.arrayContaining(['VIN', 'R1']));
     });
   });
 });
