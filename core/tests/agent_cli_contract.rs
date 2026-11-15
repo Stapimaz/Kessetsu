@@ -340,6 +340,21 @@ fn mcp_stdio_server_exposes_and_executes_verified_core_tools() {
             }
         })
         .to_string(),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 6,
+            "method": "tools/call",
+            "params": {
+                "name": "kessetsu_tool",
+                "arguments": {
+                    "tool": "non_inverting_opamp",
+                    "gain": "10",
+                    "r1": "10k",
+                    "values": "e24"
+                }
+            }
+        })
+        .to_string(),
     ]
     .join("\n")
         + "\n";
@@ -356,7 +371,7 @@ fn mcp_stdio_server_exposes_and_executes_verified_core_tools() {
         .filter(|line| !line.trim().is_empty())
         .map(|line| serde_json::from_str(line).expect("each MCP stdout line must be JSON"))
         .collect();
-    assert_eq!(lines.len(), 5, "notification must not emit a response");
+    assert_eq!(lines.len(), 6, "notification must not emit a response");
 
     // id: 1 initialize
     assert_eq!(lines[0]["id"], 1);
@@ -402,5 +417,14 @@ fn mcp_stdio_server_exposes_and_executes_verified_core_tools() {
     assert_eq!(
         lines[4]["result"]["structuredContent"]["study"]["summary"]["passed"],
         2
+    );
+
+    // id: 6 kessetsu_tool non_inverting_opamp accepts gain/r1 aliases matching CLI
+    assert_eq!(lines[5]["id"], 6);
+    assert_eq!(lines[5]["result"]["isError"], false, "{}", lines[5]);
+    assert!(
+        lines[5]["result"]["structuredContent"]["calculation"]["source"]
+            .as_str()
+            .is_some_and(|s| s.contains("KESSETSU_OPAMP_V2"))
     );
 }

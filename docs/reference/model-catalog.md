@@ -1,7 +1,7 @@
 # Device and External Model Catalog
 
 Local external-model workflows require Kessetsu 1.2.0; typed instance parameters require
-Kessetsu 1.3.0. In Kessetsu 1.5.0, the built-in device catalog covers generic diodes,
+Kessetsu 1.3.0. In Kessetsu 1.6.0, the built-in device catalog covers generic diodes,
 Zener breakdown diodes, BJTs, JFETs, MOSFETs, switches, and multi-stage op-amp macromodels.
 This reference documents both built-in models and characterized external models.
 Model identity, simulation evidence, and physical-device accuracy remain distinct.

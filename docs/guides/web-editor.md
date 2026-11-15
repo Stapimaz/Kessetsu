@@ -38,20 +38,30 @@ minimize and maximize controls; minimized panels can be restored. Use
 **View → Reset panel layout** to return to the default arrangement.
 
 In Schematic, scroll to zoom around the pointer, drag to pan, and use Fit to see the whole
-circuit. Toggle the dotted grid in its header. Select a component to highlight its symbol,
-reference and value. The inspector lists its value/model provenance and maps each logical pin to
-the canonical net; selecting a pin follows and highlights that complete net. Use Find to search
-components or named nets and center them in the view. Reusable module instances appear as
-navigable groups while electrical compilation and simulation remain canonically flattened.
-The drawing's connectivity check concerns the schematic, not hardware.
+circuit. Toggle the dotted grid in its header. Select a component—or click any wire segment—to
+highlight its symbol or net, reference, and value. In the `.schematic-navigator` inspector, a
+selected component shows its value/model provenance, maps each logical pin to the canonical net
+(selecting a pin follows and highlights that complete net), and displays a live **Simulated**
+readout (`ΔV`, `I`, and `P`, including RMS/average summaries when transient results exist).
+Editable components provide inline `-10%` / `+10%` quick-tweak and **Apply** controls that update
+the source and automatically rerun simulation, plus 1-click **Plot V**, **Plot I**, and
+**Plot P** buttons (and **+ Compare** on nets and signals to overlay waveforms on the active plot).
+Use Find to search components or named nets and center them in the view. Reusable module
+instances appear as navigable groups while electrical compilation and simulation remain canonically
+flattened. The drawing's connectivity check concerns the schematic, not hardware.
 
 ## Run and inspect simulation
 
-Write the analyses you need (`simulate op`, `tran`, `ac` or `dc`) in source. Press
-**Run simulation** in the Simulation panel. The simulator loads on the first run; progress
+Write the analyses you need (`simulate op`, `tran`, `ac` or `dc`) in source. Circuits with an
+analysis automatically load and run simulation on initial workspace load, when switching examples,
+after SPICE import, and when opening a shared URL (unless required external local model files are
+still needed). You can also press **Run simulation** in the Simulation panel at any time; progress
 and cancellation are shown there. Errors are not replaced with invented results.
 
-Select an analysis and signal to inspect operating-point values or waveform/Bode/DC plots.
+Select an analysis tab and signal to inspect operating-point values or waveform/Bode/DC plots,
+including derived `I(...)`, `P(...)`, and differential `V(A, B)` traces alongside recorded node
+voltages and branch currents. Selected dataset tabs and trace overlays are preserved across
+quick-tweak reruns when those signals still exist.
 Hover over a plot for numeric values. Assertions show PASS, FAIL, ERROR or SKIPPED with their
 measured value and limit. Simulation without assertions is valid but does not prove requirements.
 The cursor snaps to the nearest recorded sample in the displayed physical axis, including

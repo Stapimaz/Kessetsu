@@ -1346,46 +1346,31 @@ pub fn ast_to_ir_with_resources(
                         } else {
                             val_str
                         };
-                        if let Some(resolved) = model_library.resolve(requested_model) {
-                            let ComponentKind::JFET(polarity) = resolved.kind else {
-                                return Err(semantic_error(
-                                    "KES-C004",
-                                    format!("model '{requested_model}' is not a JFET model"),
-                                    Some(&decl.name),
-                                    Some("model"),
-                                ));
-                            };
-                            model = Some(resolved.clone());
-                            (
-                                ComponentKind::JFET(polarity),
-                                ComponentParams::JFETParams {
-                                    model: requested_model.to_string(),
-                                },
+                        let resolved = model_library.resolve(requested_model).ok_or_else(|| {
+                            semantic_error(
+                                "KES-C003",
+                                format!(
+                                    "unsupported JFET model '{requested_model}'; available built-in JFET models: 2N5457, J2N5457, 2N5460, J201; or declare it with 'model jfet {requested_model} njf|pjf ...'"
+                                ),
+                                Some(&decl.name),
+                                Some("model"),
                             )
-                        } else {
-                            if !is_safe_model_token(requested_model) {
-                                return Err(semantic_error(
-                                    "KES-C001",
-                                    format!("invalid model token '{requested_model}'"),
-                                    Some(&decl.name),
-                                    Some("model"),
-                                ));
-                            }
-                            let polarity = if requested_model.to_uppercase().contains("PJF")
-                                || requested_model.eq_ignore_ascii_case("2N5460")
-                                || requested_model.eq_ignore_ascii_case("J2N5460")
-                            {
-                                JFETPolarity::PJF
-                            } else {
-                                JFETPolarity::NJF
-                            };
-                            (
-                                ComponentKind::JFET(polarity),
-                                ComponentParams::JFETParams {
-                                    model: requested_model.to_string(),
-                                },
-                            )
-                        }
+                        })?;
+                        let ComponentKind::JFET(polarity) = resolved.kind else {
+                            return Err(semantic_error(
+                                "KES-C004",
+                                format!("model '{requested_model}' is not a JFET model"),
+                                Some(&decl.name),
+                                Some("model"),
+                            ));
+                        };
+                        model = Some(resolved);
+                        (
+                            ComponentKind::JFET(polarity),
+                            ComponentParams::JFETParams {
+                                model: requested_model.to_string(),
+                            },
+                        )
                     }
                     ComponentType::Diode => {
                         let requested_model = if val_str.is_empty() {
@@ -1451,7 +1436,7 @@ pub fn ast_to_ir_with_resources(
                             semantic_error(
                                 "KES-C003",
                                 format!(
-                                    "unsupported op-amp model '{requested_model}'; available built-in op-amp models: KESSETSU_OPAMP_V1, KESSETSU_OPAMP_V2, LM358, TL072; or declare it with 'model opamp {requested_model} ...' or 'external_subcircuit opamp {requested_model} ...'"
+                                    "unsupported op-amp model '{requested_model}'; available built-in op-amp models: KESSETSU_OPAMP_V1, KESSETSU_OPAMP_V2, LM358, TL072; or declare it with 'subcircuit opamp {requested_model} ...' or 'external_subcircuit opamp {requested_model} ...'"
                                 ),
                                 Some(&decl.name),
                                 Some("model"),
@@ -2681,13 +2666,6 @@ fn assertion_numeric_unit(metric: &str, arguments: &[&str], index: usize) -> Opt
     }
 }
 
-fn is_safe_model_token(value: &str) -> bool {
-    !value.is_empty()
-        && value
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3087,7 +3065,16 @@ simulate op
         assert!(
             opamp_err.message.contains("LM358")
                 && opamp_err.message.contains("TL072")
+                && opamp_err.message.contains("subcircuit opamp")
                 && opamp_err.message.contains("external_subcircuit")
+        );
+
+        let jfet_err = compile_to_ir("jfet J1 UNKNOWN_JFET\n").unwrap_err();
+        assert_eq!(jfet_err.code, "KES-C003");
+        assert!(
+            jfet_err.message.contains("2N5457")
+                && jfet_err.message.contains("J201")
+                && jfet_err.message.contains("model jfet")
         );
 
         let ext_err = compile_to_ir("device X1 UNKNOWN_DEV\n").unwrap_err();

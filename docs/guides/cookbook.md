@@ -12,7 +12,7 @@ choose exact/E12/E24 nominal values and inspect the achieved result, equations a
 saves the source. Continue with simulation and the editor's existing exports. The previous
 browser circuit is retained under **File → Restore previous circuit**.
 
-With CLI 1.1.0 or newer (`non-inverting-opamp` and `zener-regulator` in current builds):
+`divider` and `rc-lowpass` require **CLI 1.1.0 or newer**, while `non-inverting-opamp` and `zener-regulator` require **CLI 1.6.0 or newer**:
 
 ```bash
 kess tool divider --vin 12V --target 3V --lower 10k --load 10k --values exact --output divider.kess

@@ -38,7 +38,7 @@ Kessetsu Source (.kess)
 
 ### Single Compile Contract
 
-The canonical Core entry points are `compile_source(source, options) -> CompileReport` and its resource-aware form `compile_source_with_resources(source, options, resources) -> CompileReport`. Neither writes files, launches processes, or prints logs; frontends bind resource bytes and own those side effects. Kessetsu 1.3.0 reports are versioned as `kessetsu.compile.v9` and, depending on options, can carry the flattened AST, typed IR, deterministic graph summary, SPICE, canonical `kessetsu.schematic.v3`, SVG, temporary legacy layout, and KiCad output. External resource bytes never appear in the report.
+The canonical Core entry points are `compile_source(source, options) -> CompileReport` and its resource-aware form `compile_source_with_resources(source, options, resources) -> CompileReport`. Neither writes files, launches processes, or prints logs; frontends bind resource bytes and own those side effects. Kessetsu 1.6.0 reports are versioned as `kessetsu.compile.v9` and, depending on options, can carry the flattened AST, typed IR, deterministic graph summary, SPICE, canonical `kessetsu.schematic.v3`, SVG, temporary legacy layout, and KiCad output. External resource bytes never appear in the report.
 
 Parse, flattening, semantic, and ERC failures are normalized into the shared `Diagnostic` model. If any error-severity diagnostic exists, no backend output is produced. Warnings and informational diagnostics may accompany successful output. The CLI and WASM layers must remain adapters around this entry point and must not construct parallel compilation pipelines.
 
@@ -75,7 +75,8 @@ It never sends imported text directly to a backend or simulator. CLI circuit com
 exposes the same CLI JSON contracts over stdio via dedicated MCP tools (`kessetsu_guide`,
 `kessetsu_capabilities`, `kessetsu_check`, `kessetsu_simulate`, `kessetsu_test`,
 `kessetsu_render_schematic`, `kessetsu_export`, `kessetsu_import_spice`, `kessetsu_tool`,
-`kessetsu_study_plan`, and `kessetsu_study_run`) without owning separate circuit semantics.
+`kessetsu_study_plan`, `kessetsu_study_run`, and `kessetsu_share_link`) without owning separate
+circuit semantics.
 Source supports literal R/C/L, independent V/I sources, linear dependent sources (VCVS `E`,
 VCCS `G`, CCVS `H`, CCCS `F` with 0 V current-sense folding), voltage-controlled switches `S`
 with `.model ... SW`, built-in and inline `.model` D/Q/M/SW cards (converting D/NPN/PNP/NMOS/PMOS/SW
@@ -333,23 +334,36 @@ Ngspice integration uses a repository/release sidecar on Windows and the `KESSET
 | 2N3904 | BJT NPN | Built in |
 | 2N3906 | BJT PNP | Built in |
 | 2N2222 | BJT NPN | Built in |
+| BC547 | BJT NPN | Built in |
+| BC557 | BJT PNP | Built in |
 | KESSETSU_POWER_NPN_V1 | Generic power BJT NPN | Verified built in |
 | KESSETSU_POWER_PNP_V1 | Generic power BJT PNP | Verified built in |
 | 1N4148 | Diode | Built in |
 | 1N4007 | Diode | Built in |
+| 1N5819 | Schottky diode | Built in |
+| LED_RED | Red indicator LED diode | Built in |
+| LED_GREEN | Green indicator LED diode | Built in |
+| LED_BLUE | Blue indicator LED diode | Built in |
+| LED_WHITE | White indicator LED diode | Built in |
 | 1N4733A | Zener diode (5.1 V breakdown) | Built in |
 | BZX84C3V3 | Zener diode (3.3 V breakdown) | Built in |
 | BZX84C5V1 | Zener diode (5.1 V breakdown) | Built in |
 | BZX84C12 | Zener diode (12 V breakdown) | Built in |
-| 2N5457 | JFET (NJF) | Built in |
+| 2N5457 | JFET (NJF; also aliased as `J2N5457`) | Built in |
+| J201 | JFET (NJF) | Built in |
 | 2N5460 | JFET (PJF) | Built in |
 | IRF540 | MOSFET NMOS | Built in |
+| IRF9540 | MOSFET PMOS (VDMOS) | Built in |
+| 2N7000 | MOSFET NMOS | Built in |
+| BSS84 | MOSFET PMOS | Built in |
 | KESSETSU_PMOS_V1 | Generic MOSFET PMOS | Verified built in |
 | KESSETSU_SW_V1 | Generic voltage-controlled switch | Verified built in |
 | KESSETSU_OPAMP_V1 | Generic op-amp subcircuit (rail-clamped) | Verified built in |
 | KESSETSU_OPAMP_V2 | Physical op-amp subcircuit (rail headroom, slew, rout) | Verified built in |
+| LM358 | Op-amp subcircuit (asymmetric rail headroom, GBW=1MHz, SR=0.5V/us) | Built in |
+| TL072 | Op-amp subcircuit (JFET-input, symmetric headroom, GBW=3MHz, SR=13V/us) | Built in |
 
-Default built-ins are `2N3904`/`2N3906` for BJTs, `2N5457` for JFETs, `IRF540` for MOSFETs, `1N4148` for diodes, `KESSETSU_SW_V1` for switches, and `KESSETSU_OPAMP_V1` for op-amps. Built-in Zener breakdown diodes (`1N4733A`, `BZX84C3V3`, `BZX84C5V1`, `BZX84C12`) provide characterized breakdown behavior. Built-in generic JFET models (`2N5457` and `2N5460`) provide characterized pinch-off and transconductance behavior. Kessetsu 1.2.0 repairs the `1N4148`/`1N4007` diode directives with provenance version `1.0.1`; published CLI 1.1.0 remains affected by invalid descriptive fields in those models. Their legacy provenance is unchanged, and the repair does not establish manufacturer fidelity or enforce device ratings. Exact packaged models are unchanged. `KESSETSU_*` models are Kessetsu's own open-licensed generic verification models; they are not claimed to match a specific manufacturer's data sheet. `KESSETSU_PMOS_V1` has provenance version `1.0.1` and uses portable Ngspice `MOS1` parameters. `KESSETSU_SW_V1` has provenance version `1.0.0` and implements a voltage-controlled switch with `vt=0.5 vh=0 ron=1 roff=1Meg`. `KESSETSU_OPAMP_V1` has provenance version `1.1.0` and connects to `vcc` and `vee` to enforce anti-windup supply-rail output clamping (with safe symmetric clamping when `V(vcc) <= V(vee)`). `KESSETSU_OPAMP_V2` has provenance version `1.0.0` and models `gain=200k`, `bandwidth=1MHz`, 1 V rail headroom, 0.5 V/µs slew rate (`500k` V/s), and 50 Ω linear output resistance.
+Default built-ins are `2N3904`/`2N3906` for BJTs, `2N5457` (with alias `J2N5457`) for JFETs, `IRF540` for MOSFETs, `1N4148` for diodes, `KESSETSU_SW_V1` for switches, and `KESSETSU_OPAMP_V1` for op-amps. Built-in Zener breakdown diodes (`1N4733A`, `BZX84C3V3`, `BZX84C5V1`, `BZX84C12`), Schottky (`1N5819`), and indicator LEDs (`LED_RED`, `LED_GREEN`, `LED_BLUE`, `LED_WHITE`) provide characterized breakdown and forward behavior. Built-in generic JFET models (`2N5457`/`J2N5457`, `J201`, and `2N5460`) provide characterized pinch-off and transconductance behavior, alongside 31 distinct built-in models (32 model names including `J2N5457`). Kessetsu 1.2.0 repairs the `1N4148`/`1N4007` diode directives with provenance version `1.0.1`; published CLI 1.1.0 remains affected by invalid descriptive fields in those models. Their legacy provenance is unchanged, and the repair does not establish manufacturer fidelity or enforce device ratings. Exact packaged models are unchanged. `KESSETSU_*` models are Kessetsu's own open-licensed generic verification models; they are not claimed to match a specific manufacturer's data sheet. `KESSETSU_PMOS_V1` has provenance version `1.0.1` and uses portable Ngspice `MOS1` parameters. `KESSETSU_SW_V1` has provenance version `1.0.0` and implements a voltage-controlled switch with `vt=0.5 vh=0 ron=1 roff=1Meg`. `KESSETSU_OPAMP_V1` has provenance version `1.1.0` and connects to `vcc` and `vee` to enforce anti-windup supply-rail output clamping (with safe symmetric clamping when `V(vcc) <= V(vee)`). `KESSETSU_OPAMP_V2` has provenance version `1.0.0` and models `gain=200k`, `bandwidth=1MHz`, 1 V rail headroom, 0.5 V/µs slew rate (`500k` V/s), and 50 Ω linear output resistance.
 
 ### Typed User-Model and Subcircuit Boundary
 

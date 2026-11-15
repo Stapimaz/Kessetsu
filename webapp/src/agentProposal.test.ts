@@ -77,10 +77,10 @@ describe('agent proposal contracts', () => {
   it('summarizes high-impact proposal changes separately', () => {
     const summary = summarizeProposalChanges(lineDiff(
       'source V1 5V\nresistor R1 1k\nsimulate op\nassert max(V(out)) < 5V',
-      'source V1 12V\nresistor R1 2k\nresistor R2 1k\nsimulate tran 1us 1ms\nassert max(V(out)) < 3.3V',
+      'source V1 12V\nresistor R1 2k\nresistor R2 1k\njfet J1 J201\nswitch S1 KESSETSU_SW_V1\nvcvs E1 2\nvccs G1 1m\nccvs H1 100\ncccs F1 2\ncouple K1 L1 L2 0.99\nsimulate tran 1us 1ms\nassert max(V(out)) < 3.3V',
     ));
     expect(summary.sources).toEqual({ added: 1, removed: 1 });
-    expect(summary.components).toEqual({ added: 2, removed: 1 });
+    expect(summary.components).toEqual({ added: 9, removed: 1 });
     expect(summary.analyses).toEqual({ added: 1, removed: 1 });
     expect(summary.assertions).toEqual({ added: 1, removed: 1 });
   });

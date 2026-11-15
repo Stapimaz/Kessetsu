@@ -1,21 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import type { CircuitIrSummary, SchematicSummary } from '../domain';
+import type { CircuitIrSummary, SchematicComponent, SchematicSummary } from '../domain';
 import {
   augmentDatasetWithDerivedSignals,
+  findComponentCurrentSignalKey,
+  findComponentPinNets,
   findLiteralComponentValueSpan,
   formatKessQuantity,
+  isQuickTweakQuantityValid,
   nearestSampleIndex,
   parseKessQuantity,
   preferredSignal,
   signalLabel,
   signalUnit,
   summarizeAcSeries,
+  summarizeComponentSimulation,
   summarizeWaveformSeries,
   sweepAxis,
   zoomAroundPointer,
 } from './plot';
 import { mergeConvertedKessIntoSource } from '../spiceImport';
-import type { AssertionResult } from './types';
+import type { AssertionResult, BrowserEvaluation } from './types';
 
 describe('physical plot coordinates', () => {
   it('selects a physical sample, not a normalized array index, including reversed and sparse axes', () => {
@@ -223,6 +227,214 @@ describe('derived signals, units, labels, and quick-tweak value spans', () => {
     const cSpan = findLiteralComponentValueSpan(source, 'C2')!;
     expect(cSpan.suffix).toBe('F');
     expect(cSpan.value).toBeCloseTo(1e-7, 15);
+  });
+
+  it('resolves canonical terminal pairs for opamp and 4-pin dependent sources, and avoids ccvs v_sense branch', () => {
+    const schematic: SchematicSummary = {
+      schema_version: '1',
+      connectivity: { verified: true },
+      quality: { passed: true, issues: [] },
+      nets: [
+        { id: 0, name: 'GND', kind: 'ground', pins: [] },
+        { id: 1, name: 'IN_P', kind: 'signal', pins: [] },
+        { id: 2, name: 'IN_N', kind: 'signal', pins: [] },
+        { id: 3, name: 'VCC', kind: 'signal', pins: [] },
+        { id: 4, name: 'VEE', kind: 'signal', pins: [] },
+        { id: 5, name: 'OUT', kind: 'signal', pins: [] },
+        { id: 6, name: 'CTRL_P', kind: 'signal', pins: [] },
+        { id: 7, name: 'CTRL_N', kind: 'signal', pins: [] },
+      ],
+      components: [
+        {
+          id: 'U1',
+          reference: 'U1',
+          instance_parameters: {},
+          pins: [
+            { name: 'in_p', net: 1 },
+            { name: 'in_n', net: 2 },
+            { name: 'vcc', net: 3 },
+            { name: 'vee', net: 4 },
+            { name: 'out', net: 5 },
+          ],
+        },
+        {
+          id: 'U_NOVEE',
+          reference: 'U_NOVEE',
+          instance_parameters: {},
+          pins: [
+            { name: 'in_p', net: 1 },
+            { name: 'in_n', net: 2 },
+            { name: 'out', net: 5 },
+          ],
+        },
+        {
+          id: 'E1',
+          reference: 'E1',
+          instance_parameters: {},
+          pins: [
+            { name: 'ctrl_p', net: 6 },
+            { name: 'ctrl_n', net: 7 },
+            { name: 'p_out', net: 5 },
+            { name: 'n_out', net: 0 },
+          ],
+        },
+        {
+          id: 'H1',
+          reference: 'H1',
+          instance_parameters: {},
+          pins: [
+            { name: 'ctrl_p', net: 6 },
+            { name: 'ctrl_n', net: 7 },
+            { name: 'p_out', net: 5 },
+            { name: 'n_out', net: 0 },
+          ],
+        },
+      ],
+    };
+
+    expect(findComponentPinNets('U1', 'opamp', schematic)).toEqual({ posNet: 'OUT', negNet: 'VEE' });
+    expect(findComponentPinNets('U_NOVEE', 'opamp', schematic)).toEqual({ posNet: 'OUT', negNet: 'IN_N' });
+    expect(findComponentPinNets('E1', 'vcvs', schematic)).toEqual({ posNet: 'OUT', negNet: '0' });
+    expect(findComponentPinNets('H1', 'ccvs', schematic)).toEqual({ posNet: 'OUT', negNet: '0' });
+    expect(findComponentPinNets('H1', 'cccs', schematic)).toEqual({ posNet: 'OUT', negNet: '0' });
+    expect(findComponentPinNets('H1', 'vccs', schematic)).toEqual({ posNet: 'OUT', negNet: '0' });
+
+    expect(findComponentCurrentSignalKey('H1', 'ccvs', ['v_sense_h1#branch', 'in', 'out'])).toBeNull();
+    expect(findComponentCurrentSignalKey('H1', 'ccvs', ['v_sense_h1#branch', 'h_h1#branch'])).toBe('h_h1#branch');
+    expect(findComponentCurrentSignalKey('H1', 'ccvs', ['v_sense_h1#branch', 'b_h1#branch'])).toBe('b_h1#branch');
+    expect(findComponentCurrentSignalKey('H1', 'ccvs', ['v_sense_h1#branch', 'e_h1#branch'])).toBe('e_h1#branch');
+  });
+
+  it('validates quick-tweak unit suffixes against component kinds', () => {
+    expect(isQuickTweakQuantityValid('resistor', parseKessQuantity('4.7k'))).toBe(true);
+    expect(isQuickTweakQuantityValid('resistor', parseKessQuantity('4.7kOhm'))).toBe(true);
+    expect(isQuickTweakQuantityValid('resistor', parseKessQuantity('4.7kΩ'))).toBe(true);
+    expect(isQuickTweakQuantityValid('resistor', parseKessQuantity('4.7V'))).toBe(false);
+    expect(isQuickTweakQuantityValid('resistor', parseKessQuantity('4.7F'))).toBe(false);
+    expect(isQuickTweakQuantityValid('resistor', parseKessQuantity('0Ohm'))).toBe(false);
+
+    expect(isQuickTweakQuantityValid('capacitor', parseKessQuantity('100nF'))).toBe(true);
+    expect(isQuickTweakQuantityValid('capacitor', parseKessQuantity('100n'))).toBe(true);
+    expect(isQuickTweakQuantityValid('capacitor', parseKessQuantity('100H'))).toBe(false);
+    expect(isQuickTweakQuantityValid('capacitor', parseKessQuantity('100V'))).toBe(false);
+
+    expect(isQuickTweakQuantityValid('inductor', parseKessQuantity('10mH'))).toBe(true);
+    expect(isQuickTweakQuantityValid('inductor', parseKessQuantity('10m'))).toBe(true);
+    expect(isQuickTweakQuantityValid('inductor', parseKessQuantity('10F'))).toBe(false);
+    expect(isQuickTweakQuantityValid('inductor', parseKessQuantity('10Hz'))).toBe(false);
+
+    expect(isQuickTweakQuantityValid('source', parseKessQuantity('5V'))).toBe(true);
+    expect(isQuickTweakQuantityValid('source', parseKessQuantity('0V'))).toBe(true);
+    expect(isQuickTweakQuantityValid('source', parseKessQuantity('-3.3'))).toBe(true);
+    expect(isQuickTweakQuantityValid('source', parseKessQuantity('5A'))).toBe(false);
+
+    expect(isQuickTweakQuantityValid('current_source', parseKessQuantity('10mA'))).toBe(true);
+    expect(isQuickTweakQuantityValid('current_source', parseKessQuantity('10m'))).toBe(true);
+    expect(isQuickTweakQuantityValid('current_source', parseKessQuantity('10V'))).toBe(false);
+  });
+
+  it('summarizes transient over op, AC frequency peaks, and DC sweep ranges in inspector metrics', () => {
+    const r1: SchematicComponent = {
+      id: 'R1',
+      reference: 'R1',
+      instance_parameters: {},
+      pins: [{ name: 'p1', net: 1 }, { name: 'p2', net: 2 }],
+    };
+    const schematic: SchematicSummary = {
+      schema_version: '1',
+      connectivity: { verified: true },
+      quality: { passed: true, issues: [] },
+      nets: [{ id: 1, name: 'IN', kind: 'signal', pins: [] }, { id: 2, name: 'OUT', kind: 'signal', pins: [] }],
+      components: [r1],
+    };
+    const ir: CircuitIrSummary = {
+      analyses: [{ kind: 'operating_point' }],
+      assertions: [],
+      components: [{ id: 'R1', kind: 'Resistor', parameters: { TwoPinPassive: { value: { value: 1000, unit: 'Ohm' } } } }],
+      model_manifest: { schema_version: '1', packages: [], models: [] },
+    };
+    const makeEval = (datasets: BrowserEvaluation['simulation']['datasets']): BrowserEvaluation => ({
+      simulation: {
+        schema_version: 'kessetsu.simulation.v1',
+        status: 'succeeded',
+        analyses: [],
+        simulator: { executable: 'ngspice', version: '42' },
+        process: { exit_code: 0, success: true },
+        measurements: {},
+        datasets,
+        diagnostics: [],
+        warnings: [],
+        errors: [],
+        raw_log: { stdout: '', stderr: '' },
+        artifacts: [],
+      },
+      assertions: { schema_version: 'kessetsu.assertion.v1', tolerance: { absolute: 1e-9, relative: 1e-6 }, assertions: [], summary: { total: 0, passed: 0, failed: 0, errors: 0, skipped: 0 } },
+      part_stress: { schema_version: 'kessetsu.part-stress.v1', disclaimer: '', results: [], summary: { total: 0, within_provided_limit: 0, exceeds_provided_limit: 0, unavailable: 0 } },
+    });
+
+    const tranAndOp = summarizeComponentSimulation({
+      component: r1,
+      kindName: 'resistor',
+      nets: schematic.nets,
+      schematic,
+      circuitIr: ir,
+      evaluation: makeEval([
+        { index: 0, analysis: { kind: 'operating_point' }, data: { kind: 'operating_point', values: { in: 0, out: 0 } } },
+        {
+          index: 1,
+          analysis: { kind: 'transient', step: { value: 1e-3, unit: 's' }, stop: { value: 2e-3, unit: 's' } },
+          data: { kind: 'transient', axis: { name: 'time', values: [0, 1e-3] }, signals: { in: [0, 5], out: [0, 1] } },
+        },
+      ]),
+    });
+    expect(tranAndOp?.map((m) => m.label)).toContain('ΔV (RMS)');
+    expect(tranAndOp?.map((m) => m.label)).toContain('I (RMS)');
+
+    const acOnly = summarizeComponentSimulation({
+      component: r1,
+      kindName: 'resistor',
+      nets: schematic.nets,
+      schematic,
+      circuitIr: ir,
+      evaluation: makeEval([
+        {
+          index: 0,
+          analysis: { kind: 'ac', scale: 'decade', points: 10, start: { value: 10, unit: 'Hz' }, stop: { value: 1e6, unit: 'Hz' } },
+          data: {
+            kind: 'ac',
+            frequency_hz: [10, 1e6],
+            signals: {
+              in: { real: [1, 1], imaginary: [0, 0] },
+              out: { real: [1, 0], imaginary: [0, 0] },
+            },
+          },
+        },
+      ]),
+    });
+    expect(acOnly).toEqual([
+      { label: 'ΔV (pk)', value: '1.000 V' },
+      { label: 'I (pk)', value: '1.000 mA' },
+    ]);
+
+    const dcSweepOnly = summarizeComponentSimulation({
+      component: r1,
+      kindName: 'resistor',
+      nets: schematic.nets,
+      schematic,
+      circuitIr: ir,
+      evaluation: makeEval([
+        {
+          index: 0,
+          analysis: { kind: 'dc_sweep', source: 'V1', start: { value: 0, unit: 'V' }, stop: { value: 5, unit: 'V' }, step: { value: 2.5, unit: 'V' } },
+          data: { kind: 'dc_sweep', axis: { name: 'v(V1)', values: [0, 5] }, signals: { in: [0, 5], out: [0, 2] } },
+        },
+      ]),
+    });
+    expect(dcSweepOnly).toEqual([
+      { label: 'ΔV', value: '0 V → 3.000 V' },
+      { label: 'I', value: '0 A → 3.000 mA' },
+      { label: 'P', value: '0 W → 9.000 mW' },
+    ]);
   });
 });
 

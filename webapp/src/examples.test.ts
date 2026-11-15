@@ -30,6 +30,7 @@ describe('Web Hub Example Showcase Presets', () => {
     'zener',
     'sample_hold',
     'current_sense',
+    'lm358_pwm_led',
   ];
 
   it('exposes all expected canonical presets including 1.5 showcases', () => {
@@ -75,5 +76,18 @@ describe('Web Hub Example Showcase Presets', () => {
     expect(cs.source).toContain('assert value(V(SENSE)) > 0.99V');
     expect(cs.source).toContain('assert max(V(OUT)) > 10.7V');
     expect(cs.source).toContain('assert max(V(OUT)) < 11.0V');
+  });
+
+  it('includes LM358 PWM Comparator & Red LED Driver showcase', () => {
+    const pwm = examples.lm358_pwm_led;
+    expect(pwm.label).toBe('LM358 & LED Driver');
+    expect(pwm.source).toContain('opamp U1 LM358');
+    expect(pwm.source).toContain('diode D1 LED_RED');
+    expect(pwm.source).toContain('D1.anode');
+    expect(pwm.source).toContain('D1.cathode');
+    expect(pwm.source).toContain('initial V(REF)');
+    expect(pwm.source).toContain('V(D1.anode, D1.cathode)');
+    expect(pwm.source).toContain('assert freq(');
+    expect(pwm.source).toContain('assert duty_cycle(');
   });
 });

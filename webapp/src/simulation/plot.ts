@@ -1,5 +1,5 @@
-import type { CircuitIrSummary, SchematicSummary } from '../domain';
-import type { Analysis, AssertionResult, Dataset } from './types';
+import type { CircuitIrSummary, SchematicComponent, SchematicNet, SchematicSummary } from '../domain';
+import type { Analysis, AssertionResult, BrowserEvaluation, Dataset } from './types';
 
 export type SimulationDataset = Dataset;
 
@@ -543,6 +543,16 @@ function canonicalTerminalPair(
     const negNet = byPin('s') ?? pins[2]?.net ?? pins[1]?.net;
     return posNet && negNet ? { posNet, negNet } : null;
   }
+  if (lowerKind === 'opamp') {
+    const posNet = byPin('out') ?? pins[pins.length - 1]?.net;
+    const negNet = byPin('vee') ?? byPin('in_n') ?? pins[1]?.net;
+    return posNet && negNet ? { posNet, negNet } : null;
+  }
+  if (lowerKind === 'vcvs' || lowerKind === 'vccs' || lowerKind === 'ccvs' || lowerKind === 'cccs') {
+    const posNet = byPin('p_out') ?? pins[0]?.net;
+    const negNet = byPin('n_out') ?? pins[1]?.net;
+    return posNet && negNet ? { posNet, negNet } : null;
+  }
   const posNet = byPin('p1') ?? byPin('anode') ?? byPin('a') ?? byPin('pos') ?? pins[0]?.net;
   const negNet = byPin('p2') ?? byPin('cathode') ?? byPin('k') ?? byPin('neg') ?? pins[1]?.net;
   return posNet && negNet ? { posNet, negNet } : null;
@@ -602,7 +612,7 @@ export function findComponentCurrentSignalKey(
   if (k === 'voltagesource') candidates.push(`v_${lowerId}#branch`);
   else if (k === 'inductor') candidates.push(`l_${lowerId}#branch`);
   else if (k === 'vcvs') candidates.push(`e_${lowerId}#branch`);
-  else if (k === 'ccvs') candidates.push(`h_${lowerId}#branch`, `v_sense_${lowerId}#branch`);
+  else if (k === 'ccvs') candidates.push(`h_${lowerId}#branch`, `b_${lowerId}#branch`, `e_${lowerId}#branch`);
   else if (k === 'diode') candidates.push(`@d_${lowerId}[id]`);
   else if (k === 'bjt') candidates.push(`@q_${lowerId}[ic]`);
   else if (k === 'mosfet') candidates.push(`@m_${lowerId}[id]`);
@@ -873,6 +883,244 @@ export function augmentDatasetWithDerivedSignals(
   }
 
   return { ...dataset, signals: nextSignals };
+}
+
+/** Format a numeric measurement with SI engineering prefixes and optional unit. */
+export function formatEngineering(value: number, unit = ''): string {
+  if (!Number.isFinite(value)) return '—';
+  if (unit.startsWith('dB') || unit === '°') return `${Number(value.toPrecision(4))} ${unit}`;
+  if (value === 0) return `0 ${unit}`.trim();
+  const absolute = Math.abs(value);
+  const scales = [
+    [1e9, 'G'], [1e6, 'M'], [1e3, 'k'], [1, ''], [1e-3, 'm'], [1e-6, 'µ'], [1e-9, 'n'], [1e-12, 'p'],
+  ] as const;
+  const [factor, prefix] = scales.find(([scaleFactor]) => absolute >= scaleFactor) ?? scales.at(-1)!;
+  return `${(value / factor).toPrecision(4)} ${prefix}${unit}`.trim();
+}
+
+const VALID_UNIT_BY_KIND: Record<QuickTweakKind, RegExp> = {
+  resistor: /^(?:Ohm|ohm|OHM|Ω)$/,
+  capacitor: /^F$/,
+  inductor: /^H$/,
+  source: /^V$/i,
+  current_source: /^A$/i,
+};
+
+/** Validate both sign and unit compatibility for inline quick-tweak drafts. */
+export function isQuickTweakQuantityValid(
+  kind: QuickTweakKind,
+  parsed: { value: number; unit: string | null } | null,
+): boolean {
+  if (!parsed) return false;
+  if (parsed.unit !== null && !VALID_UNIT_BY_KIND[kind].test(parsed.unit)) {
+    return false;
+  }
+  return kind === 'source' || kind === 'current_source' || parsed.value > 0;
+}
+
+export interface InspectorMetric {
+  label: string;
+  value: string;
+}
+
+function peakPhasorMagnitude(real: number[], imaginary: number[]): number | null {
+  const len = Math.min(real.length, imaginary.length);
+  if (len === 0) return null;
+  let peak = -Infinity;
+  for (let idx = 0; idx < len; idx += 1) {
+    const mag = Math.hypot(real[idx], imaginary[idx]);
+    if (Number.isFinite(mag) && mag > peak) peak = mag;
+  }
+  return Number.isFinite(peak) ? peak : null;
+}
+
+function formatSweepMetricRange(minValue: number, maxValue: number, unit: string): string {
+  if (Math.abs(maxValue - minValue) <= 1e-12) {
+    return formatEngineering(maxValue, unit);
+  }
+  return `${formatEngineering(minValue, unit)} → ${formatEngineering(maxValue, unit)}`;
+}
+
+function summarizeWaveformComponentMetrics(
+  dataset: Extract<Dataset, { kind: 'transient' | 'dc_sweep' }>,
+  component: SchematicComponent,
+  kindName: string,
+  pins: { posNet: string; negNet: string } | null,
+  circuitIr?: CircuitIrSummary | null,
+  schematic?: SchematicSummary | null,
+): InspectorMetric[] {
+  const metrics: InspectorMetric[] = [];
+  const aug = augmentDatasetWithDerivedSignals(dataset, circuitIr ?? null, schematic);
+  if (aug.kind !== dataset.kind) return metrics;
+  const keys = Object.keys(aug.signals);
+  const len = aug.axis.values.length;
+  const readSeries = (netName: string): number[] | null => {
+    if (isGroundNetName(netName)) return new Array<number>(len).fill(0);
+    const hit = keys.find((k) => k.toLowerCase() === netName.toLowerCase());
+    if (!hit) return null;
+    const series = aug.signals[hit];
+    return series.length === len ? series : null;
+  };
+  const dvSummary = (() => {
+    if (!pins) return null;
+    const sa = readSeries(pins.posNet);
+    const sb = readSeries(pins.negNet);
+    if (!sa || !sb || sa.length !== sb.length) return null;
+    return summarizeWaveformSeries(aug.axis.values, sa.map((v, idx) => v - sb[idx]));
+  })();
+  const currKey = findComponentCurrentSignalKey(component.id, kindName, keys);
+  const iSummary = currKey ? summarizeWaveformSeries(aug.axis.values, aug.signals[currKey]) : null;
+  const powerKey = keys.find((k) => k.toLowerCase() === `p(${component.id.toLowerCase()})`);
+  const pSummary = powerKey ? summarizeWaveformSeries(aug.axis.values, aug.signals[powerKey]) : null;
+
+  if (dataset.kind === 'transient') {
+    if (dvSummary) {
+      metrics.push({ label: 'ΔV (RMS)', value: formatEngineering(dvSummary.rms, 'V') });
+      if (dvSummary.peakToPeak > 1e-9) {
+        metrics.push({ label: 'ΔV (pp)', value: formatEngineering(dvSummary.peakToPeak, 'V') });
+      }
+    }
+    if (iSummary) metrics.push({ label: 'I (RMS)', value: formatEngineering(iSummary.rms, 'A') });
+    if (pSummary) metrics.push({ label: 'P (avg)', value: formatEngineering(pSummary.average, 'W') });
+    return metrics;
+  }
+
+  if (dvSummary) metrics.push({ label: 'ΔV', value: formatSweepMetricRange(dvSummary.minValue, dvSummary.maxValue, 'V') });
+  if (iSummary) metrics.push({ label: 'I', value: formatSweepMetricRange(iSummary.minValue, iSummary.maxValue, 'A') });
+  if (pSummary) metrics.push({ label: 'P', value: formatSweepMetricRange(pSummary.minValue, pSummary.maxValue, 'W') });
+  return metrics;
+}
+
+function summarizeAcComponentMetrics(
+  dataset: Extract<Dataset, { kind: 'ac' }>,
+  component: SchematicComponent,
+  kindName: string,
+  pins: { posNet: string; negNet: string } | null,
+  circuitIr?: CircuitIrSummary | null,
+  schematic?: SchematicSummary | null,
+): InspectorMetric[] {
+  const metrics: InspectorMetric[] = [];
+  const aug = augmentDatasetWithDerivedSignals(dataset, circuitIr ?? null, schematic);
+  if (aug.kind !== 'ac') return metrics;
+  const len = aug.frequency_hz.length;
+  if (len === 0) return metrics;
+  const keys = Object.keys(aug.signals);
+  const readPhasors = (netName: string): { real: number[]; imaginary: number[] } | null => {
+    if (isGroundNetName(netName)) {
+      return { real: new Array<number>(len).fill(0), imaginary: new Array<number>(len).fill(0) };
+    }
+    const hit = keys.find((k) => k.toLowerCase() === netName.toLowerCase());
+    if (!hit) return null;
+    const series = aug.signals[hit];
+    return series.real.length === len && series.imaginary.length === len ? series : null;
+  };
+  if (pins) {
+    const pa = readPhasors(pins.posNet);
+    const pb = readPhasors(pins.negNet);
+    if (pa && pb) {
+      const diffRe = pa.real.map((v, idx) => v - pb.real[idx]);
+      const diffIm = pa.imaginary.map((v, idx) => v - pb.imaginary[idx]);
+      const peakV = peakPhasorMagnitude(diffRe, diffIm);
+      if (peakV !== null) metrics.push({ label: 'ΔV (pk)', value: formatEngineering(peakV, 'V') });
+    }
+  }
+  const currKey = findComponentCurrentSignalKey(component.id, kindName, keys);
+  if (currKey) {
+    const peakI = peakPhasorMagnitude(aug.signals[currKey].real, aug.signals[currKey].imaginary);
+    if (peakI !== null) metrics.push({ label: 'I (pk)', value: formatEngineering(peakI, 'A') });
+  }
+  return metrics;
+}
+
+function summarizeOpComponentMetrics(
+  dataset: Extract<Dataset, { kind: 'operating_point' }>,
+  component: SchematicComponent,
+  kindName: string,
+  pins: { posNet: string; negNet: string } | null,
+  nets: SchematicNet[],
+  circuitIr?: CircuitIrSummary | null,
+  schematic?: SchematicSummary | null,
+): InspectorMetric[] {
+  const metrics: InspectorMetric[] = [];
+  const augOp = augmentDatasetWithDerivedSignals(dataset, circuitIr ?? null, schematic);
+  if (augOp.kind !== 'operating_point') return metrics;
+  const opKeys = Object.keys(augOp.values);
+  const readNetV = (netName: string): number | null => {
+    if (isGroundNetName(netName)) return 0;
+    const hit = opKeys.find((k) => k.toLowerCase() === netName.toLowerCase());
+    return hit !== undefined ? augOp.values[hit] : null;
+  };
+  if (pins) {
+    const va = readNetV(pins.posNet);
+    const vb = readNetV(pins.negNet);
+    if (va !== null && vb !== null) metrics.push({ label: 'ΔV', value: formatEngineering(va - vb, 'V') });
+  }
+  const currKey = findComponentCurrentSignalKey(component.id, kindName, opKeys);
+  if (currKey) metrics.push({ label: 'I', value: formatEngineering(augOp.values[currKey], 'A') });
+  const powerKey = opKeys.find((k) => k.toLowerCase() === `p(${component.id.toLowerCase()})`);
+  if (powerKey) metrics.push({ label: 'P', value: formatEngineering(augOp.values[powerKey], 'W') });
+  for (const pin of component.pins) {
+    const net = nets.find((candidate) => candidate.id === pin.net);
+    if (!net) continue;
+    if (net.kind === 'ground' || isGroundNetName(net.name)) {
+      metrics.push({ label: `V(${pin.name})`, value: '0 V' });
+    } else {
+      const v = readNetV(net.name);
+      if (v !== null) metrics.push({ label: `V(${pin.name})`, value: formatEngineering(v, 'V') });
+    }
+  }
+  return metrics;
+}
+
+/** Build the simulated metric readout shown in the schematic component inspector. */
+export function summarizeComponentSimulation({
+  component,
+  kindName,
+  nets,
+  evaluation,
+  schematic,
+  circuitIr,
+}: {
+  component: SchematicComponent;
+  kindName: string;
+  nets: SchematicNet[];
+  evaluation: BrowserEvaluation;
+  schematic?: SchematicSummary | null;
+  circuitIr?: CircuitIrSummary | null;
+}): InspectorMetric[] | null {
+  const pins = findComponentPinNets(component.id, kindName, schematic, circuitIr);
+  const tranRaw = evaluation.simulation.datasets.find((d) => d.data.kind === 'transient')?.data;
+  const acRaw = evaluation.simulation.datasets.find((d) => d.data.kind === 'ac')?.data;
+  const dcSweepRaw = evaluation.simulation.datasets.find((d) => d.data.kind === 'dc_sweep')?.data;
+  const opRaw = evaluation.simulation.datasets.find((d) => d.data.kind === 'operating_point')?.data;
+
+  let metrics: InspectorMetric[] = [];
+  if (tranRaw?.kind === 'transient') {
+    metrics = summarizeWaveformComponentMetrics(tranRaw, component, kindName, pins, circuitIr, schematic);
+  } else if (acRaw?.kind === 'ac') {
+    metrics = summarizeAcComponentMetrics(acRaw, component, kindName, pins, circuitIr, schematic);
+  } else if (dcSweepRaw?.kind === 'dc_sweep') {
+    metrics = summarizeWaveformComponentMetrics(dcSweepRaw, component, kindName, pins, circuitIr, schematic);
+  } else if (opRaw?.kind === 'operating_point') {
+    metrics = summarizeOpComponentMetrics(opRaw, component, kindName, pins, nets, circuitIr, schematic);
+  }
+
+  const stresses = evaluation.part_stress.results.filter(
+    (r) => r.component === component.id || r.component === component.reference,
+  );
+  for (const stress of stresses) {
+    if (stress.actual != null) {
+      const unitMap: Record<string, string> = { volt: 'V', ampere: 'A', watt: 'W' };
+      const unit = unitMap[stress.limit.unit.toLowerCase()] ?? stress.limit.unit;
+      const util = stress.utilization_percent != null ? ` (${stress.utilization_percent.toPrecision(3)}%)` : '';
+      metrics.push({
+        label: stress.rating.replaceAll('_', ' '),
+        value: `${formatEngineering(stress.actual, unit)}${util}`,
+      });
+    }
+  }
+
+  return metrics.length > 0 ? metrics : null;
 }
 
 

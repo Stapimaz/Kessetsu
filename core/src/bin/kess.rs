@@ -13,6 +13,7 @@ use kessetsu_core::exporter::{
     EXPORT_SCHEMA_VERSION, ExportArtifact, ExportCapability, ExportFormat, ExportOptions,
     RenderBackground, export_report,
 };
+use kessetsu_core::graph::{NetId, NetlistGraph};
 use kessetsu_core::ir::{Assertion, CircuitIR, Quantity, SIUnit};
 use kessetsu_core::measurement::{MEASUREMENT_SCHEMA_VERSION, evaluate_assertion_metric};
 use kessetsu_core::models::{
@@ -1958,7 +1959,15 @@ pub(crate) fn parse_measure_expression(expr: &str) -> Result<(String, Assertion)
             "invalid measurement expression '{expr}': expected metric(args)"
         ));
     }
-    let synthetic = format!("assert {trimmed} == 0\n");
+    let is_bare_signal = trimmed.split_once('(').is_some_and(|(head, _)| {
+        matches!(head.trim().to_ascii_uppercase().as_str(), "V" | "I" | "P")
+    });
+    let effective = if is_bare_signal {
+        format!("value({trimmed})")
+    } else {
+        trimmed.to_string()
+    };
+    let synthetic = format!("assert {effective} == 0\n");
     let program = parse_program(&synthetic)
         .map_err(|error| format!("invalid measurement expression '{trimmed}': {error}"))?;
     if program.statements.len() != 1 {
@@ -1982,7 +1991,26 @@ pub(crate) fn parse_measure_expression(expr: &str) -> Result<(String, Assertion)
     ))
 }
 
+fn strip_raw_op_node_dumps(simulation: &mut SimulationResult) {
+    let Some(op_values) = simulation
+        .datasets
+        .iter()
+        .find_map(|dataset| match &dataset.data {
+            Dataset::OperatingPoint { values } => Some(values),
+            _ => None,
+        })
+    else {
+        return;
+    };
+    simulation.measurements.retain(|key, _| {
+        key != "all"
+            && !key.contains('.')
+            && !(op_values.contains_key(key) && !key.contains('#') && !key.contains('('))
+    });
+}
+
 pub(crate) fn populate_op_measurements(circuit: &CircuitIR, simulation: &mut SimulationResult) {
+    strip_raw_op_node_dumps(simulation);
     if !simulation.measurements.is_empty() {
         return;
     }
@@ -2010,10 +2038,13 @@ pub(crate) fn populate_op_measurements(circuit: &CircuitIR, simulation: &mut Sim
         .collect();
 
     for (raw_key, &value) in values {
-        if !value.is_finite() {
+        if !value.is_finite() || raw_key.contains('.') {
             continue;
         }
         if let Some(stem) = raw_key.strip_suffix("#branch") {
+            if stem.starts_with("int_") {
+                continue;
+            }
             let component_key = stem
                 .strip_prefix("v_sense_")
                 .or_else(|| stem.strip_prefix("v_"))
@@ -2029,6 +2060,7 @@ pub(crate) fn populate_op_measurements(circuit: &CircuitIR, simulation: &mut Sim
             && !raw_key.starts_with("int_")
             && raw_key != "0"
             && raw_key != "gnd"
+            && (raw_key != "all" || net_names.contains_key("all"))
         {
             let label = net_names
                 .get(raw_key)
@@ -2275,7 +2307,49 @@ fn run_simulation(
             }
         }
     }
-    NgspiceRunner::discover().run_with_context(&request, &context, &CancellationToken::new())
+    let mut simulation = NgspiceRunner::discover().run_with_context(
+        &request,
+        &context,
+        &CancellationToken::new(),
+    )?;
+    let circuit = report
+        .ir
+        .as_ref()
+        .expect("successful compile report must preserve typed IR");
+    normalize_single_node_op_datasets(circuit, &mut simulation);
+    strip_raw_op_node_dumps(&mut simulation);
+    Ok(simulation)
+}
+
+fn normalize_single_node_op_datasets(circuit: &CircuitIR, simulation: &mut SimulationResult) {
+    let has_single_node_all = simulation.datasets.iter().any(|dataset| {
+        matches!(
+            &dataset.data,
+            Dataset::OperatingPoint { values } if values.len() == 1 && values.contains_key("all")
+        )
+    });
+    if !has_single_node_all {
+        return;
+    }
+    let graph = NetlistGraph::build(circuit);
+    let non_ground: Vec<String> = graph
+        .net_names
+        .iter()
+        .filter(|(id, _)| **id != NetId::GROUND)
+        .map(|(_, name)| name.to_ascii_lowercase())
+        .collect();
+    if non_ground.len() != 1 {
+        return;
+    }
+    let target = &non_ground[0];
+    for dataset in &mut simulation.datasets {
+        if let Dataset::OperatingPoint { values } = &mut dataset.data
+            && values.len() == 1
+            && let Some(val) = values.remove("all")
+        {
+            values.insert(target.clone(), val);
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2879,5 +2953,95 @@ simulate op\n";
         populate_op_measurements(circuit, &mut simulation);
         assert_eq!(simulation.measurements.len(), 1);
         assert_eq!(simulation.measurements.get("observed_current"), Some(&0.2));
+
+        // Raw OP node dumps and internal subcircuit nodes are cleared/skipped on OP-only runs.
+        if let Dataset::OperatingPoint { values } = &mut simulation.datasets[0].data {
+            values.insert("x_u_hi.n_int".to_string(), 7.5);
+            values.insert("e.x_u_hi.e1#branch".to_string(), -0.001);
+        }
+        simulation.measurements = BTreeMap::from([
+            ("in".to_string(), 10.0),
+            ("out".to_string(), 5.0),
+            ("all".to_string(), 5.0),
+            ("x_u_hi.n_int".to_string(), 7.5),
+        ]);
+        populate_op_measurements(circuit, &mut simulation);
+        assert_eq!(simulation.measurements.get("V(IN)"), Some(&10.0));
+        assert_eq!(simulation.measurements.get("V(OUT)"), Some(&5.0));
+        assert_eq!(simulation.measurements.get("I(VIN)"), Some(&-0.005));
+        assert!(!simulation.measurements.contains_key("in"));
+        assert!(!simulation.measurements.contains_key("all"));
+        assert!(!simulation.measurements.contains_key("V(X_U_HI.N_INT)"));
+        assert!(!simulation.measurements.contains_key("I(E.X_U_HI.E1)"));
+
+        // Bare signal --measure shorthand evaluates as value(...)
+        for (expr, expected) in [
+            ("V(OUT)", 5.0),
+            ("V(IN, OUT)", 5.0),
+            ("I(R1)", 0.005),
+            ("P(R1)", 0.025),
+        ] {
+            let (key, assertion) = parse_measure_expression(expr).unwrap();
+            assert_eq!(key, expr);
+            assert_eq!(assertion.metric, "value");
+            let val = evaluate_assertion_metric(&assertion, circuit, &simulation).unwrap();
+            assert!(
+                (val - expected).abs() < 1e-12,
+                "{expr}: {val} != {expected}"
+            );
+        }
+    }
+
+    #[test]
+    fn single_node_op_all_normalizes_to_single_non_ground_net() {
+        let source = "\
+net GND\n\
+net OUT\n\
+current_source I1 1mA\n\
+resistor R1 1k\n\
+connect I1.minus, R1.p1 to OUT\n\
+connect I1.plus, R1.p2 to GND\n\
+simulate op\n";
+        let compiled = compile_source(source, CompileOptions::default());
+        assert!(!compiled.has_errors(), "{:?}", compiled.diagnostics);
+        let circuit = compiled.ir.as_ref().unwrap();
+        let mut simulation = SimulationResult {
+            schema_version: SIMULATION_SCHEMA_VERSION.to_string(),
+            status: SimulationStatus::Succeeded,
+            analyses: vec![Analysis::OperatingPoint],
+            simulator: SimulatorInfo {
+                executable: "ngspice".to_string(),
+                version: "46".to_string(),
+            },
+            process: SimulatorProcessStatus {
+                exit_code: Some(0),
+                success: true,
+            },
+            measurements: BTreeMap::from([("all".to_string(), 1.0)]),
+            datasets: vec![AnalysisDataset {
+                index: 0,
+                analysis: Analysis::OperatingPoint,
+                data: Dataset::OperatingPoint {
+                    values: BTreeMap::from([("all".to_string(), 1.0)]),
+                },
+            }],
+            diagnostics: Vec::new(),
+            warnings: Vec::new(),
+            errors: Vec::new(),
+            raw_log: SimulatorLog {
+                stdout: String::new(),
+                stderr: String::new(),
+            },
+            artifacts: Vec::new(),
+        };
+        normalize_single_node_op_datasets(circuit, &mut simulation);
+        populate_op_measurements(circuit, &mut simulation);
+        let Dataset::OperatingPoint { values } = &simulation.datasets[0].data else {
+            panic!("expected OP");
+        };
+        assert_eq!(values.get("out"), Some(&1.0));
+        assert!(!values.contains_key("all"));
+        assert_eq!(simulation.measurements.get("V(OUT)"), Some(&1.0));
+        assert!(!simulation.measurements.contains_key("all"));
     }
 }

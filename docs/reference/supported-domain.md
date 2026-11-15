@@ -1,6 +1,6 @@
 # Components and Simulation Limits
 
-This reference describes Kessetsu 1.5.0's component families, analyses and modeling assumptions.
+This reference describes Kessetsu 1.6.0's component families, analyses and modeling assumptions.
 Unsupported constructs produce diagnostics rather than silently approximate results.
 
 ## Component and source scope

@@ -187,17 +187,18 @@ export function LandingPage() {
           <p className="eyebrow">Zero-install browser workspace</p>
           <h2 id="hub-title">The complete workflow, in your browser.</h2>
           <p>
-            Edit <code>.kess</code> or convert SPICE netlists, inspect a clean schematic, switch seamlessly between schematic and
-            high-readability simulation plots, and export engineering artifacts without an account.
+            Edit <code>.kess</code> or convert SPICE netlists, inspect a live schematic with auto-simulation on load, switch seamlessly between schematic and
+            high-readability plots, and export engineering artifacts without an account.
           </p>
           <ul className="check-list">
-            <li><Check size={16} /> Direct SPICE netlist import &amp; live conversion preview</li>
-            <li><Check size={16} /> Connectivity-verified automatic schematics</li>
-            <li><Check size={16} /> Interactive OP, DC, AC &amp; transient plots with PASS/FAIL checks</li>
+            <li><Check size={16} /> Click any component or wire for live <code>ΔV</code>/<code>I</code>/<code>P</code> probing &amp; <code>-10%</code>/<code>+10%</code> quick-tweak</li>
+            <li><Check size={16} /> Interactive OP, DC, AC &amp; transient plots with 1-click waveform plotting &amp; PASS/FAIL checks</li>
+            <li><Check size={16} /> Clickable Web Hub URLs via <code>kess share</code> / <code>kessetsu_share_link</code> and 4 circuit calculators</li>
           </ul>
           <p className="scope-note">
-            Work with analog circuits, reusable stages and local device models.{' '}
-            <a href={`${import.meta.env.BASE_URL}docs/guides/tutorial/`}>Follow the circuit tutorial</a> or{' '}
+            Includes 31 built-in semiconductor &amp; op-amp models (<code>LM358</code>, <code>TL072</code>, <code>LED_*</code>, <code>IRF9540</code>, <code>BC547</code>, <code>1N5819</code>, <code>J201</code>) plus local device files.{' '}
+            <a href={`${import.meta.env.BASE_URL}tools/`}>Try the 4 calculators</a> (divider, RC low-pass, non-inverting op-amp, Zener regulator),{' '}
+            <a href={`${import.meta.env.BASE_URL}docs/guides/tutorial/`}>follow the tutorial</a>, or{' '}
             <a href={`${import.meta.env.BASE_URL}docs/guides/spice-import/`}>bring an existing SPICE netlist</a>.
           </p>
           <details className="hub-advanced">
@@ -217,7 +218,7 @@ export function LandingPage() {
         <div className="engine-flow" aria-label="Kessetsu shared Core architecture">
           <div className="surface-card"><Globe2 size={20} /><span>Browser</span><strong>Web Hub</strong></div>
           <span className="flow-arrow">→</span>
-          <div className="core-card"><CircuitBoard size={22} /><span>Kessetsu Rust Core</span><small>SPICE &amp; .kess · ERC · Ngspice · .kessreq · Auto-Layout</small></div>
+          <div className="core-card"><CircuitBoard size={22} /><span>Kessetsu Rust Core</span><small>SPICE &amp; .kess · ERC · Ngspice · 31+ Models · Auto-Layout · Share URLs</small></div>
           <span className="flow-arrow">←</span>
           <div className="surface-card"><Terminal size={20} /><span>AI Agents &amp; CI</span><strong>MCP Server + CLI</strong></div>
         </div>

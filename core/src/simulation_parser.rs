@@ -174,10 +174,27 @@ fn parse_operating_point(
         )));
     }
     let mut values = BTreeMap::new();
-    for (name, value) in headers.iter().skip(1).zip(rows[0].iter().skip(1)) {
-        if values.insert(name.clone(), *value).is_some() {
+    for (index, (name, value)) in headers
+        .iter()
+        .skip(1)
+        .zip(rows[0].iter().skip(1))
+        .enumerate()
+    {
+        // Ngspice 46 labels a 1-vector OP `wrdata ... all` column as "all" while placing
+        // the plot's single vector name in column 0 (instead of "scale").
+        let key = if index == 0
+            && headers.len() == 2
+            && name == "all"
+            && headers[0] != "scale"
+            && headers[0] != "all"
+        {
+            headers[0].clone()
+        } else {
+            name.clone()
+        };
+        if values.insert(key.clone(), *value).is_some() {
             return Err(parse_error_without_line(format!(
-                "duplicate operating-point vector '{name}'"
+                "duplicate operating-point vector '{key}'"
             )));
         }
     }
@@ -354,9 +371,10 @@ fn canonical_vector_name(name: &str) -> String {
 
 fn is_measurement_name(name: &str) -> bool {
     !name.is_empty()
+        && !name.eq_ignore_ascii_case("all")
         && name
             .chars()
-            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '.'))
+            .all(|character| character.is_ascii_alphanumeric() || character == '_')
         && name
             .chars()
             .next()
@@ -398,5 +416,31 @@ fn parse_error_without_line(message: impl Into<String>) -> SimulationParseError 
     SimulationParseError {
         line: None,
         message: message.into(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn operating_point_maps_single_node_all_header_and_measurements_ignore_subcircuit_nodes() {
+        let data = parse_wrdata(
+            &Analysis::OperatingPoint,
+            " out                      all\n 1.00000000000000000e+00  1.00000000000000000e+00\n",
+        )
+        .expect("1-node OP wrdata should map 'all' to column-0 net");
+        let Dataset::OperatingPoint { values } = data else {
+            panic!("expected operating-point dataset");
+        };
+        assert_eq!(values.get("out"), Some(&1.0));
+        assert!(!values.contains_key("all"));
+
+        let parsed = parse_measurements(
+            "all = 1.0\nx_u_hi.n_int = 7961.25\nx_u_hi.vcc_lim = 3.5\nmax_v_out = 2.5\n",
+        )
+        .expect("stdout measurements should skip 'all' and internal subcircuit nodes");
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed.get("max_v_out"), Some(&2.5));
     }
 }

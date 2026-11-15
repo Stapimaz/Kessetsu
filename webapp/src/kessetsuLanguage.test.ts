@@ -285,10 +285,22 @@ describe('Kessetsu editor language support', () => {
       expect(completionsForLine('jfet J1 ').map((c) => c.label)).toContain('J201');
       expect(completionsForLine('opamp U1 ').map((c) => c.label)).toEqual(expect.arrayContaining(['LM358', 'TL072']));
 
-      for (const expected of ['LED_RED', 'LED_GREEN', 'LED_BLUE', 'LED_WHITE', '1N5819', 'BC547', 'BC557', '2N7000', 'BSS84', 'J201', 'IRF9540', 'LM358', 'TL072']) {
+      for (const expected of [
+        'LED_RED', 'LED_GREEN', 'LED_BLUE', 'LED_WHITE', '1N5819', '1N4733A', 'BZX84C3V3', 'BZX84C5V1', 'BZX84C12',
+        'BC547', 'BC557', 'KESSETSU_POWER_NPN_V1', 'KESSETSU_POWER_PNP_V1',
+        '2N7000', 'BSS84', 'IRF9540', 'KESSETSU_PMOS_V1',
+        'J201', '2N5457', 'J2N5457', '2N5460',
+        'KESSETSU_OPAMP_V1', 'KESSETSU_OPAMP_V2', 'LM358', 'TL072',
+      ]) {
         expect(BUILTIN_MODELS.some((m) => m.name === expected)).toBe(true);
         expect(hoverDocumentation.get(expected)).toBeTruthy();
       }
+      expect(BUILTIN_MODELS).toHaveLength(32);
+
+      const sourceDoc = COMPONENT_TYPES.find((c) => c.label === 'source')?.documentation ?? '';
+      const currDoc = COMPONENT_TYPES.find((c) => c.label === 'current_source')?.documentation ?? '';
+      expect(sourceDoc).toContain('exp');
+      expect(currDoc).toContain('exp');
 
       expect(PIN_MAP.diode).toEqual(expect.arrayContaining(['p1', 'p2', 'anode', 'cathode']));
     });

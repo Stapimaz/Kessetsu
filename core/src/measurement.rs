@@ -1038,13 +1038,9 @@ fn evaluate_dissipation(
             let power = maybe_window_signal(power, arguments.window(1)?)?;
             return match power {
                 SignalData::Scalar(value) => Ok(value.max(0.0)),
-                SignalData::Series { axis, values } => time_weighted_average(
-                    &axis,
-                    &values
-                        .iter()
-                        .map(|value| value.max(0.0))
-                        .collect::<Vec<_>>(),
-                ),
+                SignalData::Series { axis, values } => {
+                    Ok(time_weighted_average(&axis, &values)?.max(0.0))
+                }
             };
         }
     }
@@ -1307,12 +1303,26 @@ fn current_signal(
         ComponentKind::Switch => {
             let v_drop = component_voltage(dataset, component, circuit, "p1", "p2")?;
             let v_ctrl = component_voltage(dataset, component, circuit, "ctrl_p", "ctrl_n")?;
-            let (vt, ron, roff) = switch_model_parameters(component);
+            let (vt, vh, ron, roff) = switch_model_parameters(component);
+            let mut is_on = None;
             match (v_drop, v_ctrl) {
                 (Some(v_drop), Some(v_ctrl)) => {
                     Ok(Some(combine_signal(v_drop, v_ctrl, |vd, vc| {
-                        let resistance = if vc >= vt { ron } else { roff };
-                        vd / resistance
+                        let next_on = match is_on {
+                            None => vc >= vt,
+                            Some(prev) if vh > 0.0 => {
+                                if vc >= vt + vh {
+                                    true
+                                } else if vc <= vt - vh {
+                                    false
+                                } else {
+                                    prev
+                                }
+                            }
+                            Some(_) => vc >= vt,
+                        };
+                        is_on = Some(next_on);
+                        vd / if next_on { ron } else { roff }
                     })?))
                 }
                 _ => Ok(None),
@@ -1385,8 +1395,9 @@ fn component_voltage(
     }
 }
 
-fn switch_model_parameters(component: &IRComponent) -> (f64, f64, f64) {
+fn switch_model_parameters(component: &IRComponent) -> (f64, f64, f64, f64) {
     let mut vt = 0.5;
+    let mut vh = 0.0;
     let mut ron = 1.0;
     let mut roff = 1.0e9;
     if let Some(model) = &component.model
@@ -1409,6 +1420,8 @@ fn switch_model_parameters(component: &IRComponent) -> (f64, f64, f64) {
                 let name = name.trim();
                 if name.eq_ignore_ascii_case("vt") {
                     vt = parsed;
+                } else if name.eq_ignore_ascii_case("vh") && parsed >= 0.0 {
+                    vh = parsed;
                 } else if name.eq_ignore_ascii_case("ron") && parsed > 0.0 {
                     ron = parsed;
                 } else if name.eq_ignore_ascii_case("roff") && parsed > 0.0 {
@@ -1417,7 +1430,7 @@ fn switch_model_parameters(component: &IRComponent) -> (f64, f64, f64) {
             }
         }
     }
-    (vt, ron, roff)
+    (vt, vh, ron, roff)
 }
 
 fn dc_source_value(value: &SourceValue) -> f64 {
@@ -2058,7 +2071,7 @@ fn product_signal(left: SignalData, right: SignalData) -> Result<SignalData, Str
 fn combine_signal(
     left: SignalData,
     right: SignalData,
-    operation: impl Fn(f64, f64) -> f64,
+    mut operation: impl FnMut(f64, f64) -> f64,
 ) -> Result<SignalData, String> {
     match (left, right) {
         (SignalData::Scalar(left), SignalData::Scalar(right)) => {
@@ -3016,5 +3029,59 @@ assert dissipation(VIN) == 0W
             .model = None;
         assert!((eval("value", "I(S_def)", &circuit, &op_off).unwrap() - 1e-8).abs() < 1e-18);
         assert!((eval("value", "I(S_def)", &circuit, &op_on).unwrap() - 10.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn reactive_capacitor_dissipation_averages_signed_power_and_switch_tracks_vh_hysteresis() {
+        let mut circuit = test_circuit(
+            "capacitor C1 1uF\nmodel switch SwHyst version=1.0.0 license=MIT vt=2.5 vh=0.5 ron=1 roff=1Meg\n\
+             switch S1 SwHyst\nnet ctrl\nconnect C1.p1 to OUT_P\nconnect C1.p2 to OUT_N\n\
+             connect S1.p1 to OUT_P\nconnect S1.p2 to OUT_N\nconnect S1.ctrl_p to ctrl\nconnect S1.ctrl_n to GND\n",
+        );
+        // Simulate 90-degree phase shift on C1: V(t) = sin(wt), I(t) = cos(wt) over one full cycle
+        let n = 400;
+        let axis: Vec<f64> = (0..=n).map(|k| k as f64 / n as f64 * 1e-3).collect();
+        let v_cap: Vec<f64> = axis
+            .iter()
+            .map(|t| (std::f64::consts::TAU * 1e3 * t).sin())
+            .collect();
+        let tran = tran_sim(
+            axis,
+            BTreeMap::from([
+                ("out_p".to_string(), v_cap),
+                ("out_n".to_string(), vec![0.0; n + 1]),
+                ("ctrl".to_string(), vec![0.0; n + 1]),
+            ]),
+        );
+        let cap_diss = eval("dissipation", "C1", &circuit, &tran).unwrap();
+        assert!(
+            cap_diss < 1e-4,
+            "lossless capacitor reactive dissipation should be ~0W, got {cap_diss}"
+        );
+
+        // Hysteresis trajectory: starts OFF at vc=1.0 (<2.5), stays OFF at 2.8 (<3.0),
+        // turns ON at 3.2 (>=3.0), latches ON at 2.2 (>2.0), turns OFF at 1.9 (<=2.0).
+        let hyst_tran = tran_sim(
+            vec![0.0, 1e-3, 2e-3, 3e-3, 4e-3],
+            BTreeMap::from([
+                ("out_p".to_string(), vec![10.0; 5]),
+                ("out_n".to_string(), vec![0.0; 5]),
+                ("ctrl".to_string(), vec![1.0, 2.8, 3.2, 2.2, 1.9]),
+            ]),
+        );
+        let s1 = find_component(&circuit, "S1").unwrap().clone();
+        let SignalData::Series { values, .. } =
+            current_signal(&hyst_tran.datasets[0].data, &s1.id, &circuit)
+                .unwrap()
+                .unwrap()
+        else {
+            panic!("expected transient series for I(S1)");
+        };
+        assert!((values[0] - 1e-5).abs() < 1e-9);
+        assert!((values[1] - 1e-5).abs() < 1e-9);
+        assert!((values[2] - 10.0).abs() < 1e-6);
+        assert!((values[3] - 10.0).abs() < 1e-6);
+        assert!((values[4] - 1e-5).abs() < 1e-9);
+        let _ = &mut circuit;
     }
 }

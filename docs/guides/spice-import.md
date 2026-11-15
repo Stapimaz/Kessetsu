@@ -1,6 +1,6 @@
 # Importing SPICE netlists
 
-Kessetsu 1.5.0 can convert the supported Ngspice-compatible netlist subset into editable
+Kessetsu 1.6.0 can convert the supported Ngspice-compatible netlist subset into editable
 Kessetsu source. For a complete first example, save this as `filter.cir`:
 
 ```spice

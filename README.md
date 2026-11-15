@@ -12,22 +12,23 @@ When a student or engineer tells an AI agent *"design this circuit with Kessetsu
 
 ## Current capabilities
 
-- Direct `.kess` and supported SPICE netlist (`--input auto|kess|spice`) input across `check`, `compile`, `simulate`, `test`, `render`, and `export`, including inline `.model` (`D`/`NPN`/`PNP`/`NMOS`/`PMOS`/`NJF`/`PJF`/`SW`), Zener breakdown diodes, linear dependent sources (`vcvs`/`vccs`/`ccvs`/`cccs` and SPICE `E`/`G`/`F`/`H`), coupled inductors (`couple` / `K`), 4-terminal MOSFET bulk connections, `.param` math expressions, RKM notation, and embedded `.SUBCKT` conversion
-- Built-in `kess mcp` stdio server exposing `kessetsu_guide`, `kessetsu_capabilities`, `kessetsu_check`, `kessetsu_simulate`, `kessetsu_test`, `kessetsu_render_schematic`, `kessetsu_export`, `kessetsu_import_spice`, `kessetsu_tool`, `kessetsu_study_plan`, `kessetsu_study_run`, and the `design_circuit` prompt
+- Direct `.kess` and supported SPICE netlist (`--input auto|kess|spice`) input across `check`, `compile`, `simulate`, `test`, `render`, and `export`, including 31 built-in semiconductor and op-amp models (32 names including `J2N5457` alias: `1N5819`, `LED_RED/GREEN/BLUE/WHITE`, Zener breakdown diodes, `BC547`/`BC557`, `2N7000`/`BSS84`/`IRF9540`, `J201`, `LM358`, `TL072`, and more), diode pin aliases (`anode`/`cathode`, `a`/`k`), inline `.model` (`D`/`NPN`/`PNP`/`NMOS`/`PMOS`/`NJF`/`PJF`/`SW`), linear dependent sources (`vcvs`/`vccs`/`ccvs`/`cccs` and SPICE `E`/`G`/`F`/`H`), coupled inductors (`couple` / `K`), 4-terminal MOSFET bulk connections, `.param` math expressions, RKM notation, node `initial` conditions (`.ic`), flexible `pwl` waveforms, and embedded `.SUBCKT` conversion
+- Built-in `kess mcp` stdio server exposing 12 MCP tools (`kessetsu_guide`, `kessetsu_capabilities`, `kessetsu_check`, `kessetsu_simulate`, `kessetsu_test`, `kessetsu_render_schematic`, `kessetsu_export`, `kessetsu_import_spice`, `kessetsu_tool`, `kessetsu_study_plan`, `kessetsu_study_run`, and `kessetsu_share_link`) plus the `design_circuit` prompt
+- Clickable Web Hub share URLs (`kess share` CLI and `kessetsu_share_link` MCP) and repeatable `kess simulate --measure <EXPR>` simulation queries
 - Evaluator-owned, exact-hash `.kessreq` files for agent loops that must not rewrite their own acceptance criteria
 - Rust parser, module flattening, and typed Circuit IR (`kessetsu.compile.v9`)
 - Unit-checked named parameters, reusable circuit modules and CLI numeric overrides
 - Hash-verified local op-amp/comparator/two-terminal models, with explicit browser file selection
 - Deterministic net naming and `KES-P/C/E/I/S/F/N` diagnostic namespaces
 - SPICE generation, simulator discovery/provenance, and a Windows Ngspice sidecar runtime
-- Typed OP/transient/AC/DC simulation results and PASS/FAIL/ERROR/SKIPPED assertion evaluation
+- Typed OP/transient/AC/DC simulation results, differential `V(A,B)` probes, `freq`/`period`/`duty_cycle`/`thd`/`pk2pk` measurements, and PASS/FAIL/ERROR/SKIPPED assertion evaluation
 - Compact `kessetsu.cli.v1` JSON, stdin-based agent loops, and opt-in debug fields through `--include`
 - Versioned `kess capabilities --format json` discovery for commands, contracts, measurements, exports and bounded workloads
 - Typed user/package model and subcircuit resolution, provenance manifests, and `kessetsu.lock`
 - A canonical, connectivity-verified automatic schematic engine (`kessetsu.schematic.v3`)
 - SVG, PNG, PDF, Schematic JSON, SPICE, KiCad, LTspice, BOM CSV, and handoff-manifest exports
-- A React Web Hub with WASM Core, real in-browser simulation, and versioned share URLs
-- Shared loaded-divider and RC-filter tools, reproducible parameter studies, local research-data comparison, finite calibration/holdout fitting, and an optional Python/Jupyter adapter
+- A React Web Hub with WASM Core, zero-click auto-simulate on load, interactive schematic `ΔV`/`I`/`P` probing and `-10%`/`+10%` quick-tweak, and clickable share URLs
+- Four shared calculators ([`voltage-divider`](https://kessetsu.com/tools/voltage-divider/), [`rc-lowpass`](https://kessetsu.com/tools/rc-lowpass/), [`non-inverting-opamp`](https://kessetsu.com/tools/non-inverting-opamp/), [`zener-regulator`](https://kessetsu.com/tools/zener-regulator/)), reproducible parameter studies, local research-data comparison, finite calibration/holdout fitting, and an optional Python/Jupyter adapter
 
 Read the [documentation](https://kessetsu.com/docs/) and [changelog](https://kessetsu.com/changelog/) on the website. The [architecture](docs/architecture.md), [component and simulation reference](docs/reference/supported-domain.md), and [measurement reference](docs/reference/measurements.md) define technical behavior and assumptions.
 
@@ -40,12 +41,13 @@ The current repository build can:
 - Edit Kessetsu source in Monaco and switch between example circuits
 - Open and save `.kess` files, name documents, and recover an unsaved versioned browser draft
 - Run live compilation, ERC, and canonical schematic-connectivity verification through WASM
-- Run real OP/transient/AC/DC simulations inside a Web Worker
-- Inspect interactive waveform, Bode, and DC plots plus assertion results
+- Auto-run OP/transient/AC/DC simulations in a Web Worker on initial load, example switch, SPICE import, and shared URL opening
+- Click schematic components or wires to inspect live `ΔV`/`I`/`P` readouts, apply `-10%`/`+10%` quick-tweaks with auto-rerun, and plot `V`, `I`, `P`, or differential `V(A, B)` waveforms in 1 click
+- Inspect interactive waveform, Bode, and DC plots with overlaid comparison traces and assertion results
 - Explore the canonical schematic with zoom, fit, component/net search and reusable-block navigation
 - Download nine visual, machine, EDA and physical-handoff formats with capability/loss information
-- Share source and exact package versions in a compressed URL
-- Start from a [loaded divider](https://kessetsu.com/tools/voltage-divider/) or [RC filter](https://kessetsu.com/tools/rc-lowpass/) calculation and continue in the editor
+- Share source and exact package versions in a compressed URL (compatible with `kess share` / `kessetsu_share_link`)
+- Start from a [loaded divider](https://kessetsu.com/tools/voltage-divider/), [RC filter](https://kessetsu.com/tools/rc-lowpass/), [non-inverting op-amp](https://kessetsu.com/tools/non-inverting-opamp/), or [Zener regulator](https://kessetsu.com/tools/zener-regulator/) calculation and continue in the editor
 - Create a provider-neutral task for an external agent, inspect its hash-bound source diff,
   run the proposal locally, and explicitly accept or undo it
 

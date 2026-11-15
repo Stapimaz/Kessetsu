@@ -41,7 +41,7 @@ Generated files are never silently overwritten. Pick a new path or add `--force`
 
 ## A shared URL will not open
 
-Kessetsu accepts only `kessetsu.share.v1`, limits compressed input and decompressed source size, and verifies the embedded Core schema and package versions. A truncated URL, older/newer schema or modified package manifest is rejected instead of partially loading. Ask the sender for a URL created by the same public release.
+Kessetsu accepts `kessetsu.share.v1` envelopes whose embedded compile schema is compatible (`kessetsu.compile.v4` through `v9`), limits compressed input and decompressed source size, and verifies the embedded package manifest. A truncated URL, unsupported compile schema, or modified package manifest is rejected instead of partially loading. Ask the sender for a URL created by a compatible release (and load any referenced external local model files separately).
 
 ## Web simulation does not start
 

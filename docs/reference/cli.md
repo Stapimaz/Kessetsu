@@ -76,8 +76,10 @@ JSON remains compact. Independent `.kessreq` bytes and limits are never changed.
 
 ## Circuit tools
 
-The tools calculate nominal values and generate ordinary editable `.kess` circuits. These
-commands require **CLI 1.1.0 or newer**. Older installations can use the install guide to update.
+The tools calculate nominal values and generate ordinary editable `.kess` circuits. `divider`
+and `rc-lowpass` require **CLI 1.1.0 or newer**, while `non-inverting-opamp` and
+`zener-regulator` require **CLI 1.6.0 or newer**. Older installations can use the install guide
+to update.
 
 ```bash
 kess tool divider --vin 12V --target 3V --lower 10k --load 10k --values exact --output divider.kess
@@ -288,7 +290,7 @@ kess share filter.cir --format json
 kess share - --name "Divider" --format json < divider.kess
 ```
 
-In `human` or `text` mode, `kess share` prints the share URL (followed by any advisory warnings on stderr, such as external local model files that are not embedded in URLs or URLs exceeding 8,192 characters). With `--format json`, it returns the `kessetsu.share_link.v1` report (`url`, `fragment`, `name`, `source_sha256`, `compressed_bytes`, `url_length`, `packages`, and `warnings`) inside the `kessetsu.cli.v1` envelope.
+In `human` or `text` mode, `kess share` prints the share URL (followed by any advisory warnings on stderr, such as external local model files that are not embedded in URLs or URLs exceeding 8,192 characters). With `--format json`, it returns the `kessetsu.share_link.v1` report (`schema_version`, `url`, `fragment`, optional `name`, `source_bytes`, `encoded_chars`, `local_models_required`, and `warnings`) inside the `kessetsu.cli.v1` envelope.
 
 ### `mcp`
 
@@ -321,7 +323,7 @@ published only after all files are written. See
 
 ## JSON Contract
 
-JSON stdout is exactly one JSON object for every invocation. Progress and simulator logs are never written to stdout. The default agent envelope is `kessetsu.cli.v1`. Kessetsu 1.3.0 compile reports use `kessetsu.compile.v9`, canonical schematics use `kessetsu.schematic.v3`, model manifests/locks use `kessetsu.models.v3`/`kessetsu.lock.v3`, simulation results use `kessetsu.simulation.v1`, engineering measurements use `kessetsu.measurement.v3`, assertion reports use `kessetsu.assertion.v1`, provided part-stress reports use `kessetsu.part-stress.v1`, external requirement sets use `kessetsu.requirements.v1`, finite fitting uses `kessetsu.fit.v1` plus `kessetsu.fit-result.v1`, and portable folders use `kessetsu.research-package.v1`. Version 1.2.0 used compile v5/schematic v2/model v2/lock v2/measurement v2; 1.1.0 used compile v4/measurement v1. Active subcontracts appear in `domain_versions`. Resolved parameter/field provenance (`kessetsu.parameters.v1`) is opt-in through `--include ir`, not additional default JSON bulk.
+JSON stdout is exactly one JSON object for every invocation. Progress and simulator logs are never written to stdout. The default agent envelope is `kessetsu.cli.v1`. Kessetsu 1.6.0 compile reports use `kessetsu.compile.v9`, canonical schematics use `kessetsu.schematic.v3`, model manifests/locks use `kessetsu.models.v3`/`kessetsu.lock.v3`, simulation results use `kessetsu.simulation.v1`, engineering measurements use `kessetsu.measurement.v3`, assertion reports use `kessetsu.assertion.v1`, provided part-stress reports use `kessetsu.part-stress.v1`, external requirement sets use `kessetsu.requirements.v1`, finite fitting uses `kessetsu.fit.v1` plus `kessetsu.fit-result.v1`, portable folders use `kessetsu.research-package.v1`, capability discovery uses `kessetsu.capabilities.v1`, calculator outputs use `kessetsu.tool.v1`, and share links use `kessetsu.share_link.v1` (encoding `kessetsu.share.v1` URL payloads). Version 1.2.0 used compile v5/schematic v2/model v2/lock v2/measurement v2; 1.1.0 used compile v4/measurement v1. Active subcontracts appear in `domain_versions`. Resolved parameter/field provenance (`kessetsu.parameters.v1`) is opt-in through `--include ir`, not additional default JSON bulk.
 
 See the [engineering-measurement contract](measurements.md) for assertion primitives, derived-metric formulas, analysis requirements, and sign conventions.
 

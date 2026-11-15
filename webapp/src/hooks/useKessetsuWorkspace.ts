@@ -42,6 +42,45 @@ import { BrowserSimulationRunner, SimulationCancelledError } from '../simulation
 import type { BrowserEvaluation, BrowserSimulationPlan } from '../simulation/types';
 import { assertSharedPackages, decodeShareFragment, encodeShareFragment, type ShareEnvelope } from '../share';
 
+const lm358PwmLed = `// Single-supply LM358 PWM comparator driving a red LED with soft-start initial condition.
+net GND
+net VCC_5V
+net RAMP
+net REF
+net DRV
+net LED_A
+
+source VCC 5V
+source VTRI pulse(0V, 5V, 0s, 499us, 499us, 2us, 1ms)
+resistor RREF1 10k
+resistor RREF2 10k
+capacitor CREF 100nF
+opamp U1 LM358
+resistor RLED 220
+diode D1 LED_RED
+
+connect VCC.plus to VCC_5V
+connect VCC.minus, VTRI.minus, RREF2.p2, CREF.p2, U1.vee, D1.cathode to GND
+connect VTRI.plus to RAMP
+connect RREF1.p1 to VCC_5V
+connect RREF1.p2, RREF2.p1, CREF.p1, U1.in_n to REF
+connect U1.in_p to RAMP
+connect U1.vcc to VCC_5V
+connect U1.out to DRV
+connect RLED.p1 to DRV
+connect RLED.p2, D1.anode to LED_A
+
+initial V(REF) = 0V
+simulate tran 10us 6ms uic
+
+assert min(V(REF)) < 50mV
+assert freq(V(DRV), 2ms, 6ms) > 950Hz
+assert freq(V(DRV), 2ms, 6ms) < 1050Hz
+assert duty_cycle(V(DRV), 2ms, 6ms) > 40%
+assert duty_cycle(V(DRV), 2ms, 6ms) < 60%
+assert max(V(D1.anode, D1.cathode), 2ms, 6ms) > 1.5V
+`;
+
 export const examples = {
   study_filter: { label: 'Loaded Filter', description: 'Parameterized RC filter with finite loading', source: loadedFilter },
   study_driver: { label: 'Transistor Driver', description: 'BJT supply, load and bias condition study', source: transistorDriver },
@@ -55,6 +94,7 @@ export const examples = {
   zener: { label: 'Zener Regulator', description: '5.1 V shunt regulator with BZX84C5V1', source: zenerRegulator },
   sample_hold: { label: 'Sample & Hold', description: 'Switched capacitor track and hold', source: sampleHold },
   current_sense: { label: 'Current Sense Amp', description: 'CCVS sensor with rail-clamped op-amp', source: currentSense },
+  lm358_pwm_led: { label: 'LM358 & LED Driver', description: 'Single-supply PWM comparator, LED_RED & initial', source: lm358PwmLed },
 } as const;
 
 export type ExampleId = keyof typeof examples;
@@ -96,6 +136,51 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function exampleLabelForSource(source: string): string | null {
+  return Object.values(examples).find((example) => example.source === source)?.label ?? null;
+}
+
+function resolveHasLocalModels(source: string): boolean {
+  try {
+    return (local_model_requirements(source) as LocalModelRequirement[]).length > 0;
+  } catch {
+    return false;
+  }
+}
+
+function shareLoadFailureNotice(error: unknown): string {
+  return `Could not open shared circuit link: ${errorMessage(error)}. Loaded the default circuit instead.`;
+}
+
+function resetDocumentFields(
+  current: WorkspaceState,
+  code: string,
+  circuitName: string | null,
+  simulationMessage = 'Run the simulation to inspect plots and requirements.',
+): WorkspaceState {
+  return {
+    ...current,
+    code,
+    circuitName,
+    isDirty: false,
+    draftRestored: false,
+    compileState: 'checking',
+    compileSucceeded: false,
+    diagnostics: [],
+    schematic: null,
+    circuitIr: null,
+    schematicSvg: '',
+    spiceNetlist: '',
+    kicadSch: '',
+    modelManifest: null,
+    simulationState: 'idle',
+    simulationMessage,
+    hasSimulationAttempt: false,
+    evaluation: null,
+    exportMessage: '',
+  };
+}
+
 const initialState: WorkspaceState = {
   code: rcFilter,
   circuitName: examples.rc.label,
@@ -123,10 +208,13 @@ const initialState: WorkspaceState = {
 
 export function useKessetsuWorkspace() {
   const [state, setState] = useState(initialState);
+  const [shareError, setShareError] = useState<string | null>(null);
   const [modelResources, setModelResources] = useState<Record<string, number[]>>({});
   const [modelRequirements, setModelRequirements] = useState<LocalModelRequirement[]>([]);
   const revisionRef = useRef(0);
   const pendingAutoRerunRef = useRef(false);
+  const simAutoRerunEligibleRef = useRef(false);
+  const shareNavigationRef = useRef(0);
   const [documentRevision, setDocumentRevision] = useState(0);
   const documentRevisionRef = useRef<DocumentRevision>({ document: 0, edit: 0 });
   const captureDocumentRevision = useCallback(() => ({ ...documentRevisionRef.current }), []);
@@ -140,6 +228,7 @@ export function useKessetsuWorkspace() {
   }, []);
   const runnerRef = useRef<BrowserSimulationRunner | null>(null);
   const sharedEnvelopeRef = useRef<ShareEnvelope | null>(null);
+  const clearShareError = useCallback(() => setShareError(null), []);
 
   const leaveSharedUrl = useCallback(() => {
     sharedEnvelopeRef.current = null;
@@ -150,16 +239,30 @@ export function useKessetsuWorkspace() {
   }, []);
 
   useEffect(() => {
+    simAutoRerunEligibleRef.current = Boolean(state.hasSimulationAttempt && state.circuitIr?.analyses.length);
+  }, [state.hasSimulationAttempt, state.circuitIr]);
+
+  useEffect(() => {
     let mounted = true;
     void init()
       .then(async () => {
         if (!mounted) return;
         const capabilities = supported_export_capabilities();
         const shareFragment = globalThis.location.hash.startsWith('#kessetsu=') ? globalThis.location.hash : '';
-        const shared = await decodeShareFragment(shareFragment, compile_schema_version());
+        let shared: ShareEnvelope | null = null;
+        let shareLoadFailure: string | null = null;
+        if (shareFragment) {
+          try {
+            shared = await decodeShareFragment(shareFragment, compile_schema_version());
+          } catch (error: unknown) {
+            shareLoadFailure = shareLoadFailureNotice(error);
+          }
+          if (!mounted) return;
+        }
+
         let draft: ReturnType<typeof decodeWorkspaceDraft> = null;
         let toolCircuit: ReturnType<typeof decodeWorkspaceDraft> = null;
-        if (!shared) {
+        if (!shared && !shareLoadFailure) {
           try {
             toolCircuit = takeToolCircuit();
           } catch {
@@ -171,24 +274,29 @@ export function useKessetsuWorkspace() {
             // Local storage is an optional recovery layer; the editor remains usable without it.
           }
         }
-        const initialCode = shared?.source ?? toolCircuit?.source ?? draft?.source ?? initialState.code;
-        let hasLocalModelRequirements = false;
-        try {
-          hasLocalModelRequirements = (local_model_requirements(initialCode) as LocalModelRequirement[]).length > 0;
-        } catch {
-          hasLocalModelRequirements = false;
+        if (shareLoadFailure) {
+          leaveSharedUrl();
         }
+        const initialCode = shareLoadFailure
+          ? initialState.code
+          : (shared?.source ?? toolCircuit?.source ?? draft?.source ?? initialState.code);
+        const hasLocalModelRequirements = resolveHasLocalModels(initialCode);
         sharedEnvelopeRef.current = shared;
         pendingAutoRerunRef.current = !hasLocalModelRequirements;
+        setShareError(shareLoadFailure);
         setState((current) => {
-          const source = shared?.source ?? toolCircuit?.source ?? draft?.source ?? current.code;
-          const exampleName = Object.values(examples).find((example) => example.source === source)?.label ?? null;
+          const source = shareLoadFailure
+            ? current.code
+            : (shared?.source ?? toolCircuit?.source ?? draft?.source ?? current.code);
+          const fallbackCircuitName = shareLoadFailure ? examples.rc.label : exampleLabelForSource(source);
           return {
             ...current,
             code: source,
-            circuitName: shared?.name ?? toolCircuit?.name ?? draft?.name ?? exampleName,
-            isDirty: shared ? false : toolCircuit?.dirty ?? draft?.dirty ?? false,
-            draftRestored: !shared && !toolCircuit && (draft?.dirty ?? false),
+            circuitName: shareLoadFailure
+              ? examples.rc.label
+              : (shared?.name ?? toolCircuit?.name ?? draft?.name ?? fallbackCircuitName),
+            isDirty: shared || shareLoadFailure ? false : toolCircuit?.dirty ?? draft?.dirty ?? false,
+            draftRestored: !shared && !shareLoadFailure && !toolCircuit && (draft?.dirty ?? false),
             wasmLoaded: true,
             compileState: 'checking',
             exportCapabilities: capabilities as WorkspaceState['exportCapabilities'],
@@ -206,7 +314,63 @@ export function useKessetsuWorkspace() {
       mounted = false;
       runner.dispose();
     };
-  }, []);
+  }, [leaveSharedUrl]);
+
+  useEffect(() => {
+    if (!state.wasmLoaded) return;
+    let active = true;
+    const onHashChange = async () => {
+      const fragment = globalThis.location.hash;
+      if (!fragment.startsWith('#kessetsu=')) return;
+      const requestId = shareNavigationRef.current + 1;
+      shareNavigationRef.current = requestId;
+      let shared: ShareEnvelope | null = null;
+      let shareLoadFailure: string | null = null;
+      try {
+        shared = await decodeShareFragment(fragment, compile_schema_version());
+        if (!shared) shareLoadFailure = shareLoadFailureNotice(new Error('Invalid shared link payload'));
+      } catch (error: unknown) {
+        shareLoadFailure = shareLoadFailureNotice(error);
+      }
+      if (!active || requestId !== shareNavigationRef.current) return;
+
+      beginDocument();
+      revisionRef.current += 1;
+      runnerRef.current?.cancel();
+      setModelResources({});
+
+      if (shared && !shareLoadFailure) {
+        const validShare = shared;
+        const hasLocalModels = resolveHasLocalModels(validShare.source);
+        sharedEnvelopeRef.current = validShare;
+        pendingAutoRerunRef.current = !hasLocalModels;
+        setShareError(null);
+        setState((current) => resetDocumentFields(
+          current,
+          validShare.source,
+          validShare.name ?? exampleLabelForSource(validShare.source),
+          hasLocalModels
+            ? 'Choose declared local model files in View > Circuit details before simulating.'
+            : 'Run the simulation to inspect plots and requirements.',
+        ));
+        return;
+      }
+
+      leaveSharedUrl();
+      pendingAutoRerunRef.current = true;
+      setShareError(shareLoadFailure);
+      setState((current) => resetDocumentFields(current, initialState.code, examples.rc.label));
+    };
+
+    const handleHashChange = () => {
+      void onHashChange();
+    };
+    globalThis.addEventListener('hashchange', handleHashChange);
+    return () => {
+      active = false;
+      globalThis.removeEventListener('hashchange', handleHashChange);
+    };
+  }, [beginDocument, leaveSharedUrl, state.wasmLoaded]);
 
   useEffect(() => {
     if (!state.wasmLoaded) return;
@@ -332,25 +496,23 @@ export function useKessetsuWorkspace() {
     revisionRef.current += 1;
     leaveSharedUrl();
     runnerRef.current?.cancel();
-    setState((current) => {
-      const willAutoRerun = Boolean(current.hasSimulationAttempt && current.circuitIr?.analyses.length);
-      pendingAutoRerunRef.current = willAutoRerun;
-      return {
-        ...current,
-        code,
-        isDirty: true,
-        draftRestored: false,
-        compileState: 'checking',
-        compileSucceeded: false,
-        diagnostics: [],
-        evaluation: willAutoRerun ? current.evaluation : null,
-        simulationState: willAutoRerun ? current.simulationState : 'idle',
-        simulationMessage: willAutoRerun
-          ? 'Updating schematic & simulation…'
-          : (current.hasSimulationAttempt ? 'Simulation results are out of date. Run again.' : 'Run the simulation to inspect plots and requirements.'),
-        exportMessage: '',
-      };
-    });
+    const willAutoRerun = simAutoRerunEligibleRef.current;
+    pendingAutoRerunRef.current = willAutoRerun;
+    setState((current) => ({
+      ...current,
+      code,
+      isDirty: true,
+      draftRestored: false,
+      compileState: 'checking',
+      compileSucceeded: false,
+      diagnostics: [],
+      evaluation: willAutoRerun ? current.evaluation : null,
+      simulationState: willAutoRerun ? current.simulationState : 'idle',
+      simulationMessage: willAutoRerun
+        ? 'Updating schematic & simulation…'
+        : (current.hasSimulationAttempt ? 'Simulation results are out of date. Run again.' : 'Run the simulation to inspect plots and requirements.'),
+      exportMessage: '',
+    }));
   }, [leaveSharedUrl]);
 
   const loadExample = useCallback((id: ExampleId) => {
@@ -366,27 +528,8 @@ export function useKessetsuWorkspace() {
     }
     leaveSharedUrl();
     runnerRef.current?.cancel();
-    setState((current) => ({
-      ...current,
-      code: examples[id].source,
-      circuitName: examples[id].label,
-      isDirty: false,
-      draftRestored: false,
-      compileState: 'checking',
-      compileSucceeded: false,
-      diagnostics: [],
-      schematic: null,
-      circuitIr: null,
-      schematicSvg: '',
-      spiceNetlist: '',
-      kicadSch: '',
-      modelManifest: null,
-      simulationState: 'idle',
-      simulationMessage: 'Run the simulation to inspect plots and requirements.',
-      hasSimulationAttempt: false,
-      evaluation: null,
-      exportMessage: '',
-    }));
+    setShareError(null);
+    setState((current) => resetDocumentFields(current, examples[id].source, examples[id].label));
   }, [beginDocument, leaveSharedUrl]);
 
   const newDocument = useCallback(() => {
@@ -396,27 +539,13 @@ export function useKessetsuWorkspace() {
     setModelResources({});
     leaveSharedUrl();
     runnerRef.current?.cancel();
-    setState((current) => ({
-      ...current,
-      code: newCircuitSource,
-      circuitName: null,
-      isDirty: false,
-      draftRestored: false,
-      compileState: 'checking',
-      compileSucceeded: false,
-      diagnostics: [],
-      schematic: null,
-      circuitIr: null,
-      schematicSvg: '',
-      spiceNetlist: '',
-      kicadSch: '',
-      modelManifest: null,
-      simulationState: 'idle',
-      simulationMessage: 'This starter circuit includes an operating-point analysis. Press Run to simulate it.',
-      hasSimulationAttempt: false,
-      evaluation: null,
-      exportMessage: '',
-    }));
+    setShareError(null);
+    setState((current) => resetDocumentFields(
+      current,
+      newCircuitSource,
+      null,
+      'This starter circuit includes an operating-point analysis. Press Run to simulate it.',
+    ));
   }, [beginDocument, leaveSharedUrl]);
 
   const openDocument = useCallback(async (file: File) => {
@@ -434,27 +563,8 @@ export function useKessetsuWorkspace() {
     setModelResources({});
     leaveSharedUrl();
     runnerRef.current?.cancel();
-    setState((current) => ({
-      ...current,
-      code: source,
-      circuitName: name,
-      isDirty: false,
-      draftRestored: false,
-      compileState: 'checking',
-      compileSucceeded: false,
-      diagnostics: [],
-      schematic: null,
-      circuitIr: null,
-      schematicSvg: '',
-      spiceNetlist: '',
-      kicadSch: '',
-      modelManifest: null,
-      simulationState: 'idle',
-      simulationMessage: 'Run the simulation to inspect plots and requirements.',
-      hasSimulationAttempt: false,
-      evaluation: null,
-      exportMessage: '',
-    }));
+    setShareError(null);
+    setState((current) => resetDocumentFields(current, source, name));
   }, [beginDocument, captureDocumentRevision, isCurrentDocumentRevision, leaveSharedUrl]);
 
   const applyConvertedSpice = useCallback((kessSource: string, name: string | null = null) => {
@@ -464,26 +574,10 @@ export function useKessetsuWorkspace() {
     setModelResources({});
     leaveSharedUrl();
     runnerRef.current?.cancel();
+    setShareError(null);
     setState((current) => ({
-      ...current,
-      code: kessSource,
-      circuitName: name,
+      ...resetDocumentFields(current, kessSource, name, 'Imported from SPICE. Run the simulation to inspect results.'),
       isDirty: true,
-      draftRestored: false,
-      compileState: 'checking',
-      compileSucceeded: false,
-      diagnostics: [],
-      schematic: null,
-      circuitIr: null,
-      schematicSvg: '',
-      spiceNetlist: '',
-      kicadSch: '',
-      modelManifest: null,
-      simulationState: 'idle',
-      simulationMessage: 'Imported from SPICE. Run the simulation to inspect results.',
-      hasSimulationAttempt: false,
-      evaluation: null,
-      exportMessage: '',
     }));
   }, [beginDocument, leaveSharedUrl]);
 
@@ -684,5 +778,7 @@ export function useKessetsuWorkspace() {
     cancel,
     createExport,
     share,
+    shareError,
+    clearShareError,
   };
 }

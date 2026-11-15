@@ -265,11 +265,19 @@ fn tool_definitions() -> Vec<Value> {
                     },
                     "target_gain": {
                         "type": "string",
-                        "description": "Target dimensionless voltage gain V/V (> 1) for non_inverting_opamp (e.g. '10')."
+                        "description": "Target dimensionless voltage gain V/V (> 1) for non_inverting_opamp (e.g. '10'). Alias: 'gain'."
+                    },
+                    "gain": {
+                        "type": "string",
+                        "description": "Alias for 'target_gain' on non_inverting_opamp (matching CLI --gain)."
                     },
                     "input_resistance": {
                         "type": "string",
-                        "description": "Grounded inverting-input resistor R1 for non_inverting_opamp (e.g. '10k')."
+                        "description": "Grounded inverting-input resistor R1 for non_inverting_opamp (e.g. '10k'). Alias: 'r1'."
+                    },
+                    "r1": {
+                        "type": "string",
+                        "description": "Alias for 'input_resistance' on non_inverting_opamp (matching CLI --r1)."
                     },
                     "input_voltage": {
                         "type": "string",
@@ -1013,6 +1021,12 @@ fn share_link_command(arguments: &Value) -> Value {
 }
 
 fn tool_command(arguments: &Value) -> Result<CliOutput, String> {
+    let args = tool_cli_args(arguments)?;
+    let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
+    run_cli(&refs, None)
+}
+
+fn tool_cli_args(arguments: &Value) -> Result<Vec<String>, String> {
     let tool = arguments
         .get("tool")
         .and_then(Value::as_str)
@@ -1054,7 +1068,9 @@ fn tool_command(arguments: &Value) -> Result<CliOutput, String> {
                     "cutoff",
                     "resistance",
                     "target_gain",
+                    "gain",
                     "input_resistance",
+                    "r1",
                     "input_voltage",
                     "supply_voltage",
                     "zener_voltage",
@@ -1097,7 +1113,9 @@ fn tool_command(arguments: &Value) -> Result<CliOutput, String> {
                     "lower",
                     "load",
                     "target_gain",
+                    "gain",
                     "input_resistance",
+                    "r1",
                     "input_voltage",
                     "supply_voltage",
                     "zener_voltage",
@@ -1140,16 +1158,40 @@ fn tool_command(arguments: &Value) -> Result<CliOutput, String> {
                         .into(),
                 );
             }
+            if arguments.get("target_gain").is_some_and(|v| !v.is_null())
+                && arguments.get("gain").is_some_and(|v| !v.is_null())
+            {
+                return Err(
+                    "provide either 'target_gain' or 'gain' for non_inverting_opamp, not both"
+                        .into(),
+                );
+            }
+            if arguments
+                .get("input_resistance")
+                .is_some_and(|v| !v.is_null())
+                && arguments.get("r1").is_some_and(|v| !v.is_null())
+            {
+                return Err(
+                    "provide either 'input_resistance' or 'r1' for non_inverting_opamp, not both"
+                        .into(),
+                );
+            }
             let target_gain = arguments
                 .get("target_gain")
+                .or_else(|| arguments.get("gain"))
                 .and_then(Value::as_str)
-                .ok_or_else(|| "non_inverting_opamp requires 'target_gain'".to_string())?;
+                .ok_or_else(|| {
+                    "non_inverting_opamp requires 'target_gain' (or 'gain')".to_string()
+                })?;
             let input_resistance = arguments
                 .get("input_resistance")
+                .or_else(|| arguments.get("r1"))
                 .or_else(|| arguments.get("lower"))
                 .or_else(|| arguments.get("resistance"))
                 .and_then(Value::as_str)
-                .ok_or_else(|| "non_inverting_opamp requires 'input_resistance'".to_string())?;
+                .ok_or_else(|| {
+                    "non_inverting_opamp requires 'input_resistance' (or 'r1')".to_string()
+                })?;
 
             args.push("non-inverting-opamp".to_string());
             args.push("--target-gain".to_string());
@@ -1180,7 +1222,9 @@ fn tool_command(arguments: &Value) -> Result<CliOutput, String> {
                     "lower",
                     "load",
                     "target_gain",
+                    "gain",
                     "input_resistance",
+                    "r1",
                     "supply_voltage",
                 ],
             )?;
@@ -1241,8 +1285,7 @@ fn tool_command(arguments: &Value) -> Result<CliOutput, String> {
         args.push("--force".to_string());
     }
 
-    let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
-    run_cli(&refs, None)
+    Ok(args)
 }
 
 fn study_plan_command(arguments: &Value) -> Result<CliOutput, String> {
@@ -1629,7 +1672,9 @@ mod tests {
             .expect("properties");
         for prop in [
             "target_gain",
+            "gain",
             "input_resistance",
+            "r1",
             "input_voltage",
             "supply_voltage",
             "zener_voltage",
@@ -1773,5 +1818,56 @@ simulate op\n";
         let prompt_text = prompt["messages"][0]["content"]["text"].as_str().unwrap();
         assert!(prompt_text.contains("kessetsu_share_link"));
         assert!(prompt_text.contains("https://kessetsu.com/#kessetsu=1"));
+    }
+
+    #[test]
+    fn kessetsu_tool_accepts_gain_and_r1_aliases_for_non_inverting_opamp() {
+        let args = tool_cli_args(&json!({
+            "tool": "non_inverting_opamp",
+            "gain": "10",
+            "r1": "10k"
+        }))
+        .expect("gain/r1 aliases should resolve");
+        assert_eq!(
+            args,
+            vec![
+                "tool",
+                "non-inverting-opamp",
+                "--target-gain",
+                "10",
+                "--input-resistance",
+                "10k",
+                "--values",
+                "e24",
+            ]
+        );
+
+        assert!(
+            tool_cli_args(&json!({
+                "tool": "non_inverting_opamp",
+                "target_gain": "10",
+                "gain": "5",
+                "r1": "10k"
+            }))
+            .is_err()
+        );
+
+        let rejected = handle_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 14,
+            "method": "tools/call",
+            "params": {
+                "name": "kessetsu_tool",
+                "arguments": {
+                    "tool": "divider",
+                    "vin": "5V",
+                    "target": "3.3V",
+                    "lower": "10k",
+                    "gain": "2"
+                }
+            }
+        }))
+        .unwrap();
+        assert_eq!(rejected["result"]["isError"], true);
     }
 }

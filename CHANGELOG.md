@@ -4,7 +4,9 @@ All notable changes are documented here. Kessetsu follows [Semantic Versioning](
 
 ## [Unreleased]
 
-Post-1.5.0 Web Hub UX enhancements, streamlined external device model workflows, and architectural code maintainability refactoring across web dialogs, CLI command modules, and SPICE import.
+## [1.6.0] - 2026-11-15
+
+Release 1.6.0 adds interactive schematic `ΔV`/`I`/`P` probing and `-10%`/`+10%` quick-tweak with auto-rerun, zero-click auto-simulate on load, a redesigned `/install/` MCP vs CLI onboarding experience, clickable `kess share` / `kessetsu_share_link` URLs, `non-inverting-opamp` and `zener-regulator` calculators, differential `V(A, B)` probes, `freq`/`period`/`duty_cycle`/`thd`/`initial`/flexible `pwl` support, 13 built-in semiconductor and op-amp models, diode pin aliases, and unified multi-step `WorkflowDialog` wizards.
 
 ### Web Hub UX and workflow wizards
 
@@ -16,6 +18,9 @@ Post-1.5.0 Web Hub UX enhancements, streamlined external device model workflows,
 - **Automated bundled model binding and local model management:**
   - Automatically bind bundled `.lib` reference models in memory when selecting built-in external-device examples (`External Comparator`, `Threshold Memristor`) from **File → Examples**, enabling immediate out-of-the-box compilation and simulation.
   - Streamline local external subcircuit model management and file binding in **View → Circuit details…** and the inline **Choose model files…** action.
+- **Zero-click auto-simulate on load and `/install/` MCP vs CLI redesign:**
+  - Automatically run simulation when the Web Hub opens with an analyzable circuit, switches examples, imports a SPICE netlist, or opens a shared URL (unless required external local model files are not yet attached).
+  - Redesign `/install/` with dedicated **MCP (AI Agents)** and **CLI (Terminal & CI)** onboarding tabs and client-specific configuration guides.
 - **Workspace layout and responsive polish:**
   - Replace simulation onboarding placeholder steps with a direct one-click simulation empty state.
   - Introduce viewport-aware overflow scrolling for the **File → Examples** submenu to prevent clipping on constrained displays.

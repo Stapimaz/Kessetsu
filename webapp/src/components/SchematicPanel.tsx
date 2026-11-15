@@ -8,9 +8,12 @@ import {
   findComponentCurrentSignalKey,
   findComponentPinNets,
   findLiteralComponentValueSpan,
+  formatEngineering,
   formatKessQuantity,
+  isQuickTweakQuantityValid,
   parseKessQuantity,
   summarizeAcSeries,
+  summarizeComponentSimulation,
   summarizeWaveformSeries,
 } from '../simulation/plot';
 import type { BrowserEvaluation } from '../simulation/types';
@@ -30,18 +33,6 @@ interface Props {
   onResolveSource(): void;
   evaluation?: BrowserEvaluation | null;
   onRevealSymbol?(symbol: string): void;
-}
-
-function formatEngineering(value: number, unit = ''): string {
-  if (!Number.isFinite(value)) return '—';
-  if (unit.startsWith('dB') || unit === '°') return `${Number(value.toPrecision(4))} ${unit}`;
-  if (value === 0) return `0 ${unit}`.trim();
-  const absolute = Math.abs(value);
-  const scales = [
-    [1e9, 'G'], [1e6, 'M'], [1e3, 'k'], [1, ''], [1e-3, 'm'], [1e-6, 'µ'], [1e-9, 'n'], [1e-12, 'p'],
-  ] as const;
-  const [factor, prefix] = scales.find(([factor]) => absolute >= factor) ?? scales.at(-1)!;
-  return `${(value / factor).toPrecision(4)} ${prefix}${unit}`.trim();
 }
 
 type Selection =
@@ -284,98 +275,16 @@ export function SchematicPanel({
 
   const componentSimulationSummary = useMemo(() => {
     if (!selectedComponent || !evaluation) return null;
-    const metrics: Array<{ label: string; value: string }> = [];
     const irComp = irComponents.get(selectedComponent.id);
     const kindName = componentKindName(irComp?.kind ?? '');
-    const pins = findComponentPinNets(selectedComponent.id, kindName, schematic, circuitIr);
-
-    const opRaw = evaluation.simulation.datasets.find((d) => d.data.kind === 'operating_point')?.data;
-    const tranRaw = evaluation.simulation.datasets.find((d) => d.data.kind === 'transient')?.data;
-
-    if (opRaw?.kind === 'operating_point') {
-      const augOp = augmentDatasetWithDerivedSignals(opRaw, circuitIr, schematic);
-      if (augOp.kind === 'operating_point') {
-        const opKeys = Object.keys(augOp.values);
-        const readNetV = (netName: string): number | null => {
-          const lower = netName.toLowerCase();
-          if (lower === '0' || lower === 'gnd') return 0;
-          const hit = opKeys.find((k) => k.toLowerCase() === lower);
-          return hit !== undefined ? augOp.values[hit] : null;
-        };
-        if (pins) {
-          const va = readNetV(pins.posNet);
-          const vb = readNetV(pins.negNet);
-          if (va !== null && vb !== null) {
-            metrics.push({ label: 'ΔV', value: formatEngineering(va - vb, 'V') });
-          }
-        }
-        const currKey = findComponentCurrentSignalKey(selectedComponent.id, kindName, opKeys);
-        if (currKey) {
-          metrics.push({ label: 'I', value: formatEngineering(augOp.values[currKey], 'A') });
-        }
-        const powerKey = opKeys.find((k) => k.toLowerCase() === `p(${selectedComponent.id.toLowerCase()})`);
-        if (powerKey) {
-          metrics.push({ label: 'P', value: formatEngineering(augOp.values[powerKey], 'W') });
-        }
-        for (const pin of selectedComponent.pins) {
-          const net = nets.find((candidate) => candidate.id === pin.net);
-          if (!net) continue;
-          const key = net.name.toLocaleLowerCase('en-US');
-          if (net.kind === 'ground' || key === 'gnd' || key === '0') {
-            metrics.push({ label: `V(${pin.name})`, value: '0 V' });
-          } else {
-            const v = readNetV(net.name);
-            if (v !== null) metrics.push({ label: `V(${pin.name})`, value: formatEngineering(v, 'V') });
-          }
-        }
-      }
-    } else if (tranRaw?.kind === 'transient') {
-      const augTran = augmentDatasetWithDerivedSignals(tranRaw, circuitIr, schematic);
-      if (augTran.kind === 'transient') {
-        const tranKeys = Object.keys(augTran.signals);
-        const readNetSeries = (netName: string): number[] | null => {
-          const lower = netName.toLowerCase();
-          if (lower === '0' || lower === 'gnd') return new Array<number>(augTran.axis.values.length).fill(0);
-          const hit = tranKeys.find((k) => k.toLowerCase() === lower);
-          return hit ? augTran.signals[hit] : null;
-        };
-        if (pins) {
-          const sa = readNetSeries(pins.posNet);
-          const sb = readNetSeries(pins.negNet);
-          if (sa && sb && sa.length === sb.length) {
-            const diff = sa.map((v, idx) => v - sb[idx]);
-            const summary = summarizeWaveformSeries(augTran.axis.values, diff);
-            if (summary) metrics.push({ label: 'ΔV (RMS)', value: formatEngineering(summary.rms, 'V') });
-          }
-        }
-        const currKey = findComponentCurrentSignalKey(selectedComponent.id, kindName, tranKeys);
-        if (currKey) {
-          const summary = summarizeWaveformSeries(augTran.axis.values, augTran.signals[currKey]);
-          if (summary) metrics.push({ label: 'I (RMS)', value: formatEngineering(summary.rms, 'A') });
-        }
-        const powerKey = tranKeys.find((k) => k.toLowerCase() === `p(${selectedComponent.id.toLowerCase()})`);
-        if (powerKey) {
-          const summary = summarizeWaveformSeries(augTran.axis.values, augTran.signals[powerKey]);
-          if (summary) metrics.push({ label: 'P (avg)', value: formatEngineering(summary.average, 'W') });
-        }
-      }
-    }
-
-    const stresses = evaluation.part_stress.results.filter(
-      (r) => r.component === selectedComponent.id || r.component === selectedComponent.reference,
-    );
-    for (const stress of stresses) {
-      if (stress.actual != null) {
-        const unitMap: Record<string, string> = { volt: 'V', ampere: 'A', watt: 'W' };
-        const unit = unitMap[stress.limit.unit.toLowerCase()] ?? stress.limit.unit;
-        const util = stress.utilization_percent != null ? ` (${stress.utilization_percent.toPrecision(3)}%)` : '';
-        metrics.push({
-          label: stress.rating.replaceAll('_', ' '),
-          value: `${formatEngineering(stress.actual, unit)}${util}`,
-        });
-      }
-    }
-    return metrics.length > 0 ? metrics : null;
+    return summarizeComponentSimulation({
+      component: selectedComponent,
+      kindName,
+      nets,
+      evaluation,
+      schematic,
+      circuitIr,
+    });
   }, [circuitIr, evaluation, irComponents, nets, schematic, selectedComponent]);
 
   const plottableComponentSignals = useMemo(() => {
@@ -445,18 +354,10 @@ export function SchematicPanel({
   }, [evaluation, selectedNet]);
 
   const parsedDraft = useMemo(() => parseKessQuantity(tweakDraft), [tweakDraft]);
-  const isDraftValid = Boolean(
-    literalSpan
-    && parsedDraft
-    && (
-      literalSpan.kind === 'source'
-      || literalSpan.kind === 'current_source'
-      || parsedDraft.value > 0
-    ),
-  );
+  const isDraftValid = Boolean(literalSpan && isQuickTweakQuantityValid(literalSpan.kind, parsedDraft));
 
   const applyScaledTweak = (multiplier: number) => {
-    if (!literalSpan || !onTweakCode || !code) return;
+    if (!literalSpan || literalSpan.value === 0 || !onTweakCode || !code) return;
     const nextValue = literalSpan.value * multiplier;
     if (!Number.isFinite(nextValue)) return;
     if (
@@ -746,7 +647,7 @@ export function SchematicPanel({
               <div className="inspector-tweak-section">
                 <h4><SlidersHorizontal size={10} /> Quick tweak</h4>
                 <div className="inspector-tweak-bar" role="group" aria-label="Quick value tweak">
-                  <button type="button" className="inspector-tweak-step" onClick={() => applyScaledTweak(0.9)}>-10%</button>
+                  <button type="button" className="inspector-tweak-step" disabled={literalSpan.value === 0} onClick={() => applyScaledTweak(0.9)}>-10%</button>
                   <input
                     type="text"
                     className={`inspector-tweak-input${isDraftValid ? '' : ' is-invalid'}`}
@@ -760,7 +661,7 @@ export function SchematicPanel({
                       }
                     }}
                   />
-                  <button type="button" className="inspector-tweak-step" onClick={() => applyScaledTweak(1.1)}>+10%</button>
+                  <button type="button" className="inspector-tweak-step" disabled={literalSpan.value === 0} onClick={() => applyScaledTweak(1.1)}>+10%</button>
                   <button type="button" className="inspector-tweak-apply" disabled={!isDraftValid} onClick={applyDraftTweak}>Apply</button>
                 </div>
               </div>

@@ -42,8 +42,9 @@ pub enum ToolRequest {
         alias = "opamp-gain"
     )]
     NonInvertingOpamp {
+        #[serde(alias = "gain")]
         target_gain: String,
-        #[serde(alias = "lower_resistance", alias = "resistance")]
+        #[serde(alias = "r1", alias = "lower_resistance", alias = "resistance")]
         input_resistance: String,
         #[serde(default)]
         input_voltage: Option<String>,

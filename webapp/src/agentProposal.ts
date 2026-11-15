@@ -82,7 +82,7 @@ export function summarizeProposalChanges(diff: DiffLine[]): ProposalChangeSummar
     components: { added: 0, removed: 0 },
     connections: { added: 0, removed: 0 },
   };
-  const components = /^(resistor|capacitor|inductor|diode|transistor|mosfet|opamp|device)\b/i;
+  const components = /^(resistor|capacitor|inductor|diode|transistor|bjt|mosfet|jfet|opamp|switch|vcvs|vccs|ccvs|cccs|couple|device)\b/i;
   for (const line of diff) {
     if (line.kind === 'same') continue;
     const count = line.kind === 'add' ? 'added' : 'removed';

@@ -45,7 +45,7 @@ const ResearchDataDialog = lazy(async () => {
 export function WorkspaceApp() {
   const {
     state, setCode, tweakCode, documentRevision, loadExample, newDocument, openDocument, importSpiceDocument, applyConvertedSpice, markSaved, saveBrowserDocument, renameDocument,
-    run, cancel, createExport, share,
+    run, cancel, createExport, share, shareError, clearShareError,
     captureDocumentRevision, isCurrentDocument, isCurrentDocumentRevision,
     modelRequirements, boundModelResources, bindModelFile, bindBundledModel, clearModelFiles,
     modelResources,
@@ -491,6 +491,9 @@ export function WorkspaceApp() {
                   <button role="menuitem" aria-label={examples.gain.label} onClick={() => selectExample('gain')}>
                     <strong>{examples.gain.label}</strong><small>{examples.gain.description}</small>
                   </button>
+                  <button role="menuitem" aria-label={examples.lm358_pwm_led.label} onClick={() => selectExample('lm358_pwm_led')}>
+                    <strong>{examples.lm358_pwm_led.label}</strong><small>{examples.lm358_pwm_led.description}</small>
+                  </button>
                   <button role="menuitem" aria-label={examples.current_sense.label} onClick={() => selectExample('current_sense')}>
                     <strong>{examples.current_sense.label}</strong><small>{examples.current_sense.description}</small>
                   </button>
@@ -646,6 +649,10 @@ export function WorkspaceApp() {
         <button className="secondary-button" disabled={documentSaving} onClick={() => void saveDocument(true)}>Save a .kess copy</button>
       </div>}
       {documentError && <div className="global-error" role="alert">{documentError}</div>}
+      {shareError && <div className="global-error" role="alert">
+        <span>{shareError}</span>{' '}
+        <button className="secondary-button" onClick={clearShareError}>Dismiss</button>
+      </div>}
       {importFailure && <div className="global-error import-failure" role="alert">
         <strong>SPICE import stopped: {importFailure.filename}</strong>
         <p>{importFailure.error.message} — the import did not change your open circuit or save destination.</p>
