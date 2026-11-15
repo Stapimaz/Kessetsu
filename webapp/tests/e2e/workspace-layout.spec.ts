@@ -34,7 +34,6 @@ test('defaults to split view and switches cleanly between schematic, simulation,
   await page.getByRole('button', { name: 'Focus simulation view' }).click();
   await expect(page.locator('.resizable-workspace')).toHaveAttribute('data-canvas-mode', 'results');
   await expect(page.getByLabel('Circuit simulation')).toBeVisible();
-  await page.getByRole('button', { name: 'Run simulation', exact: true }).click();
   await expect(page.getByTestId('simulation-summary')).toHaveAttribute('data-state', 'succeeded', { timeout: 30_000 });
   const circuit = await page.locator('.view-lines').innerText();
 

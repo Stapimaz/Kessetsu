@@ -1427,11 +1427,21 @@ fn opamp_subcircuit_model_with_options(
     slew_rate: Option<f64>,
     rout: Option<f64>,
 ) -> ModelRef {
-    let rpole = 1.0e6;
+    // Preserve the unbuffered 1-ohm V1 linear macromodel for KESSETSU_OPAMP_V1 and
+    // basic linear user declarations (used as the frozen reference by U2/U5 and legacy
+    // SPICE tests), avoiding a 1 MOhm open-loop output impedance when rout is absent.
+    let linear_v1_template =
+        vdrop_high == 0.0 && vdrop_low == 0.0 && slew_rate.is_none() && rout.is_none();
+    let rpole = if linear_v1_template || rout.is_none() {
+        1.0
+    } else {
+        1.0e6
+    };
     let pole_capacitance = gain / (std::f64::consts::TAU * bandwidth * rpole);
     let pole_node = if rout.is_some() { "n_pole" } else { "out" };
     let gain_str = format_spice_number(gain);
     let pole_cap_str = format_spice_number(pole_capacitance);
+    let ref_node = if linear_v1_template { "0" } else { "mid" };
 
     let gain_stage = if let Some(sr) = slew_rate {
         let slew_drive = sr * pole_capacitance * rpole;
@@ -1440,10 +1450,12 @@ fn opamp_subcircuit_model_with_options(
             "BGAIN n_int mid V=(v({pole_node})-v(mid))+{slew_drive_str}*tanh(({gain_str}*(v(in_p)-v(in_n))-(v({pole_node})-v(mid)))/{slew_drive_str})"
         )
     } else {
-        format!("EGAIN n_int mid in_p in_n {gain_str}")
+        format!("EGAIN n_int {ref_node} in_p in_n {gain_str}")
     };
 
-    let pole_stage = format!("RPOLE n_int {pole_node} 1e6\nCPOLE {pole_node} mid {pole_cap_str}");
+    let rpole_str = if rpole == 1.0 { "1" } else { "1e6" };
+    let pole_stage =
+        format!("RPOLE n_int {pole_node} {rpole_str}\nCPOLE {pole_node} {ref_node} {pole_cap_str}");
 
     let clamp_stage = {
         let min_span = vdrop_high + vdrop_low;
@@ -1467,8 +1479,9 @@ fn opamp_subcircuit_model_with_options(
         } else {
             "BRAIL_P vcc_lim 0 V=v(vcc)>v(vee)?v(vcc):0.5*(v(vcc)+v(vee))\nBRAIL_N vee_lim 0 V=v(vcc)>v(vee)?v(vee):0.5*(v(vcc)+v(vee))".to_string()
         };
+        let dclamp_n = if linear_v1_template { "0.001" } else { "0.01" };
         format!(
-            "DCLP_P {pole_node} vcc_lim DCLAMP\nDCLP_N vee_lim {pole_node} DCLAMP\n{rails}\n.model DCLAMP D (Is=1e-15 N=0.01)"
+            "DCLP_P {pole_node} vcc_lim DCLAMP\nDCLP_N vee_lim {pole_node} DCLAMP\n{rails}\n.model DCLAMP D (Is=1e-15 N={dclamp_n})"
         )
     };
 
@@ -1479,8 +1492,14 @@ fn opamp_subcircuit_model_with_options(
         String::new()
     };
 
+    let mid_stage = if linear_v1_template {
+        String::new()
+    } else {
+        "BMID mid 0 V=0.5*(v(vcc)+v(vee))\n".to_string()
+    };
+
     let directive = format!(
-        ".subckt {name} in_p in_n vcc vee out\nBMID mid 0 V=0.5*(v(vcc)+v(vee))\n{gain_stage}\n{pole_stage}\n{clamp_stage}{rout_stage}\nRLOAD out 0 1e9\n.ends {name}"
+        ".subckt {name} in_p in_n vcc vee out\n{mid_stage}{gain_stage}\n{pole_stage}\n{clamp_stage}{rout_stage}\nRLOAD out 0 1e9\n.ends {name}"
     );
 
     model_ref(

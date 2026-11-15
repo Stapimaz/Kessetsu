@@ -15,7 +15,6 @@ test('source and analysis parameters match native simulation and preserve fixed 
   await page.goto(`/${fragment}`);
   await expect(page.getByTestId('compile-success')).toBeVisible({ timeout: 15_000 });
   await page.getByRole('button', { name: 'Focus simulation view' }).click();
-  await page.getByRole('button', { name: 'Run simulation', exact: true }).click();
   const summary = page.getByTestId('simulation-summary');
   await expect(summary).toHaveAttribute('data-state', 'succeeded', { timeout: 60_000 });
   await expect(summary.locator('.assertion-pass')).toHaveCount(4);

@@ -37,7 +37,6 @@ test('keeps gain-stage and power-amplifier native/browser decisions, SPICE and m
       await expect(page.getByTestId('model-manifest')).toHaveAttribute('data-manifest', new RegExp(model));
     }
 
-    await page.getByRole('button', { name: 'Run' }).click();
     const summary = page.getByTestId('simulation-summary');
     await expect(summary).toHaveAttribute('data-state', 'succeeded', { timeout: 180_000 });
     await expect(summary.locator('.assertion-pass')).toHaveCount(benchmark.assertions);

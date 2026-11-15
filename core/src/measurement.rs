@@ -2232,7 +2232,7 @@ mod tests {
         )
     }
 
-    fn pulse_wave(
+    struct PulseWave {
         start: f64,
         stop: f64,
         samples: usize,
@@ -2241,7 +2241,19 @@ mod tests {
         phase_offset: f64,
         low: f64,
         high: f64,
-    ) -> (Vec<f64>, Vec<f64>) {
+    }
+
+    fn pulse_wave(spec: PulseWave) -> (Vec<f64>, Vec<f64>) {
+        let PulseWave {
+            start,
+            stop,
+            samples,
+            period,
+            duty,
+            phase_offset,
+            low,
+            high,
+        } = spec;
         let mut axis = Vec::with_capacity(samples);
         let mut values = Vec::with_capacity(samples);
         let edge = period * 0.002;
@@ -2447,24 +2459,69 @@ mod tests {
     fn duty_cycle_and_duty_measure_pulses_and_windows() {
         let circuit = test_circuit("");
 
-        let (axis50, vals50) = pulse_wave(0.0, 5e-3, 5001, 1e-3, 0.50, 0.0, 0.0, 5.0);
+        let (axis50, vals50) = pulse_wave(PulseWave {
+            start: 0.0,
+            stop: 5e-3,
+            samples: 5001,
+            period: 1e-3,
+            duty: 0.50,
+            phase_offset: 0.0,
+            low: 0.0,
+            high: 5.0,
+        });
         let sim50 = tran_sim(axis50, BTreeMap::from([("out".to_string(), vals50)]));
         assert!((eval("duty_cycle", "V(OUT)", &circuit, &sim50).unwrap() - 50.0).abs() < 0.2);
         assert!((eval("duty", "V(OUT)", &circuit, &sim50).unwrap() - 50.0).abs() < 0.2);
 
-        let (axis25, vals25) = pulse_wave(0.0, 5e-3, 5001, 1e-3, 0.25, 0.1e-3, 0.0, 3.3);
+        let (axis25, vals25) = pulse_wave(PulseWave {
+            start: 0.0,
+            stop: 5e-3,
+            samples: 5001,
+            period: 1e-3,
+            duty: 0.25,
+            phase_offset: 0.1e-3,
+            low: 0.0,
+            high: 3.3,
+        });
         let sim25 = tran_sim(axis25, BTreeMap::from([("out".to_string(), vals25)]));
         assert!((eval("duty_cycle", "V(OUT)", &circuit, &sim25).unwrap() - 25.0).abs() < 0.2);
         assert!((eval("duty", "V(OUT), 1ms, 5ms", &circuit, &sim25).unwrap() - 25.0).abs() < 0.2);
 
         // Waveform starting mid-high (partial pulse before first rising crossing) should still report 30%.
-        let (axis30, vals30) = pulse_wave(0.0, 5e-3, 5001, 1e-3, 0.30, 0.15e-3, 0.0, 5.0);
+        let (axis30, vals30) = pulse_wave(PulseWave {
+            start: 0.0,
+            stop: 5e-3,
+            samples: 5001,
+            period: 1e-3,
+            duty: 0.30,
+            phase_offset: 0.15e-3,
+            low: 0.0,
+            high: 5.0,
+        });
         assert!(vals30[0] > 4.0);
         let sim30 = tran_sim(axis30, BTreeMap::from([("out".to_string(), vals30)]));
         assert!((eval("duty_cycle", "V(OUT)", &circuit, &sim30).unwrap() - 30.0).abs() < 0.2);
 
-        let (axis_mix, mut vals_mix) = pulse_wave(0.0, 10e-3, 10001, 1e-3, 0.25, 0.0, 0.0, 5.0);
-        let (_, vals_late) = pulse_wave(0.0, 10e-3, 10001, 1e-3, 0.75, 0.0, 0.0, 5.0);
+        let (axis_mix, mut vals_mix) = pulse_wave(PulseWave {
+            start: 0.0,
+            stop: 10e-3,
+            samples: 10001,
+            period: 1e-3,
+            duty: 0.25,
+            phase_offset: 0.0,
+            low: 0.0,
+            high: 5.0,
+        });
+        let (_, vals_late) = pulse_wave(PulseWave {
+            start: 0.0,
+            stop: 10e-3,
+            samples: 10001,
+            period: 1e-3,
+            duty: 0.75,
+            phase_offset: 0.0,
+            low: 0.0,
+            high: 5.0,
+        });
         for (i, &t) in axis_mix.iter().enumerate() {
             if t >= 4e-3 {
                 vals_mix[i] = vals_late[i];

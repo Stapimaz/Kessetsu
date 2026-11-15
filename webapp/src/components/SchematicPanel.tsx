@@ -590,6 +590,8 @@ export function SchematicPanel({
     </button>;
   };
 
+  const svgMarkup = useMemo(() => ({ __html: svg }), [svg]);
+
   return (
     <section className="workspace-panel schematic-panel" aria-label="Canonical schematic">
       <PanelHeader controls={panelControls} icon={<CircuitBoard size={15} />} title="Schematic">
@@ -705,7 +707,7 @@ export function SchematicPanel({
             data-selected-component={selection?.type === 'component' ? selection.id : undefined}
             data-selected-net={selection?.type === 'net' ? selection.id : undefined}
             style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
-            dangerouslySetInnerHTML={{ __html: svg }}
+            dangerouslySetInnerHTML={svgMarkup}
           />
         ) : <div className="empty-state source-recovery" onPointerDown={(event) => event.stopPropagation()}>
           <strong>{sourceFeedback?.title ?? 'Waiting for a valid circuit'}</strong>

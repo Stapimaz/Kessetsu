@@ -17,7 +17,6 @@ test('opens the final power-amplifier source from a versioned URL and runs the f
   await expect(page.locator('.view-lines')).toContainText('Four-stage amplifier');
   await page.getByRole('button', { name: 'Split schematic and simulation' }).click();
 
-  await page.getByRole('button', { name: 'Run' }).click();
   const summary = page.getByTestId('simulation-summary');
   await expect(summary).toHaveAttribute('data-state', 'succeeded', { timeout: 100_000 });
   await expect(summary.locator('.assertion-pass')).toHaveCount(12);

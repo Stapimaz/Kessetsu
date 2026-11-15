@@ -39,7 +39,6 @@ test('runs the canonical RC filter in a worker and evaluates Core assertions', a
   await expect(page.locator('.view-lines')).toContainText('Canonical first-order RC low-pass');
   await page.getByRole('button', { name: 'Focus simulation view' }).click();
 
-  await page.getByRole('button', { name: 'Run' }).click();
   const summary = page.getByTestId('simulation-summary');
   await expect(summary).toHaveAttribute('data-state', 'succeeded', { timeout: 100_000 });
   await expect(summary).toContainText('ngspice-45.2+');

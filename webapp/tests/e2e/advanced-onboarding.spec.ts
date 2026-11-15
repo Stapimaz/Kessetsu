@@ -4,6 +4,7 @@ test('keyboard menus and a complete study preserve the newcomer circuit', async 
   test.setTimeout(60_000);
   await page.goto('/#editor');
   await expect(page.getByTestId('compile-success')).toBeVisible();
+  await expect(page.getByTestId('simulation-summary')).toHaveAttribute('data-state', 'succeeded', { timeout: 30_000 });
   const original = await page.locator('.view-lines').innerText();
   const file = page.getByRole('button', { name: 'File', exact: true });
   await file.focus(); await page.keyboard.press('ArrowDown');
@@ -23,6 +24,7 @@ test('keyboard menus and a complete study preserve the newcomer circuit', async 
   expect(await dialog.evaluate(element => element.contains(document.activeElement))).toBeTruthy();
   await page.keyboard.press('Tab');
   expect(await dialog.evaluate(element => element.contains(document.activeElement))).toBeTruthy();
+  await expect(page.getByTestId('simulation-summary')).toHaveAttribute('data-state', 'succeeded', { timeout: 30_000 });
   const initialState = await page.getByTestId('simulation-summary').getAttribute('data-state');
   await page.keyboard.press('Control+Enter');
   await expect(page.getByTestId('simulation-summary')).toHaveAttribute('data-state', initialState!);
@@ -89,7 +91,6 @@ test('cold informational pages avoid engineering modules; first editor and simul
   await page.getByRole('button', { name: 'Focus simulation view' }).click();
   timings.editor_ready_ms = await page.evaluate(() => performance.now());
   const start = await page.evaluate(() => performance.now());
-  await page.getByRole('button', { name: 'Run simulation', exact: true }).click();
   await expect(page.getByTestId('simulation-summary')).toHaveAttribute('data-state', 'succeeded', { timeout: 25_000 });
   timings.first_simulation_ms = await page.evaluate(() => performance.now()) - start;
   await expect(page.locator('.assertion-pass')).toHaveCount(5);

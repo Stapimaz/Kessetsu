@@ -171,7 +171,15 @@ export function useKessetsuWorkspace() {
             // Local storage is an optional recovery layer; the editor remains usable without it.
           }
         }
+        const initialCode = shared?.source ?? toolCircuit?.source ?? draft?.source ?? initialState.code;
+        let hasLocalModelRequirements = false;
+        try {
+          hasLocalModelRequirements = (local_model_requirements(initialCode) as LocalModelRequirement[]).length > 0;
+        } catch {
+          hasLocalModelRequirements = false;
+        }
         sharedEnvelopeRef.current = shared;
+        pendingAutoRerunRef.current = !hasLocalModelRequirements;
         setState((current) => {
           const source = shared?.source ?? toolCircuit?.source ?? draft?.source ?? current.code;
           const exampleName = Object.values(examples).find((example) => example.source === source)?.label ?? null;
@@ -346,7 +354,7 @@ export function useKessetsuWorkspace() {
   }, [leaveSharedUrl]);
 
   const loadExample = useCallback((id: ExampleId) => {
-    pendingAutoRerunRef.current = false;
+    pendingAutoRerunRef.current = true;
     beginDocument();
     revisionRef.current += 1;
     if (id === 'comparator') {
@@ -450,7 +458,7 @@ export function useKessetsuWorkspace() {
   }, [beginDocument, captureDocumentRevision, isCurrentDocumentRevision, leaveSharedUrl]);
 
   const applyConvertedSpice = useCallback((kessSource: string, name: string | null = null) => {
-    pendingAutoRerunRef.current = false;
+    pendingAutoRerunRef.current = true;
     beginDocument();
     revisionRef.current += 1;
     setModelResources({});
@@ -524,7 +532,7 @@ export function useKessetsuWorkspace() {
       evaluation: preserveEvaluation ? current.evaluation : null,
       simulationState: 'running',
       hasSimulationAttempt: true,
-      simulationMessage: preserveEvaluation ? 'Updating simulation…' : 'Preparing simulation…',
+      simulationMessage: preserveEvaluation && current.evaluation ? 'Updating simulation…' : 'Preparing simulation…',
     }));
     try {
       const plan = prepare_browser_simulation_with_resources(state.code, modelResources) as BrowserSimulationPlan;

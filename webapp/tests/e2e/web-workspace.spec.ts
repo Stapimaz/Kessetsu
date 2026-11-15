@@ -16,8 +16,8 @@ test('supports edit, inline diagnostic navigation, fix, simulation, assertion an
   await expect(page.getByTestId('compile-success')).toBeVisible();
   await expect(page.getByTestId('compile-status')).toHaveText('Source valid');
   await page.getByRole('button', { name: 'Split schematic and simulation' }).click();
-  await expect(page.getByLabel('Circuit simulation')).toContainText('Run the simulation to inspect plots and requirements.');
-  await expect(page.getByLabel('Circuit simulation').getByRole('button', { name: 'Simulate circuit', exact: true })).toBeVisible();
+  await expect(page.getByTestId('simulation-summary')).toHaveAttribute('data-state', 'succeeded', { timeout: 100_000 });
+  await expect(page.getByTestId('simulation-summary').locator('.assertion-pass')).toHaveCount(5);
   await page.getByRole('button', { name: 'File', exact: true }).click();
   await page.getByRole('menuitem', { name: 'New circuit', exact: true }).click();
   await expect(page.getByTestId('compile-success')).toBeVisible();
@@ -46,7 +46,6 @@ test('supports edit, inline diagnostic navigation, fix, simulation, assertion an
   await expect(page.getByTestId('compile-success')).toBeVisible();
   await expect(page.getByTestId('canonical-schematic')).toHaveAttribute('data-quality', 'pass');
 
-  await page.getByRole('button', { name: 'Run' }).click();
   const results = page.getByTestId('simulation-summary');
   await expect(results).toHaveAttribute('data-state', 'succeeded', { timeout: 100_000 });
   await expect(results.locator('.assertion-pass')).toHaveCount(5);
@@ -149,6 +148,7 @@ test('exposes keyboard controls and a usable mobile workspace', async ({ page })
   await page.keyboard.press('ArrowRight');
   await page.getByRole('button', { name: 'Split schematic and simulation' }).click();
   await expect(page.getByLabel('Circuit simulation')).toBeVisible();
+  await expect(page.getByTestId('simulation-summary')).toHaveAttribute('data-state', 'succeeded', { timeout: 60_000 });
   await expect(page.getByRole('button', { name: 'Run' })).toBeEnabled();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect(page.getByRole('button', { name: /theme/i })).toHaveCount(0);

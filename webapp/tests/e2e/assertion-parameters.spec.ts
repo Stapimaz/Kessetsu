@@ -14,7 +14,6 @@ test('typed assertion times, frequency and threshold match native and retain fix
   await page.getByRole('button', { name: 'Focus simulation view' }).click();
   const run = page.getByRole('button', { name: 'Run simulation', exact: true });
   const summary = page.getByTestId('simulation-summary');
-  await run.click();
   await expect(summary).toHaveAttribute('data-state', 'succeeded', { timeout: 60_000 });
   await expect(summary.locator('.assertion-pass')).toHaveCount(4);
   for (const assertion of native.assertions.assertions) {
